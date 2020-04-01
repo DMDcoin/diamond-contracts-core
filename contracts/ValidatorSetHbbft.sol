@@ -368,7 +368,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     }
 
     /// @dev Returns a boolean flag indicating the change is due to a new staking epoch
-    function isForNewEpoch() public view returns(bool) {
+    function forNewEpoch() external view returns(bool) {
         return _forNewEpoch;
     }
 
