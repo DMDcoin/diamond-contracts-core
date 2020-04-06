@@ -732,9 +732,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns the future block number until which a validator is banned.
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns(uint256) {
-        uint256 blocksUntilEnd = stakingContract.stakingEpochEndBlock() - _getCurrentBlockNumber();
+        uint256 blocksUntilEnd = stakingContract.stakingFixedEpochEndBlock() - _getCurrentBlockNumber();
         // ~90 days, at least 12 full staking epochs (for 5 seconds block)
-        return _getCurrentBlockNumber() + 12 * stakingContract.stakingEpochDuration() + blocksUntilEnd;
+        return _getCurrentBlockNumber() + 12 * stakingContract.stakingFixedEpochDuration() + blocksUntilEnd;
     }
 
     /// @dev Returns the current block number. Needed mostly for unit tests.

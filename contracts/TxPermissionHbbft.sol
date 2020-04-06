@@ -221,7 +221,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// staking epoch: the block gas limit is temporarily reduced for the latest block of the epoch.
     function blockGasLimit() public view returns(uint256) {
         address stakingContract = validatorSetContract.stakingContract();
-        uint256 stakingEpochEndBlock = IStakingHbbft(stakingContract).stakingEpochEndBlock();
+        uint256 stakingEpochEndBlock = IStakingHbbft(stakingContract).stakingFixedEpochEndBlock();
         if (block.number == stakingEpochEndBlock - 1 || block.number == stakingEpochEndBlock) {
             return BLOCK_GAS_LIMIT_REDUCED;
         }
