@@ -218,10 +218,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Called by the validator's node when producing and closing a block,
     /// see https://wiki.parity.io/Block-Reward-Contract.html.
-    /// This function performs all of the automatic operations needed for controlling secrets revealing by validators,
-    /// accumulating block producing statistics, starting a new staking epoch, snapshotting staking amounts
-    /// for the upcoming staking epoch, rewards distributing at the end of a staking epoch, and minting
-    /// native coins needed for the `erc-to-native` bridge.
+    /// This function performs all of the automatic operations needed for accumulating block producing statistics,
+    /// starting a new staking epoch, snapshotting staking amounts for the upcoming staking epoch,
+    /// rewards distributing at the end of a staking epoch, 
+    /// and minting native coins needed for the `erc-to-native` bridge.
     function reward(address[] calldata benefactors, uint16[] calldata kind)
         external
         onlySystem
@@ -236,10 +236,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             return (new address[](0), new uint256[](0));
         }
 
-        // Check the current validators at the end of each collection round whether
-        // they revealed their secrets, and remove a validator as a malicious if needed
-        // IRandomHbbft(validatorSetContract.randomContract()).onFinishCollectRound();
-
         // Initialize the extra receivers queue
         if (!_queueERInitialized) {
             _queueERFirst = 1;
@@ -250,7 +246,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 bridgeQueueLimit = 100;
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         uint256 stakingEpoch = stakingContract.stakingEpoch();
-        uint256 stakingEpochEndBlock = stakingContract.stakingEpochEndBlock();
+        uint256 stakingFixedEpochEndBlock = stakingContract.stakingFixedEpochEndBlock();
         uint256 nativeTotalRewardAmount = 0;
 
         if (validatorSetContract.validatorSetApplyBlock() != 0) {
@@ -262,27 +258,27 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             }
         }
 
-        if (_getCurrentBlockNumber() == stakingEpochEndBlock) {
+        if (_getCurrentBlockNumber() == stakingFixedEpochEndBlock) {
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(
                     stakingContract,
                     stakingEpoch,
-                    stakingEpochEndBlock
+                    stakingFixedEpochEndBlock
                 );
             }
 
-            // Choose new validators
-            validatorSetContract.newValidatorSet();
 
-            // Snapshot total amounts staked into the pools
+             // Snapshot total amounts staked into the pools
             uint256 i;
             uint256 nextStakingEpoch = stakingEpoch + 1;
             address[] memory miningAddresses;
-
+            
+            // Choose new validators
+            validatorSetContract.newValidatorSet();
+            
             // We need to remember the total staked amounts for the pending addresses
-            // for the possible case when these pending addresses are finalized
-            // by the `ValidatorSetHbbft.finalizeChange` function and thus become validators
+            // for when these pending addresses are finalized by `ValidatorSetHbbft.finalizeChange()`.
             miningAddresses = validatorSetContract.getPendingValidators();
             for (i = 0; i < miningAddresses.length; i++) {
                 _snapshotPoolStakeAmounts(stakingContract, nextStakingEpoch, miningAddresses[i]);
@@ -293,16 +289,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             // throughout the upcoming staking epoch (if the new validator set is not finalized
             // for some reason)
             miningAddresses = validatorSetContract.getValidators();
-            for (i = 0; i < miningAddresses.length; i++) {
-                _snapshotPoolStakeAmounts(stakingContract, nextStakingEpoch, miningAddresses[i]);
-            }
-
-            // We need to remember the total staked amounts for the addresses currently
-            // being finalized but not yet finalized (i.e. the `InitiateChange` event is emitted
-            // for them but not yet handled by validator nodes thus the `ValidatorSetHbbft.finalizeChange`
-            // function is not called yet) for the possible case when these addresses finally
-            // become validators on the upcoming staking epoch
-            miningAddresses = validatorSetContract.getPendingValidators();
             for (i = 0; i < miningAddresses.length; i++) {
                 _snapshotPoolStakeAmounts(stakingContract, nextStakingEpoch, miningAddresses[i]);
             }
@@ -614,13 +600,13 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// This function is called by the `reward` function.
     /// @param _stakingContract The address of the StakingHbbft contract.
     /// @param _stakingEpoch The number of the current staking epoch.
-    /// @param _stakingEpochEndBlock The number of the latest block of the current staking epoch.
+    /// @param _stakingFixedEpochEndBlock The number of the latest block before key generation begins.
     /// @return Returns the reward amount in native coins needed to be minted
     /// and accrued to the balance of this contract.
     function _distributeRewards(
         IStakingHbbft _stakingContract,
         uint256 _stakingEpoch,
-        uint256 _stakingEpochEndBlock
+        uint256 _stakingFixedEpochEndBlock
     ) internal returns(uint256 nativeTotalRewardAmount) {
         address[] memory validators = validatorSetContract.getValidators();
 
@@ -636,8 +622,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 realFinalizeBlock = idealFinalizeBlock;
             }
 
-            totalRewardShareNum = _stakingEpochEndBlock - realFinalizeBlock + 1;
-            totalRewardShareDenom = _stakingEpochEndBlock - idealFinalizeBlock + 1;
+            totalRewardShareNum = _stakingFixedEpochEndBlock - realFinalizeBlock + 1;
+            totalRewardShareDenom = _stakingFixedEpochEndBlock - idealFinalizeBlock + 1;
         }
 
         uint256[] memory blocksCreatedShareNum = new uint256[](validators.length);

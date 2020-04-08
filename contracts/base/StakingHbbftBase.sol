@@ -122,8 +122,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev The serial number of the current staking epoch.
     uint256 public stakingEpoch;
 
-    /// @dev The duration of a staking epoch in blocks.
-    uint256 public stakingEpochDuration;
+    /// @dev The fixed duration of each staking epoch before KeyGen starts i.e. before the upcoming ("pending") validators are selected.
+    uint256 public stakingFixedEpochDuration;
 
     /// @dev The number of the first block of the current staking epoch.
     uint256 public stakingEpochStartBlock;
@@ -299,7 +299,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
     /// @param _delegatorMinStake The minimum allowed amount of delegator stake in Wei.
     /// @param _candidateMinStake The minimum allowed amount of candidate/validator stake in Wei.
-    /// @param _stakingEpochDuration The duration of a staking epoch in blocks
+    /// @param _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts in blocks
     /// @param _stakingEpochStartBlock The number of the first block of initial staking epoch
     /// (must be zero if the network is starting from genesis block).
     /// @param _stakeWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
@@ -309,14 +309,14 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address[] calldata _initialStakingAddresses,
         uint256 _delegatorMinStake,
         uint256 _candidateMinStake,
-        uint256 _stakingEpochDuration,
+        uint256 _stakingFixedEpochDuration,
         uint256 _stakingEpochStartBlock,
         uint256 _stakeWithdrawDisallowPeriod,
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external {
-        require(_stakingEpochDuration != 0);
-        require(_stakingEpochDuration > _stakeWithdrawDisallowPeriod);
+        require(_stakingFixedEpochDuration != 0);
+        require(_stakingFixedEpochDuration > _stakeWithdrawDisallowPeriod);
         require(_stakeWithdrawDisallowPeriod != 0);
         _initialize(
             _validatorSetContract,
@@ -326,7 +326,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             _publicKeys,
             _internetAddresses
         );
-        stakingEpochDuration = _stakingEpochDuration;
+        stakingFixedEpochDuration = _stakingFixedEpochDuration;
         stakeWithdrawDisallowPeriod = _stakeWithdrawDisallowPeriod;
         stakingEpochStartBlock = _stakingEpochStartBlock;
     }
@@ -600,7 +600,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Used by all staking/withdrawal functions.
     function areStakeAndWithdrawAllowed() public view returns(bool) {
         uint256 currentBlock = _getCurrentBlockNumber();
-        uint256 allowedDuration = stakingEpochDuration - stakeWithdrawDisallowPeriod;
+        uint256 allowedDuration = stakingFixedEpochDuration - stakeWithdrawDisallowPeriod; //TODO: should it be extended to the start of the block, e.g. startBlock -1
         if (currentBlock < stakingEpochStartBlock) return false;
         return currentBlock - stakingEpochStartBlock <= allowedDuration; //TODO: should be < not <=?
     }
@@ -709,10 +709,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch];
     }
 
-    /// @dev Returns the number of the last block of the current staking epoch.
-    function stakingEpochEndBlock() public view returns(uint256) {
+    /// @dev Returns the number of the last block of the current staking epoch before key generation starts.
+    function stakingFixedEpochEndBlock() public view returns(uint256) {
         uint256 startBlock = stakingEpochStartBlock;
-        return startBlock + stakingEpochDuration - (startBlock == 0 ? 0 : 1);
+        return startBlock + stakingFixedEpochDuration - (startBlock == 0 ? 0 : 1);
     }
 
     // ============================================== Internal ========================================================

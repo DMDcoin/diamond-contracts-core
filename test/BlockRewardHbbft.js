@@ -148,12 +148,12 @@ contract('BlockRewardHbbft', async accounts => {
       stakingEpochStartBlock.should.be.bignumber.equal(new BN(STAKING_EPOCH_START_BLOCK + STAKING_EPOCH_DURATION * 1));
       await setCurrentBlockNumber(stakingEpochStartBlock);
 
-      const validators = await validatorSetHbbft.getValidators.call();
-
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
-      pendingValidators.should.be.deep.equal([]);
+      pendingValidators.length.should.be.equal(0);
       (await validatorSetHbbft.forNewEpoch.call()).should.be.equal(false);
 
+      const validators = await validatorSetHbbft.getValidators.call();
+      validators.length.should.be.equal(3);
       const currentBlock = stakingEpochStartBlock.add(new BN(Math.floor(validators.length / 2) + 1));
       await setCurrentBlockNumber(currentBlock);
     });
@@ -395,8 +395,10 @@ contract('BlockRewardHbbft', async accounts => {
 
       const blockRewardBalanceBeforeReward = await erc677Token.balanceOf.call(blockRewardHbbft.address);
 
-      await callReward();
       let pendingValidators = await validatorSetHbbft.getPendingValidators.call();
+      pendingValidators.length.should.be.equal(0);
+      await callReward();
+      pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.sortedEqual([
         accounts[1],
         accounts[2],
@@ -405,7 +407,13 @@ contract('BlockRewardHbbft', async accounts => {
         accounts[32],
         accounts[33],
       ]);
+
       const nextStakingEpoch = stakingEpoch.add(new BN(1)); // 4
+      (await validatorSetHbbft.validatorSetApplyBlock.call()).should.be.bignumber.equal(new BN(0));
+      await callFinalizeChange();
+      (await validatorSetHbbft.validatorSetApplyBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock);
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(nextStakingEpoch);
+    
       for (let i = 0; i < pendingValidators.length; i++) {
         (await blockRewardHbbft.snapshotPoolValidatorStakeAmount.call(nextStakingEpoch, pendingValidators[i])).should.be.bignumber.equal(
           candidateMinStake
@@ -414,10 +422,6 @@ contract('BlockRewardHbbft', async accounts => {
           candidateMinStake.add(delegatorMinStake.mul(new BN(3)))
         );
       }
-      (await validatorSetHbbft.validatorSetApplyBlock.call()).should.be.bignumber.equal(new BN(0));
-      await callFinalizeChange();
-      (await validatorSetHbbft.validatorSetApplyBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock);
-      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(nextStakingEpoch);
 
       let rewardDistributed = new BN(0);
       for (let i = 0; i < validators.length; i++) {
@@ -608,12 +612,12 @@ contract('BlockRewardHbbft', async accounts => {
 
     });
 
-    it.only('  bridge fee accumulated during the epoch #5', async () => {
+    it('bridge fee accumulated during the epoch #5', async () => {
       const fee = await accrueBridgeFees();
       tokenRewardUndistributed = tokenRewardUndistributed.add(fee);
     });
 
-    it.only('current pending validators remove their pools during the epoch #5', async () => {
+    it('current pending validators remove their pools during the epoch #5', async () => {
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       for (let i = 0; i < pendingValidators.length; i++) {
         const stakingAddress = await validatorSetHbbft.stakingByMiningAddress.call(pendingValidators[i]);

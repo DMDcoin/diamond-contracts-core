@@ -399,7 +399,7 @@ contract('ValidatorSetHbbft', async accounts => {
 
       // Check the returned value of the pending validators; it should be an empty list
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
-      (await validatorSetHbbft.isForNewEpoch.call()).should.be.equal(false);
+      (await validatorSetHbbft.forNewEpoch.call()).should.be.equal(false);
 
       // Emulate calling `newValidatorSet()` at the last block of staking epoch
       await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
