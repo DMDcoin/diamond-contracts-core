@@ -274,15 +274,15 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             uint256 nextStakingEpoch = stakingEpoch + 1;
             address[] memory miningAddresses;
             
+            // Choose new validators
+            validatorSetContract.newValidatorSet();
+            
             // We need to remember the total staked amounts for the pending addresses
             // for when these pending addresses are finalized by `ValidatorSetHbbft.finalizeChange()`.
             miningAddresses = validatorSetContract.getPendingValidators();
             for (i = 0; i < miningAddresses.length; i++) {
                 _snapshotPoolStakeAmounts(stakingContract, nextStakingEpoch, miningAddresses[i]);
             }
-
-            // Choose new validators
-            validatorSetContract.newValidatorSet();
 
             // We need to remember the total staked amounts for the current validators
             // for the possible case when these validators continue to be validators

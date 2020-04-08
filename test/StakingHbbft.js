@@ -2016,7 +2016,7 @@ contract('StakingHbbft', async accounts => {
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
       new BN(120954).should.be.bignumber.equal(
-        await stakingHbbft.stakingEpochDuration.call()
+        await stakingHbbft.stakingFixedEpochDuration.call()
       );
       new BN(4320).should.be.bignumber.equal(
         await stakingHbbft.stakeWithdrawDisallowPeriod.call()
