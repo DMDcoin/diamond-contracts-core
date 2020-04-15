@@ -90,7 +90,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     /// @dev Returns a boolean flag indicating whether the specified address is allowed to use zero gas price
     /// transactions. Returns `true` if the address is certified using the `_certify` function.
     /// This function differs from the `certified`: it doesn't take into account the returned value of
-    /// `ValidatorSetAuRa.isReportValidatorValid` function.
+    /// `ValidatorSetHbbft.isReportValidatorValid` function.
     /// @param _who The address for which the boolean flag must be determined.
     function certifiedExplicitly(address _who) external view returns(bool) {
         return _certified[_who];
