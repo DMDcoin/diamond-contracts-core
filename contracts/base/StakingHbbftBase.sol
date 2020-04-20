@@ -1,7 +1,6 @@
 pragma solidity ^0.5.16;
 
 import "../interfaces/IBlockRewardHbbft.sol";
-import "../interfaces/IERC677Minting.sol";
 import "../interfaces/IStakingHbbft.sol";
 import "../interfaces/IValidatorSetHbbft.sol";
 import "../upgradeability/UpgradeableOwned.sol";
@@ -33,18 +32,18 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev The limit of the minimum delegator stake (DELEGATOR_MIN_STAKE).
     uint256 public delegatorMinStake;
 
-    /// @dev The snapshot of tokens amount staked into the specified pool by the specified delegator
+    /// @dev The snapshot of the amount staked into the specified pool by the specified delegator
     /// before the specified staking epoch. Used by the `claimReward` function.
     /// The first parameter is the pool staking address, the second one is delegator's address,
     /// the third one is staking epoch number.
     mapping(address => mapping(address => mapping(uint256 => uint256))) public delegatorStakeSnapshot;
 
-    /// @dev The current amount of staking tokens/coins ordered for withdrawal from the specified
+    /// @dev The current amount of staking coins ordered for withdrawal from the specified
     /// pool by the specified staker. Used by the `orderWithdraw`, `claimOrderedWithdraw` and other functions.
     /// The first parameter is the pool staking address, the second one is the staker address.
     mapping(address => mapping(address => uint256)) public orderedWithdrawAmount;
 
-    /// @dev The current total amount of staking tokens/coins ordered for withdrawal from
+    /// @dev The current total amount of staking coins ordered for withdrawal from
     /// the specified pool by all of its stakers. Pool staking address is accepted as a parameter.
     mapping(address => uint256) public orderedWithdrawAmountTotal;
 
@@ -98,7 +97,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// the third one is staking epoch number.
     mapping(address => mapping(address => mapping(uint256 => bool))) public rewardWasTaken;
 
-    /// @dev The amount of tokens currently staked into the specified pool by the specified
+    /// @dev The amount of coins currently staked into the specified pool by the specified
     /// staker. Doesn't include the amount ordered for withdrawal.
     /// The first parameter is the pool staking address, the second one is the staker address.
     mapping(address => mapping(address => uint256)) public stakeAmount;
@@ -116,7 +115,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     mapping(address => mapping(address => uint256)) public stakeLastEpoch;
 
     /// @dev The duration period (in blocks) at the end of staking epoch during which
-    /// participants are not allowed to stake/withdraw/order/claim their staking tokens/coins.
+    /// participants are not allowed to stake/withdraw/order/claim their staking coins.
     uint256 public stakeWithdrawDisallowPeriod;
 
     /// @dev The serial number of the current staking epoch.
@@ -128,7 +127,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev The number of the first block of the current staking epoch.
     uint256 public stakingEpochStartBlock;
 
-    /// @dev Returns the total amount of staking tokens/coins currently staked into the specified pool.
+    /// @dev Returns the total amount of staking coins currently staked into the specified pool.
     /// Doesn't include the amount ordered for withdrawal.
     /// The pool staking address is accepted as a parameter.
     mapping(address => uint256) public stakeAmountTotal;
@@ -151,7 +150,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     // ================================================ Events ========================================================
 
     /// @dev Emitted by the `claimOrderedWithdraw` function to signal the staker withdrew the specified
-    /// amount of requested tokens/coins from the specified pool during the specified staking epoch.
+    /// amount of requested coins from the specified pool during the specified staking epoch.
     /// @param fromPoolStakingAddress The pool from which the `staker` withdrew the `amount`.
     /// @param staker The address of the staker that withdrew the `amount`.
     /// @param stakingEpoch The serial number of the staking epoch during which the claim was made.
@@ -252,17 +251,17 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     }
 
     /// @dev Adds a new candidate's pool to the list of active pools (see the `getPools` getter) and
-    /// moves the specified amount of staking tokens/coins from the candidate's staking address
+    /// moves the specified amount of staking coins from the candidate's staking address
     /// to the candidate's pool. A participant calls this function using their staking address when
     /// they want to create a pool. This is a wrapper for the `stake` function.
-    /// @param _amount The amount of tokens to be staked. Ignored when staking in native coins
-    /// because `msg.value` is used in that case.
     /// @param _miningAddress The mining address of the candidate. The mining address is bound to the staking address
     /// (msg.sender). This address cannot be equal to `msg.sender`.
     function addPool(uint256 _amount, address _miningAddress, bytes calldata _publicKey, bytes16 _ip) external payable {
         address stakingAddress = msg.sender;
+        uint256 amount = msg.value;
         validatorSetContract.setStakingAddress(_miningAddress, stakingAddress);
-        _stake(stakingAddress, _amount);
+        // The staking address and the staker are the same.
+        _stake(stakingAddress, stakingAddress, amount);
         poolInfo[stakingAddress].publicKey = _publicKey;
         poolInfo[stakingAddress].internetAddress = _ip;
     }
@@ -303,7 +302,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _stakingEpochStartBlock The number of the first block of initial staking epoch
     /// (must be zero if the network is starting from genesis block).
     /// @param _stakeWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
-    /// during which participants cannot stake/withdraw/order/claim their staking tokens/coins
+    /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
         address _validatorSetContract,
         address[] calldata _initialStakingAddresses,
@@ -368,11 +367,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         stakingEpochStartBlock = _blockNumber;
     }
 
-    /// @dev Moves staking tokens/coins from one pool to another. A staker calls this function when they want
-    /// to move their tokens/coins from one pool to another without withdrawing their tokens/coins.
+    /// @dev Moves staking coins from one pool to another. A staker calls this function when they want
+    /// to move their coins from one pool to another without withdrawing their coins.
     /// @param _fromPoolStakingAddress The staking address of the source pool.
     /// @param _toPoolStakingAddress The staking address of the target pool.
-    /// @param _amount The amount of staking tokens/coins to be moved. The amount cannot exceed the value returned
+    /// @param _amount The amount of staking coins to be moved. The amount cannot exceed the value returned
     /// by the `maxWithdrawAllowed` getter.
     function moveStake(
         address _fromPoolStakingAddress,
@@ -386,21 +385,21 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         emit MovedStake(_fromPoolStakingAddress, _toPoolStakingAddress, staker, stakingEpoch, _amount);
     }
 
-    /// @dev Moves the specified amount of staking tokens/coins from the staker's address to the staking address of
+    /// @dev Moves the specified amount of staking coins from the staker's address to the staking address of
     /// the specified pool. Actually, the amount is stored in a balance of this StakingHbbft contract.
     /// A staker calls this function when they want to make a stake into a pool.
-    /// @param _toPoolStakingAddress The staking address of the pool where the tokens should be staked.
-    /// @param _amount The amount of tokens to be staked. Ignored when staking in native coins
-    /// because `msg.value` is used instead.
-    function stake(address _toPoolStakingAddress, uint256 _amount) external payable {
-        _stake(_toPoolStakingAddress, _amount);
+    /// @param _toPoolStakingAddress The staking address of the pool where the coins should be staked.
+    function stake(address _toPoolStakingAddress) external payable {
+        address staker = msg.sender;
+        uint256 amount = msg.value;
+        _stake(_toPoolStakingAddress, staker, amount);
     }
 
-    /// @dev Moves the specified amount of staking tokens/coins from the staking address of
+    /// @dev Moves the specified amount of staking coins from the staking address of
     /// the specified pool to the staker's address. A staker calls this function when they want to withdraw
-    /// their tokens/coins.
-    /// @param _fromPoolStakingAddress The staking address of the pool from which the tokens/coins should be withdrawn.
-    /// @param _amount The amount of tokens/coins to be withdrawn. The amount cannot exceed the value returned
+    /// their coins.
+    /// @param _fromPoolStakingAddress The staking address of the pool from which the coins should be withdrawn.
+    /// @param _amount The amount of coins to be withdrawn. The amount cannot exceed the value returned
     /// by the `maxWithdrawAllowed` getter.
     function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid onlyInitialized {
         address payable staker = msg.sender;
@@ -409,8 +408,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         emit WithdrewStake(_fromPoolStakingAddress, staker, stakingEpoch, _amount);
     }
 
-    /// @dev Orders tokens/coins withdrawal from the staking address of the specified pool to the
-    /// staker's address. The requested tokens/coins can be claimed after the current staking epoch is complete using
+    /// @dev Orders coins withdrawal from the staking address of the specified pool to the
+    /// staker's address. The requested coins can be claimed after the current staking epoch is complete using
     /// the `claimOrderedWithdraw` function.
     /// @param _poolStakingAddress The staking address of the pool from which the amount will be withdrawn.
     /// @param _amount The amount to be withdrawn. A positive value means the staker wants to either set or
@@ -499,9 +498,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         emit OrderedWithdrawal(_poolStakingAddress, staker, stakingEpoch, _amount);
     }
 
-    /// @dev Withdraws the staking tokens/coins from the specified pool ordered during the previous staking epochs with
+    /// @dev Withdraws the staking coins from the specified pool ordered during the previous staking epochs with
     /// the `orderWithdraw` function. The ordered amount can be retrieved by the `orderedWithdrawAmount` getter.
-    /// @param _poolStakingAddress The staking address of the pool from which the ordered tokens/coins are withdrawn.
+    /// @param _poolStakingAddress The staking address of the pool from which the ordered coins are withdrawn.
     function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid onlyInitialized {
         address payable staker = msg.sender;
 
@@ -591,7 +590,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// `ValidatorSetHbbft.newValidatorSet` function from the active `pools` array (at the last block
     /// of a staking epoch). This array is kept updated by the `_addPoolToBeRemoved`
     /// and `_deletePoolToBeRemoved` internal functions. A pool is added to this array when the pool's
-    /// address withdraws (or orders) all of its own staking tokens from the pool, inactivating the pool.
+    /// address withdraws (or orders) all of its own staking coins from the pool, inactivating the pool.
     function getPoolsToBeRemoved() external view returns(address[] memory) {
         return _poolsToBeRemoved;
     }
@@ -674,12 +673,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return stakeAmount[_poolStakingAddress][_staker].sub(stakeAmountByCurrentEpoch(_poolStakingAddress, _staker));
     }
 
-    /// @dev Prevents sending tokens directly to the `StakingHbbft` contract address
-    /// by the `ERC677BridgeTokenRewardable.transferAndCall` function.
-    function onTokenTransfer(address, uint256, bytes memory) public pure returns(bool) {
-        revert();
-    }
-
     /// @dev Returns an array of the current active delegators of the specified pool.
     /// A delegator is considered active if they have staked into the specified
     /// pool and their stake is not ordered to be withdrawn.
@@ -696,7 +689,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return _poolDelegatorsInactive[_poolStakingAddress];
     }
 
-    /// @dev Returns the amount of staking tokens/coins staked into the specified pool by the specified staker
+    /// @dev Returns the amount of staking coins staked into the specified pool by the specified staker
     /// during the current staking epoch (see the `stakingEpoch` getter).
     /// Used by the `stake`, `withdraw`, and `orderWithdraw` functions.
     /// @param _poolStakingAddress The pool staking address.
@@ -995,13 +988,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         stakeLastEpoch[_poolStakingAddress][_delegator] = (newAmount == 0) ? nextStakingEpoch : 0;
     }
 
-    function _stake(address _toPoolStakingAddress, uint256 _amount) internal;
-
     /// @dev The internal function used by the `_stake` and `moveStake` functions.
     /// See the `stake` public function for more details.
-    /// @param _poolStakingAddress The staking address of the pool where the tokens/coins should be staked.
+    /// @param _poolStakingAddress The staking address of the pool where the coins should be staked.
     /// @param _staker The staker's address.
-    /// @param _amount The amount of tokens/coins to be staked.
+    /// @param _amount The amount of coins to be staked.
     function _stake(address _poolStakingAddress, address _staker, uint256 _amount) internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
@@ -1042,13 +1033,15 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         }
 
         _setLikelihood(_poolStakingAddress);
+
+        emit PlacedStake(_poolStakingAddress, _staker, stakingEpoch, _amount);
     }
 
     /// @dev The internal function used by the `withdraw` and `moveStake` functions.
     /// See the `withdraw` public function for more details.
-    /// @param _poolStakingAddress The staking address of the pool from which the tokens/coins should be withdrawn.
+    /// @param _poolStakingAddress The staking address of the pool from which the coins should be withdrawn.
     /// @param _staker The staker's address.
-    /// @param _amount The amount of the tokens/coins to be withdrawn.
+    /// @param _amount The amount of coins to be withdrawn.
     function _withdraw(address _poolStakingAddress, address _staker, uint256 _amount) internal {
         require(_poolStakingAddress != address(0));
         require(_amount != 0);
@@ -1082,7 +1075,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev The internal function used by the `_withdraw` and `claimOrderedWithdraw` functions.
     /// Contains a common logic for these functions.
-    /// @param _poolStakingAddress The staking address of the pool from which the tokens/coins are withdrawn.
+    /// @param _poolStakingAddress The staking address of the pool from which the coins are withdrawn.
     /// @param _staker The staker's address.
     function _withdrawCheckPool(address _poolStakingAddress, address _staker) internal {
         if (_staker == _poolStakingAddress) {

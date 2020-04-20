@@ -1,7 +1,6 @@
 pragma solidity ^0.5.16;
 
 import "../interfaces/IBlockRewardHbbft.sol";
-import "../interfaces/IERC677Minting.sol";
 import "../interfaces/IRandomHbbft.sol";
 import "../interfaces/IStakingHbbft.sol";
 import "../interfaces/IValidatorSetHbbft.sol";

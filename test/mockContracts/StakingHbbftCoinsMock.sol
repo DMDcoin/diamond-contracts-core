@@ -4,4 +4,6 @@ import './StakingHbbftBaseMock.sol';
 import '../../contracts/base/StakingHbbftCoins.sol';
 
 
-contract StakingHbbftCoinsMock is StakingHbbftCoins, StakingHbbftBaseMock {}
+contract StakingHbbftCoinsMock is StakingHbbftCoins, StakingHbbftBaseMock {
+
+}

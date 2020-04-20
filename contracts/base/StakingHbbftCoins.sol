@@ -171,15 +171,4 @@ contract StakingHbbftCoins is StakingHbbftBase {
         }
     }
 
-    /// @dev The internal function used by the `stake` and `addPool` functions.
-    /// See the `stake` public function for more details.
-    /// @param _toPoolStakingAddress The staking address of the pool where the coins should be staked.
-    /// @param _amount The amount of coins to be staked.
-    function _stake(address _toPoolStakingAddress, uint256 _amount) internal gasPriceIsValid onlyInitialized {
-        address staker = msg.sender;
-        _amount = msg.value;
-        _stake(_toPoolStakingAddress, staker, _amount);
-        emit PlacedStake(_toPoolStakingAddress, staker, stakingEpoch, _amount);
-    }
-
 }
