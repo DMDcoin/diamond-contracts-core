@@ -438,10 +438,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         return distributedAmount;
     }
 
-    function _distributeTokenRewards(
-        address, uint256, uint256, uint256, address[] memory, uint256[] memory, uint256
-    ) internal;
-
     /// @dev Distributes rewards among pools at the latest block of a staking epoch.
     /// This function is called by the `reward` function.
     /// @param _stakingContract The address of the StakingHbbft contract.
@@ -497,17 +493,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             blocksCreatedShareNum,
             blocksCreatedShareDenom
         );
-
-        // Distribute ERC tokens among pools
-        _distributeTokenRewards(
-            address(_stakingContract),
-            _stakingEpoch,
-            totalRewardShareNum,
-            totalRewardShareDenom,
-            validators,
-            blocksCreatedShareNum,
-            blocksCreatedShareDenom
-        );
+        
     }
 
     /// @dev Returns the current block number. Needed mostly for unit tests.
