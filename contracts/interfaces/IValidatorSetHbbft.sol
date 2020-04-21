@@ -8,8 +8,7 @@ interface IValidatorSetHbbft {
         address,
         address,
         address[] calldata,
-        address[] calldata,
-        bool
+        address[] calldata
     ) external;
     function newValidatorSet() external;
     function removeMaliciousValidators(address[] calldata) external;
