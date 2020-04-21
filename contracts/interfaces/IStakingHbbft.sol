@@ -1,7 +1,6 @@
 pragma solidity ^0.5.16;
 
 interface IStakingHbbft {
-    function clearUnremovableValidator(address) external;
     function incrementStakingEpoch() external;
     function initialize(
         address,

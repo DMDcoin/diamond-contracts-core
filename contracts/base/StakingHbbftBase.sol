@@ -271,21 +271,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         poolInfo[msg.sender].internetAddress = _ip;
     }
 
-    /// @dev Adds the `unremovable validator` to either the `poolsToBeElected` or the `poolsToBeRemoved` array
-    /// depending on their own stake in their own pool when they become removable. This allows the
-    /// `ValidatorSetHbbft.newValidatorSet` function to recognize the unremovable validator as a regular removable pool.
-    /// Called by the `ValidatorSet.clearUnremovableValidator` function.
-    /// @param _unremovableStakingAddress The staking address of the unremovable validator.
-    function clearUnremovableValidator(address _unremovableStakingAddress) external onlyValidatorSetContract {
-        require(_unremovableStakingAddress != address(0));
-        if (stakeAmount[_unremovableStakingAddress][_unremovableStakingAddress] != 0) {
-            _addPoolToBeElected(_unremovableStakingAddress);
-            _setLikelihood(_unremovableStakingAddress);
-        } else {
-            _addPoolToBeRemoved(_unremovableStakingAddress);
-        }
-    }
-
     /// @dev Increments the serial number of the current staking epoch.
     /// Called by the `ValidatorSetHbbft.newValidatorSet` at the last block of the finished staking epoch.
     function incrementStakingEpoch() external onlyValidatorSetContract {
@@ -349,14 +334,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Removes the candidate's or validator's pool from the `pools` array (a list of active pools which
     /// can be retrieved by the `getPools` getter). When a candidate or validator wants to remove their pool,
-    /// they should call this function from their staking address. A validator cannot remove their pool while
-    /// they are an `unremovable validator`.
+    /// they should call this function from their staking address.
     function removeMyPool() external gasPriceIsValid onlyInitialized {
         address stakingAddress = msg.sender;
         address miningAddress = validatorSetContract.miningByStakingAddress(stakingAddress);
         // initial validator cannot remove their pool during the initial staking epoch
         require(stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress));
-        require(stakingAddress != validatorSetContract.unremovableValidator());
         _removePool(stakingAddress);
     }
 
@@ -459,18 +442,16 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             // must not exceed the diff between the entire amount and `candidateMinStake`
             require(newStakeAmount == 0 || newStakeAmount >= candidateMinStake);
 
-            address unremovableStakingAddress = validatorSetContract.unremovableValidator();
-
             if (_amount > 0) { // if the validator orders the `_amount` for withdrawal
-                if (newStakeAmount == 0 && _poolStakingAddress != unremovableStakingAddress) {
-                    // If the removable validator orders their entire stake,
+                if (newStakeAmount == 0) {
+                    // If the validator orders their entire stake,
                     // mark their pool as `to be removed`
                     _addPoolToBeRemoved(_poolStakingAddress);
                 }
             } else {
                 // If the validator wants to reduce withdrawal value,
-                // add their pool as `active` if it hasn't already done
-                _addPoolActive(_poolStakingAddress, _poolStakingAddress != unremovableStakingAddress);
+                // add their pool as `active` if it hasn't been already done.
+                _addPoolActive(_poolStakingAddress, true);
             }
         } else {
             // The amount to be withdrawn must be the whole staked amount or
@@ -865,14 +846,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
 
-        address unremovableStakingAddress = validatorSetContract.unremovableValidator();
-
         for (uint256 i = 0; i < _initialStakingAddresses.length; i++) {
             require(_initialStakingAddresses[i] != address(0));
             _addPoolActive(_initialStakingAddresses[i], false);
-            if (_initialStakingAddresses[i] != unremovableStakingAddress) {
-                _addPoolToBeRemoved(_initialStakingAddresses[i]);
-            }
+            _addPoolToBeRemoved(_initialStakingAddresses[i]);
             poolInfo[_initialStakingAddresses[i]].publicKey = abi.encodePacked(_publicKeys[i*2],_publicKeys[i*2+1]);
             poolInfo[_initialStakingAddresses[i]].internetAddress = _internetAddresses[i];
         }
@@ -1023,7 +1000,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         if (_staker == _poolStakingAddress) { // `staker` places a stake for himself and becomes a candidate
             // Add `_poolStakingAddress` to the array of pools
-            _addPoolActive(_poolStakingAddress, _poolStakingAddress != validatorSetContract.unremovableValidator());
+            _addPoolActive(_poolStakingAddress, true);
         } else {
             // Add `_staker` to the array of pool's delegators
             _addPoolDelegator(_poolStakingAddress, _staker);
@@ -1079,15 +1056,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _staker The staker's address.
     function _withdrawCheckPool(address _poolStakingAddress, address _staker) internal {
         if (_staker == _poolStakingAddress) {
-            address unremovableStakingAddress = validatorSetContract.unremovableValidator();
-
-            if (_poolStakingAddress != unremovableStakingAddress) {
-                address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
-                if (validatorSetContract.isValidator(miningAddress)) {
-                    _addPoolToBeRemoved(_poolStakingAddress);
-                } else {
-                    _removePool(_poolStakingAddress);
-                }
+            address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
+            if (validatorSetContract.isValidator(miningAddress)) {
+                _addPoolToBeRemoved(_poolStakingAddress);
+            } else {
+                _removePool(_poolStakingAddress);
             }
         } else {
             _removePoolDelegator(_poolStakingAddress, _staker);

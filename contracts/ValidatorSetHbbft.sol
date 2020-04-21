@@ -83,10 +83,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev The `KeyGenHistory` contract address.
     IKeyGenHistory public keyGenHistoryContract;
 
-    /// @dev The staking address of the non-removable validator.
-    /// Returns zero if a non-removable validator is not defined.
-    address public unremovableValidator;
-
     /// @dev How many times the given mining address has become a validator.
     mapping(address => uint256) public validatorCounter;
 
@@ -144,15 +140,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     // =============================================== Setters ========================================================
 
-    /// @dev Makes the non-removable validator removable. Can only be called by the staking address of the
-    /// non-removable validator or by the `owner`.
-    function clearUnremovableValidator() external onlyInitialized {
-        address unremovableStakingAddress = unremovableValidator;
-        require(msg.sender == unremovableStakingAddress || msg.sender == _admin());
-        unremovableValidator = address(0);
-        stakingContract.clearUnremovableValidator(unremovableStakingAddress);
-    }
-
     /// @dev Called by the system when a pending validator set is ready to be activated.
     /// This function is called at the beginning of a block (before all the block transactions).
     /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
@@ -187,17 +174,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param _stakingContract The address of the `StakingHbbft` contract.
     /// @param _initialMiningAddresses The array of initial validators' mining addresses.
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
-    /// @param _firstValidatorIsUnremovable The boolean flag defining whether the first validator in the
-    /// `_initialMiningAddresses/_initialStakingAddresses` array is non-removable.
-    /// Should be `false` for a production network.
     function initialize(
         address _blockRewardContract,
         address _randomContract,
         address _stakingContract,
         address _keyGenHistoryContract,
         address[] calldata _initialMiningAddresses,
-        address[] calldata _initialStakingAddresses,
-        bool _firstValidatorIsUnremovable
+        address[] calldata _initialStakingAddresses
     ) external {
         require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
         require(!isInitialized()); // initialization can only be done once
@@ -222,10 +205,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             validatorCounter[miningAddress]++;
             _setStakingAddress(miningAddress, _initialStakingAddresses[i]);
         }
-
-        if (_firstValidatorIsUnremovable) {
-            unremovableValidator = _initialStakingAddresses[0];
-        }
     }
 
     /// @dev Implements the logic which forms a new validator set. If the number of active pools
@@ -236,18 +215,14 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
     
         // Choose new validators
-        if (
-            poolsToBeElected.length >= MAX_VALIDATORS &&
-            (poolsToBeElected.length != MAX_VALIDATORS || unremovableValidator != address(0))
-        ) {
+        if (poolsToBeElected.length > MAX_VALIDATORS) {
+
             uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
 
             (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
 
             if (likelihood.length > 0 && likelihoodSum > 0) {
-                address[] memory newValidators = new address[](
-                    unremovableValidator == address(0) ? MAX_VALIDATORS : MAX_VALIDATORS - 1
-                );
+                address[] memory newValidators = new address[](MAX_VALIDATORS);
 
                 uint256 poolsToBeElectedLength = poolsToBeElected.length;
                 for (uint256 i = 0; i < newValidators.length; i++) {
@@ -589,10 +564,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function _removeMaliciousValidator(address _miningAddress, bytes32 _reason) internal returns(bool) {
         address stakingAddress = stakingByMiningAddress[_miningAddress];
 
-        if (stakingAddress == unremovableValidator) {
-            return false;
-        }
-
         bool isBanned = isValidatorBanned(_miningAddress);
 
         // Ban the malicious validator for the next 3 months
@@ -632,7 +603,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     }
 
     /// @dev Removes the specified validators as malicious from the pending validator set. Does nothing if
-    /// the specified validators are already banned, non-removable, or don't exist in the pending validator set.
+    /// the specified validators are already banned or don't exist in the pending validator set.
     /// @param _miningAddresses The mining addresses of the malicious validators.
     /// @param _reason A short string of the reason why the mining addresses are treated as malicious,
     /// see the `_removeMaliciousValidator` internal function description for possible values.
@@ -671,7 +642,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function _setPendingValidators(
         address[] memory _stakingAddresses
     ) internal {
-        address unremovableMiningAddress = miningByStakingAddress[unremovableValidator];
 
         // clear  the pending validators list first
         delete _pendingValidators;
@@ -681,10 +651,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             // validators which want to exit from the validator set
             for (uint256 i = 0; i < _currentValidators.length; i++) {
                 address pvMiningAddress = _currentValidators[i];
-                if (pvMiningAddress == unremovableMiningAddress) {
-                    _pendingValidators.push(pvMiningAddress); // add unremovable validator
-                    continue;
-                }
                 address pvStakingAddress = stakingByMiningAddress[pvMiningAddress];
                 if (
                     stakingContract.isPoolActive(pvStakingAddress) &&
@@ -699,12 +665,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
                      _pendingValidators.push(_currentValidators[0]); // add at least on validator
             }
         } else {
-
-            if (unremovableMiningAddress != address(0)) {
-                // Keep unremovable validator
-                _pendingValidators.push(unremovableMiningAddress);
-            }
-
             for (uint256 i = 0; i < _stakingAddresses.length; i++) {
                 _pendingValidators.push(miningByStakingAddress[_stakingAddresses[i]]);
             }

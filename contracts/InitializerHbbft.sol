@@ -26,9 +26,6 @@ contract InitializerHbbft {
     /// @param _owner The contracts' owner.
     /// @param _miningAddresses The array of initial validators' mining addresses.
     /// @param _stakingAddresses The array of initial validators' staking addresses.
-    /// @param _firstValidatorIsUnremovable The boolean flag defining whether the first validator in the
-    /// `_miningAddresses/_stakingAddresses` array is non-removable.
-    /// Should be `false` for production network.
     /// @param _stakingParams list of staking related parameters, done to avoid "stack too deep" error
     /// _stakingParams[0]: _delegatorMinStake The minimum allowed amount of delegator stake in Wei
     /// (see the `StakingHbbft` contract).
@@ -44,7 +41,6 @@ contract InitializerHbbft {
         address _owner,
         address[] memory _miningAddresses,
         address[] memory _stakingAddresses,
-        bool _firstValidatorIsUnremovable,
         uint256[5] memory _stakingParams,
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses,
@@ -57,8 +53,7 @@ contract InitializerHbbft {
             _contracts[3], // _stakingContract
             _contracts[6], // _keyGenHistoryContract
             _miningAddresses,
-            _stakingAddresses,
-            _firstValidatorIsUnremovable
+            _stakingAddresses
         );
         IStakingHbbft(_contracts[3]).initialize(
             _contracts[0], // _validatorSetContract
