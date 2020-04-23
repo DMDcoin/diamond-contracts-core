@@ -26,12 +26,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     mapping(address => uint256[]) internal _epochsPoolGotRewardFor;
 
-    /// @dev A number of blocks produced by the specified validator during the specified staking epoch
+    /// @dev A number of blocks produced by the set of validators during the specified staking epoch
     /// (beginning from the block when the `finalizeChange` function is called until the latest block
     /// of the staking epoch. The results are used by the `_distributeRewards` function to track
     /// each validator's downtime (when a validator's node is not running and doesn't produce blocks).
     /// While the validator is banned, the block producing statistics is not accumulated for them.
-    mapping(uint256 => mapping(address => uint256)) public blocksCreated;
+    mapping(uint256 => uint256) public blocksCreated;
 
     /// @dev The reward amount to be distributed in native coins among participants (the validator and their
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
@@ -99,10 +99,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     function clearBlocksCreated() external onlyValidatorSetContract {
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         uint256 stakingEpoch = stakingContract.stakingEpoch();
-        address[] memory validators = validatorSetContract.getValidators();
-        for (uint256 i = 0; i < validators.length; i++) {
-            blocksCreated[stakingEpoch][validators[i]] = 0;
-        }
+        blocksCreated[stakingEpoch] = 0;
     }
 
     /// @dev Initializes the contract at network startup.
@@ -116,7 +113,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
     }
 
-    /// @dev Called by the validator's node when producing and closing a block,
+    /// @dev Called by the engine when producing and closing a block,
     /// see https://wiki.parity.io/Block-Reward-Contract.html.
     /// This function performs all of the automatic operations needed for accumulating block producing statistics,
     /// starting a new staking epoch, snapshotting staking amounts for the upcoming staking epoch,
@@ -126,14 +123,18 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         onlySystem
         returns(address[] memory receiversNative, uint256[] memory rewardsNative)
     {
-        if (benefactors.length != kind.length || benefactors.length != 1 || kind[0] != 0) {
-            return (new address[](0), new uint256[](0));
-        }
+        // if (benefactors.length != kind.length || benefactors.length != 1 || kind[0] != 0) {
+        //     return (new address[](0), new uint256[](0));
+        // }
 
-        // Check if the validator exists
-        if (!validatorSetContract.isValidator(benefactors[0])) {
+        if (benefactors.length != kind.length) {
             return (new address[](0), new uint256[](0));
         }
+        
+        // Check if the validator exists
+        // if (!validatorSetContract.isValidator(benefactors[0])) {
+        //     return (new address[](0), new uint256[](0));
+        // }
 
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         uint256 stakingEpoch = stakingContract.stakingEpoch();
@@ -141,12 +142,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 nativeTotalRewardAmount = 0;
 
         if (validatorSetContract.validatorSetApplyBlock() != 0) {
-            if (stakingEpoch != 0 && !validatorSetContract.isValidatorBanned(benefactors[0])) {
+            // if (stakingEpoch != 0 && !validatorSetContract.isValidatorBanned(benefactors[0])) {
                 // Accumulate blocks producing statistics for each of the
                 // active validators during the current staking epoch. This
                 // statistics is used by the `_distributeRewards` function
-                blocksCreated[stakingEpoch][benefactors[0]]++;
-            }
+                blocksCreated[stakingEpoch]++;
+            // }
         }
 
         if (_getCurrentBlockNumber() == stakingFixedEpochEndBlock) {
@@ -476,7 +477,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                     !validatorSetContract.isValidatorBanned(validators[i]) &&
                     snapshotPoolValidatorStakeAmount[_stakingEpoch][validators[i]] != 0
                 ) {
-                    blocksCreatedShareNum[i] = blocksCreated[_stakingEpoch][validators[i]];
+                    blocksCreatedShareNum[i] = blocksCreated[_stakingEpoch];
                 } else {
                     blocksCreatedShareNum[i] = 0;
                 }

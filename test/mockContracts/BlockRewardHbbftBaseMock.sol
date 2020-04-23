@@ -20,8 +20,8 @@ contract BlockRewardHbbftBaseMock is BlockRewardHbbftBase {
     function sendCoins() public payable {
     }
 
-    function setBlocksCreated(uint256 _stakingEpoch, address _miningAddress, uint256 _value) public {
-        blocksCreated[_stakingEpoch][_miningAddress] = _value;
+    function setBlocksCreated(uint256 _stakingEpoch, uint256 _value) public {
+        blocksCreated[_stakingEpoch] = _value;
     }
 
     function setCurrentBlockNumber(uint256 _blockNumber) public {
