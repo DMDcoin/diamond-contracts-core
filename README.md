@@ -21,6 +21,7 @@ _Note: The following descriptions are for HBBFT contracts only. There is also an
 - `BlockRewardHbbft`: generates and distributes rewards according to the logic and formulas described in the white paper. Main features include:
   - mints native coins;
   - makes a snapshot of the validators stakes at the beginning of each staking epoch. That snapshot is used by the `StakingHbbft.claimReward` function to transfer rewards to validators and their delegators.
+Check also the [BlockRewardHbbft call graph](/docs/BlockRewardHbbft-call-graph.png).
 
 - `Certifier`: allows validators to use a zero gas price for their service transactions (see [Parity Wiki](https://wiki.parity.io/Permissioning.html#gas-price) for more info). The following functions are considered service transactions:
   - ValidatorSetHbbft.reportMalicious
@@ -39,11 +40,12 @@ _Note: The following descriptions are for HBBFT contracts only. There is also an
   - storing participants’ stakes;
   - withdrawing coins and rewards by participants from the pools;
   - moving coins between pools by participant.
+Check also the [StakingHbbft call graph](/docs/StakingHbbft-call-graph.png).
 
 - `TxPermission`: controls the use of zero gas price by validators in service transactions, protecting the network against "transaction spamming" by malicious validators. The protection logic is declared in the `allowedTxTypes` function.
 
 - `ValidatorSetHbbft`: stores the current validator set and contains the logic for choosing new validators at the beginning of each staking epoch. The logic uses a random seed stored in the `RandomHbbft` contract. Also, ValidatorSetHbbft is responsible for discovering and removing malicious validators. This contract is based on `reporting ValidatorSet` [described in Parity Wiki](https://wiki.parity.io/Validator-Set.html#reporting-contract).
-
+Check also the [ValidatorSetHbbft call graph](/docs/ValidatorSetHbbft-call-graph.png).
 
 ## Usage
 
