@@ -256,7 +256,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// they want to create a pool. This is a wrapper for the `stake` function.
     /// @param _miningAddress The mining address of the candidate. The mining address is bound to the staking address
     /// (msg.sender). This address cannot be equal to `msg.sender`.
-    function addPool(uint256 _amount, address _miningAddress, bytes calldata _publicKey, bytes16 _ip) external payable {
+    function addPool(address _miningAddress, bytes calldata _publicKey, bytes16 _ip) external payable {
         address stakingAddress = msg.sender;
         uint256 amount = msg.value;
         validatorSetContract.setStakingAddress(_miningAddress, stakingAddress);
