@@ -45,7 +45,8 @@ contract InitializerHbbft {
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses,
         bytes[] memory _parts,
-        bytes[][] memory _acks
+        bytes[][] memory _acks,
+        uint256 _blockReward
     ) public {
         IValidatorSetHbbft(_contracts[0]).initialize(
             _contracts[1], // _blockRewardContract
@@ -72,7 +73,7 @@ contract InitializerHbbft {
             _parts,
             _acks
         );
-        IBlockRewardHbbft(_contracts[1]).initialize(_contracts[0]);
+        IBlockRewardHbbft(_contracts[1]).initialize(_contracts[0], _blockReward);
         IRandomHbbft(_contracts[2]).initialize(_contracts[0]);
         address[] memory permittedAddresses = new address[](1);
         permittedAddresses[0] = _owner;
