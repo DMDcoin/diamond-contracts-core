@@ -153,11 +153,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (_getCurrentBlockNumber() == stakingFixedEpochEndBlock) {
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
-                nativeTotalRewardAmount = _distributeRewards(
-                    stakingContract,
-                    stakingEpoch,
-                    stakingFixedEpochEndBlock
-                );
+                nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
             }
 
 
@@ -392,44 +388,52 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     uint256 internal constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
     uint256 internal constant REWARD_PERCENT_MULTIPLIER = 1000000;
 
-    /// @dev Distributes rewards in native coins among pools at the latest block of a staking epoch.
-    /// This function is called by the `_distributeRewards` function.
+
+    /// @dev Distributes rewards among pools at the latest block of a staking epoch.
+    /// This function is called by the `reward` function.
     /// @param _stakingEpoch The number of the current staking epoch.
-    /// @param _totalRewardShareNum Numerator of the total reward share.
-    /// @param _totalRewardShareDenom Denominator of the total reward share.
-    /// @param _validators The array of the current validators (their mining addresses).
-    /// @param _blocksCreatedShareNum Numerators of blockCreated share for each of the validators.
-    /// @param _blocksCreatedShareDenom Denominator of blockCreated share.
-    /// @return Returns the amount of native coins which need to be minted.
-    function _distributeNativeRewards(
-        uint256 _stakingEpoch,
-        uint256 _totalRewardShareNum,
-        uint256 _totalRewardShareDenom,
-        address[] memory _validators,
-        uint256[] memory _blocksCreatedShareNum,
-        uint256 _blocksCreatedShareDenom
-    ) internal returns(uint256) {
-        uint256 totalReward = nativeRewardUndistributed;
+    /// @return Returns the reward amount in native coins needed to be minted
+    /// and accrued to the balance of this contract.
+    function _distributeRewards(uint256 _stakingEpoch) internal returns(uint256) {
+        
+        address[] memory validators = validatorSetContract.getValidators();
+
+        uint256 numValidators = validators.length;
+        require(numValidators != 0, "Empty Validator list");
+
+       uint256 totalReward = nativeRewardUndistributed;
 
         if (totalReward == 0) {
             return 0;
         }
 
-        uint256 rewardToDistribute = 0;
-        uint256 distributedAmount = 0;
+        // Indicates whether the validator is entitled to share the rewartds or not.
+        bool[] memory isRewardedValidator = new bool[](numValidators);
+        // Number of validators that are being rewarded.
+        uint256 numRewardedValidators;
 
-        if (_blocksCreatedShareDenom != 0 && _totalRewardShareDenom != 0) {
-            rewardToDistribute = totalReward * _totalRewardShareNum / _totalRewardShareDenom;
+        for (uint256 i = 0; i < validators.length; i++) {
+            if (
+                !validatorSetContract.isValidatorBanned(validators[i]) &&
+                snapshotPoolValidatorStakeAmount[_stakingEpoch][validators[i]] != 0
+            ) {
+                isRewardedValidator[i] = true;
+                numRewardedValidators++;
+            } 
+        }
 
-            if (rewardToDistribute != 0) {
-                for (uint256 i = 0; i < _validators.length; i++) {
-                    uint256 poolReward =
-                        rewardToDistribute * _blocksCreatedShareNum[i] / _blocksCreatedShareDenom;
-                    epochPoolNativeReward[_stakingEpoch][_validators[i]] = poolReward;
+        require(numRewardedValidators != 0, "No validators to be rewarded");
+
+        // Share the reward equally among the validators.
+        uint256 poolReward = totalReward / numRewardedValidators;
+        uint256 distributedAmount;
+
+        if (poolReward != 0) {
+            for (uint256 i = 0; i < numValidators; i++) {
+                if (isRewardedValidator[i]){
+                    epochPoolNativeReward[_stakingEpoch][validators[i]] = poolReward;
                     distributedAmount += poolReward;
-                    if (poolReward != 0) {
-                        _epochsPoolGotRewardFor[_validators[i]].push(_stakingEpoch);
-                    }
+                    _epochsPoolGotRewardFor[validators[i]].push(_stakingEpoch);
                 }
             }
         }
@@ -437,63 +441,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         nativeRewardUndistributed = totalReward - distributedAmount;
 
         return distributedAmount;
-    }
-
-    /// @dev Distributes rewards among pools at the latest block of a staking epoch.
-    /// This function is called by the `reward` function.
-    /// @param _stakingContract The address of the StakingHbbft contract.
-    /// @param _stakingEpoch The number of the current staking epoch.
-    /// @param _stakingFixedEpochEndBlock The number of the latest block before key generation begins.
-    /// @return Returns the reward amount in native coins needed to be minted
-    /// and accrued to the balance of this contract.
-    function _distributeRewards(
-        IStakingHbbft _stakingContract,
-        uint256 _stakingEpoch,
-        uint256 _stakingFixedEpochEndBlock
-    ) internal returns(uint256 nativeTotalRewardAmount) {
-        address[] memory validators = validatorSetContract.getValidators();
-
-        // Determine shares
-        uint256 totalRewardShareNum = 0;
-        uint256 totalRewardShareDenom = 1;
-        uint256 realFinalizeBlock = validatorSetContract.validatorSetApplyBlock();
-        if (realFinalizeBlock != 0) {
-            uint256 idealFinalizeBlock =
-                _stakingContract.stakingEpochStartBlock() + validatorSetContract.MAX_VALIDATORS()*2/3 + 1;
-
-            if (realFinalizeBlock < idealFinalizeBlock) {
-                realFinalizeBlock = idealFinalizeBlock;
-            }
-
-            totalRewardShareNum = _stakingFixedEpochEndBlock - realFinalizeBlock + 1;
-            totalRewardShareDenom = _stakingFixedEpochEndBlock - idealFinalizeBlock + 1;
-        }
-
-        uint256[] memory blocksCreatedShareNum = new uint256[](validators.length);
-        uint256 blocksCreatedShareDenom = 0;
-        if (totalRewardShareNum != 0) {
-            for (uint256 i = 0; i < validators.length; i++) {
-                if (
-                    !validatorSetContract.isValidatorBanned(validators[i]) &&
-                    snapshotPoolValidatorStakeAmount[_stakingEpoch][validators[i]] != 0
-                ) {
-                    blocksCreatedShareNum[i] = blocksCreated[_stakingEpoch];
-                } else {
-                    blocksCreatedShareNum[i] = 0;
-                }
-                blocksCreatedShareDenom += blocksCreatedShareNum[i];
-            }
-        }
-
-        // Distribute native coins among pools
-        nativeTotalRewardAmount = _distributeNativeRewards(
-            _stakingEpoch,
-            totalRewardShareNum,
-            totalRewardShareDenom,
-            validators,
-            blocksCreatedShareNum,
-            blocksCreatedShareDenom
-        );
         
     }
 
