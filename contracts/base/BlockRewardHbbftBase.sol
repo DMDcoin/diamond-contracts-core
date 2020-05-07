@@ -120,21 +120,22 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// This function performs all of the automatic operations needed for accumulating block producing statistics,
     /// starting a new staking epoch, snapshotting staking amounts for the upcoming staking epoch,
     /// and rewards distributing at the end of a staking epoch.
-    function reward(address[] calldata benefactors, uint16[] calldata kind)
+    /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e. just before the pending validators are fiinalized.
+    function reward(address[] calldata _benefactors, uint16[] calldata _kind, bool _isEpochEndBlock)
         external
         onlySystem
         returns(address[] memory receiversNative, uint256[] memory rewardsNative)
     {
-        // if (benefactors.length != kind.length || benefactors.length != 1 || kind[0] != 0) {
+        // if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
         //     return (new address[](0), new uint256[](0));
         // }
 
-        if (benefactors.length != kind.length) {
-            return (new address[](0), new uint256[](0));
-        }
+        // if (_benefactors.length != _kind.length) {
+        //     return (new address[](0), new uint256[](0));
+        // }
         
         // Check if the validator exists
-        // if (!validatorSetContract.isValidator(benefactors[0])) {
+        // if (!validatorSetContract.isValidator(_benefactors[0])) {
         //     return (new address[](0), new uint256[](0));
         // }
 
@@ -150,21 +151,28 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             // statistics is used by the `_distributeRewards` function
             blocksCreated[stakingEpoch]++;
         }
+        // Store the current block in a local vairable
+        uint256 currentBlockNumber = _getCurrentBlockNumber();
 
-        if (_getCurrentBlockNumber() == stakingFixedEpochEndBlock) {
+        // If the end of the fixed epoch duration is reached, choose the new validator candidates aka pendingValidators.
+        if (currentBlockNumber == stakingFixedEpochEndBlock) {
+           // Choose new validators
+            validatorSetContract.newValidatorSet();
+        }
+
+        // If this is the last block of the epoch i.e. master key has been generated.
+        if (_isEpochEndBlock) {
+            // It should always come after the fixed epoch duration has elapsed.
+            require(currentBlockNumber > stakingFixedEpochEndBlock, "Fixed epoch duration has not elapsed yet");
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
             }
 
-
-             // Snapshot total amounts staked into the pools
+            // Snapshot total amounts staked into the pools
             uint256 i;
             uint256 nextStakingEpoch = stakingEpoch + 1;
             address[] memory miningAddresses;
-            
-            // Choose new validators
-            validatorSetContract.newValidatorSet();
             
             // We need to remember the total staked amounts for the pending addresses
             // for when these pending addresses are finalized by `ValidatorSetHbbft.finalizeChange()`.
