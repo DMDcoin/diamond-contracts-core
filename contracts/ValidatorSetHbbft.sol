@@ -255,10 +255,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         validatorSetApplyBlock = 0;
     }
 
-    /// @dev Removes malicious validators. Called by the `RandomHbbft.onFinishCollectRound` function.
+    /// @dev Removes malicious validators. Called by the the Hbbft engine when a validator has been inactive for a long period.
     /// @param _miningAddresses The mining addresses of the malicious validators.
-    function removeMaliciousValidators(address[] calldata _miningAddresses) external onlyRandomContract {
-        _removeMaliciousValidators(_miningAddresses, "unrevealed");
+    function removeMaliciousValidators(address[] calldata _miningAddresses) external onlySystem {
+        _removeMaliciousValidators(_miningAddresses, "inactive");
     }
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.
@@ -555,38 +555,37 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Removes the specified validator as malicious. Used by the `_removeMaliciousValidators` internal function.
     /// @param _miningAddress The removed validator mining address.
     /// @param _reason A short string of the reason why the mining address is treated as malicious:
-    /// "unrevealed" - the validator didn't reveal their secret at the end of staking epoch or skipped
-    /// too many reveals during the staking epoch;
-    /// "spam" - the validator made a lot of `reportMalicious` callings compared with other validators;
+    /// "inactive" - the validator has not been contributing to block creation for sigificant period of time.
+    /// "spam" - the validator made a lot of `reportMalicious` callings compared with other validators.
     /// "malicious" - the validator was reported as malicious by other validators with the `reportMalicious` function.
     /// @return Returns `true` if the specified validator has been removed from the pending validator set.
     /// Otherwise returns `false` (if the specified validator has already been removed or cannot be removed).
     function _removeMaliciousValidator(address _miningAddress, bytes32 _reason) internal returns(bool) {
-        address stakingAddress = stakingByMiningAddress[_miningAddress];
 
         bool isBanned = isValidatorBanned(_miningAddress);
-
-        // Ban the malicious validator for the next 3 months
+        uint256 banUntil = _banUntil();
+        // Ban the malicious validator for at least the next 12 staking epochs
         banCounter[_miningAddress]++;
-        bannedUntil[_miningAddress] = _banUntil();
+        bannedUntil[_miningAddress] = banUntil;
         banReason[_miningAddress] = _reason;
 
         if (isBanned) {
             // The validator is already banned
             return false;
         } else {
-            bannedDelegatorsUntil[_miningAddress] = _banUntil();
+            bannedDelegatorsUntil[_miningAddress] = banUntil;
         }
 
         // Remove malicious validator from the `pools`
+        address stakingAddress = stakingByMiningAddress[_miningAddress];
         stakingContract.removePool(stakingAddress);
 
-        // assign to and edit pending validators set, to be finalzied by finaleChange()
+        // assign to and edit pending validators set, to be finalized by finalizeChange()
         _pendingValidators = _currentValidators;
         uint256 length = _pendingValidators.length;
 
         if (length == 1) {
-            // If the removed validator is one and only in the validator set, don't let remove them
+            // If the validator set has only one validator, don't remove it.
             return false;
         }
 
@@ -693,7 +692,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns(uint256) {
         uint256 blocksUntilEnd = stakingContract.stakingFixedEpochEndBlock() - _getCurrentBlockNumber();
-        // ~90 days, at least 12 full staking epochs (for 5 seconds block)
+        // Ban for at least 12 full staking epochs
         return _getCurrentBlockNumber() + 12 * stakingContract.stakingFixedEpochDuration() + blocksUntilEnd;
     }
 
