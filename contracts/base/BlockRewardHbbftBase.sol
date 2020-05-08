@@ -126,9 +126,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         onlySystem
         returns(address[] memory receiversNative, uint256[] memory rewardsNative)
     {
-        // if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
-        //     return (new address[](0), new uint256[](0));
-        // }
+        if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
+            return (new address[](0), new uint256[](0));
+        }
 
         // if (_benefactors.length != _kind.length) {
         //     return (new address[](0), new uint256[](0));
@@ -265,7 +265,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     }
 
     /// @dev Returns the reward coefficient for the specified validator. The given value should be divided by 10000
-    /// to get the value of the reward percent (since EVM doesn't support float values). If the specified staking
+    /// to get the value of the reward percent (since EVM doesn't support floating values). If the specified staking
     /// address is an address of a candidate that is not about to be a validator on the current staking epoch
     /// the potentially possible reward coefficient is returned.
     /// @param _stakingAddress The staking address of the validator/candidate
@@ -293,14 +293,13 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         }
 
         if (validatorSetContract.validatorSetApplyBlock() == 0) {
-            // For the candidate that is about to be a validator on the current
+            // For the candidate that is about to be a validator on the upcoming
             // staking epoch we return the coefficient based on snapshotted total amounts
 
             address[] memory miningAddresses;
-            uint256 i;
 
             miningAddresses = validatorSetContract.getPendingValidators();
-            for (i = 0; i < miningAddresses.length; i++) {
+            for (uint256 i = 0; i < miningAddresses.length; i++) {
                 if (miningAddress == miningAddresses[i]) {
                     return validatorShare(
                         stakingEpoch,
@@ -311,20 +310,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 }
             }
 
-            miningAddresses = validatorSetContract.getPendingValidators();
-            for (i = 0; i < miningAddresses.length; i++) {
-                if (miningAddress == miningAddresses[i]) {
-                    return validatorShare(
-                        stakingEpoch,
-                        snapshotPoolValidatorStakeAmount[stakingEpoch][miningAddress],
-                        snapshotPoolTotalStakeAmount[stakingEpoch][miningAddress],
-                        REWARD_PERCENT_MULTIPLIER
-                    );
-                }
-            }
         }
 
-        // For the candidate that is not about to be a validator on the current staking epoch,
+        // For the candidate that is not about to be a validator on the upcoming staking epoch,
         // we return the potentially possible reward coefficient
         return validatorShare(
             stakingEpoch,
