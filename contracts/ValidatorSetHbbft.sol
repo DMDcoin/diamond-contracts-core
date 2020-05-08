@@ -23,8 +23,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     address[] internal _pendingValidators;
     address[] internal _previousValidators;
 
-    bool internal _forNewEpoch;
-
+    /// @dev Stores the validators that have reported the specific validator as malicious for the specified epoch.
     mapping(address => mapping(uint256 => address[])) internal _maliceReportedForBlock;
 
     /// @dev How many times a given mining address was banned.
@@ -43,10 +42,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     /// @dev The address of the `BlockRewardHbbft` contract.
     address public blockRewardContract;
-
-    /// @dev The serial number of a validator set change request. The counter is incremented
-    /// every time a validator set needs to be changed.
-    uint256 public changeRequestCount;
 
     /// @dev A boolean flag indicating whether the specified mining address is in the current validator set.
     /// See the `getValidators` getter.
@@ -87,7 +82,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     mapping(address => uint256) public validatorCounter;
 
     /// @dev The block number when the `finalizeChange` function was called to apply
-    /// the current validator set formed by the `newValidatorSet` function. If it is zero,
+    /// the pending validator set formed by the `newValidatorSet` function. If it is zero,
     /// it means the `newValidatorSet` function has already been called,
     /// but the new staking epoch's validator set hasn't yet been finalized by the `finalizeChange` function.
     uint256 public validatorSetApplyBlock;
@@ -147,24 +142,20 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
     /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
     function finalizeChange() external onlySystem {
-        if (_forNewEpoch) {
+        if (_pendingValidators.length != 0) {
             // Apply a new validator set formed by the `newValidatorSet` function
             _savePreviousValidators();
-            _finalizeNewValidators(true);
+            _finalizeNewValidators();
             IBlockRewardHbbft(blockRewardContract).clearBlocksCreated();
             validatorSetApplyBlock = _getCurrentBlockNumber();
             // new epoch starts
             stakingContract.incrementStakingEpoch();
             stakingContract.setStakingEpochStartBlock(_getCurrentBlockNumber() + 1);
-            _forNewEpoch = false;
-        } else if (_pendingValidators.length != 0) {
-            // Apply the changed validator set after malicious validator is removed
-            _finalizeNewValidators(false);
+            delete _pendingValidators;
         } else {
             // This is the very first call of the `finalizeChange` (block #1 when starting from genesis)
             validatorSetApplyBlock = _getCurrentBlockNumber();
         }
-        delete _pendingValidators;
     }
 
     /// @dev Initializes the network parameters. Used by the
@@ -240,10 +231,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         } else {
             _setPendingValidators(poolsToBeElected);
         }
-
-        // From this moment the `getPendingValidators()` returns the new validator set
-        // set the flag that indicates that a new Epoch is coming.
-        _forNewEpoch = true;
         
         // clear previousValidator KetGenHistory state
         keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
@@ -269,8 +256,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param _blockNumber The block number where the misbehavior was observed.
     function reportMalicious(
         address _maliciousMiningAddress,
-        uint256 _blockNumber,
-        bytes calldata
+        uint256 _blockNumber
     ) external onlyInitialized {
         address reportingMiningAddress = msg.sender;
 
@@ -287,8 +273,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
         if (!callable) {
             if (removeReportingValidator) {
-                // Reporting validator reported too often, so
-                // treat them as a malicious as well
+                // Reporting validator has been reporting too often, so
+                // treat them as a malicious as well (spam)
                 address[] memory miningAddresses = new address[](1);
                 miningAddresses[0] = reportingMiningAddress;
                 _removeMaliciousValidators(miningAddresses, "spam");
@@ -340,11 +326,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param _miningAddress The mining address of the pool.
     function areDelegatorsBanned(address _miningAddress) public view returns(bool) {
         return _getCurrentBlockNumber() <= bannedDelegatorsUntil[_miningAddress];
-    }
-
-    /// @dev Returns a boolean flag indicating the change is due to a new staking epoch
-    function forNewEpoch() external view returns(bool) {
-        return _forNewEpoch;
     }
 
     /// @dev Returns the previous validator set (validators' mining addresses array).
@@ -518,9 +499,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     /// @dev Sets a new validator set stored in `_pendingValidators` array.
     /// Called by the `finalizeChange` function.
-    /// @param _newStakingEpoch A boolean flag defining whether the validator set was formed by the
-    /// `newValidatorSet` function.
-    function _finalizeNewValidators(bool _newStakingEpoch) internal {
+    function _finalizeNewValidators() internal {
         address[] memory validators;
         uint256 i;
 
@@ -535,9 +514,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         for (i = 0; i < validators.length; i++) {
             address miningAddress = validators[i];
             isValidator[miningAddress] = true;
-            if (_newStakingEpoch) {
-                validatorCounter[miningAddress]++;
-            }
+            validatorCounter[miningAddress]++;
         }
     }
 
@@ -563,8 +540,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function _removeMaliciousValidator(address _miningAddress, bytes32 _reason) internal returns(bool) {
 
         bool isBanned = isValidatorBanned(_miningAddress);
-        uint256 banUntil = _banUntil();
         // Ban the malicious validator for at least the next 12 staking epochs
+        uint256 banUntil = _banUntil();
+
         banCounter[_miningAddress]++;
         bannedUntil[_miningAddress] = banUntil;
         banReason[_miningAddress] = _reason;
@@ -580,20 +558,17 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address stakingAddress = stakingByMiningAddress[_miningAddress];
         stakingContract.removePool(stakingAddress);
 
-        // assign to and edit pending validators set, to be finalized by finalizeChange()
-        _pendingValidators = _currentValidators;
-        uint256 length = _pendingValidators.length;
-
+        // If the validator set has only one validator, don't remove it.
+        uint256 length = _currentValidators.length;
         if (length == 1) {
-            // If the validator set has only one validator, don't remove it.
             return false;
         }
 
         for (uint256 i = 0; i < length; i++) {
-            if (_pendingValidators[i] == _miningAddress) {
+            if (_currentValidators[i] == _miningAddress) {
                 // Remove the malicious validator from `_pendingValidators`
-                _pendingValidators[i] = _pendingValidators[length - 1];
-                _pendingValidators.length--;
+                _currentValidators[i] = _currentValidators[length - 1];
+                _currentValidators.length--;
                 return true;
             }
         }
@@ -607,13 +582,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param _reason A short string of the reason why the mining addresses are treated as malicious,
     /// see the `_removeMaliciousValidator` internal function description for possible values.
     function _removeMaliciousValidators(address[] memory _miningAddresses, bytes32 _reason) internal {
-        bool removed = false;
-
         for (uint256 i = 0; i < _miningAddresses.length; i++) {
             if (_removeMaliciousValidator(_miningAddresses[i], _reason)) {
                 // From this moment `getPendingValidators()` returns the new validator set
                 _clearReportingCounter(_miningAddresses[i]);
-                removed = true;
             }
         }
     }
