@@ -163,6 +163,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param _blockRewardContract The address of the `BlockRewardHbbft` contract.
     /// @param _randomContract The address of the `RandomHbbft` contract.
     /// @param _stakingContract The address of the `StakingHbbft` contract.
+    /// @param _keyGenHistoryContract The address of the `KeyGenHistory` contract.
     /// @param _initialMiningAddresses The array of initial validators' mining addresses.
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
     function initialize(
@@ -174,13 +175,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address[] calldata _initialStakingAddresses
     ) external {
         require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
-        require(!isInitialized()); // initialization can only be done once
-        require(_blockRewardContract != address(0));
-        require(_randomContract != address(0));
-        require(_stakingContract != address(0));
-        require(_keyGenHistoryContract != address(0));
-        require(_initialMiningAddresses.length > 0);
-        require(_initialMiningAddresses.length == _initialStakingAddresses.length);
+        require(!isInitialized(), "ValidatorSet contract is already initialized"); // initialization can only be done once
+        require(_blockRewardContract != address(0), "BlockReward contract address can't be 0");
+        require(_randomContract != address(0), "Random contract address can't be 0");
+        require(_stakingContract != address(0), "Staking contract address can't be 0");
+        require(_keyGenHistoryContract != address(0), "KeyGenHistory contract address can't be 0");
+        require(_initialMiningAddresses.length > 0, "Must provide initial mining addresses");
+        require(_initialMiningAddresses.length == _initialStakingAddresses.length, "Must provide the same amount of mining/staking addresses");
 
         blockRewardContract = _blockRewardContract;
         randomContract = _randomContract;
@@ -649,13 +650,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param _stakingAddress The staking address of the newly created pool. Cannot be equal to the `_miningAddress`
     /// and should never be used as a pool before.
     function _setStakingAddress(address _miningAddress, address _stakingAddress) internal {
-        require(_miningAddress != address(0));
-        require(_stakingAddress != address(0));
-        require(_miningAddress != _stakingAddress);
-        require(miningByStakingAddress[_stakingAddress] == address(0));
-        require(miningByStakingAddress[_miningAddress] == address(0));
-        require(stakingByMiningAddress[_stakingAddress] == address(0));
-        require(stakingByMiningAddress[_miningAddress] == address(0));
+        require(_miningAddress != address(0), "Mining address can't be 0");
+        require(_stakingAddress != address(0), "Staking address can't be 0");
+        require(_miningAddress != _stakingAddress, "Mining address cannot be the same as the staking one");
+        require(miningByStakingAddress[_stakingAddress] == address(0), "Staking address already used as a staking one");
+        require(miningByStakingAddress[_miningAddress] == address(0), "Mining address already used as a staking one");
+        require(stakingByMiningAddress[_stakingAddress] == address(0), "Staking address already used as a mining one");
+        require(stakingByMiningAddress[_miningAddress] == address(0), "Mining address already used as a mining one");
         miningByStakingAddress[_stakingAddress] = _miningAddress;
         stakingByMiningAddress[_miningAddress] = _stakingAddress;
     }

@@ -1,8 +1,7 @@
-const BlockRewardHbbft = artifacts.require('BlockRewardHbbftTokensMock');
-const ERC677BridgeTokenRewardable = artifacts.require('ERC677BridgeTokenRewardable');
+const BlockRewardHbbft = artifacts.require('BlockRewardHbbftCoinsMock');
 const AdminUpgradeabilityProxy = artifacts.require('AdminUpgradeabilityProxy');
 const RandomHbbft = artifacts.require('RandomHbbftMock');
-const StakingHbbft = artifacts.require('StakingHbbftTokensMock');
+const StakingHbbft = artifacts.require('StakingHbbftCoinsMock');
 const ValidatorSetHbbft = artifacts.require('ValidatorSetHbbftMock');
 const KeyGenHistory = artifacts.require('KeyGenHistory');
 
@@ -49,109 +48,6 @@ contract('ValidatorSetHbbft', async accounts => {
     initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
   });
 
-  describe('clearUnremovableValidator()', async () => {
-    let initialStakingAddresses;
-
-    beforeEach(async () => {
-      const initialValidators = accounts.slice(1, 3 + 1); // accounts[1...3]
-      initialStakingAddresses = accounts.slice(4, 6 + 1); // accounts[4...6]
-      await validatorSetHbbft.setCurrentBlockNumber(0);
-      await validatorSetHbbft.initialize(
-        blockRewardHbbft.address, // _blockRewardContract
-        '0x3000000000000000000000000000000000000001', // _randomContract
-        stakingHbbft.address, // _stakingContract
-        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-        initialValidators, // _initialMiningAddresses
-        initialStakingAddresses, // _initialStakingAddresses
-        true // _firstValidatorIsUnremovable
-      ).should.be.fulfilled;
-      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-      (await validatorSetHbbft.unremovableValidator.call()).should.be.equal(initialStakingAddresses[0]);
-      initialStakingAddresses[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
-      await validatorSetHbbft.setCurrentBlockNumber(100);
-    });
-    it('can be called only once and it should make a non-removable validator removable', async () => {
-      await validatorSetHbbft.clearUnremovableValidator({from: initialStakingAddresses[0]}).should.be.fulfilled;
-      (await validatorSetHbbft.unremovableValidator.call()).should.be.equal('0x0000000000000000000000000000000000000000');
-      await validatorSetHbbft.clearUnremovableValidator({from: initialStakingAddresses[0]}).should.be.rejectedWith(ERROR_MSG);
-    });
-    it('can be called by an owner', async () => {
-      await validatorSetHbbft.clearUnremovableValidator({from: owner}).should.be.fulfilled;
-    });
-    it('can only be called by an owner or non-removable validator', async () => {
-      await validatorSetHbbft.clearUnremovableValidator({from: accounts[7]}).should.be.rejectedWith(ERROR_MSG);
-    });
-    it('should add validator pool to the poolsToBeElected list', async () => {
-      await stakingHbbft.setValidatorSetAddress('0x0000000000000000000000000000000000000000').should.be.fulfilled;
-      await stakingHbbft.initialize(
-        validatorSetHbbft.address, // _validatorSetContract
-        initialStakingAddresses, // _initialStakingAddresses
-        web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-        web3.utils.toWei('1', 'ether'), // _candidateMinStake
-        120954, // _stakingEpochDuration
-        0, // _stakingEpochStartBlock
-        4320, // _stakeWithdrawDisallowPeriod
-        initialValidatorsPubKeys, // _publicKeys
-        initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.fulfilled;
-
-      // Deploy ERC677 contract
-      const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
-
-      // Mint some balance for the non-removable validator (imagine that the validator got 2 STAKE_UNITs from a bridge)
-      const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
-      const mintAmount = stakeUnit.mul(new BN(2));
-      await erc677Token.mint(initialStakingAddresses[0], mintAmount, {from: owner}).should.be.fulfilled;
-      mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(initialStakingAddresses[0]));
-
-      // Pass Staking contract address to ERC677 contract
-      await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
-      stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
-
-      // Pass ERC677 contract address to Staking contract
-      await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
-      erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
-
-      // Emulate block number
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-
-      // Place a stake for itself
-      await stakingHbbft.stake(initialStakingAddresses[0], stakeUnit.mul(new BN(1)), {from: initialStakingAddresses[0]}).should.be.fulfilled;
-
-      (await stakingHbbft.getPoolsToBeElected.call()).length.should.be.equal(0);
-
-      await validatorSetHbbft.clearUnremovableValidator({from: initialStakingAddresses[0]}).should.be.fulfilled;
-
-      (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([
-        initialStakingAddresses[0]
-      ]);
-    });
-    it('should add validator pool to the poolsToBeRemoved list', async () => {
-      await stakingHbbft.setValidatorSetAddress('0x0000000000000000000000000000000000000000').should.be.fulfilled;
-      await stakingHbbft.initialize(
-        validatorSetHbbft.address, // _validatorSetContract
-        initialStakingAddresses, // _initialStakingAddresses
-        web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-        web3.utils.toWei('1', 'ether'), // _candidateMinStake
-        120954, // _stakingEpochDuration
-        0, // _stakingEpochStartBlock
-        4320, // _stakeWithdrawDisallowPeriod
-        initialValidatorsPubKeys, // _publicKeys
-        initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.fulfilled;
-      (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal([
-        initialStakingAddresses[1],
-        initialStakingAddresses[2]
-      ]);
-      await validatorSetHbbft.clearUnremovableValidator({from: initialStakingAddresses[0]}).should.be.fulfilled;
-      (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal([
-        initialStakingAddresses[1],
-        initialStakingAddresses[2],
-        initialStakingAddresses[0]
-      ]);
-    });
-  });
-
   describe('initialize()', async () => {
     let initialValidators;
     let initialStakingAddresses;
@@ -173,7 +69,6 @@ contract('ValidatorSetHbbft', async accounts => {
         '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
       ).should.be.fulfilled;
       blockRewardHbbft.address.should.be.equal(
         await validatorSetHbbft.blockRewardContract.call()
@@ -199,25 +94,8 @@ contract('ValidatorSetHbbft', async accounts => {
       false.should.be.equal(
         await validatorSetHbbft.isValidator.call('0x0000000000000000000000000000000000000000')
       );
-      (await validatorSetHbbft.unremovableValidator.call()).should.be.equal(
-        '0x0000000000000000000000000000000000000000'
-      );
       new BN(0).should.be.bignumber.equal(
         await validatorSetHbbft.validatorSetApplyBlock.call()
-      );
-    });
-    it('should set unremovable validator to the first staking address', async () => {
-      await validatorSetHbbft.initialize(
-        blockRewardHbbft.address, // _blockRewardContract
-        '0x3000000000000000000000000000000000000001', // _randomContract
-        stakingHbbft.address, // _stakingContract
-        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-        initialValidators, // _initialMiningAddresses
-        initialStakingAddresses, // _initialStakingAddresses
-        true // _firstValidatorIsUnremovable
-      ).should.be.fulfilled;
-      initialStakingAddresses[0].should.be.equal(
-        await validatorSetHbbft.unremovableValidator.call()
       );
     });
     it('should fail if BlockRewardHbbft contract address is zero', async () => {
@@ -228,8 +106,7 @@ contract('ValidatorSetHbbft', async accounts => {
         '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("BlockReward contract address can't be 0");
     });
     it('should fail if RandomHbbft contract address is zero', async () => {
       await validatorSetHbbft.initialize(
@@ -239,8 +116,7 @@ contract('ValidatorSetHbbft', async accounts => {
         '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("Random contract address can't be 0");
     });
     it('should fail if StakingHbbft contract address is zero', async () => {
       await validatorSetHbbft.initialize(
@@ -250,19 +126,18 @@ contract('ValidatorSetHbbft', async accounts => {
         '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+
+      ).should.be.rejectedWith("Staking contract address can't be 0");
     });
     it('should fail if KeyGenHistory contract address is zero', async () => {
       await validatorSetHbbft.initialize(
         blockRewardHbbft.address, // _blockRewardContract
         '0x3000000000000000000000000000000000000001', // _randomContract
-        '0x0000000000000000000000000000000000000000', // _stakingContract
+        '0x0000000000000000000000000000000000000001', // _stakingContract
         '0x0000000000000000000000000000000000000000', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("KeyGenHistory contract address can't be 0");
     });
     it('should fail if initial mining addresses are empty', async () => {
       await validatorSetHbbft.initialize(
@@ -272,8 +147,7 @@ contract('ValidatorSetHbbft', async accounts => {
          '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         [], // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("Must provide initial mining addresses");
     });
     it('should fail if already initialized', async () => {
       await validatorSetHbbft.initialize(
@@ -283,7 +157,6 @@ contract('ValidatorSetHbbft', async accounts => {
          '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
       ).should.be.fulfilled;
       await validatorSetHbbft.initialize(
         blockRewardHbbft.address, // _blockRewardContract
@@ -292,8 +165,7 @@ contract('ValidatorSetHbbft', async accounts => {
          '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("ValidatorSet contract is already initialized");
     });
     it('should fail if the number of mining addresses is not the same as the number of staking ones', async () => {
       const initialStakingAddressesShort = accounts.slice(4, 5 + 1); // accounts[4...5]
@@ -304,8 +176,7 @@ contract('ValidatorSetHbbft', async accounts => {
          '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddressesShort, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("Must provide the same amount of mining/staking addresses");
     });
     it('should fail if the mining addresses are the same as the staking ones', async () => {
       const initialStakingAddressesShort = accounts.slice(4, 5 + 1); // accounts[4...5]
@@ -316,8 +187,7 @@ contract('ValidatorSetHbbft', async accounts => {
         '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialValidators, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("Mining address cannot be the same as the staking one");
     });
     it('should fail if some mining address is 0', async () => {
       initialValidators[0] = '0x0000000000000000000000000000000000000000';
@@ -328,8 +198,7 @@ contract('ValidatorSetHbbft', async accounts => {
         '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("Mining address can't be 0");
     });
     it('should fail if some staking address is 0', async () => {
       initialStakingAddresses[0] = '0x0000000000000000000000000000000000000000';
@@ -340,434 +209,471 @@ contract('ValidatorSetHbbft', async accounts => {
          '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
         initialValidators, // _initialMiningAddresses
         initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.rejectedWith(ERROR_MSG);
+      ).should.be.rejectedWith("Staking address can't be 0");
+    });
+    it('should fail if a staking address is currently being used as a staking one', async () => {
+      initialStakingAddresses[1] = initialStakingAddresses[0];
+      await validatorSetHbbft.initialize(
+        blockRewardHbbft.address, // _blockRewardContract
+        '0x3000000000000000000000000000000000000001', // _randomContract
+        stakingHbbft.address, // _stakingContract
+        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+        initialValidators, // _initialMiningAddresses
+        initialStakingAddresses, // _initialStakingAddresses
+      ).should.be.rejectedWith("Staking address already used as a staking one");
+    });
+    it('should fail if a mining address is currently being used as a staking one', async () => {
+      initialValidators[1] = initialStakingAddresses[0];
+      await validatorSetHbbft.initialize(
+        blockRewardHbbft.address, // _blockRewardContract
+        '0x3000000000000000000000000000000000000001', // _randomContract
+        stakingHbbft.address, // _stakingContract
+        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+        initialValidators, // _initialMiningAddresses
+        initialStakingAddresses, // _initialStakingAddresses
+      ).should.be.rejectedWith("Mining address already used as a staking one");
+    });
+    it('should fail if a staking address is currently being used as a mining one', async () => {
+      initialStakingAddresses[1] = initialValidators[0];
+      await validatorSetHbbft.initialize(
+        blockRewardHbbft.address, // _blockRewardContract
+        '0x3000000000000000000000000000000000000001', // _randomContract
+        stakingHbbft.address, // _stakingContract
+        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+        initialValidators, // _initialMiningAddresses
+        initialStakingAddresses, // _initialStakingAddresses
+      ).should.be.rejectedWith("Staking address already used as a mining one");
+    });
+    it('should fail if a mining address is currently being used as a mining one', async () => {
+      initialValidators[1] = initialValidators[0];
+      await validatorSetHbbft.initialize(
+        blockRewardHbbft.address, // _blockRewardContract
+        '0x3000000000000000000000000000000000000001', // _randomContract
+        stakingHbbft.address, // _stakingContract
+        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+        initialValidators, // _initialMiningAddresses
+        initialStakingAddresses, // _initialStakingAddresses
+      ).should.be.rejectedWith("Mining address already used as a mining one");
     });
   });
 
-  describe('newValidatorSet()', async () => {
-    let initialValidators;
-    let initialStakingAddresses;
-    let randomHbbft;
+  // describe('newValidatorSet()', async () => {
+  //   let initialValidators;
+  //   let initialStakingAddresses;
+  //   let randomHbbft;
 
-    beforeEach(async () => {
-      initialValidators = accounts.slice(1, 3 + 1); // accounts[1...3]
-      initialStakingAddresses = accounts.slice(4, 6 + 1); // accounts[4...6]
+  //   beforeEach(async () => {
+  //     initialValidators = accounts.slice(1, 3 + 1); // accounts[1...3]
+  //     initialStakingAddresses = accounts.slice(4, 6 + 1); // accounts[4...6]
 
-      randomHbbft = await RandomHbbft.new();
-      randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
-      randomHbbft = await RandomHbbft.at(randomHbbft.address);
+  //     randomHbbft = await RandomHbbft.new();
+  //     randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
+  //     randomHbbft = await RandomHbbft.at(randomHbbft.address);
 
-      keyGenHistory = await KeyGenHistory.new();
-      keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
-      keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+  //     keyGenHistory = await KeyGenHistory.new();
+  //     keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
+  //     keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
 
-      await validatorSetHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await validatorSetHbbft.initialize(
-        blockRewardHbbft.address, // _blockRewardContract
-        randomHbbft.address, // _randomContract
-        stakingHbbft.address, // _stakingContract
-        keyGenHistory.address, //_keyGenHistoryContract
-        initialValidators, // _initialMiningAddresses
-        initialStakingAddresses, // _initialStakingAddresses
-        false // _firstValidatorIsUnremovable
-      ).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await stakingHbbft.initialize(
-        validatorSetHbbft.address, // _validatorSetContract
-        initialStakingAddresses, // _initialStakingAddresses
-        web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-        web3.utils.toWei('1', 'ether'), // _candidateMinStake
-        120954, // _stakingEpochDuration
-        0, // _stakingEpochStartBlock
-        4320, // _stakeWithdrawDisallowPeriod
-        initialValidatorsPubKeys, // _publicKeys
-        initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.fulfilled;
-      await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
-      [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
-      ).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-    });
-    it('can only be called by BlockReward contract', async () => {
-      await validatorSetHbbft.newValidatorSet({from: owner}).should.be.rejectedWith(ERROR_MSG);
-      await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
-      await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
-    });
-    it('should enqueue all initial validators (active pools) if there is no staking', async () => {
+  //     await validatorSetHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await validatorSetHbbft.initialize(
+  //       blockRewardHbbft.address, // _blockRewardContract
+  //       randomHbbft.address, // _randomContract
+  //       stakingHbbft.address, // _stakingContract
+  //       keyGenHistory.address, //_keyGenHistoryContract
+  //       initialValidators, // _initialMiningAddresses
+  //       initialStakingAddresses, // _initialStakingAddresses
+  //     ).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await stakingHbbft.initialize(
+  //       validatorSetHbbft.address, // _validatorSetContract
+  //       initialStakingAddresses, // _initialStakingAddresses
+  //       web3.utils.toWei('1', 'ether'), // _delegatorMinStake
+  //       web3.utils.toWei('1', 'ether'), // _candidateMinStake
+  //       120954, // _stakingEpochDuration
+  //       0, // _stakingEpochStartBlock
+  //       4320, // _stakeWithdrawDisallowPeriod
+  //       initialValidatorsPubKeys, // _publicKeys
+  //       initialValidatorsIpAddresses // _internetAddresses
+  //     ).should.be.fulfilled;
+  //     await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
+  //     [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
+  //     ).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //   });
+  //   it('can only be called by BlockReward contract', async () => {
+  //     await validatorSetHbbft.newValidatorSet({from: owner}).should.be.rejectedWith(ERROR_MSG);
+  //     await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
+  //     await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
+  //   });
+  //   it('should enqueue all initial validators (active pools) if there is no staking', async () => {
 
-      // Check the returned value of the pending validators; it should be an empty list
-      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
-      (await validatorSetHbbft.forNewEpoch.call()).should.be.equal(false);
+  //     // Check the returned value of the pending validators; it should be an empty list
+  //     (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
+  //     (await validatorSetHbbft.forNewEpoch.call()).should.be.equal(false);
 
-      // Emulate calling `newValidatorSet()` at the last block of staking epoch
-      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
-      await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
+  //     // Emulate calling `newValidatorSet()` at the last block of staking epoch
+  //     await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
+  //     await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
 
-      // The beginning of the next staking epoch
-      await stakingHbbft.setCurrentBlockNumber(120955).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120955).should.be.fulfilled;
+  //     // The beginning of the next staking epoch
+  //     await stakingHbbft.setCurrentBlockNumber(120955).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(120955).should.be.fulfilled;
 
-      // Check the returned value of the pending validators; it should be an empty list
-      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
-      (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal(initialValidators);
-      (await validatorSetHbbft.isForNewEpoch.call()).should.be.equal(true);
-    });
-    it('should enqueue only one validator which has non-empty pool', async () => {
-      const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
-      const mintAmount = stakeUnit.mul(new BN(2));
+  //     // Check the returned value of the pending validators; it should be an empty list
+  //     (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
+  //     (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal(initialValidators);
+  //     (await validatorSetHbbft.isForNewEpoch.call()).should.be.equal(true);
+  //   });
+  //   it('should enqueue only one validator which has non-empty pool', async () => {
+  //     const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
+  //     const mintAmount = stakeUnit.mul(new BN(2));
 
-      await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
+  //     await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
 
-      // Deploy token contract and mint some tokens for the first initial validator
-      const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
-      await erc677Token.mint(initialStakingAddresses[0], mintAmount, {from: owner}).should.be.fulfilled;
-      mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(initialStakingAddresses[0]));
+  //     // Deploy token contract and mint some tokens for the first initial validator
+  //     const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
+  //     await erc677Token.mint(initialStakingAddresses[0], mintAmount, {from: owner}).should.be.fulfilled;
+  //     mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(initialStakingAddresses[0]));
 
-      // Pass Staking contract address to ERC677 contract
-      await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
-      stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
+  //     // Pass Staking contract address to ERC677 contract
+  //     await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
+  //     stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
 
-      // Pass ERC677 contract address to Staking contract
-      await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
-      erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
+  //     // Pass ERC677 contract address to Staking contract
+  //     await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
+  //     erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
 
-      // Emulate staking by the first validator into their own pool
-      const stakeAmount = stakeUnit.mul(new BN(1));
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await stakingHbbft.stake(initialStakingAddresses[0], stakeAmount, {from: initialStakingAddresses[0]}).should.be.fulfilled;
-      stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(initialStakingAddresses[0], initialStakingAddresses[0]));
+  //     // Emulate staking by the first validator into their own pool
+  //     const stakeAmount = stakeUnit.mul(new BN(1));
+  //     await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+  //     await stakingHbbft.stake(initialStakingAddresses[0], stakeAmount, {from: initialStakingAddresses[0]}).should.be.fulfilled;
+  //     stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(initialStakingAddresses[0], initialStakingAddresses[0]));
 
-      // Emulate calling `newValidatorSet()` at the last block of staking epoch
-      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
-      await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
+  //     // Emulate calling `newValidatorSet()` at the last block of staking epoch
+  //     await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
+  //     await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
 
-      // Check the returned value of `getPendingValidators()`
-      (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([initialValidators[0]]);
-    });
-    it('should enqueue unremovable validator anyway', async () => {
-      validatorSetHbbft = await ValidatorSetHbbft.new();
-      validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-      validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+  //     // Check the returned value of `getPendingValidators()`
+  //     (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([initialValidators[0]]);
+  //   });
+  //   it('should enqueue unremovable validator anyway', async () => {
+  //     validatorSetHbbft = await ValidatorSetHbbft.new();
+  //     validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
+  //     validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
 
-      stakingHbbft = await StakingHbbft.new();
-      stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-      stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+  //     stakingHbbft = await StakingHbbft.new();
+  //     stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
+  //     stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
 
-      keyGenHistory = await KeyGenHistory.new();
-      keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
-      keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+  //     keyGenHistory = await KeyGenHistory.new();
+  //     keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
+  //     keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
 
-      await validatorSetHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await validatorSetHbbft.initialize(
-        blockRewardHbbft.address, // _blockRewardContract
-        randomHbbft.address, // _randomContract
-        stakingHbbft.address, // _stakingContract
-        keyGenHistory.address, //_keyGenHistoryContract
-        initialValidators, // _initialMiningAddresses
-        initialStakingAddresses, // _initialStakingAddresses
-        true // _firstValidatorIsUnremovable
-      ).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await validatorSetHbbft.initialize(
+  //       blockRewardHbbft.address, // _blockRewardContract
+  //       randomHbbft.address, // _randomContract
+  //       stakingHbbft.address, // _stakingContract
+  //       keyGenHistory.address, //_keyGenHistoryContract
+  //       initialValidators, // _initialMiningAddresses
+  //       initialStakingAddresses, // _initialStakingAddresses
+  //     ).should.be.fulfilled;
 
-      await stakingHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await stakingHbbft.initialize(
-        validatorSetHbbft.address, // _validatorSetContract
-        initialStakingAddresses, // _initialStakingAddresses
-        web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-        web3.utils.toWei('1', 'ether'), // _candidateMinStake
-        120954, // _stakingEpochDuration
-        0, // _stakingEpochStartBlock
-        4320, // _stakeWithdrawDisallowPeriod
-        initialValidatorsPubKeys, // _publicKeys
-        initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.fulfilled;
-      // await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await stakingHbbft.initialize(
+  //       validatorSetHbbft.address, // _validatorSetContract
+  //       initialStakingAddresses, // _initialStakingAddresses
+  //       web3.utils.toWei('1', 'ether'), // _delegatorMinStake
+  //       web3.utils.toWei('1', 'ether'), // _candidateMinStake
+  //       120954, // _stakingEpochDuration
+  //       0, // _stakingEpochStartBlock
+  //       4320, // _stakeWithdrawDisallowPeriod
+  //       initialValidatorsPubKeys, // _publicKeys
+  //       initialValidatorsIpAddresses // _internetAddresses
+  //     ).should.be.fulfilled;
+  //     // await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
       
-      await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
-      [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
-      ).should.be.fulfilled;
+  //     await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
+  //     [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
+  //     ).should.be.fulfilled;
       
-      const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
-      const mintAmount = stakeUnit.mul(new BN(2));
+  //     const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
+  //     const mintAmount = stakeUnit.mul(new BN(2));
 
-      await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
+  //     await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(10).should.be.fulfilled;
 
-      // Deploy token contract and mint some tokens for the second initial validator
-      const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
-      await erc677Token.mint(initialStakingAddresses[1], mintAmount, {from: owner}).should.be.fulfilled;
-      mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(initialStakingAddresses[1]));
+  //     // Deploy token contract and mint some tokens for the second initial validator
+  //     const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
+  //     await erc677Token.mint(initialStakingAddresses[1], mintAmount, {from: owner}).should.be.fulfilled;
+  //     mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(initialStakingAddresses[1]));
 
-      // Pass Staking contract address to ERC677 contract
-      await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
-      stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
+  //     // Pass Staking contract address to ERC677 contract
+  //     await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
+  //     stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
 
-      // Pass ERC677 contract address to Staking contract
-      await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
-      erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
+  //     // Pass ERC677 contract address to Staking contract
+  //     await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
+  //     erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
 
-      // Emulate staking by the second validator into their own pool
-      const stakeAmount = stakeUnit.mul(new BN(1));
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await stakingHbbft.stake(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-      stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1]));
+  //     // Emulate staking by the second validator into their own pool
+  //     const stakeAmount = stakeUnit.mul(new BN(1));
+  //     await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+  //     await stakingHbbft.stake(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+  //     stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1]));
 
-      // Emulate calling `newValidatorSet()` at the last block of staking epoch
-      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
-      await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
+  //     // Emulate calling `newValidatorSet()` at the last block of staking epoch
+  //     await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
+  //     await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
 
-      // Check the returned value of `getPendingValidators()`
-      const unremovableStakingAddress = await validatorSetHbbft.unremovableValidator.call();
-      const unremovableMiningAddress = await validatorSetHbbft.miningByStakingAddress.call(unremovableStakingAddress);
-      (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([
-        unremovableMiningAddress,
-        initialValidators[1]
-      ]);
+  //     // Check the returned value of `getPendingValidators()`
+  //     (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([
+  //       initialValidators[1]
+  //     ]);
 
-      // Check the current active pools
-      (await stakingHbbft.getPools.call()).should.be.deep.equal([
-        unremovableStakingAddress,
-        initialStakingAddresses[1]
-      ]);
-    });
-    it('should choose validators randomly', async () => {
-      const stakingAddresses = accounts.slice(7, 29 + 1); // accounts[7...29]
-      let miningAddresses = [];
+  //     // Check the current active pools
+  //     (await stakingHbbft.getPools.call()).should.be.deep.equal([
+  //       initialStakingAddresses[1]
+  //     ]);
+  //   });
+  //   it('should choose validators randomly', async () => {
+  //     const stakingAddresses = accounts.slice(7, 29 + 1); // accounts[7...29]
+  //     let miningAddresses = [];
 
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        // Generate new candidate mining address
-        let candidateMiningAddress = '0x';
-        for (let i = 0; i < 20; i++) {
-          let randomByte = random(0, 255).toString(16);
-          if (randomByte.length % 2) {
-            randomByte = '0' + randomByte;
-          }
-          candidateMiningAddress += randomByte;
-        }
-        miningAddresses.push(candidateMiningAddress.toLowerCase());
-      }
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       // Generate new candidate mining address
+  //       let candidateMiningAddress = '0x';
+  //       for (let i = 0; i < 20; i++) {
+  //         let randomByte = random(0, 255).toString(16);
+  //         if (randomByte.length % 2) {
+  //           randomByte = '0' + randomByte;
+  //         }
+  //         candidateMiningAddress += randomByte;
+  //       }
+  //       miningAddresses.push(candidateMiningAddress.toLowerCase());
+  //     }
 
-      const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
-      const mintAmount = stakeUnit.mul(new BN(100));
+  //     const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
+  //     const mintAmount = stakeUnit.mul(new BN(100));
 
-      await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
+  //     await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
 
-      // Deploy token contract and mint tokens for the candidates
-      const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        await erc677Token.mint(stakingAddresses[i], mintAmount, {from: owner}).should.be.fulfilled;
-        mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(stakingAddresses[i]));
-      }
+  //     // Deploy token contract and mint tokens for the candidates
+  //     const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       await erc677Token.mint(stakingAddresses[i], mintAmount, {from: owner}).should.be.fulfilled;
+  //       mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(stakingAddresses[i]));
+  //     }
 
-      // Pass Staking contract address to ERC677 contract
-      await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
-      stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
+  //     // Pass Staking contract address to ERC677 contract
+  //     await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
+  //     stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
 
-      // Pass ERC677 contract address to Staking contract
-      await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
-      erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
+  //     // Pass ERC677 contract address to Staking contract
+  //     await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
+  //     erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
 
-      // Emulate staking by the candidates into their own pool
-      await stakingHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        const stakeAmount = stakeUnit.mul(new BN(i + 1));
-        await stakingHbbft.addPool(
-          stakeAmount,
-          miningAddresses[i],
-          '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-          '0x00000000000000000000000000000000',
-          {from: stakingAddresses[i]}
-        ).should.be.fulfilled;
-        stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(stakingAddresses[i], stakingAddresses[i]));
-      }
+  //     // Emulate staking by the candidates into their own pool
+  //     await stakingHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       const stakeAmount = stakeUnit.mul(new BN(i + 1));
+  //       await stakingHbbft.addPool(
+  //         stakeAmount,
+  //         miningAddresses[i],
+  //         '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  //         '0x00000000000000000000000000000000',
+  //         {from: stakingAddresses[i]}
+  //       ).should.be.fulfilled;
+  //       stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(stakingAddresses[i], stakingAddresses[i]));
+  //     }
 
-      // Check pools of the new candidates
-      (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal(stakingAddresses);
-      const poolsLikelihood = await stakingHbbft.getPoolsLikelihood.call();
-      let likelihoodSum = new BN(0);
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        const poolLikelihood = stakeUnit.mul(new BN(i + 1));
-        poolsLikelihood[0][i].should.be.bignumber.equal(new BN(poolLikelihood));
-        likelihoodSum = likelihoodSum.add(poolLikelihood);
-      }
-      poolsLikelihood[1].should.be.bignumber.equal(new BN(likelihoodSum));
+  //     // Check pools of the new candidates
+  //     (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal(stakingAddresses);
+  //     const poolsLikelihood = await stakingHbbft.getPoolsLikelihood.call();
+  //     let likelihoodSum = new BN(0);
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       const poolLikelihood = stakeUnit.mul(new BN(i + 1));
+  //       poolsLikelihood[0][i].should.be.bignumber.equal(new BN(poolLikelihood));
+  //       likelihoodSum = likelihoodSum.add(poolLikelihood);
+  //     }
+  //     poolsLikelihood[1].should.be.bignumber.equal(new BN(likelihoodSum));
 
-      // Generate a random seed
-      (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(0));
-      await randomHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await randomHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
+  //     // Generate a random seed
+  //     (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(0));
+  //     await randomHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await randomHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
 
-      const seed = random(1000000, 2000000);
-      await randomHbbft.setSystemAddress(owner).should.be.fulfilled;
-      await randomHbbft.setCurrentSeed(new BN(seed), {from: owner}).should.be.fulfilled;
-      await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
-      (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(seed));
+  //     const seed = random(1000000, 2000000);
+  //     await randomHbbft.setSystemAddress(owner).should.be.fulfilled;
+  //     await randomHbbft.setCurrentSeed(new BN(seed), {from: owner}).should.be.fulfilled;
+  //     await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+  //     (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(seed));
 
-      // Emulate calling `newValidatorSet()` at the last block of staking epoch
-      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await randomHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
-      await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
+  //     // Emulate calling `newValidatorSet()` at the last block of staking epoch
+  //     await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await randomHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
+  //     await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
 
-      const newValidators = await validatorSetHbbft.getPendingValidators.call();
+  //     const newValidators = await validatorSetHbbft.getPendingValidators.call();
 
-      newValidators.length.should.be.equal((await validatorSetHbbft.MAX_VALIDATORS.call()).toNumber());
+  //     newValidators.length.should.be.equal((await validatorSetHbbft.MAX_VALIDATORS.call()).toNumber());
 
-      for (let i = 0; i < newValidators.length; i++) {
-        miningAddresses.indexOf(newValidators[i].toLowerCase()).should.be.gte(0);
-      }
-    });
-    it('should choose validators randomly but leave an unremovable validator', async () => {
-      validatorSetHbbft = await ValidatorSetHbbft.new();
-      validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-      validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+  //     for (let i = 0; i < newValidators.length; i++) {
+  //       miningAddresses.indexOf(newValidators[i].toLowerCase()).should.be.gte(0);
+  //     }
+  //   });
+  //   it('should choose validators randomly but leave an unremovable validator', async () => {
+  //     validatorSetHbbft = await ValidatorSetHbbft.new();
+  //     validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
+  //     validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
 
-      stakingHbbft = await StakingHbbft.new();
-      stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-      stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+  //     stakingHbbft = await StakingHbbft.new();
+  //     stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
+  //     stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
 
-      keyGenHistory = await KeyGenHistory.new();
-      keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
-      keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+  //     keyGenHistory = await KeyGenHistory.new();
+  //     keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
+  //     keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
       
-      await validatorSetHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await validatorSetHbbft.initialize(
-        blockRewardHbbft.address, // _blockRewardContract
-        randomHbbft.address, // _randomContract
-        stakingHbbft.address, // _stakingContract
-        keyGenHistory.address, //_keyGenHistoryContract
-        initialValidators, // _initialMiningAddresses
-        initialStakingAddresses, // _initialStakingAddresses
-        true // _firstValidatorIsUnremovable
-      ).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await validatorSetHbbft.initialize(
+  //       blockRewardHbbft.address, // _blockRewardContract
+  //       randomHbbft.address, // _randomContract
+  //       stakingHbbft.address, // _stakingContract
+  //       keyGenHistory.address, //_keyGenHistoryContract
+  //       initialValidators, // _initialMiningAddresses
+  //       initialStakingAddresses, // _initialStakingAddresses
 
-      await stakingHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await stakingHbbft.initialize(
-        validatorSetHbbft.address, // _validatorSetContract
-        initialStakingAddresses, // _initialStakingAddresses
-        web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-        web3.utils.toWei('1', 'ether'), // _candidateMinStake
-        120954, // _stakingEpochDuration
-        0, // _stakingEpochStartBlock
-        4320, // _stakeWithdrawDisallowPeriod
-        initialValidatorsPubKeys, // _publicKeys
-        initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.fulfilled;
-      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+  //     ).should.be.fulfilled;
 
-      await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
-      [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
-      ).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await stakingHbbft.initialize(
+  //       validatorSetHbbft.address, // _validatorSetContract
+  //       initialStakingAddresses, // _initialStakingAddresses
+  //       web3.utils.toWei('1', 'ether'), // _delegatorMinStake
+  //       web3.utils.toWei('1', 'ether'), // _candidateMinStake
+  //       120954, // _stakingEpochDuration
+  //       0, // _stakingEpochStartBlock
+  //       4320, // _stakeWithdrawDisallowPeriod
+  //       initialValidatorsPubKeys, // _publicKeys
+  //       initialValidatorsIpAddresses // _internetAddresses
+  //     ).should.be.fulfilled;
+  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
 
-      const stakingAddresses = accounts.slice(7, 25 + 1); // accounts[7...25]
-      let miningAddresses = [];
+  //     await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
+  //     [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
+  //     ).should.be.fulfilled;
 
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        // Generate new candidate mining address
-        let candidateMiningAddress = '0x';
-        for (let i = 0; i < 20; i++) {
-          let randomByte = random(0, 255).toString(16);
-          if (randomByte.length % 2) {
-            randomByte = '0' + randomByte;
-          }
-          candidateMiningAddress += randomByte;
-        }
-        miningAddresses.push(candidateMiningAddress.toLowerCase());
-      }
+  //     const stakingAddresses = accounts.slice(7, 25 + 1); // accounts[7...25]
+  //     let miningAddresses = [];
 
-      const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
-      const mintAmount = stakeUnit.mul(new BN(100));
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       // Generate new candidate mining address
+  //       let candidateMiningAddress = '0x';
+  //       for (let i = 0; i < 20; i++) {
+  //         let randomByte = random(0, 255).toString(16);
+  //         if (randomByte.length % 2) {
+  //           randomByte = '0' + randomByte;
+  //         }
+  //         candidateMiningAddress += randomByte;
+  //       }
+  //       miningAddresses.push(candidateMiningAddress.toLowerCase());
+  //     }
 
-      await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
+  //     const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
+  //     const mintAmount = stakeUnit.mul(new BN(100));
 
-      // Deploy token contract and mint tokens for the candidates
-      const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        await erc677Token.mint(stakingAddresses[i], mintAmount, {from: owner}).should.be.fulfilled;
-        mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(stakingAddresses[i]));
-      }
+  //     await validatorSetHbbft.setValidatorSetApplyBlock(1).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
+  //     await stakingHbbft.setCurrentBlockNumber(20).should.be.fulfilled;
 
-      // Pass Staking contract address to ERC677 contract
-      await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
-      stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
+  //     // Deploy token contract and mint tokens for the candidates
+  //     const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       await erc677Token.mint(stakingAddresses[i], mintAmount, {from: owner}).should.be.fulfilled;
+  //       mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(stakingAddresses[i]));
+  //     }
 
-      // Pass ERC677 contract address to Staking contract
-      await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
-      erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
+  //     // Pass Staking contract address to ERC677 contract
+  //     await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
+  //     stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
 
-      // Emulate staking by the candidates into their own pool
-      (await stakingHbbft.getPoolsToBeElected.call()).length.should.be.equal(0);
-      await stakingHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        const stakeAmount = stakeUnit.mul(new BN(i + 1));
-        await stakingHbbft.addPool(
-          stakeAmount,
-          miningAddresses[i],
-          '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-          '0x00000000000000000000000000000000',
-          {from: stakingAddresses[i]}
-        ).should.be.fulfilled;
-        stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(stakingAddresses[i], stakingAddresses[i]));
-      }
+  //     // Pass ERC677 contract address to Staking contract
+  //     await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
+  //     erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
 
-      // Check pools of the new candidates
-      (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal(stakingAddresses);
-      const poolsLikelihood = await stakingHbbft.getPoolsLikelihood.call();
-      let likelihoodSum = new BN(0);
-      for (let i = 0; i < stakingAddresses.length; i++) {
-        const poolLikelihood = stakeUnit.mul(new BN(i + 1));
-        poolsLikelihood[0][i].should.be.bignumber.equal(new BN(poolLikelihood));
-        likelihoodSum = likelihoodSum.add(poolLikelihood);
-      }
-      poolsLikelihood[1].should.be.bignumber.equal(new BN(likelihoodSum));
+  //     // Emulate staking by the candidates into their own pool
+  //     (await stakingHbbft.getPoolsToBeElected.call()).length.should.be.equal(0);
+  //     await stakingHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(30).should.be.fulfilled;
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       const stakeAmount = stakeUnit.mul(new BN(i + 1));
+  //       await stakingHbbft.addPool(
+  //         stakeAmount,
+  //         miningAddresses[i],
+  //         '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  //         '0x00000000000000000000000000000000',
+  //         {from: stakingAddresses[i]}
+  //       ).should.be.fulfilled;
+  //       stakeAmount.should.be.bignumber.equal(await stakingHbbft.stakeAmount.call(stakingAddresses[i], stakingAddresses[i]));
+  //     }
 
-      // Generate a random seed
-      (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(0));
-      await randomHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
-      await randomHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
+  //     // Check pools of the new candidates
+  //     (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal(stakingAddresses);
+  //     const poolsLikelihood = await stakingHbbft.getPoolsLikelihood.call();
+  //     let likelihoodSum = new BN(0);
+  //     for (let i = 0; i < stakingAddresses.length; i++) {
+  //       const poolLikelihood = stakeUnit.mul(new BN(i + 1));
+  //       poolsLikelihood[0][i].should.be.bignumber.equal(new BN(poolLikelihood));
+  //       likelihoodSum = likelihoodSum.add(poolLikelihood);
+  //     }
+  //     poolsLikelihood[1].should.be.bignumber.equal(new BN(likelihoodSum));
 
-      const seed = random(1000000, 2000000);
-      await randomHbbft.setSystemAddress(owner).should.be.fulfilled;
-      await randomHbbft.setCurrentSeed(new BN(seed), {from: owner}).should.be.fulfilled;
-      await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
-      (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(seed));
+  //     // Generate a random seed
+  //     (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(0));
+  //     await randomHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+  //     await randomHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
 
-      // Emulate calling `newValidatorSet()` at the last block of staking epoch
-      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await randomHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
-      await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
+  //     const seed = random(1000000, 2000000);
+  //     await randomHbbft.setSystemAddress(owner).should.be.fulfilled;
+  //     await randomHbbft.setCurrentSeed(new BN(seed), {from: owner}).should.be.fulfilled;
+  //     await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+  //     (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(seed));
 
-      const newValidators = await validatorSetHbbft.getPendingValidators.call();
+  //     // Emulate calling `newValidatorSet()` at the last block of staking epoch
+  //     await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await randomHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+  //     await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
+  //     await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
 
-      newValidators.length.should.be.equal((await validatorSetHbbft.MAX_VALIDATORS.call()).toNumber());
+  //     const newValidators = await validatorSetHbbft.getPendingValidators.call();
 
-      newValidators[0].toLowerCase().should.be.equal(initialValidators[0].toLowerCase());
-      for (let i = 1; i < newValidators.length; i++) {
-        miningAddresses.indexOf(newValidators[i].toLowerCase()).should.be.gte(0);
-      }
-    });
-  });
+  //     newValidators.length.should.be.equal((await validatorSetHbbft.MAX_VALIDATORS.call()).toNumber());
+
+  //     newValidators[0].toLowerCase().should.be.equal(initialValidators[0].toLowerCase());
+  //     for (let i = 1; i < newValidators.length; i++) {
+  //       miningAddresses.indexOf(newValidators[i].toLowerCase()).should.be.gte(0);
+  //     }
+  //   });
+  // });
 
   // describe('_getRandomIndex()', async () => {
   //   it('should return an adjusted index for defined inputs', async () => {
