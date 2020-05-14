@@ -105,31 +105,31 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     /// @dev Ensures the `initialize` function was called before.
     modifier onlyInitialized {
-        require(isInitialized());
+        require(isInitialized(), "ValidatorSet: not initialized");
         _;
     }
 
     /// @dev Ensures the caller is the BlockRewardHbbft contract address.
     modifier onlyBlockRewardContract() {
-        require(msg.sender == blockRewardContract);
+        require(msg.sender == blockRewardContract, "Only BlockReward contract");
         _;
     }
 
     /// @dev Ensures the caller is the RandomHbbft contract address.
     modifier onlyRandomContract() {
-        require(msg.sender == randomContract);
+        require(msg.sender == randomContract,"Only Random Contract");
         _;
     }
 
     /// @dev Ensures the caller is the StakingHbbft contract address.
     modifier onlyStakingContract() {
-        require(msg.sender == address(stakingContract));
+        require(msg.sender == address(stakingContract),"Only Staking Contract");
         _;
     }
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
     modifier onlySystem() {
-        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
+        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE, "Only System");
         _;
     }
 
@@ -174,7 +174,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
+        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin(), "Initialization only on genesis block or by admin");
         require(!isInitialized(), "ValidatorSet contract is already initialized"); // initialization can only be done once
         require(_blockRewardContract != address(0), "BlockReward contract address can't be 0");
         require(_randomContract != address(0), "Random contract address can't be 0");
