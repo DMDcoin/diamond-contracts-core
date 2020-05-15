@@ -221,7 +221,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Ensures the transaction gas price is not zero.
     modifier gasPriceIsValid() {
-        require(tx.gasprice != 0);
+        require(tx.gasprice != 0, "GasPrice is 0");
         _;
     }
 
@@ -247,7 +247,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
     function () payable external {
-        revert();
+        revert("Staking contract: cannot receive coins directly");
     }
 
     /// @dev Adds a new candidate's pool to the list of active pools (see the `getPools` getter) and
@@ -256,7 +256,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// they want to create a pool. This is a wrapper for the `stake` function.
     /// @param _miningAddress The mining address of the candidate. The mining address is bound to the staking address
     /// (msg.sender). This address cannot be equal to `msg.sender`.
-    function addPool(address _miningAddress, bytes calldata _publicKey, bytes16 _ip) external payable {
+    function addPool(address _miningAddress, bytes calldata _publicKey, bytes16 _ip) external payable gasPriceIsValid {
         address stakingAddress = msg.sender;
         uint256 amount = msg.value;
         validatorSetContract.setStakingAddress(_miningAddress, stakingAddress);
@@ -407,7 +407,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         require(_isWithdrawAllowed(
             validatorSetContract.miningByStakingAddress(_poolStakingAddress), staker != _poolStakingAddress), 
-            "orderWithdraw: Withdraw not allowed"
+            "OrderWithdraw: Withdraw not allowed"
         );
 
         uint256 newOrderedAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
@@ -418,7 +418,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             uint256 amount = uint256(_amount);
 
             // How much can `staker` order for withdrawal from `_poolStakingAddress` at the moment?
-            require(amount <= maxWithdrawOrderAllowed(_poolStakingAddress, staker), "orderWithdraw: maxWithdrawOrderAllowed exceeded");
+            require(amount <= maxWithdrawOrderAllowed(_poolStakingAddress, staker), "OrderWithdraw: maxWithdrawOrderAllowed exceeded");
 
             newOrderedAmount = newOrderedAmount.add(amount);
             newOrderedAmountTotal = newOrderedAmountTotal.add(amount);
@@ -488,7 +488,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         require(stakingEpoch > orderWithdrawEpoch[_poolStakingAddress][staker]);
         require(_isWithdrawAllowed(
             validatorSetContract.miningByStakingAddress(_poolStakingAddress), staker != _poolStakingAddress),
-            "claimOrderedWithdraw: Withdraw not allowed"
+            "ClaimOrderedWithdraw: Withdraw not allowed"
         );
 
         uint256 claimAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
@@ -700,7 +700,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         if (!isPoolActive(_stakingAddress)) {
             poolIndex[_stakingAddress] = _pools.length;
             _pools.push(_stakingAddress);
-            require(_pools.length <= _getMaxCandidates());
+            require(_pools.length <= _getMaxCandidates(), "Cannot add more than MAX_CANDIDATES pools");
         }
         _removePoolInactive(_stakingAddress);
         if (_toBeElected) {
@@ -973,20 +973,20 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function _stake(address _poolStakingAddress, address _staker, uint256 _amount) internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        require(poolMiningAddress != address(0));
-        require(_poolStakingAddress != address(0));
-        require(_amount != 0);
-        require(!validatorSetContract.isValidatorBanned(poolMiningAddress));
-        require(areStakeAndWithdrawAllowed());
+        require(poolMiningAddress != address(0), "Stake: mining address cannot be 0");
+        require(_poolStakingAddress != address(0), "Stake: staking address cannot be 0");
+        require(_amount != 0, "Stake: staking amount is 0");
+        require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");
+        require(areStakeAndWithdrawAllowed(), "Stake: staking during disallowed period");
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker].add(_amount);
 
         if (_staker == _poolStakingAddress) {
             // The staked amount must be at least CANDIDATE_MIN_STAKE
-            require(newStakeAmount >= candidateMinStake);
+            require(newStakeAmount >= candidateMinStake, "Stake: candidate stake is less than the required minimum");
         } else {
             // The staked amount must be at least DELEGATOR_MIN_STAKE
-            require(newStakeAmount >= delegatorMinStake);
+            require(newStakeAmount >= delegatorMinStake, "Stake: delegator stake is less than the required minimum");
 
             // The delegator cannot stake into the pool of the candidate which hasn't self-staked.
             // Also, that candidate shouldn't want to withdraw all their funds.
