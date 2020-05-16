@@ -31,8 +31,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// of the staking epoch. The results are used by the `_distributeRewards` function.
     mapping(uint256 => uint256) public blocksCreated;
 
-    /// @dev The per-block reward distributed among the validators.
-    uint256 public blockReward;
+    /// @dev The maximum per-block reward distributed among the validators.
+    uint256 public maxBlockReward;
 
     /// @dev The reward amount to be distributed in native coins among participants (the validator and their
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
@@ -61,6 +61,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     // ================================================ Events ========================================================
 
+    /// @dev Emitted by the `reward` function.
+    /// @param rewards The amount minted and distributed among the validators.
+    event CoinsRewarded(uint256 rewards);
 
     // ============================================== Modifiers =======================================================
 
@@ -106,12 +109,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _validatorSet, uint256 _blockReward) external {
+    function initialize(address _validatorSet, uint256 _maxBlockReward) external {
         require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
         require(!isInitialized());
         require(_validatorSet != address(0));
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        blockReward = _blockReward;
+        maxBlockReward = _maxBlockReward;
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
     }
 
@@ -124,10 +127,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     function reward(address[] calldata _benefactors, uint16[] calldata _kind, bool _isEpochEndBlock)
         external
         onlySystem
-        returns(address[] memory receiversNative, uint256[] memory rewardsNative)
+        returns(uint256 rewardsNative)
     {
         if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
-            return (new address[](0), new uint256[](0));
+            return 0;
         }
 
         // if (_benefactors.length != _kind.length) {
@@ -189,11 +192,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             for (i = 0; i < miningAddresses.length; i++) {
                 _snapshotPoolStakeAmounts(stakingContract, nextStakingEpoch, miningAddresses[i]);
             }
-
             // Remember validator's min reward percent for the upcoming staking epoch
             validatorMinRewardPercent[nextStakingEpoch] = VALIDATOR_MIN_REWARD_PERCENT;
-
         }
+
+        emit CoinsRewarded(nativeTotalRewardAmount);
+        return nativeTotalRewardAmount;
 
     }
 
@@ -398,7 +402,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-       uint256 totalReward = blocksCreated[_stakingEpoch]*blockReward + nativeRewardUndistributed;
+       uint256 totalReward = blocksCreated[_stakingEpoch]*maxBlockReward + nativeRewardUndistributed;
 
         if (totalReward == 0) {
             return 0;
