@@ -116,7 +116,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev The duration period (in blocks) at the end of staking epoch during which
     /// participants are not allowed to stake/withdraw/order/claim their staking coins.
-    uint256 public stakeWithdrawDisallowPeriod;
+    uint256 public stakingWithdrawDisallowPeriod;
 
     /// @dev The serial number of the current staking epoch.
     uint256 public stakingEpoch;
@@ -227,19 +227,19 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Ensures the caller is the BlockRewardHbbft contract address.
     modifier onlyBlockRewardContract() {
-        require(msg.sender == validatorSetContract.blockRewardContract());
+        require(msg.sender == validatorSetContract.blockRewardContract(), "Only BlockReward contract");
         _;
     }
 
     /// @dev Ensures the `initialize` function was called before.
     modifier onlyInitialized {
-        require(isInitialized());
+        require(isInitialized(), "Contract not initialized");
         _;
     }
 
     /// @dev Ensures the caller is the ValidatorSetHbbft contract address.
     modifier onlyValidatorSetContract() {
-        require(msg.sender == address(validatorSetContract));
+        require(msg.sender == address(validatorSetContract), "Only ValidatorSet contract");
         _;
     }
 
@@ -286,7 +286,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts in blocks
     /// @param _stakingEpochStartBlock The number of the first block of initial staking epoch
     /// (must be zero if the network is starting from genesis block).
-    /// @param _stakeWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
+    /// @param _stakingWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
         address _validatorSetContract,
@@ -295,13 +295,13 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 _candidateMinStake,
         uint256 _stakingFixedEpochDuration,
         uint256 _stakingEpochStartBlock,
-        uint256 _stakeWithdrawDisallowPeriod,
+        uint256 _stakingWithdrawDisallowPeriod,
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external {
-        require(_stakingFixedEpochDuration != 0);
-        require(_stakingFixedEpochDuration > _stakeWithdrawDisallowPeriod);
-        require(_stakeWithdrawDisallowPeriod != 0);
+        require(_stakingFixedEpochDuration != 0, "Fixed epoch duration can't be 0");
+        require(_stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod, "Fixed epoch duration must be longer than withdraw disallow period");
+        require(_stakingWithdrawDisallowPeriod != 0, "Withdraw disallow period can't be 0");
         _initialize(
             _validatorSetContract,
             _initialStakingAddresses,
@@ -311,7 +311,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             _internetAddresses
         );
         stakingFixedEpochDuration = _stakingFixedEpochDuration;
-        stakeWithdrawDisallowPeriod = _stakeWithdrawDisallowPeriod;
+        stakingWithdrawDisallowPeriod = _stakingWithdrawDisallowPeriod;
         stakingEpochStartBlock = _stakingEpochStartBlock;
     }
 
@@ -580,7 +580,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Used by all staking/withdrawal functions.
     function areStakeAndWithdrawAllowed() public view returns(bool) {
         uint256 currentBlock = _getCurrentBlockNumber();
-        uint256 allowedDuration = stakingFixedEpochDuration - stakeWithdrawDisallowPeriod; //TODO: should it be extended to the start of the block, e.g. startBlock -1
+        uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod; //TODO: should it be extended to the start of the block, e.g. startBlock -1
         if (currentBlock < stakingEpochStartBlock) return false;
         return currentBlock - stakingEpochStartBlock <= allowedDuration; //TODO: should be < not <=?
     }
@@ -835,19 +835,19 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses
     ) internal {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
-        require(!isInitialized()); // initialization can only be done once
-        require(_validatorSetContract != address(0));
-        require(_initialStakingAddresses.length > 0);
-        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length);
-        require(_initialStakingAddresses.length == _internetAddresses.length);
-        require(_delegatorMinStake != 0);
-        require(_candidateMinStake != 0);
+        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin(),"Initialization only on genesis block or by admin");
+        require(!isInitialized(), "Staking contract is already initialized"); // initialization can only be done once
+        require(_validatorSetContract != address(0),"ValidatorSet contract address can't be 0");
+        require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
+        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,"Must provide corresponging publicKeys");
+        require(_initialStakingAddresses.length == _internetAddresses.length, "Must provide corresponging IP adresses");
+        require(_delegatorMinStake != 0, "Delegator minimum stake can't be 0");
+        require(_candidateMinStake != 0, "Candidate minimum stake can't be 0");
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
 
         for (uint256 i = 0; i < _initialStakingAddresses.length; i++) {
-            require(_initialStakingAddresses[i] != address(0));
+            require(_initialStakingAddresses[i] != address(0), "Initial staking address can't be 0");
             _addPoolActive(_initialStakingAddresses[i], false);
             _addPoolToBeRemoved(_initialStakingAddresses[i]);
             poolInfo[_initialStakingAddresses[i]].publicKey = abi.encodePacked(_publicKeys[i*2],_publicKeys[i*2+1]);

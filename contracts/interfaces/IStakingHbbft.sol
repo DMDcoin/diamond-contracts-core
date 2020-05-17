@@ -28,7 +28,7 @@ interface IStakingHbbft {
     function stakeAmountTotal(address) external view returns(uint256);
     function stakeFirstEpoch(address, address) external view returns(uint256);
     function stakeLastEpoch(address, address) external view returns(uint256);
-    function stakeWithdrawDisallowPeriod() external view returns(uint256);
+    function stakingWithdrawDisallowPeriod() external view returns(uint256);
     function stakingEpoch() external view returns(uint256);
     function stakingFixedEpochDuration() external view returns(uint256);
     function stakingFixedEpochEndBlock() external view returns(uint256);

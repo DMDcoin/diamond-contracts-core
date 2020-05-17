@@ -34,7 +34,7 @@ contract InitializerHbbft {
     /// _stakingParams[2]: _stakingEpochDuration The duration of a staking epoch in blocks
     /// _stakingParams[3]: _stakingEpochStartBlock The number of the first block of initial staking epoch
     /// (must be zero if the network is starting from genesis block).
-    /// _stakingParams[4]: _stakeWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
+    /// _stakingParams[4]: _stakingWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
     /// during which participants cannot stake or withdraw their staking tokens
     constructor(
         address[] memory _contracts,
