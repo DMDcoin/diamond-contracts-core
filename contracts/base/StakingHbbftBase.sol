@@ -361,7 +361,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address _toPoolStakingAddress,
         uint256 _amount
     ) external gasPriceIsValid onlyInitialized {
-        require(_fromPoolStakingAddress != _toPoolStakingAddress);
+        require(_fromPoolStakingAddress != _toPoolStakingAddress, "Move stake: source and destination pool is the same");
         address staker = msg.sender;
         _withdraw(_fromPoolStakingAddress, staker, _amount);
         _stake(_toPoolStakingAddress, staker, _amount);
@@ -372,7 +372,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// the specified pool. Actually, the amount is stored in a balance of this StakingHbbft contract.
     /// A staker calls this function when they want to make a stake into a pool.
     /// @param _toPoolStakingAddress The staking address of the pool where the coins should be staked.
-    function stake(address _toPoolStakingAddress) external payable {
+    function stake(address _toPoolStakingAddress) external payable gasPriceIsValid {
         address staker = msg.sender;
         uint256 amount = msg.value;
         _stake(_toPoolStakingAddress, staker, amount);
@@ -973,9 +973,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function _stake(address _poolStakingAddress, address _staker, uint256 _amount) internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        require(poolMiningAddress != address(0), "Stake: mining address cannot be 0");
-        require(_poolStakingAddress != address(0), "Stake: staking address cannot be 0");
-        require(_amount != 0, "Stake: staking amount is 0");
+        require(poolMiningAddress != address(0), "Stake: mining address can't be 0");
+        require(_poolStakingAddress != address(0), "Stake: staking address can't be 0");
+        require(_amount != 0, "Stake: staking amount can't be 0");
         require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");
         require(areStakeAndWithdrawAllowed(), "Stake: staking during disallowed period");
 
@@ -990,7 +990,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
             // The delegator cannot stake into the pool of the candidate which hasn't self-staked.
             // Also, that candidate shouldn't want to withdraw all their funds.
-            require(stakeAmount[_poolStakingAddress][_poolStakingAddress] != 0);
+            require(stakeAmount[_poolStakingAddress][_poolStakingAddress] != 0, "Stake: can't delegate stake in empty pool");
         }
 
         stakeAmount[_poolStakingAddress][_staker] = newStakeAmount;
@@ -1024,7 +1024,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         require(_amount != 0);
 
         // How much can `staker` withdraw from `_poolStakingAddress` at the moment?
-        require(_amount <= maxWithdrawAllowed(_poolStakingAddress, _staker));
+        require(_amount <= maxWithdrawAllowed(_poolStakingAddress, _staker), "Withdraw: greater amount than maximum withdrawal allowed");
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker].sub(_amount);
 
