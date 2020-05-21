@@ -2204,193 +2204,126 @@ contract('StakingHbbft', async accounts => {
     });
   });
 
-  // describe('removePool()', async () => {
-  //   beforeEach(async () => {
-  //     // Initialize StakingHbbft
-  //     await stakingHbbft.initialize(
-  //       validatorSetHbbft.address, // _validatorSetContract
-  //       initialStakingAddresses, // _initialStakingAddresses
-  //       web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-  //       web3.utils.toWei('1', 'ether'), // _candidateMinStake
-  //       stakingFixedEpochDuration, // _stakingFixedEpochDuration
-  //       stakingEpochStartBlock, // _stakingEpochStartBlock
-  //       stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
-  //       initialValidatorsPubKeysSplit, // _publicKeys
-  //       initialValidatorsIpAddresses // _internetAddresses
-  //     ).should.be.fulfilled;
-  //     await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-  //   });
+  describe('removePool()', async () => {
+    beforeEach(async () => {
+      // Initialize StakingHbbft
+      await stakingHbbft.initialize(
+        validatorSetHbbft.address, // _validatorSetContract
+        initialStakingAddresses, // _initialStakingAddresses
+        minStake, // _delegatorMinStake
+        minStake, // _candidateMinStake
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+        initialValidatorsPubKeysSplit, // _publicKeys
+        initialValidatorsIpAddresses // _internetAddresses
+      ).should.be.fulfilled;
+      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+    });
 
-  //   it('should remove a pool', async () => {
-  //     (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
-  //     (await stakingHbbft.getPools.call()).should.be.deep.equal([
-  //       initialStakingAddresses[2],
-  //       initialStakingAddresses[1]
-  //     ]);
-  //     (await stakingHbbft.getPoolsInactive.call()).length.should.be.equal(0);
-  //   });
-  //   it('can only be called by the ValidatorSetHbbft contract', async () => {
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[8]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
-  //   });
-  //   it('shouldn\'t remove a nonexistent pool', async () => {
-  //     (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.removePool(accounts[10], {from: accounts[7]}).should.be.fulfilled;
-  //     (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
-  //   });
-  //   it('should reset pool index', async () => {
-  //     (await stakingHbbft.poolIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(1));
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.removePool(initialStakingAddresses[1], {from: accounts[7]}).should.be.fulfilled;
-  //     (await stakingHbbft.poolIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
-  //   });
-  //   it('should add/remove a pool to/from the utility lists', async () => {
-  //     // Deploy ERC677 contract
-  //     const erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
+    it('should remove a pool', async () => {
+      (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
+      (await stakingHbbft.getPools.call()).should.be.deep.equal([
+        initialStakingAddresses[2],
+        initialStakingAddresses[1]
+      ]);
+      (await stakingHbbft.getPoolsInactive.call()).length.should.be.equal(0);
+    });
+    it('can only be called by the ValidatorSetHbbft contract', async () => {
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[8]}).should.be.rejectedWith("Only ValidatorSet contract");
+    });
+    it('shouldn\'t fail when removing a nonexistent pool', async () => {
+      (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      await stakingHbbft.removePool(accounts[10], {from: accounts[7]}).should.be.fulfilled;
+      (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
+    });
+    it('should reset pool index', async () => {
+      (await stakingHbbft.poolIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(1));
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      await stakingHbbft.removePool(initialStakingAddresses[1], {from: accounts[7]}).should.be.fulfilled;
+      (await stakingHbbft.poolIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
+    });
+    it('should add/remove a pool to/from the utility lists', async () => {
 
-  //     // Mint some balance for candidate (imagine that the candidate got 2 STAKE_UNITs from a bridge)
-  //     const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
-  //     const mintAmount = stakeUnit.mul(new BN(2));
-  //     await erc677Token.mint(initialStakingAddresses[0], mintAmount, {from: owner}).should.be.fulfilled;
-  //     mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(initialStakingAddresses[0]));
+      const stakeAmount = minStake.mul(new BN(2));
 
-  //     // Pass Staking contract address to ERC677 contract
-  //     await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
-  //     stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
+      // The first validator places stake for themselves
+      (await stakingHbbft.getPoolsToBeElected.call()).length.should.be.deep.equal(0);
+      (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal(initialStakingAddresses);
+      await stakingHbbft.stake(initialStakingAddresses[0], {from: initialStakingAddresses[0], value: minStake}).should.be.fulfilled;
+      (await stakingHbbft.stakeAmountTotal.call(initialStakingAddresses[0])).should.be.bignumber.equal(minStake);
+      (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([initialStakingAddresses[0]]);
+      (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal([
+        initialStakingAddresses[2],
+        initialStakingAddresses[1]
+      ]);
 
-  //     // Pass ERC677 contract address to Staking contract
-  //     '0x0000000000000000000000000000000000000000'.should.be.equal(
-  //       await stakingHbbft.erc677TokenContract.call()
-  //     );
-  //     await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
-  //     erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
+      // Remove the pool
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      (await stakingHbbft.poolInactiveIndex.call(initialStakingAddresses[0])).should.be.bignumber.equal(new BN(0));
+      await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
+      (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([initialStakingAddresses[0]]);
+      (await stakingHbbft.poolInactiveIndex.call(initialStakingAddresses[0])).should.be.bignumber.equal(new BN(0));
 
-  //     // The first validator places stake for themselves
-  //     (await stakingHbbft.getPoolsToBeElected.call()).length.should.be.deep.equal(0);
-  //     (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal(initialStakingAddresses);
-  //     await stakingHbbft.stake(initialStakingAddresses[0], stakeUnit.mul(new BN(1)), {from: initialStakingAddresses[0]}).should.be.fulfilled;
-  //     (await stakingHbbft.stakeAmountTotal.call(initialStakingAddresses[0])).should.be.bignumber.equal(stakeUnit);
-  //     (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([initialStakingAddresses[0]]);
-  //     (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal([
-  //       initialStakingAddresses[2],
-  //       initialStakingAddresses[1]
-  //     ]);
+      await stakingHbbft.setStakeAmountTotal(initialStakingAddresses[0], 0);
+      await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
+      (await stakingHbbft.getPoolsInactive.call()).length.should.be.equal(0);
+      (await stakingHbbft.getPoolsToBeElected.call()).length.should.be.deep.equal(0);
 
-  //     // Remove the pool
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     (await stakingHbbft.poolInactiveIndex.call(initialStakingAddresses[0])).should.be.bignumber.equal(new BN(0));
-  //     await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
-  //     await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
-  //     (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([initialStakingAddresses[0]]);
-  //     (await stakingHbbft.poolInactiveIndex.call(initialStakingAddresses[0])).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.poolToBeRemovedIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(1));
+      await stakingHbbft.removePool(initialStakingAddresses[1], {from: accounts[7]}).should.be.fulfilled;
+      (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal([initialStakingAddresses[2]]);
+      (await stakingHbbft.poolToBeRemovedIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
+    });
+  });
 
-  //     await stakingHbbft.setStakeAmountTotal(initialStakingAddresses[0], 0);
-  //     await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[7]}).should.be.fulfilled;
-  //     (await stakingHbbft.getPoolsInactive.call()).length.should.be.equal(0);
-  //     (await stakingHbbft.getPoolsToBeElected.call()).length.should.be.deep.equal(0);
+  describe('removeMyPool()', async () => {
+    beforeEach(async () => {
+      // Initialize StakingHbbft
+      await stakingHbbft.initialize(
+        validatorSetHbbft.address, // _validatorSetContract
+        initialStakingAddresses, // _initialStakingAddresses
+        minStake, // _delegatorMinStake
+        minStake, // _candidateMinStake
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+        initialValidatorsPubKeysSplit, // _publicKeys
+        initialValidatorsIpAddresses // _internetAddresses
+      ).should.be.fulfilled;
+      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+    });
 
-  //     (await stakingHbbft.poolToBeRemovedIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(1));
-  //     await stakingHbbft.removePool(initialStakingAddresses[1], {from: accounts[7]}).should.be.fulfilled;
-  //     (await stakingHbbft.getPoolsToBeRemoved.call()).should.be.deep.equal([initialStakingAddresses[2]]);
-  //     (await stakingHbbft.poolToBeRemovedIndex.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
-  //   });
-  // });
-
-  // describe('removeMyPool()', async () => {
-  //   beforeEach(async () => {
-  //     // Initialize StakingHbbft
-  //     await stakingHbbft.initialize(
-  //       validatorSetHbbft.address, // _validatorSetContract
-  //       initialStakingAddresses, // _initialStakingAddresses
-  //       web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-  //       web3.utils.toWei('1', 'ether'), // _candidateMinStake
-  //       stakingFixedEpochDuration, // _stakingFixedEpochDuration
-  //       stakingEpochStartBlock, // _stakingEpochStartBlock
-  //       stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
-  //       initialValidatorsPubKeysSplit, // _publicKeys
-  //       initialValidatorsIpAddresses // _internetAddresses
-  //     ).should.be.fulfilled;
-  //     await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-  //   });
-
-  //   it('should fail for zero gas price', async () => {
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[0], gasPrice: 0}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.fulfilled;
-  //   });
-  //   it('should fail if Staking contract is not initialized', async () => {
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress('0x0000000000000000000000000000000000000000').should.be.fulfilled;
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.fulfilled;
-  //   });
-  //   it('should fail for initial validator during the initial staking epoch', async () => {
-  //     (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
-  //     (await validatorSetHbbft.isValidator.call(initialValidators[0])).should.be.equal(true);
-  //     (await validatorSetHbbft.miningByStakingAddress.call(initialStakingAddresses[0])).should.be.equal(initialValidators[0]);
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.fulfilled
-  //   });
-  //   it('should fail for a non-removable validator', async () => {
-  //     // Deploy Staking contract
-  //     stakingHbbft = await StakingHbbftCoins.new();
-  //     stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-  //     stakingHbbft = await StakingHbbftCoins.at(stakingHbbft.address);
-
-  //     // Deploy ValidatorSet contract
-  //     validatorSetHbbft = await ValidatorSetHbbft.new();
-  //     validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-  //     validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
-
-  //     // Initialize ValidatorSet
-  //     await validatorSetHbbft.initialize(
-  //       blockRewardHbbft.address, // _blockRewardContract
-  //       '0x3000000000000000000000000000000000000001', // _randomContract
-  //       stakingHbbft.address, // _stakingContract
-  //       '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-  //       initialValidators, // _initialMiningAddresses
-  //       initialStakingAddresses, // _initialStakingAddresses
-  //     ).should.be.fulfilled;
-
-  //     // Initialize StakingHbbft
-  //     await stakingHbbft.initialize(
-  //       validatorSetHbbft.address, // _validatorSetContract
-  //       initialStakingAddresses, // _initialStakingAddresses
-  //       web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-  //       web3.utils.toWei('1', 'ether'), // _candidateMinStake
-  //       stakingFixedEpochDuration, // _stakingFixedEpochDuration
-  //       stakingEpochStartBlock, // _stakingEpochStartBlock
-  //       stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
-  //       initialValidatorsPubKeysSplit, // _publicKeys
-  //       initialValidatorsIpAddresses // _internetAddresses
-  //     ).should.be.fulfilled;
-
-  //     await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-
-  //     (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
-  //     await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-  //     await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     (await stakingHbbft.getPools.call()).should.be.deep.equal([
-  //       initialStakingAddresses[0],
-  //       initialStakingAddresses[2]
-  //     ]);
-  //   });
-  // });
+    it('should fail for zero gas price', async () => {
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      await stakingHbbft.removeMyPool({from: initialStakingAddresses[0], gasPrice: 0}).should.be.rejectedWith("GasPrice is 0");
+    });
+    it('should fail if Staking contract is not initialized', async () => {
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress('0x0000000000000000000000000000000000000000').should.be.fulfilled;
+      await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.rejectedWith("Contract not initialized");
+      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.fulfilled;
+    });
+    it('should fail for initial validator during the initial staking epoch', async () => {
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
+      (await validatorSetHbbft.isValidator.call(initialValidators[0])).should.be.equal(true);
+      (await validatorSetHbbft.miningByStakingAddress.call(initialStakingAddresses[0])).should.be.equal(initialValidators[0]);
+      await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.rejectedWith("Validator can't remove its pool during initial staking epoch");
+      await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
+      await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.fulfilled
+    });
+  });
 
   // describe('withdraw()', async () => {
   //   let delegatorAddress;

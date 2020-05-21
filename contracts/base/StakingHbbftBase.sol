@@ -339,7 +339,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address stakingAddress = msg.sender;
         address miningAddress = validatorSetContract.miningByStakingAddress(stakingAddress);
         // initial validator cannot remove their pool during the initial staking epoch
-        require(stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress));
+        require(stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress), "Validator can't remove its pool during initial staking epoch");
         _removePool(stakingAddress);
     }
 
