@@ -2325,226 +2325,198 @@ contract('StakingHbbft', async accounts => {
     });
   });
 
-  // describe('withdraw()', async () => {
-  //   let delegatorAddress;
-  //   let erc677Token;
-  //   let mintAmount;
-  //   let candidateMinStake;
-  //   let delegatorMinStake;
+  describe('withdraw()', async () => {
+    let delegatorAddress;
+    let candidateMinStake;
+    let delegatorMinStake;
 
-  //   beforeEach(async () => {
-  //     delegatorAddress = accounts[7];
+    const stakeAmount = minStake.mul(new BN(2));
 
-  //     // Initialize StakingHbbft
-  //     await stakingHbbft.initialize(
-  //       validatorSetHbbft.address, // _validatorSetContract
-  //       initialStakingAddresses, // _initialStakingAddresses
-  //       web3.utils.toWei('1', 'ether'), // _delegatorMinStake
-  //       web3.utils.toWei('1', 'ether'), // _candidateMinStake
-  //       stakingFixedEpochDuration, // _stakingFixedEpochDuration
-  //       stakingEpochStartBlock, // _stakingEpochStartBlock
-  //       stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
-  //       initialValidatorsPubKeysSplit, // _publicKeys
-  //       initialValidatorsIpAddresses // _internetAddresses
-  //     ).should.be.fulfilled;
+    beforeEach(async () => {
+      delegatorAddress = accounts[7];
 
-  //     candidateMinStake = await stakingHbbft.candidateMinStake.call();
-  //     delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
+      // Initialize StakingHbbft
+      await stakingHbbft.initialize(
+        validatorSetHbbft.address, // _validatorSetContract
+        initialStakingAddresses, // _initialStakingAddresses
+        minStake, // _delegatorMinStake
+        minStake, // _candidateMinStake
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+        initialValidatorsPubKeysSplit, // _publicKeys
+        initialValidatorsIpAddresses // _internetAddresses
+      ).should.be.fulfilled;
 
-  //     // Deploy ERC677 contract
-  //     erc677Token = await ERC677BridgeTokenRewardable.new("STAKE", "STAKE", 18, {from: owner});
+      candidateMinStake = await stakingHbbft.candidateMinStake.call();
+      delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
 
-  //     // Mint some balance for delegator and candidates (imagine that they got some STAKE_UNITs from a bridge)
-  //     const stakeUnit = new BN(web3.utils.toWei('1', 'ether'));
-  //     mintAmount = stakeUnit.mul(new BN(2));
-  //     await erc677Token.mint(initialStakingAddresses[0], mintAmount, {from: owner}).should.be.fulfilled;
-  //     await erc677Token.mint(initialStakingAddresses[1], mintAmount, {from: owner}).should.be.fulfilled;
-  //     await erc677Token.mint(initialStakingAddresses[2], mintAmount, {from: owner}).should.be.fulfilled;
-  //     await erc677Token.mint(delegatorAddress, mintAmount, {from: owner}).should.be.fulfilled;
-  //     mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(initialStakingAddresses[1]));
-  //     mintAmount.should.be.bignumber.equal(await erc677Token.balanceOf.call(delegatorAddress));
+      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+    });
 
-  //     // Pass Staking contract address to ERC677 contract
-  //     await erc677Token.setStakingContract(stakingHbbft.address, {from: owner}).should.be.fulfilled;
-  //     stakingHbbft.address.should.be.equal(await erc677Token.stakingContract.call());
+    it('should withdraw a stake', async () => {
+      (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(stakeAmount);
+      (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(stakeAmount);
 
-  //     // Pass ERC677 contract address to Staking contract
-  //     '0x0000000000000000000000000000000000000000'.should.be.equal(
-  //       await stakingHbbft.erc677TokenContract.call()
-  //     );
-  //     await stakingHbbft.setErc677TokenContract(erc677Token.address, {from: owner}).should.be.fulfilled;
-  //     erc677Token.address.should.be.equal(await stakingHbbft.erc677TokenContract.call());
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
+      (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(stakeAmount);
+      (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(stakeAmount);
+      (await stakingHbbft.stakeAmountTotal.call(initialStakingAddresses[1])).should.be.bignumber.equal(stakeAmount.mul(new BN(2)));
 
-  //     await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-  //   });
+      const result = await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.fulfilled;
+      result.logs[0].event.should.be.equal("WithdrewStake");
+      result.logs[0].args.fromPoolStakingAddress.should.be.equal(initialStakingAddresses[1]);
+      result.logs[0].args.staker.should.be.equal(delegatorAddress);
+      result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(0));
+      result.logs[0].args.amount.should.be.bignumber.equal(stakeAmount);
+      (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakeAmountTotal.call(initialStakingAddresses[1])).should.be.bignumber.equal(stakeAmount);
+    });
+    it('should fail for zero gas price', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1], gasPrice: 0}).should.be.rejectedWith("GasPrice is 0");
+    });
+    it('should fail if not initialized', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress('0x0000000000000000000000000000000000000000').should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    });
+    it('should fail for a zero pool address', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.withdraw('0x0000000000000000000000000000000000000000', stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    });
+    it('should fail for a zero amount', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], new BN(0), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    });
+    it('shouldn\'t allow withdrawing from a banned pool', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
+      await validatorSetHbbft.setBannedUntil(initialValidators[1], 100).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
+      await validatorSetHbbft.setBannedUntil(initialValidators[1], 0).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.fulfilled;
+    });
+    it('shouldn\'t allow withdrawing during the stakingWithdrawDisallowPeriod', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    });
+    it('should fail if non-zero residue is less than CANDIDATE_MIN_STAKE', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.sub(candidateMinStake).add(new BN(1)), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.sub(candidateMinStake), {from: initialStakingAddresses[1]}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], candidateMinStake, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    });
+    it('should fail if non-zero residue is less than DELEGATOR_MIN_STAKE', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.sub(delegatorMinStake).add(new BN(1)), {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.sub(delegatorMinStake), {from: delegatorAddress}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], delegatorMinStake, {from: delegatorAddress}).should.be.fulfilled;
+    });
+    it('should fail if withdraw more than staked', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.add(new BN(1)), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    });
+    it('should fail if withdraw already ordered amount', async () => {
+      await validatorSetHbbft.setCurrentBlockNumber(1).should.be.fulfilled;
+      await validatorSetHbbft.setSystemAddress(owner).should.be.fulfilled;
+      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
 
-  //   it('should withdraw a stake', async () => {
-  //     (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(mintAmount);
-  //     (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(mintAmount);
-  //     (await erc677Token.balanceOf.call(initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
+      // Place a stake during the initial staking epoch
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
+      await stakingHbbft.stake(initialStakingAddresses[0], {from: initialStakingAddresses[0], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.stake(initialStakingAddresses[2], {from: initialStakingAddresses[2], value: stakeAmount}).should.be.fulfilled;
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
 
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.fulfilled;
-  //     (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(mintAmount);
-  //     (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(mintAmount);
-  //     (await stakingHbbft.stakeAmountTotal.call(initialStakingAddresses[1])).should.be.bignumber.equal(mintAmount.mul(new BN(2)));
-  //     (await erc677Token.balanceOf.call(delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      // Finalize a new validator set and change staking epoch
+      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+      await blockRewardHbbft.initialize(validatorSetHbbft.address, maxBlockReward).should.be.fulfilled;      
+      await validatorSetHbbft.setStakingContract(stakingHbbft.address).should.be.fulfilled;
+      // Set BlockRewardContract
+      await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
+      await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
+      await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
+      // Finalize change (increases staking epoch)
+      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
+      await stakingHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
+      // Order withdrawal
+      const orderedAmount = stakeAmount.div(new BN(4));
+      await stakingHbbft.orderWithdraw(initialStakingAddresses[1], orderedAmount, {from: delegatorAddress}).should.be.fulfilled;
+      // The second validator removes their pool
+      (await validatorSetHbbft.isValidator.call(initialValidators[1])).should.be.equal(true);
+      (await stakingHbbft.getPoolsInactive.call()).length.should.be.equal(0);
+      await stakingHbbft.removeMyPool({from: initialStakingAddresses[1]}).should.be.fulfilled;
+      (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([initialStakingAddresses[1]]);
 
-  //     const result = await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.fulfilled;
-  //     result.logs[0].event.should.be.equal("WithdrewStake");
-  //     result.logs[0].args.fromPoolStakingAddress.should.be.equal(initialStakingAddresses[1]);
-  //     result.logs[0].args.staker.should.be.equal(delegatorAddress);
-  //     result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(0));
-  //     result.logs[0].args.amount.should.be.bignumber.equal(mintAmount);
-  //     (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.stakeAmountTotal.call(initialStakingAddresses[1])).should.be.bignumber.equal(mintAmount);
-  //     (await erc677Token.balanceOf.call(delegatorAddress)).should.be.bignumber.equal(mintAmount);
-  //   });
-  //   it('should fail for zero gas price', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1], gasPrice: 0}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //   });
-  //   it('should fail if not initialized', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress('0x0000000000000000000000000000000000000000').should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //   });
-  //   it('should fail for a zero pool address', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw('0x0000000000000000000000000000000000000000', mintAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //   });
-  //   it('should fail for a zero amount', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], new BN(0), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //   });
-  //   it('shouldn\'t allow withdrawing from a banned pool', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.fulfilled;
-  //     await validatorSetHbbft.setBannedUntil(initialValidators[1], 100).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
-  //     await validatorSetHbbft.setBannedUntil(initialValidators[1], 0).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.fulfilled;
-  //   });
-  //   it('shouldn\'t allow withdrawing during the stakingWithdrawDisallowPeriod', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //   });
-  //   it('should fail if non-zero residue is less than CANDIDATE_MIN_STAKE', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount.sub(candidateMinStake).add(new BN(1)), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount.sub(candidateMinStake), {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], candidateMinStake, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //   });
-  //   it('should fail if non-zero residue is less than DELEGATOR_MIN_STAKE', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount.sub(delegatorMinStake).add(new BN(1)), {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount.sub(delegatorMinStake), {from: delegatorAddress}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], delegatorMinStake, {from: delegatorAddress}).should.be.fulfilled;
-  //   });
-  //   it('should fail if withdraw more than staked', async () => {
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount.add(new BN(1)), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //   });
-  //   it('should fail if withdraw already ordered amount', async () => {
-  //     await validatorSetHbbft.setCurrentBlockNumber(1).should.be.fulfilled;
-  //     await validatorSetHbbft.setSystemAddress(owner).should.be.fulfilled;
-  //     await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      // Finalize a new validator set, change staking epoch and enqueue pending validators
+      await stakingHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
+      await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
+      await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
+      await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
+      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
+      await stakingHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
+      await validatorSetHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
+      (await validatorSetHbbft.isValidator.call(initialValidators[1])).should.be.equal(false);
 
-  //     // Place a stake during the initial staking epoch
-  //     (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
-  //     await stakingHbbft.stake(initialStakingAddresses[0], mintAmount, {from: initialStakingAddresses[0]}).should.be.fulfilled;
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     await stakingHbbft.stake(initialStakingAddresses[2], mintAmount, {from: initialStakingAddresses[2]}).should.be.fulfilled;
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.fulfilled;
+      // Check withdrawal for a delegator
+      const restOfAmount = stakeAmount.mul(new BN(3)).div(new BN(4));
+      (await stakingHbbft.poolDelegators.call(initialStakingAddresses[1])).should.be.deep.equal([delegatorAddress]);
+      (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(restOfAmount);
+      (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], restOfAmount.add(new BN(1)), {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.withdraw(initialStakingAddresses[1], restOfAmount, {from: delegatorAddress}).should.be.fulfilled;
+      (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.orderedWithdrawAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(orderedAmount);
+      (await stakingHbbft.poolDelegators.call(initialStakingAddresses[1])).length.should.be.equal(0);
+      (await stakingHbbft.poolDelegatorsInactive.call(initialStakingAddresses[1])).should.be.deep.equal([delegatorAddress]);
+    });
+    it('should decrease likelihood', async () => {
+      let likelihoodInfo = await stakingHbbft.getPoolsLikelihood.call();
+      likelihoodInfo.sum.should.be.bignumber.equal(new BN(0));
 
-  //     // Finalize a new validator set and change staking epoch
-  //     await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-  //     await blockRewardHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;      
-  //     await validatorSetHbbft.setStakingContract(stakingHbbft.address).should.be.fulfilled;
-  //     // Set BlockRewardContract
-  //     await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
-  //     await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
-  //     await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
-  //     // Finalize change (increases staking epoch)
-  //     await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-  //     await stakingHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
-  //     (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
-  //     // Order withdrawal
-  //     const orderedAmount = mintAmount.div(new BN(4));
-  //     await stakingHbbft.orderWithdraw(initialStakingAddresses[1], orderedAmount, {from: delegatorAddress}).should.be.fulfilled;
-  //     // The second validator removes their pool
-  //     (await validatorSetHbbft.isValidator.call(initialValidators[1])).should.be.equal(true);
-  //     (await stakingHbbft.getPoolsInactive.call()).length.should.be.equal(0);
-  //     await stakingHbbft.removeMyPool({from: initialStakingAddresses[1]}).should.be.fulfilled;
-  //     (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([initialStakingAddresses[1]]);
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
 
-  //     // Finalize a new validator set, change staking epoch and enqueue pending validators
-  //     await stakingHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
-  //     await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
-  //     await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
-  //     await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
-  //     await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-  //     await stakingHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
-  //     await validatorSetHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
-  //     (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
-  //     (await validatorSetHbbft.isValidator.call(initialValidators[1])).should.be.equal(false);
+      likelihoodInfo = await stakingHbbft.getPoolsLikelihood.call();
+      likelihoodInfo.likelihoods[0].should.be.bignumber.equal(stakeAmount);
+      likelihoodInfo.sum.should.be.bignumber.equal(stakeAmount);
 
-  //     // Check withdrawal for a delegator
-  //     const restOfAmount = mintAmount.mul(new BN(3)).div(new BN(4));
-  //     (await stakingHbbft.poolDelegators.call(initialStakingAddresses[1])).should.be.deep.equal([delegatorAddress]);
-  //     (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(restOfAmount);
-  //     (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount, {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], restOfAmount.add(new BN(1)), {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], restOfAmount, {from: delegatorAddress}).should.be.fulfilled;
-  //     (await stakingHbbft.stakeAmountByCurrentEpoch.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.orderedWithdrawAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(orderedAmount);
-  //     (await stakingHbbft.poolDelegators.call(initialStakingAddresses[1])).length.should.be.equal(0);
-  //     (await stakingHbbft.poolDelegatorsInactive.call(initialStakingAddresses[1])).should.be.deep.equal([delegatorAddress]);
-  //   });
-  //   it('should decrease likelihood', async () => {
-  //     let likelihoodInfo = await stakingHbbft.getPoolsLikelihood.call();
-  //     likelihoodInfo.sum.should.be.bignumber.equal(new BN(0));
+      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.div(new BN(2)), {from: initialStakingAddresses[1]}).should.be.fulfilled;
 
-  //     await stakingHbbft.stake(initialStakingAddresses[1], mintAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-
-  //     likelihoodInfo = await stakingHbbft.getPoolsLikelihood.call();
-  //     likelihoodInfo.likelihoods[0].should.be.bignumber.equal(mintAmount);
-  //     likelihoodInfo.sum.should.be.bignumber.equal(mintAmount);
-
-  //     await stakingHbbft.withdraw(initialStakingAddresses[1], mintAmount.div(new BN(2)), {from: initialStakingAddresses[1]}).should.be.fulfilled;
-
-  //     likelihoodInfo = await stakingHbbft.getPoolsLikelihood.call();
-  //     likelihoodInfo.likelihoods[0].should.be.bignumber.equal(mintAmount.div(new BN(2)));
-  //     likelihoodInfo.sum.should.be.bignumber.equal(mintAmount.div(new BN(2)));
-  //   });
-  //   // TODO: add unit tests for native coin withdrawal
-  // });
+      likelihoodInfo = await stakingHbbft.getPoolsLikelihood.call();
+      likelihoodInfo.likelihoods[0].should.be.bignumber.equal(stakeAmount.div(new BN(2)));
+      likelihoodInfo.sum.should.be.bignumber.equal(stakeAmount.div(new BN(2)));
+    });
+    // TODO: add unit tests for native coin withdrawal
+  });
 
   // TODO: ...add other tests...
 
