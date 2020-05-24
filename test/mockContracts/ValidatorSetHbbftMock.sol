@@ -46,10 +46,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _systemAddress = _address;
     }
 
-    function setValidatorSetApplyBlock(uint256 _blockNumber) public {
-        validatorSetApplyBlock = _blockNumber;
-    }
-
     // =============================================== Getters ========================================================
 
     function getRandomIndex(

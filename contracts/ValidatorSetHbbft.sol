@@ -81,12 +81,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev How many times the given mining address has become a validator.
     mapping(address => uint256) public validatorCounter;
 
-    /// @dev The block number when the `finalizeChange` function was called to apply
-    /// the pending validator set formed by the `newValidatorSet` function. If it is zero,
-    /// it means the `newValidatorSet` function has already been called,
-    /// but the new staking epoch's validator set hasn't yet been finalized by the `finalizeChange` function.
-    uint256 public validatorSetApplyBlock;
-
     // ============================================== Constants =======================================================
 
     /// @dev The max number of validators.
@@ -147,15 +141,12 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             _savePreviousValidators();
             _finalizeNewValidators();
             IBlockRewardHbbft(blockRewardContract).clearBlocksCreated();
-            validatorSetApplyBlock = _getCurrentBlockNumber();
             // new epoch starts
             stakingContract.incrementStakingEpoch();
-            stakingContract.setStakingEpochStartBlock(_getCurrentBlockNumber() + 1);
             delete _pendingValidators;
-        } else {
-            // This is the very first call of the `finalizeChange` (block #1 when starting from genesis)
-            validatorSetApplyBlock = _getCurrentBlockNumber();
         }
+        // The very first call of  `finalizeChange` happens in the genesis block (block #0)
+        stakingContract.setStakingEpochStartBlock(_getCurrentBlockNumber() + 1);            
     }
 
     /// @dev Initializes the network parameters. Used by the
@@ -240,7 +231,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             // Remove pools marked as `to be removed`
             stakingContract.removePools();
         }
-        validatorSetApplyBlock = 0;
     }
 
     /// @dev Removes malicious validators. Called by the the Hbbft engine when a validator has been inactive for a long period.
@@ -363,14 +353,14 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param _miningAddress The validator's mining address.
     function isReportValidatorValid(address _miningAddress) public view returns(bool) {
         bool isValid = isValidator[_miningAddress] && !isValidatorBanned(_miningAddress);
-        if (stakingContract.stakingEpoch() == 0 || validatorSetApplyBlock == 0) {
+        if (stakingContract.stakingEpoch() == 0) {
             return isValid;
         }
-        if (_getCurrentBlockNumber() - validatorSetApplyBlock <= MAX_VALIDATORS) {
+        if (_getCurrentBlockNumber() - stakingContract.stakingEpochStartBlock() + 1 <= MAX_VALIDATORS) {
             // The current validator set was finalized by the engine,
             // but we should let the previous validators finish
             // reporting malicious validator within a few blocks
-            bool previousValidator = isValidatorPrevious[_miningAddress] && !isValidatorBanned(_miningAddress);
+            bool previousValidator = isValidatorPrevious[_miningAddress] && !isValidatorBanned(_miningAddress); // TODO: !isValidatorBanned() is not needed, it is include in isValid
             return isValid || previousValidator;
         }
         return isValid;
