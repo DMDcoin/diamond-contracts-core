@@ -94,9 +94,6 @@ contract('ValidatorSetHbbft', async accounts => {
       false.should.be.equal(
         await validatorSetHbbft.isValidator.call('0x0000000000000000000000000000000000000000')
       );
-      new BN(0).should.be.bignumber.equal(
-        await validatorSetHbbft.validatorSetApplyBlock.call()
-      );
     });
     it('should fail if initialization is not done on the genesis block and sender is not admin', async () => {
       await validatorSetHbbft.setCurrentBlockNumber(1);
