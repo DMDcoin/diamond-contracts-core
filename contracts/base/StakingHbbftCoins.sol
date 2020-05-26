@@ -46,7 +46,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
 
         if (_poolStakingAddress != staker) { // this is a delegator
             firstEpoch = stakeFirstEpoch[_poolStakingAddress][staker];
-            require(firstEpoch != 0);
+            require(firstEpoch != 0, "Claim: first epoch cant' be 0");
             lastEpoch = stakeLastEpoch[_poolStakingAddress][staker];
         }
 
@@ -112,7 +112,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
         uint256[] memory _stakingEpochs,
         address _poolStakingAddress,
         address _staker
-    ) public view returns(uint256 rewardSum) {
+    ) public view returns(uint256) {
         uint256 firstEpoch;
         uint256 lastEpoch;
 
@@ -124,8 +124,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
 
         IBlockRewardHbbftCoins blockRewardContract = IBlockRewardHbbftCoins(validatorSetContract.blockRewardContract());
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
-        uint256 delegatorStake = 0;
-        rewardSum = 0;
+        uint256 delegatorStake;
+        uint256 rewardSum;
 
         if (_stakingEpochs.length == 0) {
             _stakingEpochs = IBlockRewardHbbft(address(blockRewardContract)).epochsPoolGotRewardFor(miningAddress);
@@ -155,6 +155,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
 
             rewardSum += reward;
         }
+        
+        return rewardSum;
     }
 
     // ============================================== Internal ========================================================

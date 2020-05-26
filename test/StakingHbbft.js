@@ -32,6 +32,7 @@ contract('StakingHbbft', async accounts => {
   const stakingWithdrawDisallowPeriod = new BN(4320);
   const stakingEpochStartBlock = new BN(0);
   const keyGenerationDuration = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
+  const stakingEpochDuration = stakingFixedEpochDuration.add(keyGenerationDuration); // in reality this is not fixed but it depends on the key generation process.
 
   beforeEach(async () => {
     owner = accounts[0];
@@ -308,572 +309,567 @@ contract('StakingHbbft', async accounts => {
 
   });
 
-  // describe('claimReward()', async () => {
-  //   let delegator;
-  //   let delegatorMinStake;
+  describe.only('claimReward()', async () => {
+    let delegator;
+    let delegatorMinStake;
 
-  //   beforeEach(async () => {
-  //     // Initialize BlockRewardHbbft
-  //     await blockRewardHbbft.initialize(
-  //       validatorSetHbbft.address,
-  //       maxBlockReward
-  //     ).should.be.fulfilled;
+    beforeEach(async () => {
+      // Initialize BlockRewardHbbft
+      await blockRewardHbbft.initialize(
+        validatorSetHbbft.address,
+        maxBlockReward
+      ).should.be.fulfilled;
 
-  //     // Initialize RandomHbbft
-  //     await randomHbbft.initialize(
-  //       validatorSetHbbft.address
-  //     ).should.be.fulfilled;
+      // Initialize RandomHbbft
+      await randomHbbft.initialize(
+        validatorSetHbbft.address
+      ).should.be.fulfilled;
 
-  //     // Initialize StakingHbbft
-  //     await stakingHbbft.initialize(
-  //       validatorSetHbbft.address, // _validatorSetContract
-  //       initialStakingAddresses, // _initialStakingAddresses
-  //       minStake, // _delegatorMinStake
-  //       minStake, // _candidateMinStake
-  //       stakingFixedEpochDuration, // _stakingFixedEpochDuration
-  //       stakingEpochStartBlock, // _stakingEpochStartBlock
-  //       stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
-  //       initialValidatorsPubKeysSplit, // _publicKeys
-  //       initialValidatorsIpAddresses // _internetAddresses
-  //     ).should.be.fulfilled;
+      // Initialize StakingHbbft
+      await stakingHbbft.initialize(
+        validatorSetHbbft.address, // _validatorSetContract
+        initialStakingAddresses, // _initialStakingAddresses
+        minStake, // _delegatorMinStake
+        minStake, // _candidateMinStake
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+        initialValidatorsPubKeysSplit, // _publicKeys
+        initialValidatorsIpAddresses // _internetAddresses
+      ).should.be.fulfilled;
 
-  //     // Start the network
-  //     await setCurrentBlockNumber(1);
-  //     (await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
-  //     (await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
-  //     (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(0));
-  //     (await validatorSetHbbft.validatorSetApplyBlock.call()).should.be.bignumber.equal(new BN(0));
+      // Genesis block: start the network
+      await setCurrentBlockNumber(0);
+      (await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(0));
+      await callFinalizeChange();
 
-  //     await callFinalizeChange();
+      // Staking epoch #0 starts on block #1
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(1));
+      await setCurrentBlockNumber(1);
+      (await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
+      (await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
 
-  //     (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(0));
-  //     (await validatorSetHbbft.validatorSetApplyBlock.call()).should.be.bignumber.equal(new BN(1));
+      // Validators place stakes during the epoch #0
+      const candidateMinStake = await stakingHbbft.candidateMinStake.call();
+      for (let i = 0; i < initialStakingAddresses.length; i++) {
+        // Validator places stake on themselves
+        await stakingHbbft.stake(initialStakingAddresses[i], {from: initialStakingAddresses[i], value: candidateMinStake}).should.be.fulfilled;
+      }
 
-  //     // Validators place stakes during the epoch #0
-  //     const candidateMinStake = await stakingHbbft.candidateMinStake.call();
-  //     for (let i = 0; i < initialStakingAddresses.length; i++) {
-  //       // Validator places stake on themselves
-  //       await stakingHbbft.stake(initialStakingAddresses[i], {from: initialStakingAddresses[i], value: candidateMinStake}).should.be.fulfilled;
-  //     }
+      // The delegator places stake on the first validator
+      delegator = accounts[10];
+      delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
+      await stakingHbbft.stake(initialStakingAddresses[0], {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
 
-  //     // The delegator places stake on the first validator
-  //     delegator = accounts[10];
-  //     delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
-  //     await stakingHbbft.stake(initialStakingAddresses[0], {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
+      // Epoch's fixed duration ends
+      const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      await setCurrentBlockNumber(stakingFixedEpochEndBlock);
+      await callReward(false);
+      // the pending validator set should be updated
+      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
 
-  //     // Staking epoch #0 finishes
-  //     const stakingEpochEndBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
-  //     await setCurrentBlockNumber(stakingEpochEndBlock);
+      // Staking epoch #0 finishes
+      const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
+      await setCurrentBlockNumber(stakingEpochEndBlock);
 
-  //     const blocksCreated = stakingEpochEndBlock.sub(await validatorSetHbbft.validatorSetApplyBlock.call());
-  //     blocksCreated.should.be.bignumber.above(new BN(0));
+      // total blocks created in an epoch: endBlock - startBlock +1 (the genesis block is not considered)
+      const blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());
+      blocksCreated.should.be.bignumber.equal(stakingFixedEpochDuration.add(keyGenerationDuration).sub(new BN(1))); //-1 because it is gonna be increased by blockRewardHbbft.reward()
+      await blockRewardHbbft.setBlocksCreated(new BN(0), blocksCreated).should.be.fulfilled;
+      await callReward(true);
+      (await blockRewardHbbft.blocksCreated.call(new BN(0))).should.be.bignumber.equal(stakingEpochDuration);
+    });
 
-  //     await blockRewardHbbft.setBlocksCreated(new BN(0), blocksCreated).should.be.fulfilled;
+    async function _claimRewardStakeIncreasing(epochsPoolRewarded, epochsStakeIncreased) {
+      const miningAddress = initialValidators[0];
+      const stakingAddress = initialStakingAddresses[0];
+      const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
+      const maxStakingEpoch = Math.max(Math.max.apply(null, epochsPoolRewarded), Math.max.apply(null, epochsStakeIncreased));
 
-  //     await callReward(true);
-  //   });
+      // Emulate rewards for the pool
+      for (let i = 0; i < epochsPoolRewarded.length; i++) {
+        const stakingEpoch = epochsPoolRewarded[i];
+        await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward).should.be.fulfilled;
+      }
 
-  //   async function _claimRewardStakeIncreasing(epochsPoolRewarded, epochsStakeIncreased) {
-  //     const miningAddress = initialValidators[0];
-  //     const stakingAddress = initialStakingAddresses[0];
-  //     const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
-  //     const maxStakingEpoch = Math.max(Math.max.apply(null, epochsPoolRewarded), Math.max.apply(null, epochsStakeIncreased));
+      let prevStakingEpoch = 0;
+      const validatorStakeAmount = await stakingHbbft.stakeAmount.call(stakingAddress, stakingAddress);
+      let stakeAmount = await stakingHbbft.stakeAmount.call(stakingAddress, delegator);
+      let stakeAmountOnEpoch = [new BN(0)];
 
-  //     (await web3.eth.getBalance(blockRewardHbbft.address)).should.be.equal('0');
+      let s = 0;
+      for (let epoch = 1; epoch <= maxStakingEpoch; epoch++) {
+        const stakingEpoch = epochsStakeIncreased[s];
 
-  //     // Emulate rewards for the pool
-  //     for (let i = 0; i < epochsPoolRewarded.length; i++) {
-  //       const stakingEpoch = epochsPoolRewarded[i];
-  //       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     }
+        if (stakingEpoch == epoch) {
+          const startBlock = new BN(120954 * stakingEpoch + 1);
+          await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
+          await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
+          await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+          await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+          await setCurrentBlockNumber(startBlock);
 
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
+          // Emulate delegator's stake increasing
+          await stakingHbbft.stake(stakingAddress, {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
 
-  //     let prevStakingEpoch = 0;
-  //     const validatorStakeAmount = await stakingHbbft.stakeAmount.call(stakingAddress, stakingAddress);
-  //     let stakeAmount = await stakingHbbft.stakeAmount.call(stakingAddress, delegator);
-  //     let stakeAmountOnEpoch = [new BN(0)];
+          for (let e = prevStakingEpoch + 1; e <= stakingEpoch; e++) {
+            stakeAmountOnEpoch[e] = stakeAmount;
+          }
+          stakeAmount = await stakingHbbft.stakeAmount.call(stakingAddress, delegator);
+          prevStakingEpoch = stakingEpoch;
+          s++;
+        }
 
-  //     let s = 0;
-  //     for (let epoch = 1; epoch <= maxStakingEpoch; epoch++) {
-  //       const stakingEpoch = epochsStakeIncreased[s];
+        // Emulate snapshotting for the pool
+        await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, epoch + 1, miningAddress).should.be.fulfilled;
+      }
 
-  //       if (stakingEpoch == epoch) {
-  //         const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
-  //         await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
-  //         await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-  //         await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
-  //         await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //         await setCurrentBlockNumber(stakingEpochStartBlock);
+      const lastEpochRewarded = epochsPoolRewarded[epochsPoolRewarded.length - 1];
+      await stakingHbbft.setStakingEpoch(lastEpochRewarded + 1).should.be.fulfilled;
 
-  //         // Emulate delegator's stake increasing
-  //         await erc677Token.mint(delegator, delegatorMinStake, {from: owner}).should.be.fulfilled;
-  //         delegatorMinStake.should.be.bignumber.equal(await erc677Token.balanceOf.call(delegator));
-  //         await stakingHbbft.stake(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
+      if (prevStakingEpoch < lastEpochRewarded) {
+        for (let e = prevStakingEpoch + 1; e <= lastEpochRewarded; e++) {
+          stakeAmountOnEpoch[e] = stakeAmount;
+        }
+      }
 
-  //         for (let e = prevStakingEpoch + 1; e <= stakingEpoch; e++) {
-  //           stakeAmountOnEpoch[e] = stakeAmount;
-  //         }
-  //         stakeAmount = await stakingHbbft.stakeAmount.call(stakingAddress, delegator);
-  //         prevStakingEpoch = stakingEpoch;
-  //         s++;
-  //       }
+      let delegatorRewardExpected = new BN(0);
+      let validatorRewardExpected = new BN(0);
+      for (let i = 0; i < epochsPoolRewarded.length; i++) {
+        const stakingEpoch = epochsPoolRewarded[i];
+        await blockRewardHbbft.setValidatorMinRewardPercent(stakingEpoch, 30);
+        const delegatorShare = await blockRewardHbbft.delegatorShare.call(
+          stakingEpoch,
+          stakeAmountOnEpoch[stakingEpoch],
+          validatorStakeAmount,
+          validatorStakeAmount.add(stakeAmountOnEpoch[stakingEpoch]),
+          epochPoolReward
+        );
+        const validatorShare = await blockRewardHbbft.validatorShare.call(
+          stakingEpoch,
+          validatorStakeAmount,
+          validatorStakeAmount.add(stakeAmountOnEpoch[stakingEpoch]),
+          epochPoolReward
+        );
+        delegatorRewardExpected = delegatorRewardExpected.add(delegatorShare);
+        validatorRewardExpected = validatorRewardExpected.add(validatorShare);
+      }
 
-  //       // Emulate snapshotting for the pool
-  //       await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, epoch + 1, miningAddress).should.be.fulfilled;
-  //     }
+      return {
+        delegatorMinStake,
+        miningAddress,
+        stakingAddress,
+        epochPoolReward,
+        maxStakingEpoch,
+        delegatorRewardExpected,
+        validatorRewardExpected
+      };
+    }
 
-  //     const lastEpochRewarded = epochsPoolRewarded[epochsPoolRewarded.length - 1];
-  //     await stakingHbbft.setStakingEpoch(lastEpochRewarded + 1).should.be.fulfilled;
+    async function _delegatorNeverStakedBefore() {
+      const miningAddress = initialValidators[0];
+      const stakingAddress = initialStakingAddresses[0];
+      const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
 
-  //     if (prevStakingEpoch < lastEpochRewarded) {
-  //       for (let e = prevStakingEpoch + 1; e <= lastEpochRewarded; e++) {
-  //         stakeAmountOnEpoch[e] = stakeAmount;
-  //       }
-  //     }
-
-  //     let delegatorRewardExpected = new BN(0);
-  //     let validatorRewardExpected = new BN(0);
-  //     for (let i = 0; i < epochsPoolRewarded.length; i++) {
-  //       const stakingEpoch = epochsPoolRewarded[i];
-  //       await blockRewardHbbft.setValidatorMinRewardPercent(stakingEpoch, 30);
-  //       const delegatorShare = await blockRewardHbbft.delegatorShare.call(
-  //         stakingEpoch,
-  //         stakeAmountOnEpoch[stakingEpoch],
-  //         validatorStakeAmount,
-  //         validatorStakeAmount.add(stakeAmountOnEpoch[stakingEpoch]),
-  //         epochPoolReward
-  //       );
-  //       const validatorShare = await blockRewardHbbft.validatorShare.call(
-  //         stakingEpoch,
-  //         validatorStakeAmount,
-  //         validatorStakeAmount.add(stakeAmountOnEpoch[stakingEpoch]),
-  //         epochPoolReward
-  //       );
-  //       delegatorRewardExpected = delegatorRewardExpected.add(delegatorShare);
-  //       validatorRewardExpected = validatorRewardExpected.add(validatorShare);
-  //     }
-
-  //     return {
-  //       delegatorMinStake,
-  //       miningAddress,
-  //       stakingAddress,
-  //       epochPoolReward,
-  //       maxStakingEpoch,
-  //       delegatorRewardExpected,
-  //       validatorRewardExpected
-  //     };
-  //   }
-
-  //   async function _delegatorNeverStakedBefore() {
-  //     const miningAddress = initialValidators[0];
-  //     const stakingAddress = initialStakingAddresses[0];
-  //     const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
-
-  //     // Emulate the fact that the delegator never staked before
-  //     let stakingEpoch = 1;
-  //     // one block before new epoch, finalize change will increment it
-  //     let stakingEpochStartBlock = new BN(120954 * stakingEpoch);
-  //     await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-  //     await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      // Emulate the fact that the delegator never staked before
+      // current block number is at the end of staking epoch #0
+      // delegator orders a withdrawal during epoch #1
+      let stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      let stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
+      let stakingEpochStartBlock = stakingFixedEpochDuration.add(keyGenerationDuration).add(new BN(1));
       
-  //     // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
-  //     await callFinalizeChange();      
-  //     stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call()
-  //     await setCurrentBlockNumber(stakingEpochStartBlock);
-
-  //     (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
-  //     (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(120955));
-
-  //     (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
+      let startBlock = stakingEpochEndBlock.add(new BN(1));
+      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
       
-  //     (await stakingHbbft.areStakeAndWithdrawAllowed.call()).should.be.equal(true);
-  //     await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
+      // one block before new epoch, finalize change will increment it
+      // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
+      await callFinalizeChange();
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
+      stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
+      // the pending validator set should be empy
+      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
 
-  //     let stakingEpochEndBlock = stakingEpochStartBlock.add(new BN(120954 - 1));
-  //     await setCurrentBlockNumber(stakingEpochEndBlock);
+      // Staking epoch #1: Start
+      await setCurrentBlockNumber(stakingEpochStartBlock);
+      (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
+      (await stakingHbbft.areStakeAndWithdrawAllowed.call()).should.be.equal(true);
+      await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
 
-  //     let blocksCreated = stakingEpochEndBlock.sub(await validatorSetHbbft.validatorSetApplyBlock.call()).div(new BN(initialValidators.length));
-  //     blocksCreated.should.be.bignumber.above(new BN(0));
-  //     for (let i = 0; i < initialValidators.length; i++) {
-  //       await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), initialValidators[i], blocksCreated).should.be.fulfilled;
-  //     }
-  //     await callReward();
+      // Staking epoch #1: end of fixed duration
+      stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      await setCurrentBlockNumber(stakingFixedEpochEndBlock);
+      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
+      await callReward(false);
+      // the pending validator set should be updated
+      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
 
-  //     stakingEpoch = 2;
-  //     stakingEpochStartBlock = new BN(120954 * stakingEpoch);
-  //     await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-  //     await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      // Staking epoch #1: Epoch end block
+      let endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
+      stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
+      stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
+      await setCurrentBlockNumber(stakingEpochEndBlock);
+
+      let blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
+      await blockRewardHbbft.setBlocksCreated(new BN(1), blocksCreated).should.be.fulfilled;
+      await callReward(true); //increments blockcsCreated too!
+      (await blockRewardHbbft.blocksCreated.call(new BN(1))).should.be.bignumber.equal(stakingEpochDuration);
+
+
+      // Staking epoch #1: Finalize change
+      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
+      // upcoming epoch's start block
+      startBlock = stakingFixedEpochDuration.add(keyGenerationDuration).mul(new BN(2)).add(new BN(1)); // (stakingFixedEpochDuration + keyGenerationDuration) * stakingEpoch + 1
+      // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
+      await callFinalizeChange();
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
+      stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call()
+      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
+      // the pending validator set should be empty
+      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
+
+      // epoch #2: the delegator withdraws their stake
+      await setCurrentBlockNumber(stakingEpochStartBlock);
+
+      await stakingHbbft.claimOrderedWithdraw(stakingAddress, {from: delegator}).should.be.fulfilled;
+
+      (await stakingHbbft.stakeAmount.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.orderedWithdrawAmount.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
+      (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(1));
+      (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(2));
+
+      await stakingHbbft.setStakeFirstEpoch(stakingAddress, delegator, new BN(0)).should.be.fulfilled;
+      await stakingHbbft.setStakeLastEpoch(stakingAddress, delegator, new BN(0)).should.be.fulfilled;
+      await stakingHbbft.clearDelegatorStakeSnapshot(stakingAddress, delegator, new BN(1)).should.be.fulfilled;
+      await stakingHbbft.clearDelegatorStakeSnapshot(stakingAddress, delegator, new BN(2)).should.be.fulfilled;
+
+       // Staking epoch #2: end of fixed duration
+       stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+       await setCurrentBlockNumber(stakingFixedEpochEndBlock);
+       await callReward(false);
+
+      // Staking epoch #2: Epoch end block
+      endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
+      stakingEpochEndBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
+      stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
+      await setCurrentBlockNumber(stakingEpochEndBlock);
+
+      blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
+      await blockRewardHbbft.setBlocksCreated(new BN(2), blocksCreated).should.be.fulfilled;
+      await callReward(true);
+      (await blockRewardHbbft.blocksCreated.call(new BN(2))).should.be.bignumber.equal(stakingEpochDuration);
+
+      // Staking epoch #2: Finalize change
+      await callFinalizeChange();
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(3));
+      (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock.add(new BN(1)));
+      return {miningAddress, stakingAddress, epochPoolReward};
+    }
+
+    async function testClaimRewardRandom(epochsPoolRewarded, epochsStakeIncreased) {
+      const {
+        delegatorMinStake,
+        miningAddress,
+        stakingAddress,
+        epochPoolReward,
+        maxStakingEpoch,
+        delegatorRewardExpected,
+        validatorRewardExpected
+      } = await _claimRewardStakeIncreasing(
+        epochsPoolRewarded,
+        epochsStakeIncreased
+      );
+
+      const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
+      let weiSpent = new BN(0);
+      let epochsPoolRewardedRandom = epochsPoolRewarded;
+      shuffle(epochsPoolRewardedRandom);
+      for (let i = 0; i < epochsPoolRewardedRandom.length; i++) {
+        const stakingEpoch = epochsPoolRewardedRandom[i];
+        let result = await stakingHbbft.claimReward([stakingEpoch], stakingAddress, {from: delegator}).should.be.fulfilled;
+        let tx = await web3.eth.getTransaction(result.tx);
+        weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
+        // Call once again to ensure the reward cannot be withdrawn twice
+        result = await stakingHbbft.claimReward([stakingEpoch], stakingAddress, {from: delegator}).should.be.fulfilled;
+        tx = await web3.eth.getTransaction(result.tx);
+        weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
+      }
+      const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
+      delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
+
+      // const validatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(stakingAddress));
+      // weiSpent = new BN(0);
+      // shuffle(epochsPoolRewardedRandom);
+      // for (let i = 0; i < epochsPoolRewardedRandom.length; i++) {
+      //   const stakingEpoch = epochsPoolRewardedRandom[i];
+      //   const result = await stakingHbbft.claimReward([stakingEpoch], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
+      //   const tx = await web3.eth.getTransaction(result.tx);
+      //   weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
+      // }
+      // const validatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(stakingAddress));
+      // validatorCoinsBalanceAfter.should.be.bignumber.equal(validatorCoinsBalanceBefore.add(validatorRewardExpected).sub(weiSpent));
+
+      // const blockRewardBalanceExpected = epochPoolReward.mul(new BN(epochsPoolRewarded.length)).sub(delegatorRewardExpected).sub(validatorRewardExpected);
+      // (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(blockRewardBalanceExpected);
+    }
+
+    async function testClaimRewardAfterStakeIncreasing(epochsPoolRewarded, epochsStakeIncreased) {
+      const {
+        delegatorMinStake,
+        miningAddress,
+        stakingAddress,
+        epochPoolReward,
+        maxStakingEpoch,
+        delegatorRewardExpected,
+        validatorRewardExpected
+      } = await _claimRewardStakeIncreasing(
+        epochsPoolRewarded,
+        epochsStakeIncreased
+      );
+
+      let rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, delegator);
+      rewardAmountsCalculated.should.be.bignumber.equal(delegatorRewardExpected);
+
+      const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
+      const result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
+      const tx = await web3.eth.getTransaction(result.tx);
+      const weiSpent = (new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice));
+      const delegatorTokensBalanceAfter = await erc677Token.balanceOf.call(delegator);
+      const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
+
+      delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
+
+      rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, stakingAddress);
+      rewardAmountsCalculatedshould.be.bignumber.equal(validatorRewardExpected);
+
+      await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
+
+      const blockRewardBalanceExpected = epochPoolReward.mul(new BN(epochsPoolRewarded.length)).sub(delegatorRewardExpected).sub(validatorRewardExpected);
+
+      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(blockRewardBalanceExpected);
+    }
+
+    async function testClaimRewardAfterStakeMovements(epochsPoolRewarded, epochsStakeMovement) {
+      const miningAddress = initialValidators[0];
+      const stakingAddress = initialStakingAddresses[0];
+      const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
+
+      (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(new BN(0));
+      (await web3.eth.getBalance(blockRewardHbbft.address)).should.be.equal('0');
+
+      for (let i = 0; i < epochsPoolRewarded.length; i++) {
+        const stakingEpoch = epochsPoolRewarded[i];
+
+        // Emulate snapshotting for the pool
+        await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, miningAddress).should.be.fulfilled;
+
+        // Emulate rewards for the pool
+        await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
+      }
+
+      (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
+      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
+
+      for (let i = 0; i < epochsStakeMovement.length; i++) {
+        const stakingEpoch = epochsStakeMovement[i];
+
+        // Emulate delegator's stake movement
+        const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
+        await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
+        await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
+        await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
+        await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+        await setCurrentBlockNumber(stakingEpochStartBlock);
+        await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
+        await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake.neg(), {from: delegator}).should.be.fulfilled;
+      }
+
+      const stakeFirstEpoch = await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator);
+      await stakingHbbft.setStakeFirstEpoch(stakingAddress, delegator, 0);
+      await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith(ERROR_MSG);
+      await stakingHbbft.setStakeFirstEpoch(stakingAddress, delegator, stakeFirstEpoch);
+
+      if (epochsPoolRewarded.length > 0) {
+        if (epochsPoolRewarded.length > 1) {
+          const reversedEpochsPoolRewarded = [...epochsPoolRewarded].reverse();
+          await stakingHbbft.claimReward(reversedEpochsPoolRewarded, stakingAddress, {from: delegator}).should.be.rejectedWith(ERROR_MSG);
+        }
+
+        await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1]).should.be.fulfilled;
+        await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith(ERROR_MSG);
+        await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1] + 1).should.be.fulfilled;
+
+        if (epochsPoolRewarded.length == 1) {
+          const validatorStakeAmount = await blockRewardHbbft.snapshotPoolValidatorStakeAmount.call(epochsPoolRewarded[0], miningAddress);
+          await blockRewardHbbft.setSnapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress, 0);
+          const result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
+          result.logs.length.should.be.equal(1);
+          result.logs[0].args.tokensAmount.should.be.bignumber.equal(new BN(0));
+          result.logs[0].args.nativeCoinsAmount.should.be.bignumber.equal(new BN(0));
+          await blockRewardHbbft.setSnapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress, validatorStakeAmount);
+          await stakingHbbft.clearRewardWasTaken(stakingAddress, delegator, epochsPoolRewarded[0]);
+        }
+      }
+
+      const delegatorRewardExpected = epochPoolReward.mul(new BN(epochsPoolRewarded.length)).div(new BN(2));
+
+      const rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, delegator);
+      rewardAmountsCalculated.tokenRewardSum.should.be.bignumber.equal(delegatorRewardExpected);
+      rewardAmountsCalculated.nativeRewardSum.should.be.bignumber.equal(delegatorRewardExpected);
+
+      const delegatorTokensBalanceBefore = await erc677Token.balanceOf.call(delegator);
+      const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
+      let weiSpent = new BN(0);
+      for (let i = 0; i < 3; i++) {
+        // We call `claimReward` several times, but it withdraws the reward only once
+        const result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
+        const tx = await web3.eth.getTransaction(result.tx);
+        weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
+      }
+      const delegatorTokensBalanceAfter = await erc677Token.balanceOf.call(delegator);
+      const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
+
+      delegatorTokensBalanceAfter.should.be.bignumber.equal(delegatorTokensBalanceBefore.add(delegatorRewardExpected));
+      delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
+
+      for (let i = 0; i < 3; i++) {
+        // We call `claimReward` several times, but it withdraws the reward only once
+        const result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
+        if (i == 0) {
+          result.logs.length.should.be.equal(epochsPoolRewarded.length);
+        } else {
+          result.logs.length.should.be.equal(0);
+        }
+      }
+
+      (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(new BN(0));
+      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(new BN(0));
+    }
+
+    it('reward tries to be withdrawn before first stake', async () => {
+      const {
+        miningAddress,
+        stakingAddress,
+        epochPoolReward
+      } = await _delegatorNeverStakedBefore();
+
+      // Emulate snapshotting and rewards for the pool on the epoch #9
+      let stakingEpoch = 9;
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, miningAddress).should.be.fulfilled;
+      await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward).should.be.fulfilled;
+      (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
+
+      // Emulate the delegator's first stake on epoch #10
+      stakingEpoch = 10;
+      let startBlock = new BN(120954 * stakingEpoch + 1);
+      await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
+      await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      await setCurrentBlockNumber(startBlock);
+      await stakingHbbft.stake(stakingAddress, {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
+      await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward).should.be.fulfilled;
+      (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
+
+      // // Emulate rewards for the pool on epoch #11
+      stakingEpoch = 11;
+      await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward).should.be.fulfilled;
+      (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
+
+      await stakingHbbft.setStakingEpoch(12).should.be.fulfilled;
+
+      const rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([9, 10], stakingAddress, delegator);
+      rewardAmountsCalculated.should.be.bignumber.equal(new BN(0));
+
+      const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
+      let result = await stakingHbbft.claimReward([9, 10], stakingAddress, {from: delegator}).should.be.fulfilled;
+      const tx = await web3.eth.getTransaction(result.tx);
+      const weiSpent = (new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice));
+      const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
+
+      result.logs.length.should.be.equal(0);
+      delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
+
+      result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
+      result.logs.length.should.be.equal(5);
+      result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(1));
+      result.logs[1].args.stakingEpoch.should.be.bignumber.equal(new BN(2));
+      result.logs[2].args.stakingEpoch.should.be.bignumber.equal(new BN(9));
+      result.logs[3].args.stakingEpoch.should.be.bignumber.equal(new BN(10));
+      result.logs[4].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
+
+      result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
+      result.logs.length.should.be.equal(1);
+      result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
+
+
+      (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
+      (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
+    });
+
+    it('delegator stakes and withdraws at the same epoch', async () => {
+      const {
+        miningAddress,
+        stakingAddress,
+        epochPoolReward
+      } = await _delegatorNeverStakedBefore();
+
+      // Emulate snapshotting and rewards for the pool on the epoch #9
+      let stakingEpoch = 9;
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, miningAddress).should.be.fulfilled;
+      await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward).should.be.fulfilled;
+      (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
+
+      // Emulate the delegator's first stake and withdrawal on epoch #10
+      stakingEpoch = 10;
+      startBlock = new BN(120954 * stakingEpoch + 1);
+      await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
+      await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+      await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
+      await setCurrentBlockNumber(startBlock);
+      await stakingHbbft.stake(stakingAddress, {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
+      await stakingHbbft.withdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
+      await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward).should.be.fulfilled;
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
+
+      // Emulate rewards for the pool on epoch #11
+      stakingEpoch = 11;
+      await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward).should.be.fulfilled;
+      await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
+
+      await stakingHbbft.setStakingEpoch(12).should.be.fulfilled;
+
+      const rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, delegator);
+      rewardAmountsCalculated.should.be.bignumber.equal(new BN(0));
+
       
-  //     // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
-  //     await callFinalizeChange();
-  //     stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call()
-  //     await setCurrentBlockNumber(stakingEpochStartBlock);
-      
-  //     (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
-  //     (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(120954*2 + 1));
+      const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
+      let result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
+      const tx = await web3.eth.getTransaction(result.tx);
+      const weiSpent = (new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice));
+      const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
 
-  //     await stakingHbbft.claimOrderedWithdraw(stakingAddress, {from: delegator}).should.be.fulfilled;
+      result.logs.length.should.be.equal(0);
+      delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
 
-  //     (await stakingHbbft.stakeAmount.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.orderedWithdrawAmount.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
-  //     (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(1));
-  //     (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(2));
+      result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
+      result.logs.length.should.be.equal(5);
+      result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(1));
+      result.logs[1].args.stakingEpoch.should.be.bignumber.equal(new BN(2));
+      result.logs[2].args.stakingEpoch.should.be.bignumber.equal(new BN(9));
+      result.logs[3].args.stakingEpoch.should.be.bignumber.equal(new BN(10));
+      result.logs[4].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
 
-  //     await stakingHbbft.setStakeFirstEpoch(stakingAddress, delegator, new BN(0)).should.be.fulfilled;
-  //     await stakingHbbft.setStakeLastEpoch(stakingAddress, delegator, new BN(0)).should.be.fulfilled;
-  //     await stakingHbbft.clearDelegatorStakeSnapshot(stakingAddress, delegator, new BN(1)).should.be.fulfilled;
-  //     await stakingHbbft.clearDelegatorStakeSnapshot(stakingAddress, delegator, new BN(2)).should.be.fulfilled;
-
-  //     stakingEpochEndBlock = stakingEpochStartBlock.add(new BN(120954 - 1));
-  //     await setCurrentBlockNumber(stakingEpochEndBlock);
-
-  //     blocksCreated = stakingEpochEndBlock.sub(await validatorSetHbbft.validatorSetApplyBlock.call()).div(new BN(initialValidators.length));
-  //     blocksCreated.should.be.bignumber.above(new BN(0));
-  //     for (let i = 0; i < initialValidators.length; i++) {
-  //       await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), initialValidators[i], blocksCreated).should.be.fulfilled;
-  //     }
-  //     await callReward();
-  //     await callFinalizeChange();
-  //     (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(3));
-
-  //     return {miningAddress, stakingAddress, epochPoolReward};
-  //   }
-
-  //   async function testClaimRewardRandom(epochsPoolRewarded, epochsStakeIncreased) {
-  //     const {
-  //       delegatorMinStake,
-  //       miningAddress,
-  //       stakingAddress,
-  //       epochPoolReward,
-  //       maxStakingEpoch,
-  //       delegatorRewardExpected,
-  //       validatorRewardExpected
-  //     } = await _claimRewardStakeIncreasing(
-  //       epochsPoolRewarded,
-  //       epochsStakeIncreased
-  //     );
-
-  //     const delegatorTokensBalanceBefore = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
-  //     let weiSpent = new BN(0);
-  //     let epochsPoolRewardedRandom = epochsPoolRewarded;
-  //     shuffle(epochsPoolRewardedRandom);
-  //     for (let i = 0; i < epochsPoolRewardedRandom.length; i++) {
-  //       const stakingEpoch = epochsPoolRewardedRandom[i];
-  //       let result = await stakingHbbft.claimReward([stakingEpoch], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //       let tx = await web3.eth.getTransaction(result.tx);
-  //       weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
-  //       // Call once again to ensure the reward cannot be withdrawn twice
-  //       result = await stakingHbbft.claimReward([stakingEpoch], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //       tx = await web3.eth.getTransaction(result.tx);
-  //       weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
-  //     }
-  //     const delegatorTokensBalanceAfter = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
-
-  //     delegatorTokensBalanceAfter.should.be.bignumber.equal(delegatorTokensBalanceBefore.add(delegatorRewardExpected));
-  //     delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
-
-  //     const validatorTokensBalanceBefore = await erc677Token.balanceOf.call(stakingAddress);
-  //     const validatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(stakingAddress));
-  //     weiSpent = new BN(0);
-  //     shuffle(epochsPoolRewardedRandom);
-  //     for (let i = 0; i < epochsPoolRewardedRandom.length; i++) {
-  //       const stakingEpoch = epochsPoolRewardedRandom[i];
-  //       const result = await stakingHbbft.claimReward([stakingEpoch], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
-  //       const tx = await web3.eth.getTransaction(result.tx);
-  //       weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
-  //     }
-  //     const validatorTokensBalanceAfter = await erc677Token.balanceOf.call(stakingAddress);
-  //     const validatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(stakingAddress));
-
-  //     validatorTokensBalanceAfter.should.be.bignumber.equal(validatorTokensBalanceBefore.add(validatorRewardExpected));
-  //     validatorCoinsBalanceAfter.should.be.bignumber.equal(validatorCoinsBalanceBefore.add(validatorRewardExpected).sub(weiSpent));
-
-  //     const blockRewardBalanceExpected = epochPoolReward.mul(new BN(epochsPoolRewarded.length)).sub(delegatorRewardExpected).sub(validatorRewardExpected);
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(blockRewardBalanceExpected);
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(blockRewardBalanceExpected);
-  //   }
-
-  //   async function testClaimRewardAfterStakeIncreasing(epochsPoolRewarded, epochsStakeIncreased) {
-  //     const {
-  //       delegatorMinStake,
-  //       miningAddress,
-  //       stakingAddress,
-  //       epochPoolReward,
-  //       maxStakingEpoch,
-  //       delegatorRewardExpected,
-  //       validatorRewardExpected
-  //     } = await _claimRewardStakeIncreasing(
-  //       epochsPoolRewarded,
-  //       epochsStakeIncreased
-  //     );
-
-  //     let rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, delegator);
-  //     rewardAmountsCalculated.tokenRewardSum.should.be.bignumber.equal(delegatorRewardExpected);
-  //     rewardAmountsCalculated.nativeRewardSum.should.be.bignumber.equal(delegatorRewardExpected);
-
-  //     const delegatorTokensBalanceBefore = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
-  //     const result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //     const tx = await web3.eth.getTransaction(result.tx);
-  //     const weiSpent = (new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice));
-  //     const delegatorTokensBalanceAfter = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
-
-  //     delegatorTokensBalanceAfter.should.be.bignumber.equal(delegatorTokensBalanceBefore.add(delegatorRewardExpected));
-  //     delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
-
-  //     rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, stakingAddress);
-  //     rewardAmountsCalculated.tokenRewardSum.should.be.bignumber.equal(validatorRewardExpected);
-  //     rewardAmountsCalculated.nativeRewardSum.should.be.bignumber.equal(validatorRewardExpected);
-
-  //     await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
-
-  //     const blockRewardBalanceExpected = epochPoolReward.mul(new BN(epochsPoolRewarded.length)).sub(delegatorRewardExpected).sub(validatorRewardExpected);
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(blockRewardBalanceExpected);
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(blockRewardBalanceExpected);
-  //   }
-
-  //   async function testClaimRewardAfterStakeMovements(epochsPoolRewarded, epochsStakeMovement) {
-  //     const miningAddress = initialValidators[0];
-  //     const stakingAddress = initialStakingAddresses[0];
-  //     const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
-
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(new BN(0));
-  //     (await web3.eth.getBalance(blockRewardHbbft.address)).should.be.equal('0');
-
-  //     for (let i = 0; i < epochsPoolRewarded.length; i++) {
-  //       const stakingEpoch = epochsPoolRewarded[i];
-
-  //       // Emulate snapshotting for the pool
-  //       await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, miningAddress).should.be.fulfilled;
-
-  //       // Emulate rewards for the pool
-  //       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     }
-
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
-
-  //     for (let i = 0; i < epochsStakeMovement.length; i++) {
-  //       const stakingEpoch = epochsStakeMovement[i];
-
-  //       // Emulate delegator's stake movement
-  //       const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
-  //       await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
-  //       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-  //       await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
-  //       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //       await setCurrentBlockNumber(stakingEpochStartBlock);
-  //       await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
-  //       await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake.neg(), {from: delegator}).should.be.fulfilled;
-  //     }
-
-  //     const stakeFirstEpoch = await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator);
-  //     await stakingHbbft.setStakeFirstEpoch(stakingAddress, delegator, 0);
-  //     await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith(ERROR_MSG);
-  //     await stakingHbbft.setStakeFirstEpoch(stakingAddress, delegator, stakeFirstEpoch);
-
-  //     if (epochsPoolRewarded.length > 0) {
-  //       if (epochsPoolRewarded.length > 1) {
-  //         const reversedEpochsPoolRewarded = [...epochsPoolRewarded].reverse();
-  //         await stakingHbbft.claimReward(reversedEpochsPoolRewarded, stakingAddress, {from: delegator}).should.be.rejectedWith(ERROR_MSG);
-  //       }
-
-  //       await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1]).should.be.fulfilled;
-  //       await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith(ERROR_MSG);
-  //       await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1] + 1).should.be.fulfilled;
-
-  //       if (epochsPoolRewarded.length == 1) {
-  //         const validatorStakeAmount = await blockRewardHbbft.snapshotPoolValidatorStakeAmount.call(epochsPoolRewarded[0], miningAddress);
-  //         await blockRewardHbbft.setSnapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress, 0);
-  //         const result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //         result.logs.length.should.be.equal(1);
-  //         result.logs[0].args.tokensAmount.should.be.bignumber.equal(new BN(0));
-  //         result.logs[0].args.nativeCoinsAmount.should.be.bignumber.equal(new BN(0));
-  //         await blockRewardHbbft.setSnapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress, validatorStakeAmount);
-  //         await stakingHbbft.clearRewardWasTaken(stakingAddress, delegator, epochsPoolRewarded[0]);
-  //       }
-  //     }
-
-  //     const delegatorRewardExpected = epochPoolReward.mul(new BN(epochsPoolRewarded.length)).div(new BN(2));
-
-  //     const rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, delegator);
-  //     rewardAmountsCalculated.tokenRewardSum.should.be.bignumber.equal(delegatorRewardExpected);
-  //     rewardAmountsCalculated.nativeRewardSum.should.be.bignumber.equal(delegatorRewardExpected);
-
-  //     const delegatorTokensBalanceBefore = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
-  //     let weiSpent = new BN(0);
-  //     for (let i = 0; i < 3; i++) {
-  //       // We call `claimReward` several times, but it withdraws the reward only once
-  //       const result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //       const tx = await web3.eth.getTransaction(result.tx);
-  //       weiSpent = weiSpent.add((new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice)));
-  //     }
-  //     const delegatorTokensBalanceAfter = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
-
-  //     delegatorTokensBalanceAfter.should.be.bignumber.equal(delegatorTokensBalanceBefore.add(delegatorRewardExpected));
-  //     delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
-
-  //     for (let i = 0; i < 3; i++) {
-  //       // We call `claimReward` several times, but it withdraws the reward only once
-  //       const result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
-  //       if (i == 0) {
-  //         result.logs.length.should.be.equal(epochsPoolRewarded.length);
-  //       } else {
-  //         result.logs.length.should.be.equal(0);
-  //       }
-  //     }
-
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(new BN(0));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(new BN(0));
-  //   }
-
-  //   it('reward tries to be withdrawn before first stake', async () => {
-  //     const {
-  //       miningAddress,
-  //       stakingAddress,
-  //       epochPoolReward
-  //     } = await _delegatorNeverStakedBefore();
-
-  //     // Emulate snapshotting and rewards for the pool on the epoch #9
-  //     let stakingEpoch = 9;
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, miningAddress).should.be.fulfilled;
-  //     await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward);
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward);
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
-
-  //     // Emulate the delegator's first stake on epoch #10
-  //     stakingEpoch = 10;
-  //     stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
-  //     await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-  //     await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //     await setCurrentBlockNumber(stakingEpochStartBlock);
-  //     await stakingHbbft.stake(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
-  //     await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward.mul(new BN(2)));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(2)));
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
-
-  //     // Emulate rewards for the pool on epoch #11
-  //     stakingEpoch = 11;
-  //     await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward.mul(new BN(3)));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(3)));
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
-
-  //     await stakingHbbft.setStakingEpoch(12).should.be.fulfilled;
-
-  //     const rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([9, 10], stakingAddress, delegator);
-  //     rewardAmountsCalculated.tokenRewardSum.should.be.bignumber.equal(new BN(0));
-  //     rewardAmountsCalculated.nativeRewardSum.should.be.bignumber.equal(new BN(0));
-
-  //     const delegatorTokensBalanceBefore = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
-  //     let result = await stakingHbbft.claimReward([9, 10], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //     const tx = await web3.eth.getTransaction(result.tx);
-  //     const weiSpent = (new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice));
-  //     const delegatorTokensBalanceAfter = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
-
-  //     result.logs.length.should.be.equal(0);
-  //     delegatorTokensBalanceAfter.should.be.bignumber.equal(delegatorTokensBalanceBefore);
-  //     delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
-
-  //     result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
-  //     result.logs.length.should.be.equal(3);
-  //     result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(9));
-  //     result.logs[1].args.stakingEpoch.should.be.bignumber.equal(new BN(10));
-  //     result.logs[2].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
-
-  //     result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //     result.logs.length.should.be.equal(1);
-  //     result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
-
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(new BN(0));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(new BN(0));
-
-  //     (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
-  //     (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
-  //   });
-
-  //   it('delegator stakes and withdraws at the same epoch', async () => {
-  //     const {
-  //       miningAddress,
-  //       stakingAddress,
-  //       epochPoolReward
-  //     } = await _delegatorNeverStakedBefore();
-
-  //     // Emulate snapshotting and rewards for the pool on the epoch #9
-  //     let stakingEpoch = 9;
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, miningAddress).should.be.fulfilled;
-  //     await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward);
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward);
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
-
-  //     // Emulate the delegator's first stake and withdrawal on epoch #10
-  //     stakingEpoch = 10;
-  //     stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
-  //     await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-  //     await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
-  //     await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-  //     await setCurrentBlockNumber(stakingEpochStartBlock);
-  //     await stakingHbbft.stake(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
-  //     await stakingHbbft.withdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
-  //     await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward.mul(new BN(2)));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(2)));
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
-
-  //     // Emulate rewards for the pool on epoch #11
-  //     stakingEpoch = 11;
-  //     await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, epochPoolReward, {value: epochPoolReward}).should.be.fulfilled;
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(epochPoolReward.mul(new BN(3)));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(3)));
-  //     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
-
-  //     await stakingHbbft.setStakingEpoch(12).should.be.fulfilled;
-
-  //     const rewardAmountsCalculated = await stakingHbbft.getRewardAmount.call([], stakingAddress, delegator);
-  //     rewardAmountsCalculated.tokenRewardSum.should.be.bignumber.equal(new BN(0));
-  //     rewardAmountsCalculated.nativeRewardSum.should.be.bignumber.equal(new BN(0));
-
-  //     const delegatorTokensBalanceBefore = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceBefore = new BN(await web3.eth.getBalance(delegator));
-  //     let result = await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.fulfilled;
-  //     const tx = await web3.eth.getTransaction(result.tx);
-  //     const weiSpent = (new BN(result.receipt.gasUsed)).mul(new BN(tx.gasPrice));
-  //     const delegatorTokensBalanceAfter = await erc677Token.balanceOf.call(delegator);
-  //     const delegatorCoinsBalanceAfter = new BN(await web3.eth.getBalance(delegator));
-
-  //     result.logs.length.should.be.equal(0);
-  //     delegatorTokensBalanceAfter.should.be.bignumber.equal(delegatorTokensBalanceBefore);
-  //     delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
-
-  //     result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
-  //     result.logs.length.should.be.equal(3);
-  //     result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(9));
-  //     result.logs[1].args.stakingEpoch.should.be.bignumber.equal(new BN(10));
-  //     result.logs[2].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
-
-  //     (await erc677Token.balanceOf.call(blockRewardHbbft.address)).should.be.bignumber.equal(new BN(0));
-  //     (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(new BN(0));
-
-  //     (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
-  //     (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
-  //   });
+      (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
+      (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
+    });
 
   //   it('non-rewarded epochs are passed', async () => {
   //     const miningAddress = initialValidators[0];
@@ -987,42 +983,42 @@ contract('StakingHbbft', async accounts => {
   //     );
   //   });
 
-  //   it('random withdrawal', async () => {
-  //     await testClaimRewardRandom(
-  //       [5, 15, 25, 35],
-  //       [4, 14, 24, 34]
-  //     );
-  //   });
-  //   it('random withdrawal', async () => {
-  //     await testClaimRewardRandom(
-  //       [5, 15, 25, 35],
-  //       [10, 20, 30]
-  //     );
-  //   });
-  //   it('random withdrawal', async () => {
-  //     await testClaimRewardRandom(
-  //       [1, 2, 3, 4, 5, 6],
-  //       [1, 2, 3, 4, 5]
-  //     );
-  //   });
-  //   it('random withdrawal', async () => {
-  //     await testClaimRewardRandom(
-  //       [1, 3, 6, 10],
-  //       [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-  //     );
-  //   });
-  //   it('random withdrawal', async () => {
-  //     await testClaimRewardRandom(
-  //       [5, 15, 25],
-  //       [5, 15, 25]
-  //     );
-  //   });
-  //   it('random withdrawal', async () => {
-  //     await testClaimRewardRandom(
-  //       [5, 7, 9],
-  //       [6, 8, 10]
-  //     );
-  //   });
+    // it('random withdrawal', async () => {
+    //   await testClaimRewardRandom(
+    //     [5, 15, 25, 35],
+    //     [4, 14, 24, 34]
+    //   );
+    // });
+    // it('random withdrawal', async () => {
+    //   await testClaimRewardRandom(
+    //     [5, 15, 25, 35],
+    //     [10, 20, 30]
+    //   );
+    // });
+    // it('random withdrawal', async () => {
+    //   await testClaimRewardRandom(
+    //     [1, 2, 3, 4, 5, 6],
+    //     [1, 2, 3, 4, 5]
+    //   );
+    // });
+    // it('random withdrawal', async () => {
+    //   await testClaimRewardRandom(
+    //     [1, 3, 6, 10],
+    //     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    //   );
+    // });
+    // it('random withdrawal', async () => {
+    //   await testClaimRewardRandom(
+    //     [5, 15, 25],
+    //     [5, 15, 25]
+    //   );
+    // });
+    // it('random withdrawal', async () => {
+    //   await testClaimRewardRandom(
+    //     [5, 7, 9],
+    //     [6, 8, 10]
+    //   );
+    // });
 
   //   it('reward is got from the first epoch', async () => {
   //     await testClaimRewardAfterStakeMovements([1], []);
@@ -1812,7 +1808,7 @@ contract('StakingHbbft', async accounts => {
   //     blockRewardTokensBalanceTotalAfter.should.be.bignumber.gte(new BN(0));
   //     blockRewardCoinsBalanceTotalAfter.should.be.bignumber.gte(new BN(0));
   //   });
-  // });
+  });
 
   describe('incrementStakingEpoch()', async () => {
     // set ValidatorSet = accounts[7]

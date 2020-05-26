@@ -147,15 +147,15 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 stakingFixedEpochEndBlock = stakingContract.stakingFixedEpochEndBlock();
         uint256 nativeTotalRewardAmount;
 
-        
-        if (stakingEpoch != 0) {
+         // Store the current block in a local vairable
+        uint256 currentBlockNumber = _getCurrentBlockNumber();
+         
+        if (currentBlockNumber != 0) {
             // Accumulate blocks producing statistics for each of the
             // active validators during the current staking epoch. This
             // statistics is used by the `_distributeRewards` function
             blocksCreated[stakingEpoch]++;
         }
-        // Store the current block in a local vairable
-        uint256 currentBlockNumber = _getCurrentBlockNumber();
 
         // If the end of the fixed epoch duration is reached, choose the new validator candidates aka pendingValidators.
         if (currentBlockNumber == stakingFixedEpochEndBlock) {
@@ -270,7 +270,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Returns the reward coefficient for the specified validator. The given value should be divided by 10000
     /// to get the value of the reward percent (since EVM doesn't support floating values). If the specified staking
-    /// address is an address of a candidate that is not about to be a validator on the current staking epoch
+    /// address is an address of a candidate that is not about to be a validator in the upcoming staking epoch
     /// the potentially possible reward coefficient is returned.
     /// @param _stakingAddress The staking address of the validator/candidate
     /// pool for which the getter must return the coefficient.
@@ -279,15 +279,15 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 stakingEpoch = stakingContract.stakingEpoch();
 
         if (stakingEpoch == 0) {
-            // No one gets a reward for the initial staking epoch, so we return zero
+            // No one gets a reward for the initial staking epoch, so we return zero.
             return 0;
         }
 
         address miningAddress = validatorSetContract.miningByStakingAddress(_stakingAddress);
 
-        if (validatorSetContract.isValidator(miningAddress)) {
-            // For the validator we return the coefficient based on
-            // snapshotted total amounts
+        if (validatorSetContract.isValidatorOrPending(miningAddress)) {
+            // For the validator or  the candidate that is about to be a validator in the upcoming epoch...
+            // ...we return the coefficient based on snapshotted total amounts.
             return validatorShare(
                 stakingEpoch,
                 snapshotPoolValidatorStakeAmount[stakingEpoch][miningAddress],
@@ -296,27 +296,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             );
         }
 
-        if (validatorSetContract.validatorSetApplyBlock() == 0) {
-            // For the candidate that is about to be a validator on the upcoming
-            // staking epoch we return the coefficient based on snapshotted total amounts
-
-            address[] memory miningAddresses;
-
-            miningAddresses = validatorSetContract.getPendingValidators();
-            for (uint256 i = 0; i < miningAddresses.length; i++) {
-                if (miningAddress == miningAddresses[i]) {
-                    return validatorShare(
-                        stakingEpoch,
-                        snapshotPoolValidatorStakeAmount[stakingEpoch][miningAddress],
-                        snapshotPoolTotalStakeAmount[stakingEpoch][miningAddress],
-                        REWARD_PERCENT_MULTIPLIER
-                    );
-                }
-            }
-
-        }
-
-        // For the candidate that is not about to be a validator on the upcoming staking epoch,
+        // For a pool that is neither a validator not a pending one,
         // we return the potentially possible reward coefficient
         return validatorShare(
             stakingEpoch,
