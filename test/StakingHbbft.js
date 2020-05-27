@@ -175,13 +175,13 @@ contract('StakingHbbft', async accounts => {
     });
     it('should fail if staking amount is 0', async () => {
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: new BN(0)}).should.be.rejectedWith("Stake: staking amount can't be 0");
+      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: new BN(0)}).should.be.rejectedWith("Stake: stakingAmount is 0");
     });
     it('should fail if block.number is inside disallowed range', async () => {
       await stakingHbbft.setCurrentBlockNumber(119960).should.be.fulfilled;
       await validatorSetHbbft.setCurrentBlockNumber(119960).should.be.fulfilled;
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.rejectedWith("Stake: staking during disallowed period");
+      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.rejectedWith("Stake: disallowed period");
       await stakingHbbft.setCurrentBlockNumber(116560).should.be.fulfilled;
       await validatorSetHbbft.setCurrentBlockNumber(116560).should.be.fulfilled;
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
@@ -189,7 +189,7 @@ contract('StakingHbbft', async accounts => {
     });
     it('should fail if staking amount is less than CANDIDATE_MIN_STAKE', async () => {
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake.div(new BN(2))}).should.be.rejectedWith("Stake: candidate stake is less than the required minimum");
+      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake.div(new BN(2))}).should.be.rejectedWith("Stake: candidateStake less than candidateMinStake");
     });
     it('stake amount should be increased', async () => {
       const amount = minStake.mul(new BN(2));
@@ -255,7 +255,7 @@ contract('StakingHbbft', async accounts => {
 
       // Try to add a new pool outside of max limit, max limit is 100 in mock contract.
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.rejectedWith("Cannot add more than MAX_CANDIDATES pools");
+      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.rejectedWith("MAX_CANDIDATES pools exceeded");
       false.should.be.equal(await stakingHbbft.isPoolActive.call(candidateStakingAddress));
     });
     it('should remove added pool from the list of inactive pools', async () => {
@@ -293,7 +293,7 @@ contract('StakingHbbft', async accounts => {
     });
 
     it('cannot be increased by sending native coins', async () => {
-      await web3.eth.sendTransaction({from: owner, to: stakingHbbft.address, value: 1}).should.be.rejectedWith("Staking contract: cannot receive coins directly");
+      await web3.eth.sendTransaction({from: owner, to: stakingHbbft.address, value: 1}).should.be.rejectedWith("Not payable");
       await web3.eth.sendTransaction({from: owner, to: accounts[1], value: 1}).should.be.fulfilled; 
       (await web3.eth.getBalance(stakingHbbft.address)).should.be.equal('0');
     });
@@ -309,7 +309,7 @@ contract('StakingHbbft', async accounts => {
 
   });
 
-  describe.only('claimReward()', async () => {
+  describe('claimReward()', async () => {
     let delegator;
     let delegatorMinStake;
 
@@ -1645,7 +1645,7 @@ contract('StakingHbbft', async accounts => {
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
     });
     it('can only be called by ValidatorSet contract', async () => {
-      await stakingHbbft.incrementStakingEpoch({from: accounts[8]}).should.be.rejectedWith("Only ValidatorSet contract");
+      await stakingHbbft.incrementStakingEpoch({from: accounts[8]}).should.be.rejectedWith("Only ValidatorSet");
     });
   });
 
@@ -1707,7 +1707,7 @@ contract('StakingHbbft', async accounts => {
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("ValidatorSet contract address can't be 0");
+      ).should.be.rejectedWith("ValidatorSet can't be 0");
     });
     it('should fail if delegatorMinStake is zero', async () => {
       await stakingHbbft.initialize(
@@ -1720,7 +1720,7 @@ contract('StakingHbbft', async accounts => {
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("Delegator minimum stake can't be 0");
+      ).should.be.rejectedWith("DelegatorMinStake is 0");
     });
     it('should fail if candidateMinStake is zero', async () => {
       await stakingHbbft.initialize(
@@ -1733,7 +1733,7 @@ contract('StakingHbbft', async accounts => {
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("Candidate minimum stake can't be 0");
+      ).should.be.rejectedWith("CandidateMinStake is 0");
     });
     it('should fail if already initialized', async () => {
       await stakingHbbft.initialize(
@@ -1757,7 +1757,7 @@ contract('StakingHbbft', async accounts => {
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("Staking contract is already initialized");
+      ).should.be.rejectedWith("Already initialized");
     });
     it('should fail if stakingEpochDuration is 0', async () => {
       await stakingHbbft.initialize(
@@ -1770,7 +1770,7 @@ contract('StakingHbbft', async accounts => {
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("Fixed epoch duration can't be 0");
+      ).should.be.rejectedWith("FixedEpochDuration is 0");
     });
     it('should fail if stakingstakingEpochStartBlockWithdrawDisallowPeriod is 0', async () => {
       await stakingHbbft.initialize(
@@ -1783,7 +1783,7 @@ contract('StakingHbbft', async accounts => {
         0, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("Withdraw disallow period can't be 0");
+      ).should.be.rejectedWith("WithdrawDisallowPeriod is 0");
     });
     it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async () => {
       await stakingHbbft.initialize(
@@ -1796,7 +1796,7 @@ contract('StakingHbbft', async accounts => {
         120954, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("Fixed epoch duration must be longer than withdraw disallow period");
+      ).should.be.rejectedWith("FixedEpochDuration must be longer than withdrawDisallowPeriod");
     });
     it('should fail if some staking address is 0', async () => {
       initialStakingAddresses[0] = '0x0000000000000000000000000000000000000000';
@@ -1810,7 +1810,7 @@ contract('StakingHbbft', async accounts => {
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
-      ).should.be.rejectedWith("Initial staking address can't be 0");
+      ).should.be.rejectedWith("InitialStakingAddresses can't be 0");
     });
   });
 
@@ -1876,10 +1876,10 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount, {from: delegatorAddress, gasPrice: 0}).should.be.rejectedWith("GasPrice is 0");
     });
     it('should fail if the source and destination addresses are the same', async () => {
-      await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[0], stakeAmount, {from: delegatorAddress}).should.be.rejectedWith("Move stake: source and destination pool is the same");
+      await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[0], stakeAmount, {from: delegatorAddress}).should.be.rejectedWith("MoveStake: src and dst pool is the same");
     });
     it('should fail if the staker tries to move more than they have', async () => {
-      await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount.mul(new BN(2)), {from: delegatorAddress}).should.be.rejectedWith("Withdraw: greater amount than maximum withdrawal allowed.");
+      await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount.mul(new BN(2)), {from: delegatorAddress}).should.be.rejectedWith("Withdraw: maxWithdrawAllowed exceeded.");
     });
   });
 
@@ -1936,11 +1936,11 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake, gasPrice: 0}).should.be.rejectedWith("GasPrice is 0");
     });
     it('should fail for a non-existing pool', async () => {
-      await stakingHbbft.stake(accounts[10], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: mining address can't be 0");
-      await stakingHbbft.stake('0x0000000000000000000000000000000000000000', {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: mining address can't be 0");
+      await stakingHbbft.stake(accounts[10], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: miningAddress is 0");
+      await stakingHbbft.stake('0x0000000000000000000000000000000000000000', {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: miningAddress is 0");
     });
     it('should fail for a zero amount', async () => {
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: 0}).should.be.rejectedWith("Stake: staking amount can't be 0");
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: 0}).should.be.rejectedWith("Stake: stakingAmount is 0");
     });
     it('should fail for a banned validator', async () => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
@@ -1950,20 +1950,20 @@ contract('StakingHbbft', async accounts => {
     });
     it('should only success in the allowed staking window', async () => {
       await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.rejectedWith("Stake: staking during disallowed period");
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.rejectedWith("Stake: disallowed period");
     });
     it('should fail if a candidate stakes less than CANDIDATE_MIN_STAKE', async () => {
       const halfOfCandidateMinStake = candidateMinStake.div(new BN(2));
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: halfOfCandidateMinStake}).should.be.rejectedWith("Stake: candidate stake is less than the required minimum");
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: halfOfCandidateMinStake}).should.be.rejectedWith("Stake: candidateStake less than candidateMinStake");
     });
     it('should fail if a delegator stakes less than DELEGATOR_MIN_STAKE', async () => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
       const halfOfDelegatorMinStake = delegatorMinStake.div(new BN(2));
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: halfOfDelegatorMinStake}).should.be.rejectedWith("Stake: delegator stake is less than the required minimum");
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: halfOfDelegatorMinStake}).should.be.rejectedWith("Stake: delegatorStake is less than delegatorMinStake");
     });
     it('should fail if a delegator stakes into an empty pool', async () => {
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: can't delegate stake in empty pool");
+      await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: can't delegate in empty pool");
     });
     it('should increase a stake amount', async () => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
@@ -2052,7 +2052,7 @@ contract('StakingHbbft', async accounts => {
     });
     it('can only be called by the ValidatorSetHbbft contract', async () => {
       await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
-      await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[8]}).should.be.rejectedWith("Only ValidatorSet contract");
+      await stakingHbbft.removePool(initialStakingAddresses[0], {from: accounts[8]}).should.be.rejectedWith("Only ValidatorSet");
     });
     it('shouldn\'t fail when removing a nonexistent pool', async () => {
       (await stakingHbbft.getPools.call()).should.be.deep.equal(initialStakingAddresses);
@@ -2135,7 +2135,7 @@ contract('StakingHbbft', async accounts => {
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
       (await validatorSetHbbft.isValidator.call(initialValidators[0])).should.be.equal(true);
       (await validatorSetHbbft.miningByStakingAddress.call(initialStakingAddresses[0])).should.be.equal(initialValidators[0]);
-      await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.rejectedWith("Validator can't remove its pool during initial staking epoch");
+      await stakingHbbft.removeMyPool({from: initialStakingAddresses[0]}).should.be.rejectedWith("Can't remove pool during 1st staking epoch");
       await stakingHbbft.setValidatorSetAddress(accounts[7]).should.be.fulfilled;
       await stakingHbbft.incrementStakingEpoch({from: accounts[7]}).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
