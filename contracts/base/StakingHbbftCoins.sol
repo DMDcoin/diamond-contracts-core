@@ -46,7 +46,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
 
         if (_poolStakingAddress != staker) { // this is a delegator
             firstEpoch = stakeFirstEpoch[_poolStakingAddress][staker];
-            require(firstEpoch != 0, "Claim: first epoch cant' be 0");
+            require(firstEpoch != 0, "Claim: first epoch can't be 0");
             lastEpoch = stakeLastEpoch[_poolStakingAddress][staker];
         }
 
@@ -62,8 +62,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
         for (uint256 i = 0; i < _stakingEpochs.length; i++) {
             uint256 epoch = _stakingEpochs[i];
 
-            require(i == 0 || epoch > _stakingEpochs[i - 1]);
-            require(epoch < stakingEpoch);
+            require(i == 0 || epoch > _stakingEpochs[i - 1], "Claim: need strictly increasing order");
+            require(epoch < stakingEpoch, "Claim: only before current epoch");
 
             if (rewardWasTaken[_poolStakingAddress][staker][epoch]) continue;
 
@@ -71,7 +71,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
 
             if (_poolStakingAddress != staker) { // this is a delegator
                 if (epoch < firstEpoch) {
-                    // If the delegator staked for the first time before
+                    // If the delegator staked for the first time after
                     // the `epoch`, skip this staking epoch
                     continue;
                 }

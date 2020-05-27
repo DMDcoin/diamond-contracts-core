@@ -227,7 +227,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Ensures the caller is the BlockRewardHbbft contract address.
     modifier onlyBlockRewardContract() {
-        require(msg.sender == validatorSetContract.blockRewardContract(), "Only BlockReward contract");
+        require(msg.sender == validatorSetContract.blockRewardContract(), "Only BlockReward");
         _;
     }
 
@@ -239,7 +239,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Ensures the caller is the ValidatorSetHbbft contract address.
     modifier onlyValidatorSetContract() {
-        require(msg.sender == address(validatorSetContract), "Only ValidatorSet contract");
+        require(msg.sender == address(validatorSetContract), "Only ValidatorSet");
         _;
     }
 
@@ -247,7 +247,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
     function () payable external {
-        revert("Staking contract: cannot receive coins directly");
+        revert("Not payable");
     }
 
     /// @dev Adds a new candidate's pool to the list of active pools (see the `getPools` getter) and
@@ -299,9 +299,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external {
-        require(_stakingFixedEpochDuration != 0, "Fixed epoch duration can't be 0");
-        require(_stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod, "Fixed epoch duration must be longer than withdraw disallow period");
-        require(_stakingWithdrawDisallowPeriod != 0, "Withdraw disallow period can't be 0");
+        require(_stakingFixedEpochDuration != 0, "FixedEpochDuration is 0");
+        require(_stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod, "FixedEpochDuration must be longer than withdrawDisallowPeriod");
+        require(_stakingWithdrawDisallowPeriod != 0, "WithdrawDisallowPeriod is 0");
         _initialize(
             _validatorSetContract,
             _initialStakingAddresses,
@@ -339,7 +339,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address stakingAddress = msg.sender;
         address miningAddress = validatorSetContract.miningByStakingAddress(stakingAddress);
         // initial validator cannot remove their pool during the initial staking epoch
-        require(stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress), "Validator can't remove its pool during initial staking epoch");
+        require(stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress), "Can't remove pool during 1st staking epoch");
         _removePool(stakingAddress);
     }
 
@@ -361,7 +361,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address _toPoolStakingAddress,
         uint256 _amount
     ) external gasPriceIsValid onlyInitialized {
-        require(_fromPoolStakingAddress != _toPoolStakingAddress, "Move stake: source and destination pool is the same");
+        require(_fromPoolStakingAddress != _toPoolStakingAddress, "MoveStake: src and dst pool is the same");
         address staker = msg.sender;
         _withdraw(_fromPoolStakingAddress, staker, _amount);
         _stake(_toPoolStakingAddress, staker, _amount);
@@ -407,7 +407,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         require(_isWithdrawAllowed(
             validatorSetContract.miningByStakingAddress(_poolStakingAddress), staker != _poolStakingAddress), 
-            "OrderWithdraw: Withdraw not allowed"
+            "OrderWithdraw: not allowed"
         );
 
         uint256 newOrderedAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
@@ -700,7 +700,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         if (!isPoolActive(_stakingAddress)) {
             poolIndex[_stakingAddress] = _pools.length;
             _pools.push(_stakingAddress);
-            require(_pools.length <= _getMaxCandidates(), "Cannot add more than MAX_CANDIDATES pools");
+            require(_pools.length <= _getMaxCandidates(), "MAX_CANDIDATES pools exceeded");
         }
         _removePoolInactive(_stakingAddress);
         if (_toBeElected) {
@@ -836,18 +836,18 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes16[] memory _internetAddresses
     ) internal {
         require(_getCurrentBlockNumber() == 0 || msg.sender == _admin(),"Initialization only on genesis block or by admin");
-        require(!isInitialized(), "Staking contract is already initialized"); // initialization can only be done once
-        require(_validatorSetContract != address(0),"ValidatorSet contract address can't be 0");
+        require(!isInitialized(), "Already initialized"); // initialization can only be done once
+        require(_validatorSetContract != address(0),"ValidatorSet can't be 0");
         require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
         require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,"Must provide corresponging publicKeys");
         require(_initialStakingAddresses.length == _internetAddresses.length, "Must provide corresponging IP adresses");
-        require(_delegatorMinStake != 0, "Delegator minimum stake can't be 0");
-        require(_candidateMinStake != 0, "Candidate minimum stake can't be 0");
+        require(_delegatorMinStake != 0, "DelegatorMinStake is 0");
+        require(_candidateMinStake != 0, "CandidateMinStake is 0");
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
 
         for (uint256 i = 0; i < _initialStakingAddresses.length; i++) {
-            require(_initialStakingAddresses[i] != address(0), "Initial staking address can't be 0");
+            require(_initialStakingAddresses[i] != address(0), "InitialStakingAddresses can't be 0");
             _addPoolActive(_initialStakingAddresses[i], false);
             _addPoolToBeRemoved(_initialStakingAddresses[i]);
             poolInfo[_initialStakingAddresses[i]].publicKey = abi.encodePacked(_publicKeys[i*2],_publicKeys[i*2+1]);
@@ -973,24 +973,24 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function _stake(address _poolStakingAddress, address _staker, uint256 _amount) internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        require(poolMiningAddress != address(0), "Stake: mining address can't be 0");
-        require(_poolStakingAddress != address(0), "Stake: staking address can't be 0");
-        require(_amount != 0, "Stake: staking amount can't be 0");
+        require(poolMiningAddress != address(0), "Stake: miningAddress is 0");
+        require(_poolStakingAddress != address(0), "Stake: stakingAddress is 0");
+        require(_amount != 0, "Stake: stakingAmount is 0");
         require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");
-        require(areStakeAndWithdrawAllowed(), "Stake: staking during disallowed period");
+        require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker].add(_amount);
 
         if (_staker == _poolStakingAddress) {
             // The staked amount must be at least CANDIDATE_MIN_STAKE
-            require(newStakeAmount >= candidateMinStake, "Stake: candidate stake is less than the required minimum");
+            require(newStakeAmount >= candidateMinStake, "Stake: candidateStake less than candidateMinStake");
         } else {
             // The staked amount must be at least DELEGATOR_MIN_STAKE
-            require(newStakeAmount >= delegatorMinStake, "Stake: delegator stake is less than the required minimum");
+            require(newStakeAmount >= delegatorMinStake, "Stake: delegatorStake is less than delegatorMinStake");
 
             // The delegator cannot stake into the pool of the candidate which hasn't self-staked.
             // Also, that candidate shouldn't want to withdraw all their funds.
-            require(stakeAmount[_poolStakingAddress][_poolStakingAddress] != 0, "Stake: can't delegate stake in empty pool");
+            require(stakeAmount[_poolStakingAddress][_poolStakingAddress] != 0, "Stake: can't delegate in empty pool");
         }
 
         stakeAmount[_poolStakingAddress][_staker] = newStakeAmount;
@@ -1024,7 +1024,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         require(_amount != 0);
 
         // How much can `staker` withdraw from `_poolStakingAddress` at the moment?
-        require(_amount <= maxWithdrawAllowed(_poolStakingAddress, _staker), "Withdraw: greater amount than maximum withdrawal allowed");
+        require(_amount <= maxWithdrawAllowed(_poolStakingAddress, _staker), "Withdraw: maxWithdrawAllowed exceeded");
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker].sub(_amount);
 
