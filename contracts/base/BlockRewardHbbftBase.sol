@@ -403,7 +403,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             } 
         }
 
-        require(numRewardedValidators != 0, "No validators to be rewarded");
+        // No rewards distributed in this epoch
+        if (numRewardedValidators == 0){
+            return 0;
+        }
 
         // Share the reward equally among the validators.
         uint256 poolReward = totalReward / numRewardedValidators;
