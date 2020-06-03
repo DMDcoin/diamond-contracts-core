@@ -29,7 +29,6 @@ async function main() {
       const contractName = filename.replace('.sol', '');
 
       if (
-        contractName.startsWith('ERC677BridgeTokenRewardable') ||
         contractName.startsWith('Initializer') ||
         contractName.startsWith('Migrations') ||
         contractName.startsWith('Registry')
