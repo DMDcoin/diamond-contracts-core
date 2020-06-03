@@ -144,21 +144,19 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         uint256 stakingEpoch = stakingContract.stakingEpoch();
-        uint256 stakingFixedEpochEndBlock = stakingContract.stakingFixedEpochEndBlock();
+        uint256 stakingFixedEpochEndTime = stakingContract.stakingFixedEpochEndTime();
         uint256 nativeTotalRewardAmount;
 
-         // Store the current block in a local vairable
-        uint256 currentBlockNumber = _getCurrentBlockNumber();
+         // Store the current timestamp in a local vairable
+        uint256 currentTimestamp = _getCurrentTimestamp();
          
-        if (currentBlockNumber != 0) {
-            // Accumulate blocks producing statistics for each of the
-            // active validators during the current staking epoch. This
-            // statistics is used by the `_distributeRewards` function
-            blocksCreated[stakingEpoch]++;
-        }
+        // Accumulate block producing statistics for each of the
+        // active validators during the current staking epoch. This
+        // statistics is used by the `_distributeRewards` function
+        blocksCreated[stakingEpoch]++;
 
         // If the end of the fixed epoch duration is reached, choose the new validator candidates aka pendingValidators.
-        if (currentBlockNumber == stakingFixedEpochEndBlock) {
+        if (currentTimestamp >= stakingFixedEpochEndTime) {
            // Choose new validators
             validatorSetContract.newValidatorSet();
         }
@@ -166,7 +164,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         // If this is the last block of the epoch i.e. master key has been generated.
         if (_isEpochEndBlock) {
             // It should always come after the fixed epoch duration has elapsed.
-            require(currentBlockNumber > stakingFixedEpochEndBlock, "Fixed epoch duration has not elapsed yet");
+            require(currentTimestamp > stakingFixedEpochEndTime, "Fixed epoch duration has not elapsed yet");
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
@@ -431,6 +429,11 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev Returns the current block number. Needed mostly for unit tests.
     function _getCurrentBlockNumber() internal view returns(uint256) {
         return block.number;
+    }
+
+    /// @dev Returns the current timestamp.
+    function _getCurrentTimestamp() internal view returns(uint256) {
+        return block.timestamp;
     }
 
     /// @dev Makes snapshots of total amount staked into the specified pool

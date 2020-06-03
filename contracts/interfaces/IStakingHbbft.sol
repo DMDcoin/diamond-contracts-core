@@ -9,13 +9,12 @@ interface IStakingHbbft {
         uint256,
         uint256,
         uint256,
-        uint256,
         bytes32[] calldata,
         bytes16[] calldata
     ) external;
     function removePool(address) external;
     function removePools() external;
-    function setStakingEpochStartBlock(uint256) external;
+    function setStakingEpochStartTime(uint256) external;
     function getPoolsLikelihood() external view returns(uint256[] memory, uint256);
     function getPoolsToBeElected() external view returns(address[] memory);
     function getPoolsToBeRemoved() external view returns(address[] memory);
@@ -31,6 +30,6 @@ interface IStakingHbbft {
     function stakingWithdrawDisallowPeriod() external view returns(uint256);
     function stakingEpoch() external view returns(uint256);
     function stakingFixedEpochDuration() external view returns(uint256);
-    function stakingFixedEpochEndBlock() external view returns(uint256);
-    function stakingEpochStartBlock() external view returns(uint256);
+    function stakingFixedEpochEndTime() external view returns(uint256);
+    function stakingEpochStartTime() external view returns(uint256);
 }

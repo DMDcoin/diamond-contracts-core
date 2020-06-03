@@ -124,8 +124,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev The fixed duration of each staking epoch before KeyGen starts i.e. before the upcoming ("pending") validators are selected.
     uint256 public stakingFixedEpochDuration;
 
-    /// @dev The number of the first block of the current staking epoch.
-    uint256 public stakingEpochStartBlock;
+    /// @dev The timestampt of the last block of the the previous epoch. The timestamp of the current epoch must be '>=' than this.
+    uint256 public stakingEpochStartTime;
 
     /// @dev Returns the total amount of staking coins currently staked into the specified pool.
     /// Doesn't include the amount ordered for withdrawal.
@@ -283,10 +283,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
     /// @param _delegatorMinStake The minimum allowed amount of delegator stake in Wei.
     /// @param _candidateMinStake The minimum allowed amount of candidate/validator stake in Wei.
-    /// @param _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts in blocks
-    /// @param _stakingEpochStartBlock The number of the first block of initial staking epoch
-    /// (must be zero if the network is starting from genesis block).
-    /// @param _stakingWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
+    /// @param _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts.
+    /// @param _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
         address _validatorSetContract,
@@ -294,12 +292,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 _delegatorMinStake,
         uint256 _candidateMinStake,
         uint256 _stakingFixedEpochDuration,
-        uint256 _stakingEpochStartBlock,
         uint256 _stakingWithdrawDisallowPeriod,
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external {
-        require(_stakingFixedEpochDuration != 0, "FixedEpochDuration is 0");
+        // require(_stakingFixedEpochDuration != 0, "FixedEpochDuration is 0"); //in let the duration to be 0 for testing purposes
         require(_stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod, "FixedEpochDuration must be longer than withdrawDisallowPeriod");
         require(_stakingWithdrawDisallowPeriod != 0, "WithdrawDisallowPeriod is 0");
         _initialize(
@@ -312,7 +309,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         );
         stakingFixedEpochDuration = _stakingFixedEpochDuration;
         stakingWithdrawDisallowPeriod = _stakingWithdrawDisallowPeriod;
-        stakingEpochStartBlock = _stakingEpochStartBlock;
+        stakingEpochStartTime = _getCurrentTimestamp();
     }
 
     /// @dev Removes a specified pool from the `pools` array (a list of active pools which can be retrieved by the
@@ -343,11 +340,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         _removePool(stakingAddress);
     }
 
-    /// @dev Sets the number of the first block in the upcoming staking epoch.
+    /// @dev Sets the timetamp of the current epoch's last block as the start time of the upcoming staking epoch.
     /// Called by the `ValidatorSetHbbft.newValidatorSet` function at the last block of a staking epoch.
-    /// @param _blockNumber The number of the very first block in the upcoming staking epoch.
-    function setStakingEpochStartBlock(uint256 _blockNumber) external onlyValidatorSetContract {
-        stakingEpochStartBlock = _blockNumber;
+    /// @param _timestamp The starting time of the very first block in the upcoming staking epoch.
+    function setStakingEpochStartTime(uint256 _timestamp) external onlyValidatorSetContract {
+        stakingEpochStartTime = _timestamp;
     }
 
     /// @dev Moves staking coins from one pool to another. A staker calls this function when they want
@@ -579,10 +576,13 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Determines whether staking/withdrawal operations are allowed at the moment.
     /// Used by all staking/withdrawal functions.
     function areStakeAndWithdrawAllowed() public view returns(bool) {
-        uint256 currentBlock = _getCurrentBlockNumber();
-        uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod; //TODO: should it be extended to the start of the block, e.g. startBlock -1
-        if (currentBlock < stakingEpochStartBlock) return false;
-        return currentBlock - stakingEpochStartBlock <= allowedDuration; //TODO: should be < not <=?
+        // used for testing
+        if (stakingFixedEpochDuration == 0){
+            return true;
+        }
+        uint256 currentTimestamp = _getCurrentTimestamp();
+        uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
+        return currentTimestamp - stakingEpochStartTime < allowedDuration; //TODO: should be < not <=?
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
@@ -683,10 +683,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch];
     }
 
-    /// @dev Returns the number of the last block of the current staking epoch before key generation starts.
-    function stakingFixedEpochEndBlock() public view returns(uint256) {
-        uint256 startBlock = stakingEpochStartBlock;
-        return startBlock + stakingFixedEpochDuration - (startBlock == 0 ? 0 : 1);
+    /// @dev Returns an indicative time of the last block of the current staking epoch before key generation starts.
+    function stakingFixedEpochEndTime() public view returns(uint256) {
+        uint256 startTime = stakingEpochStartTime;
+        return startTime + stakingFixedEpochDuration - (stakingFixedEpochDuration == 0 ? 0 : 1);
     }
 
     // ============================================== Internal ========================================================
@@ -1074,6 +1074,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Returns the current block number. Needed mostly for unit tests.
     function _getCurrentBlockNumber() internal view returns(uint256) {
         return block.number;
+    }
+
+    /// @dev Returns the current timestamp.
+    function _getCurrentTimestamp() internal view returns(uint256) {
+        return block.timestamp;
     }
 
     /// @dev The internal function used by the `claimReward` function and `getRewardAmount` getter.

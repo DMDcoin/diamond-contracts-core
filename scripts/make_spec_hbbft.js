@@ -33,8 +33,8 @@ async function main() {
   const erc20Restricted = process.env.ERC20_RESTRICTED === 'true';
 
   const ethToWei = web3.utils.toWei('1', 'ether');
-  //stakingParams = [_delegatorMinStake, _candidateMinStake, _stakingEpochDuration, _stakingEpochStartBlock, _stakeWithdrawDisallowPeriod
-  let stakingParams = [ethToWei, ethToWei, stakingEpochDuration, 0, stakeWithdrawDisallowPeriod];
+  //stakingParams = [_delegatorMinStake, _candidateMinStake, _stakingEpochDuration, _stakeWithdrawDisallowPeriod
+  let stakingParams = [ethToWei, ethToWei, stakingEpochDuration, stakeWithdrawDisallowPeriod];
 
   let publicKeys = process.env.PUBLIC_KEYS.split(',');
   for (let i = 0; i < publicKeys.length; i++) {

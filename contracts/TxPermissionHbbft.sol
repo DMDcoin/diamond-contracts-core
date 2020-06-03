@@ -217,14 +217,14 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     /// @dev Returns the current block gas limit which depends on the stage of the current
     /// staking epoch: the block gas limit is temporarily reduced for the latest block of the epoch.
-    function blockGasLimit() public view returns(uint256) {
-        address stakingContract = validatorSetContract.stakingContract();
-        uint256 stakingEpochEndBlock = IStakingHbbft(stakingContract).stakingFixedEpochEndBlock();
-        if (block.number == stakingEpochEndBlock - 1 || block.number == stakingEpochEndBlock) {
-            return BLOCK_GAS_LIMIT_REDUCED;
-        }
-        return BLOCK_GAS_LIMIT;
-    }
+    // function blockGasLimit() public view returns(uint256) {
+    //     address stakingContract = validatorSetContract.stakingContract();
+    //     uint256 stakingEpochEndBlock = IStakingHbbft(stakingContract).stakingFixedEpochEndBlock();
+    //     if (block.number == stakingEpochEndBlock - 1 || block.number == stakingEpochEndBlock) {
+    //         return BLOCK_GAS_LIMIT_REDUCED;
+    //     }
+    //     return BLOCK_GAS_LIMIT;
+    // }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
     function isInitialized() public view returns(bool) {

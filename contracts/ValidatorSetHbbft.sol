@@ -146,7 +146,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             delete _pendingValidators;
         }
         // The very first call of  `finalizeChange` happens in the genesis block (block #0)
-        stakingContract.setStakingEpochStartBlock(_getCurrentBlockNumber() + 1);            
+        stakingContract.setStakingEpochStartTime(_getCurrentTimestamp());            
     }
 
     /// @dev Initializes the network parameters. Used by the
@@ -316,7 +316,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// A validator pool can be banned when they misbehave (see the `_removeMaliciousValidator` function).
     /// @param _miningAddress The mining address of the pool.
     function areDelegatorsBanned(address _miningAddress) public view returns(bool) {
-        return _getCurrentBlockNumber() <= bannedDelegatorsUntil[_miningAddress];
+        return _getCurrentTimestamp() <= bannedDelegatorsUntil[_miningAddress];
     }
 
     /// @dev Returns the previous validator set (validators' mining addresses array).
@@ -356,11 +356,12 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         if (stakingContract.stakingEpoch() == 0) {
             return isValid;
         }
-        if (_getCurrentBlockNumber() - stakingContract.stakingEpochStartBlock() + 1 <= MAX_VALIDATORS) {
+        // TO DO: arbitrarily chosen period stakingFixedEpochDuration/5.
+        if (_getCurrentTimestamp() - stakingContract.stakingEpochStartTime() <= stakingContract.stakingFixedEpochDuration()/5) {
             // The current validator set was finalized by the engine,
             // but we should let the previous validators finish
             // reporting malicious validator within a few blocks
-            bool previousValidator = isValidatorPrevious[_miningAddress] && !isValidatorBanned(_miningAddress); // TODO: !isValidatorBanned() is not needed, it is include in isValid
+            bool previousValidator = isValidatorPrevious[_miningAddress] && !isValidatorBanned(_miningAddress); // TODO: !isValidatorBanned() is not needed, it is included in isValid
             return isValid || previousValidator;
         }
         return isValid;
@@ -370,7 +371,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// A validator can be banned when they misbehave (see the `_removeMaliciousValidator` internal function).
     /// @param _miningAddress The mining address.
     function isValidatorBanned(address _miningAddress) public view returns(bool) {
-        return _getCurrentBlockNumber() <= bannedUntil[_miningAddress];
+        return _getCurrentTimestamp() <= bannedUntil[_miningAddress];
     }
 
     /// @dev Returns a boolean flag indicating whether the specified mining address is a validator
@@ -654,14 +655,20 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns the future block number until which a validator is banned.
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns(uint256) {
-        uint256 blocksUntilEnd = stakingContract.stakingFixedEpochEndBlock() - _getCurrentBlockNumber();
-        // Ban for at least 12 full staking epochs
-        return _getCurrentBlockNumber() + 12 * stakingContract.stakingFixedEpochDuration() + blocksUntilEnd;
+        uint256 currentTimestamp =  _getCurrentTimestamp();
+        uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime().sub(currentTimestamp);
+        // Ban for at least 12 full staking epochs: currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration. 
+        return currentTimestamp.add(12 * stakingContract.stakingFixedEpochDuration()).add(ticksUntilEnd);
     }
 
     /// @dev Returns the current block number. Needed mostly for unit tests.
     function _getCurrentBlockNumber() internal view returns(uint256) {
         return block.number;
+    }
+
+    /// @dev Returns the current timestamp.
+    function _getCurrentTimestamp() internal view returns(uint256) {
+        return block.timestamp;
     }
 
     /// @dev Returns an index of a pool in the `poolsToBeElected` array
