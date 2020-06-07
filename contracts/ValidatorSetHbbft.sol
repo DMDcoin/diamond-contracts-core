@@ -32,7 +32,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns the block number when the ban will be lifted for the specified mining address.
     mapping(address => uint256) public bannedUntil;
 
-    /// @dev Returns the block number when the ban will be lifted for delegators
+    /// @dev Returns the timestamp after which the ban will be lifted for delegators
     /// of the specified pool (mining address).
     mapping(address => uint256) public bannedDelegatorsUntil;
 
@@ -130,7 +130,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     // =============================================== Setters ========================================================
 
     /// @dev Called by the system when a pending validator set is ready to be activated.
-    /// This function is called at the beginning of a block (before all the block transactions).
     /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
     /// After this function is called, the `getValidators` getter returns the new validator set.
     /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
@@ -450,7 +449,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
         if (_blockNumber > currentBlock) return (false, false); // avoid reporting about future blocks
 
-        uint256 ancientBlocksLimit = 100;
+        uint256 ancientBlocksLimit = 100; //TODO: needs to be afjusted for HBBFT specifications i.e. time
         if (currentBlock > ancientBlocksLimit && _blockNumber < currentBlock - ancientBlocksLimit) {
             return (false, false); // avoid reporting about ancient blocks
         }
@@ -652,7 +651,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         stakingByMiningAddress[_miningAddress] = _stakingAddress;
     }
 
-    /// @dev Returns the future block number until which a validator is banned.
+    /// @dev Returns the future timestamp until which a validator is banned.
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns(uint256) {
         uint256 currentTimestamp =  _getCurrentTimestamp();
