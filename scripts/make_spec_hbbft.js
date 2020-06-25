@@ -4,6 +4,7 @@ const Web3 = require('web3');
 const web3 = new Web3(new Web3.providers.HttpProvider("https://dai.poa.network"));
 const utils = require('./utils/utils');
 const fp = require('lodash/fp');
+const assert = require('assert');
 
 const VALIDATOR_SET_CONTRACT = '0x1000000000000000000000000000000000000001';
 const BLOCK_REWARD_CONTRACT = '0x2000000000000000000000000000000000000001';
@@ -16,14 +17,20 @@ const KEY_GEN_HISTORY_CONTRACT = '0x8000000000000000000000000000000000000001';
 main();
 
 async function main() {
+  const init_data_file = process.argv[2];
+  assert(init_data_file, "Path to contract initialization file required as first argument!");
+
+  const rawdata = fs.readFileSync(init_data_file);
+  const init_data = JSON.parse(rawdata);  
+
   const networkName = process.env.NETWORK_NAME;
   const networkID = process.env.NETWORK_ID;
   const owner = process.env.OWNER.trim();
-  let initialValidators = process.env.INITIAL_VALIDATORS.split(',');
+  let initialValidators = init_data.validators;
   for (let i = 0; i < initialValidators.length; i++) {
     initialValidators[i] = initialValidators[i].trim();
   }
-  let stakingAddresses = process.env.STAKING_ADDRESSES.split(',');
+  let stakingAddresses = init_data.staking_addresses;
   for (let i = 0; i < stakingAddresses.length; i++) {
     stakingAddresses[i] = stakingAddresses[i].trim();
   }
@@ -36,13 +43,13 @@ async function main() {
   //stakingParams = [_delegatorMinStake, _candidateMinStake, _stakingEpochDuration, _stakeWithdrawDisallowPeriod
   let stakingParams = [ethToWei, ethToWei, stakingEpochDuration, stakeWithdrawDisallowPeriod];
 
-  let publicKeys = process.env.PUBLIC_KEYS.split(',');
+  let publicKeys = init_data.public_keys;
   for (let i = 0; i < publicKeys.length; i++) {
     publicKeys[i] = publicKeys[i].trim();
   }
   let publicKeysSplit = fp.flatMap(x => [x.substring(0, 66), '0x' + x.substring(66, 130)])(publicKeys);
 
-  let internetAddresses = process.env.IP_ADDRESSES.split(',');;
+  let internetAddresses = init_data.ip_addresses;
   for (let i = 0; i < internetAddresses.length; i++) {
     internetAddresses[i] = internetAddresses[i].trim();
   }
@@ -99,11 +106,11 @@ async function main() {
       owner,
       []
     ]});
-  spec.engine.hbbft.params.validators.multi = {
-    "0": {
-      "contract": VALIDATOR_SET_CONTRACT
-    }
-  };
+  // spec.engine.hbbft.params.validators.multi = {
+  //   "0": {
+  //     "contract": VALIDATOR_SET_CONTRACT
+  //   }
+  // };
   spec.accounts[VALIDATOR_SET_CONTRACT] = {
     balance: '0',
     constructor: await deploy.encodeABI()
@@ -138,8 +145,8 @@ async function main() {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
-  spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
-  spec.engine.hbbft.params.blockRewardContractTransition = 0;
+  // spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
+  // spec.engine.hbbft.params.blockRewardContractTransition = 0;
   spec.accounts['0x2000000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: '0x' + contractsCompiled['BlockRewardHbbft'].bytecode
@@ -159,7 +166,7 @@ async function main() {
     balance: '0',
     constructor: '0x' + contractsCompiled['RandomHbbft'].bytecode
   };
-  spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
+  //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
 
   // Build TxPermission contract
   deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
@@ -240,14 +247,16 @@ async function main() {
       stakingParams,
       publicKeysSplit,
       internetAddresses,
-      [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
-      [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]],
+      init_data.parts,
+      init_data.acks,
       ethToWei
     ]});
   spec.accounts['0x7000000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
+
+  console.log('Using the following initial validators: ' + initialValidators);
 
   console.log('Saving spec_hbbft.json file ...');
   fs.writeFileSync(path.join(__dirname, '..', 'spec_hbbft.json'), JSON.stringify(spec, null, '  '), 'UTF-8');
