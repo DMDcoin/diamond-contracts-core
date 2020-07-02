@@ -267,8 +267,8 @@ async function main() {
 async function compile(dir, contractName) {
   const compiled = await utils.compile(dir, contractName);
   const abiFile = `abis/${contractName}.json`;
-  // console.log(`saving abi to ${abiFile}`);
-  // fs.writeFileSync(abiFile, JSON.stringify(compiled.abi, null, 2), 'UTF-8');
+  console.log(`saving abi to ${abiFile}`);
+  fs.writeFileSync(abiFile, JSON.stringify(compiled.abi, null, 2), 'UTF-8');
   return {abi: compiled.abi, bytecode: compiled.evm.bytecode.object};
 }
 
