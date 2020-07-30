@@ -7,7 +7,7 @@ import "./libs/SafeMath.sol";
 
 contract ValidatorSetSimplified is IValidatorSetSimplified {
     using SafeMath for uint256;
-    
+
     address[] internal _currentValidators;
     mapping (address => bytes) public publicKeys;
 
