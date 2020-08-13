@@ -40,7 +40,7 @@ contract('KeyGenHistory', async accounts => {
         }
         let publicKeysSplit = fp.flatMap(x => [x.substring(0, 66), '0x' + x.substring(66, 130)])(publicKeys);
       
-        await validatorSetSimplified.initialize(initialValidators, publicKeysSplit);
+        //await validatorSetSimplified.initialize(initialValidators, publicKeysSplit);
 
         let contractAddresses = [validatorSetSimplified.address, keyGenHistory.address];
 
