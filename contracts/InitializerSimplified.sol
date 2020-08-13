@@ -23,7 +23,7 @@ contract InitializerSimplified {
             _miningAddresses,
             _publicKeys
         );
-        IKeyGenHistory(_contracts[6]).initialize(
+        IKeyGenHistory(_contracts[1]).initialize(
             _contracts[0], // _validatorSetContract
             _miningAddresses,
             _parts,
