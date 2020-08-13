@@ -23,12 +23,12 @@ contract InitializerSimplified {
             _miningAddresses,
             _publicKeys
         );
-        IKeyGenHistory(_contracts[1]).initialize(
-            _contracts[0], // _validatorSetContract
-            _miningAddresses,
-            _parts,
-            _acks
-        );
+        // IKeyGenHistory(_contracts[1]).initialize(
+        //     _contracts[0], // _validatorSetContract
+        //     _miningAddresses,
+        //     _parts,
+        //     _acks
+        // );
         selfdestruct(msg.sender);
     }
 }
