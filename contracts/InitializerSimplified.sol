@@ -8,6 +8,8 @@ import "./interfaces/IValidatorSetSimplified.sol";
 /// Needed for initializing upgradeable contracts since
 /// upgradeable contracts can't have constructors.
 contract InitializerSimplified {
+
+
     /// @param _contracts An array of the contracts:
     ///   0 is ValidatorSetSimplified,
     ///   1 is KeyGenHistory.
@@ -19,16 +21,22 @@ contract InitializerSimplified {
         bytes[] memory _parts,
         bytes[][] memory _acks
     ) public {
-        IValidatorSetSimplified(_contracts[0]).initialize(
+
+IValidatorSetSimplified(_contracts[0]).initialize(
             _miningAddresses,
             _publicKeys
         );
-        // IKeyGenHistory(_contracts[1]).initialize(
-        //     _contracts[0], // _validatorSetContract
-        //     _miningAddresses,
-        //     _parts,
-        //     _acks
-        // );
-        selfdestruct(msg.sender);
+
+        IKeyGenHistory(_contracts[1]).initialize(
+            _contracts[0], // _validatorSetContract
+            _miningAddresses,
+            _parts,
+            _acks
+        );
+
+        //selfdestruct(msg.sender);
+
+        
     }
+
 }
