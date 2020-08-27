@@ -16,6 +16,7 @@ interface IStakingHbbft {
     function removePool(address) external;
     function removePools() external;
     function setStakingEpochStartTime(uint256) external;
+    function getPoolPublicKey(address _poolAddress) external view returns (bytes memory);
     function getPoolsLikelihood() external view returns(uint256[] memory, uint256);
     function getPoolsToBeElected() external view returns(address[] memory);
     function getPoolsToBeRemoved() external view returns(address[] memory);
