@@ -36,6 +36,7 @@ contract('BlockRewardHbbft', async accounts => {
   const MAX_BLOCK_REWARD = new BN(100); // the maximum  per-block reward distributed to the validators
 
   describe('reward()', async () => {
+
     it('network started', async () => {
       owner = accounts[0];
 
@@ -120,7 +121,7 @@ contract('BlockRewardHbbft', async accounts => {
 
     });
 
-    //return;
+    return;
 
     it('staking epoch #0 finished', async () => {
       const stakingEpoch = await stakingHbbft.stakingEpoch.call();
