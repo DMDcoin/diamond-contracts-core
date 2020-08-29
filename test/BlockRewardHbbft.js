@@ -116,22 +116,29 @@ contract('BlockRewardHbbft', async accounts => {
         validatorSetHbbft.address
       ).should.be.fulfilled;
 
-      // Start the network
-      await setCurrentBlockNumber(0);
-
     });
 
-    return;
+    
 
     it('staking epoch #0 finished', async () => {
-      const stakingEpoch = await stakingHbbft.stakingEpoch.call();
-      stakingEpoch.should.be.bignumber.equal(new BN(0));
 
+      try {
+
+      console.log('...stakingEpochStartTime...');
+      //const stakingEpoch = await stakingHbbft.stakingEpoch.call();
+      //stakingEpoch.should.be.bignumber.equal(new BN(0));
+      
       const stakingStartTime = await stakingHbbft.stakingEpochStartTime.call();
+      
+      console.log('stakingStartTime', stakingStartTime);
+      //we can't really validate if stackingEpochStartBlock is 
       //stakingEpochStartBlock.should.be.bignumber.equal(STAKING_EPOCH_START_BLOCK);
 
-      const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      await setCurrentBlockNumber(stakingFixedEpochEndBlock);
+      const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndTime.call();
+      
+      await increaseTime(3);
+      //console.log('time increased');
+
       await callReward(false);
       
       // const endBlock = stakingEpochStartBlock.add(STAKING_FIXED_EPOCH_DURATION).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
@@ -140,12 +147,21 @@ contract('BlockRewardHbbft', async accounts => {
       // const startBlock = stakingEpochEndBlock.add(new BN(1)); // upcoming epoch's start block
       // await setCurrentBlockNumber(stakingEpochEndBlock);
 
+      //TODO: why was callReward called with 'false' and then with 'true' ?!
       await callReward(true);
+      
       await callFinalizeChange();
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
-      (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(startBlock);
+      //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(startBlock);
       (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
+      
+      } catch (e) {
+        console.error(e);
+        throw e;
+      }
     });
+
+    return;
 
     it('staking epoch #1 started', async () => {
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
@@ -246,18 +262,46 @@ contract('BlockRewardHbbft', async accounts => {
   }
 
   async function callReward(isEpochEndBlock) {
+    console.log('getting validators...');
     const validators = await validatorSetHbbft.getValidators.call();
+    console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
     await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
   }
 
-  async function setCurrentBlockNumber(blockNumber) {
-    await blockRewardHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-    await randomHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-    await stakingHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-    await validatorSetHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
+  function sleep(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+   }
+
+  async function increaseTime(time) {
+
+    // console.log('increasing time...');
+    // const increasedTime = await web3.currentProvider.send({
+    //   jsonrpc: '2.0', 
+    //   method: 'evm_increaseTime', 
+    //   params: [time], 
+    //   id: new Date().getSeconds()
+    // });
+    console.log('start sleeping');
+    await sleep(time * 1000);
+
+    // console.log('mining block...');
+    // await  web3.currentProvider.send({
+    //   jsonrpc: '2.0', 
+    //   method: 'evm_mine', 
+    //   params: [], 
+    //   id: new Date().getSeconds()
+    // });
+    
   }
+
+  // async function setCurrentBlockNumber(blockNumber) {
+  //   await blockRewardHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
+  //   await randomHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
+  //   await stakingHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
+  //   await validatorSetHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
+  // }
 
   // TODO: ...add other tests...
 });
