@@ -163,14 +163,16 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin(), "Initialization only on genesis block or by admin");
-        require(!isInitialized(), "ValidatorSet contract is already initialized"); // initialization can only be done once
+        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin(), 
+            "Initialization only on genesis block or by admin");
+        require(!isInitialized(), "ValidatorSet contract is already initialized");
         require(_blockRewardContract != address(0), "BlockReward contract address can't be 0");
         require(_randomContract != address(0), "Random contract address can't be 0");
         require(_stakingContract != address(0), "Staking contract address can't be 0");
         require(_keyGenHistoryContract != address(0), "KeyGenHistory contract address can't be 0");
         require(_initialMiningAddresses.length > 0, "Must provide initial mining addresses");
-        require(_initialMiningAddresses.length == _initialStakingAddresses.length, "Must provide the same amount of mining/staking addresses");
+        require(_initialMiningAddresses.length == _initialStakingAddresses.length,
+            "Must provide the same amount of mining/staking addresses");
 
         blockRewardContract = _blockRewardContract;
         randomContract = _randomContract;
@@ -231,7 +233,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         }
     }
 
-    /// @dev Removes malicious validators. Called by the the Hbbft engine when a validator has been inactive for a long period.
+    /// @dev Removes malicious validators.
+    /// Called by the the Hbbft engine when a validator has been inactive for a long period.
     /// @param _miningAddresses The mining addresses of the malicious validators.
     function removeMaliciousValidators(address[] calldata _miningAddresses) external onlySystem {
         _removeMaliciousValidators(_miningAddresses, "inactive");
@@ -355,11 +358,12 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             return isValid;
         }
         // TO DO: arbitrarily chosen period stakingFixedEpochDuration/5.
-        if (_getCurrentTimestamp() - stakingContract.stakingEpochStartTime() <= stakingContract.stakingFixedEpochDuration()/5) {
+        if (_getCurrentTimestamp() - stakingContract.stakingEpochStartTime() 
+            <= stakingContract.stakingFixedEpochDuration()/5) {
             // The current validator set was finalized by the engine,
             // but we should let the previous validators finish
             // reporting malicious validator within a few blocks
-            bool previousValidator = isValidatorPrevious[_miningAddress] && !isValidatorBanned(_miningAddress); // TODO: !isValidatorBanned() is not needed, it is included in isValid
+            bool previousValidator = isValidatorPrevious[_miningAddress];
             return isValid || previousValidator;
         }
         return isValid;
@@ -402,7 +406,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// validator misbehaved at the specified block.
     /// @param _miningAddress The mining address of malicious validator.
     /// @param _blockNumber The block number.
-    function maliceReportedForBlock(address _miningAddress, uint256 _blockNumber) public view returns(address[] memory) {
+    function maliceReportedForBlock(address _miningAddress, uint256 _blockNumber)
+    public
+    view
+    returns(address[] memory) {
         return _maliceReportedForBlock[_miningAddress][_blockNumber];
     }
 
@@ -655,7 +662,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function _banUntil() internal view returns(uint256) {
         uint256 currentTimestamp =  _getCurrentTimestamp();
         uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime().sub(currentTimestamp);
-        // Ban for at least 12 full staking epochs: currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration. 
+        // Ban for at least 12 full staking epochs: 
+        // currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration. 
         return currentTimestamp.add(12 * stakingContract.stakingFixedEpochDuration()).add(ticksUntilEnd);
     }
 
