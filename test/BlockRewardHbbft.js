@@ -154,14 +154,12 @@ contract('BlockRewardHbbft', async accounts => {
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
       //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(startBlock);
       (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
-      
+
       } catch (e) {
         console.error(e);
         throw e;
       }
     });
-
-    return;
 
     it('staking epoch #1 started', async () => {
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
@@ -175,6 +173,8 @@ contract('BlockRewardHbbft', async accounts => {
       const validators = await validatorSetHbbft.getValidators.call();
       validators.length.should.be.equal(3);
     });
+
+    return;
 
     it('validators and their delegators place stakes during the epoch #1', async () => {
       const validators = await validatorSetHbbft.getValidators.call();
@@ -262,9 +262,10 @@ contract('BlockRewardHbbft', async accounts => {
   }
 
   async function callReward(isEpochEndBlock) {
-    console.log('getting validators...');
+    // console.log('getting validators...');
+    // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
     const validators = await validatorSetHbbft.getValidators.call();
-    console.log('got validators:', validators);
+    //console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
     await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
@@ -283,7 +284,7 @@ contract('BlockRewardHbbft', async accounts => {
     //   params: [time], 
     //   id: new Date().getSeconds()
     // });
-    console.log('start sleeping');
+    //console.log('start sleeping');
     await sleep(time * 1000);
 
     // console.log('mining block...');
