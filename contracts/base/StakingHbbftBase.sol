@@ -582,7 +582,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         }
         uint256 currentTimestamp = _getCurrentTimestamp();
         uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
-        return currentTimestamp - stakingEpochStartTime < allowedDuration; //TODO: should be < not <=?
+        return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.

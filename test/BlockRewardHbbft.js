@@ -122,7 +122,7 @@ contract('BlockRewardHbbft', async accounts => {
 
     it('staking epoch #0 finished', async () => {
 
-      try {
+      //try {
 
       console.log('...stakingEpochStartTime...');
       //const stakingEpoch = await stakingHbbft.stakingEpoch.call();
@@ -155,10 +155,10 @@ contract('BlockRewardHbbft', async accounts => {
       //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(startBlock);
       (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
 
-      } catch (e) {
-        console.error(e);
-        throw e;
-      }
+      // } catch (e) {
+      //   console.error(e);
+      //   throw e;
+      // }
     });
 
     it('staking epoch #1 started', async () => {
@@ -173,8 +173,6 @@ contract('BlockRewardHbbft', async accounts => {
       const validators = await validatorSetHbbft.getValidators.call();
       validators.length.should.be.equal(3);
     });
-
-    return;
 
     it('validators and their delegators place stakes during the epoch #1', async () => {
       const validators = await validatorSetHbbft.getValidators.call();
@@ -192,6 +190,8 @@ contract('BlockRewardHbbft', async accounts => {
         }
       }
     });
+
+    //return;
 
     it('staking epoch #1 finished', async () => {
       const stakingEpoch = await stakingHbbft.stakingEpoch.call();
@@ -287,14 +287,35 @@ contract('BlockRewardHbbft', async accounts => {
     //console.log('start sleeping');
     await sleep(time * 1000);
 
-    // console.log('mining block...');
+
+    // there is a problem with evm_mine.
+    // https://github.com/trufflesuite/ganache-core/issues/533
+
+
+    //console.log('mining block...');
     // await  web3.currentProvider.send({
     //   jsonrpc: '2.0', 
     //   method: 'evm_mine', 
     //   params: [], 
     //   id: new Date().getSeconds()
     // });
-    
+
+    let lastKnownBlockNumber = await web3.eth.getBlockNumber();
+
+    //expected behavior: 
+    //different blockchains behave different.
+    //truffle should make 1 block for each transaction (??)
+    // AURA should take a couple of seconds until they manage to do a block
+    // HBBFT should finish the block soonish, hopefully not stacking and stacking more and more transactions into 1 single block.
+    do {
+       var send = await web3.eth.sendTransaction(
+         { from:accounts[0],
+           to:accounts[0],
+           value:0
+         });
+         //just sleep here, so we do not spam that hard.
+         await sleep(100);
+    } while (await web3.eth.getBlockNumber() == lastKnownBlockNumber)
   }
 
   // async function setCurrentBlockNumber(blockNumber) {

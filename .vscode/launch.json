@@ -16,7 +16,8 @@
           ],
       "skipFiles": [
         "${workspaceFolder}/node_modules/**/*.js",
-        "${workspaceFolder}/lib/**/*.js"
+        "${workspaceFolder}/lib/**/*.js",
+        "<node_internals>/**/*.js"
       ]
     }
   ]
