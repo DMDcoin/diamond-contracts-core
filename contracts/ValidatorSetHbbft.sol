@@ -139,7 +139,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             // Apply a new validator set formed by the `newValidatorSet` function
             _savePreviousValidators();
             _finalizeNewValidators();
-            IBlockRewardHbbft(blockRewardContract).clearBlocksCreated();
             // new epoch starts
             stakingContract.incrementStakingEpoch();
             delete _pendingValidators;

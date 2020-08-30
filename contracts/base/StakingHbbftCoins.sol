@@ -4,7 +4,7 @@ import "./StakingHbbftBase.sol";
 import "../interfaces/IBlockRewardHbbftCoins.sol";
 
 
-contract Sacrifice {
+contract Sacrifice2 {
     constructor(address payable _recipient) public payable {
         selfdestruct(_recipient);
     }
@@ -169,7 +169,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
             // We use the `Sacrifice` trick to be sure the coins can be 100% sent to the receiver.
             // Otherwise, if the receiver is a contract which has a revert in its fallback function,
             // the sending will fail.
-            (new Sacrifice).value(_amount)(_to);
+            (new Sacrifice2).value(_amount)(_to);
         }
     }
 

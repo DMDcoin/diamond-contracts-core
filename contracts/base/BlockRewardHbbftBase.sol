@@ -26,13 +26,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     mapping(address => uint256[]) internal _epochsPoolGotRewardFor;
 
-    /// @dev A number of blocks produced by the set of validators during the specified staking epoch
-    /// (beginning from the block when the `finalizeChange` function is called until the latest block
-    /// of the staking epoch. The results are used by the `_distributeRewards` function.
-    mapping(uint256 => uint256) public blocksCreated;
-
     /// @dev The maximum per-block reward distributed among the validators.
-    uint256 public maxBlockReward;
+    uint256 public maxEpochReward;
 
     /// @dev The reward amount to be distributed in native coins among participants (the validator and their
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
@@ -98,23 +93,15 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         revert();
     }
 
-    /// @dev Called by the `ValidatorSetHbbft.finalizeChange` to clear the values in
-    /// the `blocksCreated` mapping for the current staking epoch and a new validator set.
-    function clearBlocksCreated() external onlyValidatorSetContract {
-        IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
-        uint256 stakingEpoch = stakingContract.stakingEpoch();
-        blocksCreated[stakingEpoch] = 0;
-    }
-
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _validatorSet, uint256 _maxBlockReward) external {
+    function initialize(address _validatorSet, uint256 _maxEpochReward) external {
         require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
         require(!isInitialized());
         require(_validatorSet != address(0));
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        maxBlockReward = _maxBlockReward;
+        maxEpochReward = _maxEpochReward;
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
     }
 
@@ -150,11 +137,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
          // Store the current timestamp in a local vairable
         uint256 currentTimestamp = _getCurrentTimestamp();
          
-        // Accumulate block producing statistics for each of the
-        // active validators during the current staking epoch. This
-        // statistics is used by the `_distributeRewards` function
-        blocksCreated[stakingEpoch]++;
-
         // If the end of the fixed epoch duration is reached, choose the new validator candidates aka pendingValidators.
         if (currentTimestamp >= stakingFixedEpochEndTime) {
            // Choose new validators
@@ -380,7 +362,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-       uint256 totalReward = blocksCreated[_stakingEpoch]*maxBlockReward + nativeRewardUndistributed;
+        uint256 totalReward = maxEpochReward + nativeRewardUndistributed;
 
         if (totalReward == 0) {
             return 0;

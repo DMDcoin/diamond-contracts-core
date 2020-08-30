@@ -27,7 +27,7 @@ contract('StakingHbbft', async accounts => {
   let initialValidatorsIpAddresses;
 
   const minStake = new BN(web3.utils.toWei('1', 'ether'));
-  const maxBlockReward = new BN(100); // the maximum  per-block reward distributed to the validators
+  const maxEpochReward = new BN(100); // the maximum  per-block reward distributed to the validators
   const stakingFixedEpochDuration = new BN(120954);
   const stakingWithdrawDisallowPeriod = new BN(4320);
   const stakingEpochStartBlock = new BN(0);
@@ -374,12 +374,7 @@ contract('StakingHbbft', async accounts => {
       const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
       await setCurrentBlockNumber(stakingEpochEndBlock);
 
-      // total blocks created in an epoch: endBlock - startBlock +1 (the genesis block is not considered)
-      const blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());
-      blocksCreated.should.be.bignumber.equal(stakingFixedEpochDuration.add(keyGenerationDuration).sub(new BN(1))); //-1 because it is gonna be increased by blockRewardHbbft.reward()
-      await blockRewardHbbft.setBlocksCreated(new BN(0), blocksCreated).should.be.fulfilled;
       await callReward(true);
-      (await blockRewardHbbft.blocksCreated.call(new BN(0))).should.be.bignumber.equal(stakingEpochDuration);
     });
 
     async function _claimRewardStakeIncreasing(epochsPoolRewarded, epochsStakeIncreased) {
@@ -516,12 +511,6 @@ contract('StakingHbbft', async accounts => {
       stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
       await setCurrentBlockNumber(stakingEpochEndBlock);
 
-      let blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-      await blockRewardHbbft.setBlocksCreated(new BN(1), blocksCreated).should.be.fulfilled;
-      await callReward(true); //increments blockcsCreated too!
-      (await blockRewardHbbft.blocksCreated.call(new BN(1))).should.be.bignumber.equal(stakingEpochDuration);
-
-
       // Staking epoch #1: Finalize change
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
       // upcoming epoch's start block
@@ -559,11 +548,7 @@ contract('StakingHbbft', async accounts => {
       stakingEpochEndBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
       stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
       await setCurrentBlockNumber(stakingEpochEndBlock);
-
-      blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-      await blockRewardHbbft.setBlocksCreated(new BN(2), blocksCreated).should.be.fulfilled;
       await callReward(true);
-      (await blockRewardHbbft.blocksCreated.call(new BN(2))).should.be.bignumber.equal(stakingEpochDuration);
 
       // Staking epoch #2: Finalize change
       await callFinalizeChange();
@@ -1170,9 +1155,6 @@ contract('StakingHbbft', async accounts => {
       endBlock = fixedEpochEndBlock.add(keyGenerationDuration);
       await setCurrentBlockNumber(endBlock);
 
-      let blocksCreated = endBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-      await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
-
       let blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       
       for (let i = 0; i < initialValidators.length; i++) {
@@ -1180,7 +1162,6 @@ contract('StakingHbbft', async accounts => {
       }
       
       await callReward(true);
-      (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
       await callFinalizeChange();
 
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch + 1));
@@ -1256,15 +1237,11 @@ contract('StakingHbbft', async accounts => {
         const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
         await setCurrentBlockNumber(epochEndBlock);
 
-        const blocksCreated = epochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-        await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
-
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true); //increments blocksCreated
-        (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
+        await callReward(true);
         await callFinalizeChange();
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
@@ -1402,15 +1379,11 @@ contract('StakingHbbft', async accounts => {
         const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
         await setCurrentBlockNumber(epochEndBlock);
 
-        const blocksCreated = epochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-        await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
-
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true); //increments blocksCreated
-        (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
+        await callReward(true);
         await callFinalizeChange();
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
@@ -1526,15 +1499,11 @@ contract('StakingHbbft', async accounts => {
         const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
         await setCurrentBlockNumber(epochEndBlock);
 
-        const blocksCreated = epochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-        await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
-
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true); //increments blocksCreated
-        (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
+        await callReward(true);
         await callFinalizeChange();
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
@@ -2271,7 +2240,7 @@ contract('StakingHbbft', async accounts => {
       // Finalize a new validator set and change staking epoch
       await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
       await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await blockRewardHbbft.initialize(validatorSetHbbft.address, maxBlockReward).should.be.fulfilled;      
+      await blockRewardHbbft.initialize(validatorSetHbbft.address, maxEpochReward).should.be.fulfilled;      
       await validatorSetHbbft.setStakingContract(stakingHbbft.address).should.be.fulfilled;
       // Set BlockRewardContract
       await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
