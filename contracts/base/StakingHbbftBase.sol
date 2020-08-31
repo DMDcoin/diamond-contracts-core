@@ -296,8 +296,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external {
-        // require(_stakingFixedEpochDuration != 0, "FixedEpochDuration is 0"); //in let the duration to be 0 for testing purposes
-        require(_stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod, "FixedEpochDuration must be longer than withdrawDisallowPeriod");
+        require(_stakingFixedEpochDuration != 0, "FixedEpochDuration is 0");
+        require(_stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod,
+            "FixedEpochDuration must be longer than withdrawDisallowPeriod");
         require(_stakingWithdrawDisallowPeriod != 0, "WithdrawDisallowPeriod is 0");
         _initialize(
             _validatorSetContract,
@@ -415,7 +416,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             uint256 amount = uint256(_amount);
 
             // How much can `staker` order for withdrawal from `_poolStakingAddress` at the moment?
-            require(amount <= maxWithdrawOrderAllowed(_poolStakingAddress, staker), "OrderWithdraw: maxWithdrawOrderAllowed exceeded");
+            require(amount <= maxWithdrawOrderAllowed(_poolStakingAddress, staker),
+                "OrderWithdraw: maxWithdrawOrderAllowed exceeded");
 
             newOrderedAmount = newOrderedAmount.add(amount);
             newOrderedAmountTotal = newOrderedAmountTotal.add(amount);

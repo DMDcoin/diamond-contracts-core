@@ -33,7 +33,7 @@ contract('StakingHbbft', async accounts => {
   const maxEpochReward = new BN(100); // the maximum  per-block reward distributed to the validators
   const stakingFixedEpochDuration = new BN(2);
   const stakingWithdrawDisallowPeriod = new BN(1);
-  const stakingEpochStartBlock = new BN(0);
+  //const stakingEpochStartBlock = new BN(0);
   const keyGenerationDuration = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
 
   beforeEach(async () => {
@@ -374,7 +374,7 @@ contract('StakingHbbft', async accounts => {
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
 
       // Staking epoch #0 finishes
-      const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
+      //const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
       //await setCurrentBlockNumber(stakingEpochEndBlock);
 
       await callReward(true);
@@ -478,19 +478,19 @@ contract('StakingHbbft', async accounts => {
       // Emulate the fact that the delegator never staked before
       // current block number is at the end of staking epoch #0
       // delegator orders a withdrawal during epoch #1
-      let stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      let stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
-      let stakingEpochStartBlock = stakingFixedEpochDuration.add(keyGenerationDuration).add(new BN(1));
+      //let stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      //let stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
+      //let stakingEpochStartBlock = stakingFixedEpochDuration.add(keyGenerationDuration).add(new BN(1));
       
-      let startBlock = stakingEpochEndBlock.add(new BN(1));
-      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
+      //let startBlock = stakingEpochEndBlock.add(new BN(1));
+      //stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
       
       // one block before new epoch, finalize change will increment it
       // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
       await callFinalizeChange();
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
-      stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
+      //stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+      //stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
       // the pending validator set should be empy
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
 
@@ -501,7 +501,7 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
 
       // Staking epoch #1: end of fixed duration
-      stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      //stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
       //await setCurrentBlockNumber(stakingFixedEpochEndBlock);
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
       await callReward(false);
@@ -509,9 +509,9 @@ contract('StakingHbbft', async accounts => {
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
 
       // Staking epoch #1: Epoch end block
-      let endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
-      stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
+      //let endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
+      //stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
+      //stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
       //await setCurrentBlockNumber(stakingEpochEndBlock);
 
       // Staking epoch #1: Finalize change
@@ -521,8 +521,8 @@ contract('StakingHbbft', async accounts => {
       // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
       await callFinalizeChange();
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
-      stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call()
-      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
+      //stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call()
+      //stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
       // the pending validator set should be empty
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
 
@@ -542,21 +542,21 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.clearDelegatorStakeSnapshot(stakingAddress, delegator, new BN(2)).should.be.fulfilled;
 
        // Staking epoch #2: end of fixed duration
-       stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+       //stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
        //await setCurrentBlockNumber(stakingFixedEpochEndBlock);
        await callReward(false);
 
       // Staking epoch #2: Epoch end block
-      endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      stakingEpochEndBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
-      stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
+      //endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
+      //stakingEpochEndBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
+      //stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
       //await setCurrentBlockNumber(stakingEpochEndBlock);
       await callReward(true);
 
       // Staking epoch #2: Finalize change
       await callFinalizeChange();
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(3));
-      (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock.add(new BN(1)));
+      //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock.add(new BN(1)));
       return {miningAddress, stakingAddress, epochPoolReward};
     }
 
@@ -1023,7 +1023,7 @@ contract('StakingHbbft', async accounts => {
 
       // Emulate delegator's stake withdrawal
       stakingEpoch = 10;
-      const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
+      //const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
       await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
       //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
@@ -1089,7 +1089,7 @@ contract('StakingHbbft', async accounts => {
 
       // Emulate delegator's stake withdrawal
       stakingEpoch = 10;
-      const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
+      //const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
       await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
       //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
@@ -1135,23 +1135,23 @@ contract('StakingHbbft', async accounts => {
       //await stakingHbbft.setStakingEpochStartBlock(epochStartBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
       // new validatorSet at the end of fixed epoch duration
-      let fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      //let fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
       //await setCurrentBlockNumber(fixedEpochEndBlock);
       await callReward(false);
       // startBlock is the upcoming epoch 1st block
-      let epochEndBlock = epochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      let endBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
-      epochEndBlock.should.be.bignumber.equal(endBlock);
+      // let epochEndBlock = epochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
+      // let endBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
+      // epochEndBlock.should.be.bignumber.equal(endBlock);
       //await setCurrentBlockNumber(endBlock);
 
       await callFinalizeChange();
       (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
       // new epoch = stakingEpoch
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
-      epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-      epochStartBlock.should.be.bignumber.equal(new BN(120954 * stakingEpoch + 2 + 1)); // +2 for kegen duration
+      //epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+      //epochStartBlock.should.be.bignumber.equal(new BN(120954 * stakingEpoch + 2 + 1)); // +2 for kegen duration
 
-      fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      //fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
       //await setCurrentBlockNumber(fixedEpochEndBlock);
       await callReward(false);
 
@@ -1168,8 +1168,8 @@ contract('StakingHbbft', async accounts => {
       await callFinalizeChange();
 
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch + 1));
-      epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-      epochStartBlock.should.be.bignumber.equal(new BN(120954 * (stakingEpoch + 1) + 2 + 2 + 1)); // +2 for kegen duration
+      //epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+      //epochStartBlock.should.be.bignumber.equal(new BN(120954 * (stakingEpoch + 1) + 2 + 2 + 1)); // +2 for kegen duration
       
       let distributedCoinsAmount = new BN(0);
       for (let i = 0; i < initialValidators.length; i++) {
@@ -1230,14 +1230,14 @@ contract('StakingHbbft', async accounts => {
         (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
         (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
 
-        const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-        epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
+        //const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+        //epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
 
-        const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+        //const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
         //await setCurrentBlockNumber(fixedEpochEndBlock);
         await callReward(false);
 
-        const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
+        //const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
         //await setCurrentBlockNumber(epochEndBlock);
 
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
@@ -1362,7 +1362,7 @@ contract('StakingHbbft', async accounts => {
       for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
         if ( stakingEpoch == 1) {
           await stakingHbbft.setStakingEpoch(1).should.be.fulfilled;
-          const startBlock = new BN(120954 + 2 + 1);
+          //const startBlock = new BN(120954 + 2 + 1);
           //await setCurrentBlockNumber(startBlock);
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
           //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
@@ -1372,8 +1372,8 @@ contract('StakingHbbft', async accounts => {
         (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
         (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
 
-        const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-        epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
+        //const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+        //epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
 
         //const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
         //await setCurrentBlockNumber(fixedEpochEndBlock);
@@ -1495,11 +1495,11 @@ contract('StakingHbbft', async accounts => {
         const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
         epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
 
-        const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+        //const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
         //await setCurrentBlockNumber(fixedEpochEndBlock);
         await callReward(false);
 
-        const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
+        //const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
         //await setCurrentBlockNumber(epochEndBlock);
 
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
@@ -1640,9 +1640,9 @@ contract('StakingHbbft', async accounts => {
       stakingWithdrawDisallowPeriod.should.be.bignumber.equal(
         await stakingHbbft.stakingWithdrawDisallowPeriod.call()
       );
-      new BN(0).should.be.bignumber.equal(
-        await stakingHbbft.stakingEpochStartBlock.call()
-      );
+      // new BN(0).should.be.bignumber.equal(
+      //   await stakingHbbft.stakingEpochStartBlock.call()
+      // );
       validatorSetHbbft.address.should.be.equal(
         await stakingHbbft.validatorSetContract.call()
       );
