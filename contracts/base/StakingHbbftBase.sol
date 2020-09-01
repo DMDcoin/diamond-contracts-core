@@ -595,7 +595,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Returns a flag indicating whether a specified address is in the `pools` array.
     /// See the `getPools` getter.
     /// @param _stakingAddress The staking address of the pool.
-    function isPoolActive(address _stakingAddress) public view returns(bool) {
+    function isPoolActive(address _stakingAddress)
+    public
+    view
+    returns(bool) {
         uint256 index = poolIndex[_stakingAddress];
         return index < _pools.length && _pools[index] == _stakingAddress;
     }
@@ -604,7 +607,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// at the moment. Used by the `withdraw` and `moveStake` functions.
     /// @param _poolStakingAddress The pool staking address from which the withdrawal will be made.
     /// @param _staker The staker address that is going to withdraw.
-    function maxWithdrawAllowed(address _poolStakingAddress, address _staker) public view returns(uint256) {
+    function maxWithdrawAllowed(address _poolStakingAddress, address _staker) 
+    public
+    view
+    returns(uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
         if (!_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker)) {

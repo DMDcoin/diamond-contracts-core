@@ -120,6 +120,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             return 0;
         }
 
+        
         // if (_benefactors.length != _kind.length) {
         //     return (new address[](0), new uint256[](0));
         // }
@@ -133,20 +134,20 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 stakingEpoch = stakingContract.stakingEpoch();
         uint256 stakingFixedEpochEndTime = stakingContract.stakingFixedEpochEndTime();
         uint256 nativeTotalRewardAmount;
-
-         // Store the current timestamp in a local vairable
+        
+        // Store the current timestamp in a local vairable
         uint256 currentTimestamp = _getCurrentTimestamp();
-         
-        // If the end of the fixed epoch duration is reached, choose the new validator candidates aka pendingValidators.
-        if (currentTimestamp >= stakingFixedEpochEndTime) {
-           // Choose new validators
-            validatorSetContract.newValidatorSet();
-        }
+
+        bool isEpochEndBlock = currentTimestamp >= stakingFixedEpochEndTime;
 
         // If this is the last block of the epoch i.e. master key has been generated.
-        if (_isEpochEndBlock) {
-            // It should always come after the fixed epoch duration has elapsed.
-            require(currentTimestamp > stakingFixedEpochEndTime, "Fixed epoch duration has not elapsed yet");
+        if (isEpochEndBlock) {
+
+            // Choose new validators
+            validatorSetContract.newValidatorSet();
+
+            // this check should not be required anymore!! It should always come after the fixed epoch duration has elapsed.
+            require(currentTimestamp >= stakingFixedEpochEndTime, "Fixed epoch duration has not elapsed yet");
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);

@@ -380,7 +380,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// or is in the `_pendingValidators`.
     /// Used by the `StakingHbbft.maxWithdrawAllowed` and `StakingHbbft.maxWithdrawOrderAllowed` getters.
     /// @param _miningAddress The mining address.
-    function isValidatorOrPending(address _miningAddress) public view returns(bool) {
+    function isValidatorOrPending(address _miningAddress)
+    public
+    view
+    returns(bool) {
         if (isValidator[_miningAddress]) {
             return true;
         }
@@ -391,7 +394,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns a boolean flag indicating whether the specified mining address is a pending validator.
     /// Used by the `isValidatorOrPending` and `KeyGenHistory.writeAck/Part` functions.
     /// @param _miningAddress The mining address.
-    function isPendingValidator(address _miningAddress) public view returns(bool) {
+    function isPendingValidator(address _miningAddress)
+    public
+    view
+    returns(bool) {
 
         for (uint256 i = 0; i < _pendingValidators.length; i++) {
             if (_miningAddress == _pendingValidators[i]) {
@@ -430,7 +436,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address _reportingMiningAddress,
         address _maliciousMiningAddress,
         uint256 _blockNumber
-    ) public view returns(bool callable, bool removeReportingValidator) {
+    )
+    public
+    view
+    returns(bool callable, bool removeReportingValidator) {
         if (!isReportValidatorValid(_reportingMiningAddress)) return (false, false);
         if (!isReportValidatorValid(_maliciousMiningAddress)) return (false, false);
 
@@ -480,7 +489,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// uses this counter for reporting checks so it must be up-to-date. Called by the `_removeMaliciousValidators`
     /// internal function.
     /// @param _miningAddress The mining address of the removed malicious validator.
-    function _clearReportingCounter(address _miningAddress) internal {
+    function _clearReportingCounter(address _miningAddress)
+    internal {
         uint256 currentStakingEpoch = stakingContract.stakingEpoch();
         uint256 total = reportingCounterTotal[currentStakingEpoch];
         uint256 counter = reportingCounter[_miningAddress][currentStakingEpoch];
@@ -496,7 +506,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     /// @dev Sets a new validator set stored in `_pendingValidators` array.
     /// Called by the `finalizeChange` function.
-    function _finalizeNewValidators() internal {
+    function _finalizeNewValidators()
+    internal {
         address[] memory validators;
         uint256 i;
 
@@ -519,7 +530,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// See the `reportingCounter` and `reportingCounterTotal` public mappings. Called by the `reportMalicious`
     /// function when the validator reports a misbehavior.
     /// @param _reportingMiningAddress The mining address of reporting validator.
-    function _incrementReportingCounter(address _reportingMiningAddress) internal {
+    function _incrementReportingCounter(address _reportingMiningAddress)
+    internal {
         if (!isReportValidatorValid(_reportingMiningAddress)) return;
         uint256 currentStakingEpoch = stakingContract.stakingEpoch();
         reportingCounter[_reportingMiningAddress][currentStakingEpoch]++;
@@ -534,7 +546,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// "malicious" - the validator was reported as malicious by other validators with the `reportMalicious` function.
     /// @return Returns `true` if the specified validator has been removed from the pending validator set.
     /// Otherwise returns `false` (if the specified validator has already been removed or cannot be removed).
-    function _removeMaliciousValidator(address _miningAddress, bytes32 _reason) internal returns(bool) {
+    function _removeMaliciousValidator(address _miningAddress, bytes32 _reason)
+    internal
+    returns(bool) {
 
         bool isBanned = isValidatorBanned(_miningAddress);
         // Ban the malicious validator for at least the next 12 staking epochs
