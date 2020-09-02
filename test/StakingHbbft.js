@@ -501,7 +501,7 @@ contract('StakingHbbft', async accounts => {
       // Staking epoch #1: Start
       // await setCurrentBlockNumber(stakingEpochStartBlock);
       (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
-      increaseTime(2);
+      increaseTime(4);
       (await stakingHbbft.areStakeAndWithdrawAllowed.call()).should.be.equal(true);
       await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
 
