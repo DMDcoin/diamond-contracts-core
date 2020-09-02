@@ -578,13 +578,18 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Determines whether staking/withdrawal operations are allowed at the moment.
     /// Used by all staking/withdrawal functions.
     function areStakeAndWithdrawAllowed() public view returns(bool) {
+
+        //experimental change to always allow to stake withdraw.
+        //see https://github.com/DMDcoin/hbbft-posdao-contracts/issues/14 for discussion.
+        return true; 
+
         // used for testing
-        if (stakingFixedEpochDuration == 0){
-            return true;
-        }
-        uint256 currentTimestamp = _getCurrentTimestamp();
-        uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
-        return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
+        // if (stakingFixedEpochDuration == 0){
+        //     return true;
+        // }
+        // uint256 currentTimestamp = _getCurrentTimestamp();
+        // uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
+        // return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
