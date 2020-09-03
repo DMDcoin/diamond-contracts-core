@@ -90,7 +90,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
     function () payable external {
-        revert();
+        revert("BlockRewardContracts don't accept native coins!");
     }
 
     /// @dev Initializes the contract at network startup.
