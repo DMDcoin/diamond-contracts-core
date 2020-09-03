@@ -1912,10 +1912,10 @@ contract('StakingHbbft', async accounts => {
       await validatorSetHbbft.removeMaliciousValidators([initialValidators[1]], {from: owner}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: Mining address is banned");
     });
-    it('should only success in the allowed staking window', async () => {
-      //await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.rejectedWith("Stake: disallowed period");
-    });
+    // it('should only success in the allowed staking window', async () => {
+    //   //await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+    //   await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.rejectedWith("Stake: disallowed period");
+    // });
     it('should fail if a candidate stakes less than CANDIDATE_MIN_STAKE', async () => {
       const halfOfCandidateMinStake = candidateMinStake.div(new BN(2));
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: halfOfCandidateMinStake}).should.be.rejectedWith("Stake: candidateStake less than candidateMinStake");
@@ -2189,15 +2189,15 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.fulfilled;
     });
-    it('shouldn\'t allow withdrawing during the stakingWithdrawDisallowPeriod', async () => {
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
-      //await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-      //await validatorSetHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-      //await stakingHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
-      //await validatorSetHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
-      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-    });
+    // it('shouldn\'t allow withdrawing during the stakingWithdrawDisallowPeriod', async () => {
+    //   await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+    //   //await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+    //   //await validatorSetHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+    //   await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+    //   //await stakingHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
+    //   //await validatorSetHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
+    //   await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    // });
     it('should fail if non-zero residue is less than CANDIDATE_MIN_STAKE', async () => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.sub(candidateMinStake).add(new BN(1)), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
