@@ -5,7 +5,7 @@ import '../../contracts/ValidatorSetHbbft.sol';
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
-    uint256 internal _currentBlockNumber;
+    uint256 internal _currentTimeStamp;
     address internal _systemAddress;
 
     // ============================================== Modifiers =======================================================
@@ -13,6 +13,13 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     modifier onlySystem() {
         require(msg.sender == _getSystemAddress());
         _;
+    }
+
+    // ============================================== Constructor ==========================================
+    constructor ()
+    public {
+        _currentTimeStamp = block.timestamp;
+        require(_currentTimeStamp != 0, '_currentTimeStamp must not be 0');
     }
 
     // =============================================== Setters ========================================================
@@ -30,10 +37,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         blockRewardContract = _address;
     }
 
-    function setCurrentBlockNumber(uint256 _blockNumber) public {
-        _currentBlockNumber = _blockNumber;
-    }
-
     function setRandomContract(address _address) public {
         randomContract = _address;
     }
@@ -45,6 +48,16 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     function setSystemAddress(address _address) public {
         _systemAddress = _address;
     }
+
+
+    function setCurrentTimestamp(uint256 _timeStamp)
+    public {
+        // todo: maybe it makes sense to only allow to travel forward in time.
+        // this assumption would make tests more consistent,
+        // avoiding the usual time travel paradoxon problems.
+        _currentTimeStamp = _timeStamp;
+    }
+
 
     // =============================================== Getters ========================================================
 
@@ -59,18 +72,17 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
             uint256(keccak256(abi.encode(_randomNumber)))
         );
     }
-
-    function getCurrentBlockNumber() external view returns(uint256) {
-        return _currentBlockNumber;
+    
+    /// @dev overrides the calculation of the current timestamp
+    /// to use the internal stored "fake" timestamp for testing purposes.
+    function getCurrentTimestamp() external view returns(uint256) {
+        //require(_currentTimeStamp != 0, 'Timestamp is never expected to be 0');
+        return _currentTimeStamp;
     }
+
     // =============================================== Private ========================================================
-
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return _currentBlockNumber;
-    }
 
     function _getSystemAddress() internal view returns(address) {
         return _systemAddress;
     }
-
 }

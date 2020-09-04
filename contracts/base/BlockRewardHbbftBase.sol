@@ -97,7 +97,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
     function initialize(address _validatorSet, uint256 _maxEpochReward) external {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
+        require(msg.sender == _admin() || block.number == 0);
         require(!isInitialized());
         require(_validatorSet != address(0));
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
@@ -136,7 +136,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 nativeTotalRewardAmount;
         
         // Store the current timestamp in a local vairable
-        uint256 currentTimestamp = _getCurrentTimestamp();
+        uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
 
         bool isEpochEndBlock = currentTimestamp >= stakingFixedEpochEndTime;
 
@@ -407,16 +407,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
         return distributedAmount;
         
-    }
-
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
-    }
-
-    /// @dev Returns the current timestamp.
-    function _getCurrentTimestamp() internal view returns(uint256) {
-        return block.timestamp;
     }
 
     /// @dev Makes snapshots of total amount staked into the specified pool

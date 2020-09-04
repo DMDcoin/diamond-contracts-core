@@ -17,6 +17,9 @@ require('chai')
 let currentAccounts;
 
 contract('StakingHbbft', async accounts => {
+
+  
+
   let owner;
   let initialValidators;
   let initialStakingAddresses;
@@ -60,6 +63,8 @@ contract('StakingHbbft', async accounts => {
     validatorSetHbbft = await ValidatorSetHbbft.new();
     validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
     validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+
+    increaseTime(1);
 
     keyGenHistory = await KeyGenHistory.new();
     keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
@@ -113,6 +118,7 @@ contract('StakingHbbft', async accounts => {
       ).should.be.fulfilled;
 
       // Emulate block number
+      increaseTime(2);
       //await stakingHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
       //await validatorSetHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
     });
@@ -369,6 +375,7 @@ contract('StakingHbbft', async accounts => {
       delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
       await stakingHbbft.stake(initialStakingAddresses[0], {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
 
+      increaseTime(4);
       // Epoch's fixed duration ends
       //const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
       //await setCurrentBlockNumber(stakingFixedEpochEndBlock);
@@ -801,7 +808,6 @@ contract('StakingHbbft', async accounts => {
       result.logs.length.should.be.equal(1);
       result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
 
-
       (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
       (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
     });
@@ -932,31 +938,31 @@ contract('StakingHbbft', async accounts => {
       );
     });
 
-    it('stake increasing', async () => {
+    it('stake increasing 1', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [5, 15, 25, 35],
         [4, 14, 24, 34]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 2', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [5, 15, 25, 35],
         [10, 20, 30]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 3', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [1, 2, 3, 4, 5, 6],
         [1, 2, 3, 4, 5]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 4', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [1, 3, 6, 10],
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 5', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [5, 15, 25],
         [5, 15, 25]
@@ -969,37 +975,37 @@ contract('StakingHbbft', async accounts => {
       );
     });
 
-    it('random withdrawal', async () => {
+    it('random withdrawal 1', async () => {
       await testClaimRewardRandom(
         [5, 15, 25, 35],
         [4, 14, 24, 34]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 2', async () => {
       await testClaimRewardRandom(
         [5, 15, 25, 35],
         [10, 20, 30]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 3', async () => {
       await testClaimRewardRandom(
         [1, 2, 3, 4, 5, 6],
         [1, 2, 3, 4, 5]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 4', async () => {
       await testClaimRewardRandom(
         [1, 3, 6, 10],
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 5', async () => {
       await testClaimRewardRandom(
         [5, 15, 25],
         [5, 15, 25]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 6', async () => {
       await testClaimRewardRandom(
         [5, 7, 9],
         [6, 8, 10]
@@ -2131,7 +2137,7 @@ contract('StakingHbbft', async accounts => {
       delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
 
       //await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-     // await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+     // //await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
     });
 
     it('should withdraw a stake', async () => {
@@ -2180,6 +2186,7 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
     });
     it('shouldn\'t allow withdrawing from a banned pool', async () => {
+
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
       await validatorSetHbbft.setBannedUntil(initialValidators[1], 100).should.be.fulfilled;
@@ -2317,11 +2324,20 @@ contract('StakingHbbft', async accounts => {
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
   }
 
+  async function increaseTime(time) {
+    
+    const currentTimestamp = await validatorSetHbbft.getCurrentTimestamp.call();
+    const futureTimestamp = currentTimestamp.add(web3.utils.toBN(time));
+    await validatorSetHbbft.setCurrentTimestamp(futureTimestamp);
+    const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp.call();
+    futureTimestamp.should.be.bignumber.equal(currentTimestampAfter);
+  }
+
   // async function setCurrentBlockNumber(blockNumber) {
   //   await blockRewardHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
   //   await randomHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
   //   await stakingHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-  //   await validatorSetHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
+  //   //await validatorSetHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
   // }
 });
 
@@ -2340,50 +2356,3 @@ function shuffle(a) {
   return a;
 }
 
-
-function sleep(milliseconds) {
-  return new Promise(resolve => setTimeout(resolve, milliseconds));
- }
-
-async function increaseTime(time) {
-
-  // console.log('increasing time...');
-  // const increasedTime = await web3.currentProvider.send({
-  //   jsonrpc: '2.0', 
-  //   method: 'evm_increaseTime', 
-  //   params: [time], 
-  //   id: new Date().getSeconds()
-  // });
-  //console.log('start sleeping');
-  await sleep(time * 1000);
-
-
-  // there is a problem with evm_mine.
-  // https://github.com/trufflesuite/ganache-core/issues/533
-
-
-  //console.log('mining block...');
-  // await  web3.currentProvider.send({
-  //   jsonrpc: '2.0', 
-  //   method: 'evm_mine', 
-  //   params: [], 
-  //   id: new Date().getSeconds()
-  // });
-
-  let lastKnownBlockNumber = await web3.eth.getBlockNumber();
-
-  //expected behavior: 
-  //different blockchains behave different.
-  //truffle should make 1 block for each transaction (??)
-  // AURA should take a couple of seconds until they manage to do a block
-  // HBBFT should finish the block soonish, hopefully not stacking and stacking more and more transactions into 1 single block.
-  do {
-     var send = await web3.eth.sendTransaction(
-       { from:currentAccounts[0],
-         to:currentAccounts[0],
-         value:0
-       });
-       //just sleep here, so we do not spam that hard.
-       await sleep(100);
-  } while (await web3.eth.getBlockNumber() == lastKnownBlockNumber)
-}

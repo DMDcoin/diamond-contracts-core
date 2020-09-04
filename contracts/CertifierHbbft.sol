@@ -50,7 +50,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         address[] calldata _certifiedAddresses,
         address _validatorSet
     ) external {
-        require(block.number == 0 || msg.sender == _admin());
+        require(msg.sender == _admin() || block.number == 0);
         require(!isInitialized());
         require(_validatorSet != address(0));
         for (uint256 i = 0; i < _certifiedAddresses.length; i++) {

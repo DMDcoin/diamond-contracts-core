@@ -57,7 +57,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         bytes[][] memory _acks
     ) public {
         // Unit Tests may deploy at block numbers other than 0.
-        //require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
+        require(msg.sender == _admin() || block.number == 0);
         require(!isInitialized()); // initialization can only be done once
         require(_validators.length != 0, "Validators must be more than 0.");
         require(_validators.length == _parts.length, "Wrong number of Parts!");
@@ -91,11 +91,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
     function getAcksLength(address val) public view returns(uint256) {
         return acks[val].length;
-    }
-
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.

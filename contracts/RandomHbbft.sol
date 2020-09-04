@@ -70,7 +70,7 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// @dev Initializes the network parameters. Used by the `initialize` function.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
     function _initialize(address _validatorSet) internal {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
+        require(msg.sender == _admin() || block.number == 0);
         require(!isInitialized());
         require(_validatorSet != address(0));
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
@@ -79,10 +79,5 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// @dev Returns the current `coinbase` address. Needed mostly for unit tests.
     function _getCoinbase() internal view returns(address) {
         return block.coinbase;
-    }
-
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
     }
 }

@@ -310,7 +310,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         );
         stakingFixedEpochDuration = _stakingFixedEpochDuration;
         stakingWithdrawDisallowPeriod = _stakingWithdrawDisallowPeriod;
-        stakingEpochStartTime = _getCurrentTimestamp();
+        stakingEpochStartTime = validatorSetContract.getCurrentTimestamp();
     }
 
     /// @dev Removes a specified pool from the `pools` array (a list of active pools which can be retrieved by the
@@ -587,7 +587,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         // if (stakingFixedEpochDuration == 0){
         //     return true;
         // }
-        // uint256 currentTimestamp = _getCurrentTimestamp();
+        // uint256 currentTimestamp = _validatorSetContract.getCurrentTimestamp();
         // uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
         // return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
     }
@@ -848,7 +848,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses
     ) internal {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin(),"Initialization only on genesis block or by admin");
+        require(msg.sender == _admin() || block.number == 0,
+            "Initialization only on genesis block or by admin");
         require(!isInitialized(), "Already initialized"); // initialization can only be done once
         require(_validatorSetContract != address(0),"ValidatorSet can't be 0");
         require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
@@ -1082,16 +1083,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
                 _removePoolInactive(_poolStakingAddress);
             }
         }
-    }
-
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
-    }
-
-    /// @dev Returns the current timestamp.
-    function _getCurrentTimestamp() internal view returns(uint256) {
-        return block.timestamp;
     }
 
     /// @dev The internal function used by the `claimReward` function and `getRewardAmount` getter.
