@@ -256,7 +256,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// they want to create a pool. This is a wrapper for the `stake` function.
     /// @param _miningAddress The mining address of the candidate. The mining address is bound to the staking address
     /// (msg.sender). This address cannot be equal to `msg.sender`.
-    function addPool(address _miningAddress, bytes calldata _publicKey, bytes16 _ip) external payable gasPriceIsValid {
+    function addPool(address _miningAddress, bytes calldata _publicKey, bytes16 _ip)
+    external
+    payable
+    gasPriceIsValid {
         address stakingAddress = msg.sender;
         uint256 amount = msg.value;
         validatorSetContract.setStakingAddress(_miningAddress, stakingAddress);
@@ -266,14 +269,17 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         poolInfo[stakingAddress].internetAddress = _ip;
     }
 
-    function setPoolInfo(bytes calldata _publicKey, bytes16 _ip) external {
+    function setPoolInfo(bytes calldata _publicKey, bytes16 _ip)
+    external {
         poolInfo[msg.sender].publicKey = _publicKey;
         poolInfo[msg.sender].internetAddress = _ip;
     }
 
     /// @dev Increments the serial number of the current staking epoch.
     /// Called by the `ValidatorSetHbbft.newValidatorSet` at the last block of the finished staking epoch.
-    function incrementStakingEpoch() external onlyValidatorSetContract {
+    function incrementStakingEpoch()
+    external
+    onlyValidatorSetContract {
         stakingEpoch++;
     }
 
@@ -317,13 +323,17 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// `getPools` getter). Called by the `ValidatorSetHbbft._removeMaliciousValidator` internal function
     /// when a pool must be removed by the algorithm.
     /// @param _stakingAddress The staking address of the pool to be removed.
-    function removePool(address _stakingAddress) external onlyValidatorSetContract {
+    function removePool(address _stakingAddress)
+    external
+    onlyValidatorSetContract {
         _removePool(_stakingAddress);
     }
 
     /// @dev Removes pools which are in the `_poolsToBeRemoved` internal array from the `pools` array.
     /// Called by the `ValidatorSetHbbft.newValidatorSet` function when a pool must be removed by the algorithm.
-    function removePools() external onlyValidatorSetContract {
+    function removePools()
+    external
+    onlyValidatorSetContract {
         address[] memory poolsToRemove = _poolsToBeRemoved;
         for (uint256 i = 0; i < poolsToRemove.length; i++) {
             _removePool(poolsToRemove[i]);
@@ -333,18 +343,24 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Removes the candidate's or validator's pool from the `pools` array (a list of active pools which
     /// can be retrieved by the `getPools` getter). When a candidate or validator wants to remove their pool,
     /// they should call this function from their staking address.
-    function removeMyPool() external gasPriceIsValid onlyInitialized {
+    function removeMyPool()
+    external
+    gasPriceIsValid
+    onlyInitialized {
         address stakingAddress = msg.sender;
         address miningAddress = validatorSetContract.miningByStakingAddress(stakingAddress);
         // initial validator cannot remove their pool during the initial staking epoch
-        require(stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress), "Can't remove pool during 1st staking epoch");
+        require(stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress),
+            "Can't remove pool during 1st staking epoch");
         _removePool(stakingAddress);
     }
 
     /// @dev Sets the timetamp of the current epoch's last block as the start time of the upcoming staking epoch.
     /// Called by the `ValidatorSetHbbft.newValidatorSet` function at the last block of a staking epoch.
     /// @param _timestamp The starting time of the very first block in the upcoming staking epoch.
-    function setStakingEpochStartTime(uint256 _timestamp) external onlyValidatorSetContract {
+    function setStakingEpochStartTime(uint256 _timestamp)
+    external
+    onlyValidatorSetContract {
         stakingEpochStartTime = _timestamp;
     }
 
@@ -358,7 +374,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address _fromPoolStakingAddress,
         address _toPoolStakingAddress,
         uint256 _amount
-    ) external gasPriceIsValid onlyInitialized {
+    )
+    external
+    gasPriceIsValid
+    onlyInitialized {
         require(_fromPoolStakingAddress != _toPoolStakingAddress, "MoveStake: src and dst pool is the same");
         address staker = msg.sender;
         _withdraw(_fromPoolStakingAddress, staker, _amount);
@@ -370,7 +389,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// the specified pool. Actually, the amount is stored in a balance of this StakingHbbft contract.
     /// A staker calls this function when they want to make a stake into a pool.
     /// @param _toPoolStakingAddress The staking address of the pool where the coins should be staked.
-    function stake(address _toPoolStakingAddress) external payable gasPriceIsValid {
+    function stake(address _toPoolStakingAddress)
+    external
+    payable
+    gasPriceIsValid {
         address staker = msg.sender;
         uint256 amount = msg.value;
         _stake(_toPoolStakingAddress, staker, amount);
@@ -382,7 +404,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _fromPoolStakingAddress The staking address of the pool from which the coins should be withdrawn.
     /// @param _amount The amount of coins to be withdrawn. The amount cannot exceed the value returned
     /// by the `maxWithdrawAllowed` getter.
-    function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid onlyInitialized {
+    function withdraw(address _fromPoolStakingAddress, uint256 _amount)
+    external
+    gasPriceIsValid
+    onlyInitialized {
         address payable staker = msg.sender;
         _withdraw(_fromPoolStakingAddress, staker, _amount);
         _sendWithdrawnStakeAmount(staker, _amount);
@@ -397,7 +422,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// increase their withdrawal amount. A negative value means the staker wants to decrease a
     /// withdrawal amount that was previously set. The amount cannot exceed the value returned by the
     /// `maxWithdrawOrderAllowed` getter.
-    function orderWithdraw(address _poolStakingAddress, int256 _amount) external gasPriceIsValid onlyInitialized {
+    function orderWithdraw(address _poolStakingAddress, int256 _amount)
+    external
+    gasPriceIsValid
+    onlyInitialized {
         require(_poolStakingAddress != address(0));
         require(_amount != 0);
 
@@ -481,7 +509,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Withdraws the staking coins from the specified pool ordered during the previous staking epochs with
     /// the `orderWithdraw` function. The ordered amount can be retrieved by the `orderedWithdrawAmount` getter.
     /// @param _poolStakingAddress The staking address of the pool from which the ordered coins are withdrawn.
-    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid onlyInitialized {
+    function claimOrderedWithdraw(address _poolStakingAddress)
+    external
+    gasPriceIsValid
+    onlyInitialized {
         address payable staker = msg.sender;
 
         require(stakingEpoch > orderWithdrawEpoch[_poolStakingAddress][staker]);
@@ -509,14 +540,20 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Sets (updates) the limit of the minimum candidate stake (CANDIDATE_MIN_STAKE).
     /// Can only be called by the `owner`.
     /// @param _minStake The value of a new limit in Wei.
-    function setCandidateMinStake(uint256 _minStake) external onlyOwner onlyInitialized {
+    function setCandidateMinStake(uint256 _minStake)
+    external
+    onlyOwner
+    onlyInitialized {
         candidateMinStake = _minStake;
     }
 
     /// @dev Sets (updates) the limit of the minimum delegator stake (DELEGATOR_MIN_STAKE).
     /// Can only be called by the `owner`.
     /// @param _minStake The value of a new limit in Wei.
-    function setDelegatorMinStake(uint256 _minStake) external onlyOwner onlyInitialized {
+    function setDelegatorMinStake(uint256 _minStake)
+    external
+    onlyOwner
+    onlyInitialized {
         delegatorMinStake = _minStake;
     }
 
@@ -526,15 +563,24 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// The size of the array cannot exceed MAX_CANDIDATES. A pool can be added to this array with the `_addPoolActive`
     /// internal function which is called by the `stake` or `orderWithdraw` function. A pool is considered active
     /// if its address has at least the minimum stake and this stake is not ordered to be withdrawn.
-    function getPools() external view returns(address[] memory) {
+    function getPools()
+    external
+    view
+    returns(address[] memory) {
         return _pools;
     }
 
-    function getPoolPublicKey(address _poolAddress) external view returns (bytes memory){
+    function getPoolPublicKey(address _poolAddress)
+    external
+    view
+    returns (bytes memory) {
         return poolInfo[_poolAddress].publicKey;
     }
 
-    function getPoolInternetAddress(address _poolAddress) external view returns (bytes16){
+    function getPoolInternetAddress(address _poolAddress)
+    external
+    view
+    returns (bytes16) {
         return poolInfo[_poolAddress].internetAddress;
     }
 
@@ -542,7 +588,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// A pool can be added to this array with the `_addPoolInactive` internal function which is called
     /// by `_removePool`. A pool is considered inactive if it is banned for some reason, if its address
     /// has zero stake, or if its entire stake is ordered to be withdrawn.
-    function getPoolsInactive() external view returns(address[] memory) {
+    function getPoolsInactive()
+    external
+    view
+    returns(address[] memory) {
         return _poolsInactive;
     }
 
@@ -554,7 +603,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @return `uint256[] likelihoods` - The array of the coefficients. The array length is always equal to the length
     /// of the `poolsToBeElected` array.
     /// `uint256 sum` - The total sum of the amounts.
-    function getPoolsLikelihood() external view returns(uint256[] memory likelihoods, uint256 sum) {
+    function getPoolsLikelihood()
+    external
+    view
+    returns(uint256[] memory likelihoods, uint256 sum) {
         return (_poolsLikelihood, _poolsLikelihoodSum);
     }
 
@@ -562,7 +614,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// selection process in the `ValidatorSetHbbft.newValidatorSet` function. This is an array of pools
     /// which will be considered as candidates when forming a new validator set (at the last block of a staking epoch).
     /// This array is kept updated by the `_addPoolToBeElected` and `_deletePoolToBeElected` internal functions.
-    function getPoolsToBeElected() external view returns(address[] memory) {
+    function getPoolsToBeElected()
+    external
+    view
+    returns(address[] memory) {
         return _poolsToBeElected;
     }
 
@@ -571,13 +626,19 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// of a staking epoch). This array is kept updated by the `_addPoolToBeRemoved`
     /// and `_deletePoolToBeRemoved` internal functions. A pool is added to this array when the pool's
     /// address withdraws (or orders) all of its own staking coins from the pool, inactivating the pool.
-    function getPoolsToBeRemoved() external view returns(address[] memory) {
+    function getPoolsToBeRemoved()
+    external
+    view
+    returns(address[] memory) {
         return _poolsToBeRemoved;
     }
 
     /// @dev Determines whether staking/withdrawal operations are allowed at the moment.
     /// Used by all staking/withdrawal functions.
-    function areStakeAndWithdrawAllowed() public view returns(bool) {
+    function areStakeAndWithdrawAllowed()
+    public
+    view
+    returns(bool) {
 
         //experimental change to always allow to stake withdraw.
         //see https://github.com/DMDcoin/hbbft-posdao-contracts/issues/14 for discussion.
@@ -593,7 +654,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 
@@ -647,7 +711,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// specified staker at the moment. Used by the `orderWithdraw` function.
     /// @param _poolStakingAddress The pool staking address from which the withdrawal will be ordered.
     /// @param _staker The staker address that is going to order the withdrawal.
-    function maxWithdrawOrderAllowed(address _poolStakingAddress, address _staker) public view returns(uint256) {
+    function maxWithdrawOrderAllowed(address _poolStakingAddress, address _staker)
+    public
+    view
+    returns(uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
         if (!_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker)) {
@@ -671,7 +738,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// A delegator is considered active if they have staked into the specified
     /// pool and their stake is not ordered to be withdrawn.
     /// @param _poolStakingAddress The pool staking address.
-    function poolDelegators(address _poolStakingAddress) public view returns(address[] memory) {
+    function poolDelegators(address _poolStakingAddress)
+    public
+    view
+    returns(address[] memory) {
         return _poolDelegators[_poolStakingAddress];
     }
 
@@ -679,7 +749,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// A delegator is considered inactive if their entire stake is ordered to be withdrawn
     /// but not yet claimed.
     /// @param _poolStakingAddress The pool staking address.
-    function poolDelegatorsInactive(address _poolStakingAddress) public view returns(address[] memory) {
+    function poolDelegatorsInactive(address _poolStakingAddress)
+    public
+    view
+    returns(address[] memory) {
         return _poolDelegatorsInactive[_poolStakingAddress];
     }
 
@@ -689,15 +762,18 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _poolStakingAddress The pool staking address.
     /// @param _staker The staker's address.
     function stakeAmountByCurrentEpoch(address _poolStakingAddress, address _staker)
-        public
-        view
-        returns(uint256)
+    public
+    view
+    returns(uint256)
     {
         return _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch];
     }
 
     /// @dev Returns an indicative time of the last block of the current staking epoch before key generation starts.
-    function stakingFixedEpochEndTime() public view returns(uint256) {
+    function stakingFixedEpochEndTime()
+    public
+    view
+    returns(uint256) {
         uint256 startTime = stakingEpochStartTime;
         return startTime + stakingFixedEpochDuration - (stakingFixedEpochDuration == 0 ? 0 : 1);
     }
@@ -709,7 +785,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _stakingAddress The pool added to the array of active pools.
     /// @param _toBeElected The boolean flag which defines whether the specified address should be
     /// added simultaneously to the `poolsToBeElected` array. See the `getPoolsToBeElected` getter.
-    function _addPoolActive(address _stakingAddress, bool _toBeElected) internal {
+    function _addPoolActive(address _stakingAddress, bool _toBeElected)
+    internal {
         if (!isPoolActive(_stakingAddress)) {
             poolIndex[_stakingAddress] = _pools.length;
             _pools.push(_stakingAddress);
@@ -724,7 +801,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Adds the specified staking address to the array of inactive pools returned by
     /// the `getPoolsInactive` getter. Used by the `_removePool` internal function.
     /// @param _stakingAddress The pool added to the array of inactive pools.
-    function _addPoolInactive(address _stakingAddress) internal {
+    function _addPoolInactive(address _stakingAddress)
+    internal {
         uint256 index = poolInactiveIndex[_stakingAddress];
         uint256 length = _poolsInactive.length;
         if (index >= length || _poolsInactive[index] != _stakingAddress) {
@@ -736,7 +814,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Adds the specified staking address to the array of pools returned by the `getPoolsToBeElected`
     /// getter. Used by the `_addPoolActive` internal function. See the `getPoolsToBeElected` getter.
     /// @param _stakingAddress The pool added to the `poolsToBeElected` array.
-    function _addPoolToBeElected(address _stakingAddress) internal {
+    function _addPoolToBeElected(address _stakingAddress)
+    internal {
         uint256 index = poolToBeElectedIndex[_stakingAddress];
         uint256 length = _poolsToBeElected.length;
         if (index >= length || _poolsToBeElected[index] != _stakingAddress) {
@@ -750,7 +829,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Adds the specified staking address to the array of pools returned by the `getPoolsToBeRemoved`
     /// getter. Used by withdrawal functions. See the `getPoolsToBeRemoved` getter.
     /// @param _stakingAddress The pool added to the `poolsToBeRemoved` array.
-    function _addPoolToBeRemoved(address _stakingAddress) internal {
+    function _addPoolToBeRemoved(address _stakingAddress)
+    internal {
         uint256 index = poolToBeRemovedIndex[_stakingAddress];
         uint256 length = _poolsToBeRemoved.length;
         if (index >= length || _poolsToBeRemoved[index] != _stakingAddress) {
@@ -764,7 +844,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// `getPoolsToBeElected` getter. Used by the `_addPoolToBeRemoved` and `_removePool` internal functions.
     /// See the `getPoolsToBeElected` getter.
     /// @param _stakingAddress The pool deleted from the `poolsToBeElected` array.
-    function _deletePoolToBeElected(address _stakingAddress) internal {
+    function _deletePoolToBeElected(address _stakingAddress)
+    internal {
         if (_poolsToBeElected.length != _poolsLikelihood.length) return;
         uint256 indexToDelete = poolToBeElectedIndex[_stakingAddress];
         if (_poolsToBeElected.length > indexToDelete && _poolsToBeElected[indexToDelete] == _stakingAddress) {
@@ -788,7 +869,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// `getPoolsToBeRemoved` getter. Used by the `_addPoolToBeElected` and `_removePool` internal functions.
     /// See the `getPoolsToBeRemoved` getter.
     /// @param _stakingAddress The pool deleted from the `poolsToBeRemoved` array.
-    function _deletePoolToBeRemoved(address _stakingAddress) internal {
+    function _deletePoolToBeRemoved(address _stakingAddress)
+    internal {
         uint256 indexToDelete = poolToBeRemovedIndex[_stakingAddress];
         if (_poolsToBeRemoved.length > indexToDelete && _poolsToBeRemoved[indexToDelete] == _stakingAddress) {
             address lastPool = _poolsToBeRemoved[_poolsToBeRemoved.length - 1];
@@ -802,7 +884,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Removes the specified staking address from the array of active pools returned by
     /// the `getPools` getter. Used by the `removePool`, `removeMyPool`, and withdrawal functions.
     /// @param _stakingAddress The pool removed from the array of active pools.
-    function _removePool(address _stakingAddress) internal {
+    function _removePool(address _stakingAddress)
+    internal {
         uint256 indexToRemove = poolIndex[_stakingAddress];
         if (_pools.length > indexToRemove && _pools[indexToRemove] == _stakingAddress) {
             address lastPool = _pools[_pools.length - 1];
@@ -824,7 +907,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// the `getPoolsInactive` getter. Used by withdrawal functions, by the `_addPoolActive` and
     /// `_removePool` internal functions.
     /// @param _stakingAddress The pool removed from the array of inactive pools.
-    function _removePoolInactive(address _stakingAddress) internal {
+    function _removePoolInactive(address _stakingAddress)
+    internal {
         uint256 indexToRemove = poolInactiveIndex[_stakingAddress];
         if (_poolsInactive.length > indexToRemove && _poolsInactive[indexToRemove] == _stakingAddress) {
             address lastPool = _poolsInactive[_poolsInactive.length - 1];
@@ -847,7 +931,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 _candidateMinStake,
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses
-    ) internal {
+    )
+    internal {
         require(msg.sender == _admin() || block.number == 0,
             "Initialization only on genesis block or by admin");
         require(!isInitialized(), "Already initialized"); // initialization can only be done once
@@ -876,7 +961,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Used by the `stake` and `orderWithdraw` functions. See the `poolDelegators` getter.
     /// @param _poolStakingAddress The pool staking address.
     /// @param _delegator The delegator's address.
-    function _addPoolDelegator(address _poolStakingAddress, address _delegator) internal {
+    function _addPoolDelegator(address _poolStakingAddress, address _delegator)
+    internal {
         address[] storage delegators = _poolDelegators[_poolStakingAddress];
         uint256 index = poolDelegatorIndex[_poolStakingAddress][_delegator];
         uint256 length = delegators.length;
@@ -891,7 +977,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Used by the `_removePoolDelegator` internal function.
     /// @param _poolStakingAddress The pool staking address.
     /// @param _delegator The delegator's address.
-    function _addPoolDelegatorInactive(address _poolStakingAddress, address _delegator) internal {
+    function _addPoolDelegatorInactive(address _poolStakingAddress, address _delegator)
+    internal {
         address[] storage delegators = _poolDelegatorsInactive[_poolStakingAddress];
         uint256 index = poolDelegatorInactiveIndex[_poolStakingAddress][_delegator];
         uint256 length = delegators.length;
@@ -905,7 +992,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Used by the withdrawal functions. See the `poolDelegators` getter.
     /// @param _poolStakingAddress The pool staking address.
     /// @param _delegator The delegator's address.
-    function _removePoolDelegator(address _poolStakingAddress, address _delegator) internal {
+    function _removePoolDelegator(address _poolStakingAddress, address _delegator)
+    internal {
         address[] storage delegators = _poolDelegators[_poolStakingAddress];
         uint256 indexToRemove = poolDelegatorIndex[_poolStakingAddress][_delegator];
         if (delegators.length > indexToRemove && delegators[indexToRemove] == _delegator) {
@@ -926,7 +1014,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Used by the `_addPoolDelegator` and `_removePoolDelegator` internal functions.
     /// @param _poolStakingAddress The pool staking address.
     /// @param _delegator The delegator's address.
-    function _removePoolDelegatorInactive(address _poolStakingAddress, address _delegator) internal {
+    function _removePoolDelegatorInactive(address _poolStakingAddress, address _delegator)
+    internal {
         address[] storage delegators = _poolDelegatorsInactive[_poolStakingAddress];
         uint256 indexToRemove = poolDelegatorInactiveIndex[_poolStakingAddress][_delegator];
         if (delegators.length > indexToRemove && delegators[indexToRemove] == _delegator) {
@@ -945,7 +1034,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// amount totally staked into the pool. See the `getPoolsLikelihood` getter.
     /// Used by the staking and withdrawal functions.
     /// @param _poolStakingAddress The address of the pool for which the probability coefficient must be updated.
-    function _setLikelihood(address _poolStakingAddress) internal {
+    function _setLikelihood(address _poolStakingAddress)
+    internal {
         (bool isToBeElected, uint256 index) = _isPoolToBeElected(_poolStakingAddress);
 
         if (!isToBeElected) return;
@@ -966,7 +1056,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// into the specified pool (staking address). Used by the `orderWithdraw`, `_stake`, and `_withdraw` functions.
     /// @param _poolStakingAddress The staking address of the pool.
     /// @param _delegator The address of the delegator.
-    function _snapshotDelegatorStake(address _poolStakingAddress, address _delegator) internal {
+    function _snapshotDelegatorStake(address _poolStakingAddress, address _delegator)
+    internal {
         uint256 nextStakingEpoch = stakingEpoch + 1;
         uint256 newAmount = stakeAmount[_poolStakingAddress][_delegator];
 
@@ -984,7 +1075,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _poolStakingAddress The staking address of the pool where the coins should be staked.
     /// @param _staker The staker's address.
     /// @param _amount The amount of coins to be staked.
-    function _stake(address _poolStakingAddress, address _staker, uint256 _amount) internal {
+    function _stake(address _poolStakingAddress, address _staker, uint256 _amount)
+    internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
         require(poolMiningAddress != address(0), "Stake: miningAddress is 0");
@@ -1033,7 +1125,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _poolStakingAddress The staking address of the pool from which the coins should be withdrawn.
     /// @param _staker The staker's address.
     /// @param _amount The amount of coins to be withdrawn.
-    function _withdraw(address _poolStakingAddress, address _staker, uint256 _amount) internal {
+    function _withdraw(address _poolStakingAddress, address _staker, uint256 _amount)
+    internal {
         require(_poolStakingAddress != address(0));
         require(_amount != 0);
 
@@ -1068,7 +1161,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Contains a common logic for these functions.
     /// @param _poolStakingAddress The staking address of the pool from which the coins are withdrawn.
     /// @param _staker The staker's address.
-    function _withdrawCheckPool(address _poolStakingAddress, address _staker) internal {
+    function _withdrawCheckPool(address _poolStakingAddress, address _staker)
+    internal {
         if (_staker == _poolStakingAddress) {
             address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
             if (validatorSetContract.isValidator(miningAddress)) {
@@ -1094,7 +1188,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 _prevDelegatorStake,
         address _poolStakingAddress,
         address _delegator
-    ) internal view returns(uint256 delegatorStake) {
+    )
+    internal
+    view
+    returns(uint256 delegatorStake) {
         while (true) {
             delegatorStake = delegatorStakeSnapshot[_poolStakingAddress][_delegator][_epoch];
             if (delegatorStake != 0) {
@@ -1110,14 +1207,20 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Returns the max number of candidates (including validators). See the MAX_CANDIDATES constant.
     /// Needed mostly for unit tests.
-    function _getMaxCandidates() internal pure returns(uint256) {
+    function _getMaxCandidates()
+    internal
+    pure
+    returns(uint256) {
         return MAX_CANDIDATES;
     }
 
     /// @dev Returns a boolean flag indicating whether the specified pool is fully empty
     /// (all stakes are withdrawn including ordered withdrawals).
     /// @param _poolStakingAddress The staking address of the pool
-    function _isPoolEmpty(address _poolStakingAddress) internal view returns(bool) {
+    function _isPoolEmpty(address _poolStakingAddress)
+    internal
+    view
+    returns(bool) {
         return stakeAmountTotal[_poolStakingAddress] == 0 && orderedWithdrawAmountTotal[_poolStakingAddress] == 0;
     }
 
@@ -1127,7 +1230,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @return `bool toBeElected` - The boolean flag indicating whether the `_stakingAddress` is in the
     /// `poolsToBeElected` array.
     /// `uint256 index` - The position of the item in the `poolsToBeElected` array if `toBeElected` is `true`.
-    function _isPoolToBeElected(address _stakingAddress) internal view returns(bool toBeElected, uint256 index) {
+    function _isPoolToBeElected(address _stakingAddress)
+    internal
+    view
+    returns(bool toBeElected, uint256 index) {
         index = poolToBeElectedIndex[_stakingAddress];
         if (_poolsToBeElected.length > index && _poolsToBeElected[index] == _stakingAddress) {
             return (true, index);
@@ -1139,7 +1245,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// Used by all withdrawal functions.
     /// @param _miningAddress The mining address of the validator's pool.
     /// @param _isDelegator Whether the withdrawal is requested by a delegator, not by a candidate/validator.
-    function _isWithdrawAllowed(address _miningAddress, bool _isDelegator) internal view returns(bool) {
+    function _isWithdrawAllowed(address _miningAddress, bool _isDelegator)
+    internal
+    view
+    returns(bool) {
         if (_isDelegator) {
             if (validatorSetContract.areDelegatorsBanned(_miningAddress)) {
                 // The delegator cannot withdraw from the banned validator pool until the ban is expired
