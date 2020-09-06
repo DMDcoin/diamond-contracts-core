@@ -11,7 +11,10 @@ contract UpgradeabilityAdmin {
     /**
      * @return The admin slot.
      */
-    function _admin() internal view returns (address adm) {
+    function _admin()
+    internal
+    view
+    returns (address adm) {
         bytes32 slot = ADMIN_SLOT;
         assembly {
             adm := sload(slot)

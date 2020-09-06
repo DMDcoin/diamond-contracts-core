@@ -42,7 +42,9 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
     /// @dev Clears the state (acks and parts of previous validators.
     /// @param _prevValidators The list of previous validators.
-    function clearPrevKeyGenState(address[] calldata _prevValidators) external onlyValidatorSet {
+    function clearPrevKeyGenState(address[] calldata _prevValidators)
+    external
+    onlyValidatorSet {
 
         for (uint256 i = 0; i < _prevValidators.length; i++) {
             delete parts[_prevValidators[i]];
@@ -73,7 +75,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         }
     }
 
-    function writePart(bytes calldata _part) external {
+    function writePart(bytes calldata _part)
+    external {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -81,7 +84,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         parts[msg.sender] = _part;
     }
 
-    function writeAck(bytes calldata _ack) external {
+    function writeAck(bytes calldata _ack)
+    external {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -89,12 +93,18 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         acks[msg.sender].push(_ack);
     }
 
-    function getAcksLength(address val) public view returns(uint256) {
+    function getAcksLength(address val)
+    public
+    view
+    returns(uint256) {
         return acks[val].length;
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 }

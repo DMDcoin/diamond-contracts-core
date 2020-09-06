@@ -28,7 +28,8 @@ contract Proxy {
      * It will return to the external caller whatever the implementation returns.
      * @param implementation Address to delegate.
      */
-    function _delegate(address implementation) internal {
+    function _delegate(address implementation)
+    internal {
         assembly {
             // Copy msg.data. We take full control of memory in this inline assembly
             // block because it will not return to Solidity code. We overwrite the
@@ -54,14 +55,16 @@ contract Proxy {
      * Can be redefined in derived contracts to add functionality.
      * Redefinitions must call super._willFallback().
      */
-    function _willFallback() internal {
+    function _willFallback()
+    internal {
     }
 
     /**
      * @dev fallback implementation.
      * Extracted to enable manual triggering.
      */
-    function _fallback() internal {
+    function _fallback()
+    internal {
         _willFallback();
         _delegate(_implementation());
     }

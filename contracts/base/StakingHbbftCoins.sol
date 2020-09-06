@@ -39,7 +39,10 @@ contract StakingHbbftCoins is StakingHbbftBase {
     function claimReward(
         uint256[] memory _stakingEpochs,
         address _poolStakingAddress
-    ) public gasPriceIsValid onlyInitialized {
+    )
+    public
+    gasPriceIsValid
+    onlyInitialized {
         address payable staker = msg.sender;
         uint256 firstEpoch;
         uint256 lastEpoch;
@@ -112,7 +115,10 @@ contract StakingHbbftCoins is StakingHbbftBase {
         uint256[] memory _stakingEpochs,
         address _poolStakingAddress,
         address _staker
-    ) public view returns(uint256) {
+    )
+    public
+    view
+    returns(uint256) {
         uint256 firstEpoch;
         uint256 lastEpoch;
 
@@ -164,7 +170,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
     /// @dev Sends coins from this contract to the specified address.
     /// @param _to The target address to send amount to.
     /// @param _amount The amount to send.
-    function _sendWithdrawnStakeAmount(address payable _to, uint256 _amount) internal {
+    function _sendWithdrawnStakeAmount(address payable _to, uint256 _amount)
+    internal {
         if (!_to.send(_amount)) {
             // We use the `Sacrifice` trick to be sure the coins can be 100% sent to the receiver.
             // Otherwise, if the receiver is a contract which has a revert in its fallback function,

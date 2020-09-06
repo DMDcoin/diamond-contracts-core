@@ -78,7 +78,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev Adds the address for which transactions of any type must be allowed.
     /// Can only be called by the `owner`. See also the `allowedTxTypes` getter.
     /// @param _sender The address for which transactions of any type must be allowed.
-    function addAllowedSender(address _sender) public onlyOwner onlyInitialized {
+    function addAllowedSender(address _sender)
+    public
+    onlyOwner
+    onlyInitialized {
         _addAllowedSender(_sender);
     }
 
@@ -86,7 +89,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// to initiate transactions of any type. Can only be called by the `owner`.
     /// See also the `addAllowedSender` function and `allowedSenders` getter.
     /// @param _sender The removed address.
-    function removeAllowedSender(address _sender) public onlyOwner onlyInitialized {
+    function removeAllowedSender(address _sender)
+    public
+    onlyOwner
+    onlyInitialized {
         require(isSenderAllowed[_sender]);
 
         uint256 allowedSendersLength = _allowedSenders.length;
@@ -105,24 +111,36 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // =============================================== Getters ========================================================
 
     /// @dev Returns the contract's name recognizable by node's engine.
-    function contractName() public pure returns(string memory) {
+    function contractName()
+    public
+    pure
+    returns(string memory) {
         return "TX_PERMISSION_CONTRACT";
     }
 
     /// @dev Returns the contract name hash needed for node's engine.
-    function contractNameHash() public pure returns(bytes32) {
+    function contractNameHash()
+    public
+    pure
+    returns(bytes32) {
         return keccak256(abi.encodePacked(contractName()));
     }
 
     /// @dev Returns the contract's version number needed for node's engine.
-    function contractVersion() public pure returns(uint256) {
+    function contractVersion()
+    public
+    pure
+    returns(uint256) {
         return 3;
     }
 
     /// @dev Returns the list of addresses allowed to initiate transactions of any type.
     /// For these addresses the `allowedTxTypes` getter always returns the `ALL` bit mask
     /// (see https://wiki.parity.io/Permissioning.html#how-it-works-1).
-    function allowedSenders() public view returns(address[] memory) {
+    function allowedSenders()
+    public
+    view
+    returns(address[] memory) {
         return _allowedSenders;
     }
 
@@ -147,10 +165,9 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         uint256 _gasPrice,
         bytes memory _data
     )
-        public
-        view
-        returns(uint32 typesMask, bool cache)
-    {
+    public
+    view
+    returns(uint32 typesMask, bool cache) {
         if (isSenderAllowed[_sender]) {
             // Let the `_sender` initiate any transaction if the `_sender` is in the `allowedSenders` list
             return (ALL, false);
@@ -227,7 +244,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 
@@ -255,7 +275,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
-    function _addAllowedSender(address _sender) internal {
+    function _addAllowedSender(address _sender)
+    internal {
         require(!isSenderAllowed[_sender]);
         require(_sender != address(0));
         _allowedSenders.push(_sender);

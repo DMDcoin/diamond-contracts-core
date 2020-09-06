@@ -110,11 +110,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// This function performs all of the automatic operations needed for accumulating block producing statistics,
     /// starting a new staking epoch, snapshotting staking amounts for the upcoming staking epoch,
     /// and rewards distributing at the end of a staking epoch.
-    /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e. just before the pending validators are fiinalized.
+    /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e.
+    /// just before the pending validators are fiinalized.
     function reward(address[] calldata _benefactors, uint16[] calldata _kind, bool _isEpochEndBlock)
-        external
-        onlySystem
-        returns(uint256 rewardsNative)
+    external
+    onlySystem
+    returns(uint256 rewardsNative)
     {
         if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
             return 0;
@@ -146,7 +147,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             // Choose new validators
             validatorSetContract.newValidatorSet();
 
-            // this check should not be required anymore!! It should always come after the fixed epoch duration has elapsed.
+            // this check should not be required anymore!! 
+            //It should always come after the fixed epoch duration has elapsed.
             require(currentTimestamp >= stakingFixedEpochEndTime, "Fixed epoch duration has not elapsed yet");
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
@@ -186,12 +188,18 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Returns an array of epoch numbers for which the specified pool (mining address)
     /// got a non-zero reward.
-    function epochsPoolGotRewardFor(address _miningAddress) public view returns(uint256[] memory) {
+    function epochsPoolGotRewardFor(address _miningAddress)
+    public
+    view
+    returns(uint256[] memory) {
         return _epochsPoolGotRewardFor[_miningAddress];
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 
@@ -202,7 +210,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     function epochsToClaimRewardFrom(
         address _poolStakingAddress,
         address _staker
-    ) public view returns(uint256[] memory epochsToClaimFrom) {
+    )
+    public
+    view
+    returns(uint256[] memory epochsToClaimFrom) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         bool isDelegator = _poolStakingAddress != _staker;
@@ -255,7 +266,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// the potentially possible reward coefficient is returned.
     /// @param _stakingAddress The staking address of the validator/candidate
     /// pool for which the getter must return the coefficient.
-    function validatorRewardPercent(address _stakingAddress) public view returns(uint256) {
+    function validatorRewardPercent(address _stakingAddress)
+    public
+    view
+    returns(uint256) {
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         uint256 stakingEpoch = stakingContract.stakingEpoch();
 
@@ -300,7 +314,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 _validatorStaked,
         uint256 _totalStaked,
         uint256 _poolReward
-    ) public view returns(uint256) {
+    )
+    public
+    view
+    returns(uint256) {
         if (_delegatorStaked == 0 || _validatorStaked == 0 || _totalStaked == 0) {
             return 0;
         }
@@ -328,7 +345,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 _validatorStaked,
         uint256 _totalStaked,
         uint256 _poolReward
-    ) public view returns(uint256) {
+    )
+    public
+    view
+    returns(uint256) {
         if (_validatorStaked == 0 || _totalStaked == 0) {
             return 0;
         }
@@ -356,7 +376,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @param _stakingEpoch The number of the current staking epoch.
     /// @return Returns the reward amount in native coins needed to be minted
     /// and accrued to the balance of this contract.
-    function _distributeRewards(uint256 _stakingEpoch) internal returns(uint256) {
+    function _distributeRewards(uint256 _stakingEpoch)
+    internal
+    returns(uint256) {
         
         address[] memory validators = validatorSetContract.getValidators();
 
@@ -418,7 +440,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         IStakingHbbft _stakingContract,
         uint256 _stakingEpoch,
         address _miningAddress
-    ) internal {
+    )
+    internal {
         if (snapshotPoolTotalStakeAmount[_stakingEpoch][_miningAddress] != 0) {
             return;
         }
@@ -436,7 +459,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// from the balance of the `BlockRewardHbbft` contract to the specified address as a reward.
     /// @param _amount The amount of native coins to transfer as a reward.
     /// @param _to The target address to transfer the amounts to.
-    function _transferNativeReward(uint256 _amount, address payable _to) internal {
+    function _transferNativeReward(uint256 _amount, address payable _to)
+    internal {
         if (_amount != 0 && !_to.send(_amount)) {
             // We use the `Sacrifice` trick to be sure the coins can be 100% sent to the receiver.
             // Otherwise, if the receiver is a contract which has a revert in its fallback function,

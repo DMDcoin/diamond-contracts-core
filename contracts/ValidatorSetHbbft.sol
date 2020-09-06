@@ -142,7 +142,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// After this function is called, the `getValidators` getter returns the new validator set.
     /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
     /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
-    function finalizeChange() external onlySystem {
+    function finalizeChange()
+    external
+    onlySystem {
         if (_pendingValidators.length != 0) {
             // Apply a new validator set formed by the `newValidatorSet` function
             _savePreviousValidators();
@@ -202,7 +204,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// is greater than MAX_VALIDATORS, the logic chooses the validators randomly using a random seed generated and
     /// stored by the `RandomHbbft` contract.
     /// Automatically called by the `BlockRewardHbbft.reward` function at the latest block of the staking epoch.
-    function newValidatorSet() external onlyBlockRewardContract {
+    function newValidatorSet()
+    external
+    onlyBlockRewardContract {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
     
         // Choose new validators
@@ -244,7 +248,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Removes malicious validators.
     /// Called by the the Hbbft engine when a validator has been inactive for a long period.
     /// @param _miningAddresses The mining addresses of the malicious validators.
-    function removeMaliciousValidators(address[] calldata _miningAddresses) external onlySystem {
+    function removeMaliciousValidators(address[] calldata _miningAddresses)
+    external
+    onlySystem {
         _removeMaliciousValidators(_miningAddresses, "inactive");
     }
 
@@ -257,7 +263,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function reportMalicious(
         address _maliciousMiningAddress,
         uint256 _blockNumber
-    ) external onlyInitialized {
+    )
+    external
+    onlyInitialized {
         address reportingMiningAddress = msg.sender;
 
         _incrementReportingCounter(reportingMiningAddress);
@@ -315,7 +323,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// and should never be used as a pool before.
     /// @param _stakingAddress The staking address of the newly created pool. Cannot be equal to the `_miningAddress`
     /// and should never be used as a pool before.
-    function setStakingAddress(address _miningAddress, address _stakingAddress) external onlyStakingContract {
+    function setStakingAddress(address _miningAddress, address _stakingAddress)
+    external
+    onlyStakingContract {
         _setStakingAddress(_miningAddress, _stakingAddress);
     }
 
@@ -324,27 +334,39 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns a boolean flag indicating whether delegators of the specified pool are currently banned.
     /// A validator pool can be banned when they misbehave (see the `_removeMaliciousValidator` function).
     /// @param _miningAddress The mining address of the pool.
-    function areDelegatorsBanned(address _miningAddress) public view returns(bool) {
+    function areDelegatorsBanned(address _miningAddress)
+    public
+    view
+    returns(bool) {
         return this.getCurrentTimestamp() <= bannedDelegatorsUntil[_miningAddress];
     }
 
     /// @dev Returns the previous validator set (validators' mining addresses array).
     /// The array is stored by the `finalizeChange` function
     /// when a new staking epoch's validator set is finalized.
-    function getPreviousValidators() public view returns(address[] memory) {
+    function getPreviousValidators()
+    public
+    view
+    returns(address[] memory) {
         return _previousValidators;
     }
 
     /// @dev Returns the current array of pending validators i.e. waiting to be activated in the new epoch
     /// The pending array is changed when a validator is removed as malicious
     /// or the validator set is updated by the `newValidatorSet` function.
-    function getPendingValidators() public view returns(address[] memory) {
+    function getPendingValidators()
+    public
+    view
+    returns(address[] memory) {
         return _pendingValidators;
     }
 
     /// @dev Returns the current validator set (an array of mining addresses)
     /// which always matches the validator set kept in validator's node.
-    function getValidators() public view returns(address[] memory) {
+    function getValidators()
+    public
+    view
+    returns(address[] memory) {
         return _currentValidators;
     }
 

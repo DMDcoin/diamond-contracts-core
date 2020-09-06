@@ -44,7 +44,10 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     // =============================================== Setters ========================================================
 
 
-    function setCurrentSeed(uint256 _currentSeed) external onlyInitialized onlySystem {
+    function setCurrentSeed(uint256 _currentSeed)
+    external
+    onlyInitialized
+    onlySystem {
         currentSeed = _currentSeed;
     }
 
@@ -60,7 +63,10 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     // =============================================== Getters ========================================================
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 
@@ -69,7 +75,8 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
 
     /// @dev Initializes the network parameters. Used by the `initialize` function.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function _initialize(address _validatorSet) internal {
+    function _initialize(address _validatorSet)
+    internal {
         require(msg.sender == _admin() || block.number == 0);
         require(!isInitialized());
         require(_validatorSet != address(0));
@@ -77,7 +84,10 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     }
 
     /// @dev Returns the current `coinbase` address. Needed mostly for unit tests.
-    function _getCoinbase() internal view returns(address) {
+    function _getCoinbase()
+    internal
+    view
+    returns(address) {
         return block.coinbase;
     }
 }

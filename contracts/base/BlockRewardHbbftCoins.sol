@@ -12,7 +12,9 @@ contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
     /// from the balance of the `BlockRewardHbbft` contract to the specified address as a reward.
     /// @param _nativeCoins The amount of native coins to transfer as a reward.
     /// @param _to The target address to transfer the amounts to.
-    function transferReward(uint256 _nativeCoins, address payable _to) external onlyStakingContract {
+    function transferReward(uint256 _nativeCoins, address payable _to)
+    external
+    onlyStakingContract {
         _transferNativeReward(_nativeCoins, _to);
     }
 
@@ -29,7 +31,10 @@ contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
         uint256 _delegatorStake,
         uint256 _stakingEpoch,
         address _poolMiningAddress
-    ) external view returns(uint256 nativeReward) {
+    )
+    external
+    view
+    returns(uint256 nativeReward) {
         uint256 validatorStake = snapshotPoolValidatorStakeAmount[_stakingEpoch][_poolMiningAddress];
         uint256 totalStake = snapshotPoolTotalStakeAmount[_stakingEpoch][_poolMiningAddress];
 
@@ -51,7 +56,10 @@ contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
     function getValidatorReward(
         uint256 _stakingEpoch,
         address _poolMiningAddress
-    ) external view returns(uint256 nativeReward) {
+    )
+    external
+    view
+    returns(uint256 nativeReward) {
         uint256 validatorStake = snapshotPoolValidatorStakeAmount[_stakingEpoch][_poolMiningAddress];
         uint256 totalStake = snapshotPoolTotalStakeAmount[_stakingEpoch][_poolMiningAddress];
 
