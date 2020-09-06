@@ -64,7 +64,7 @@ contract('StakingHbbft', async accounts => {
     validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
     validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
 
-    increaseTime(1);
+    await increaseTime(1);
 
     keyGenHistory = await KeyGenHistory.new();
     keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
@@ -118,7 +118,7 @@ contract('StakingHbbft', async accounts => {
       ).should.be.fulfilled;
 
       // Emulate block number
-      increaseTime(2);
+      await increaseTime(2);
       //await stakingHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
       //await validatorSetHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
     });
@@ -137,7 +137,8 @@ contract('StakingHbbft', async accounts => {
       await increaseTime(2);
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.fulfilled;
-      true.should.be.equal(await stakingHbbft.isPoolActive.call(candidateStakingAddress));
+      const poolIsActiveNow = await stakingHbbft.isPoolActive.call(candidateStakingAddress);
+      true.should.be.equal(poolIsActiveNow);
     });
     it('should fail if mining address is 0', async () => {
       await stakingHbbft.addPool('0x0000000000000000000000000000000000000000', '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
@@ -375,7 +376,7 @@ contract('StakingHbbft', async accounts => {
       delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
       await stakingHbbft.stake(initialStakingAddresses[0], {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
 
-      increaseTime(4);
+      await increaseTime(4);
       // Epoch's fixed duration ends
       //const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
       //await setCurrentBlockNumber(stakingFixedEpochEndBlock);
@@ -2315,7 +2316,7 @@ contract('StakingHbbft', async accounts => {
   async function callReward(isEpochEndBlock) {
     const validators = await validatorSetHbbft.getValidators.call();
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
-    increaseTime(2);
+    await increaseTime(2);
     const {logs} = await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
     // Emulate minting native coins
     logs[0].event.should.be.equal("CoinsRewarded");

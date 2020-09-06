@@ -63,7 +63,7 @@ contract('BlockRewardHbbft', async accounts => {
       validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
       validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
 
-      increaseTime(1);
+      await increaseTime(1);
       
       keyGenHistory = await KeyGenHistory.new();
       keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
