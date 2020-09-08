@@ -418,8 +418,13 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (poolReward != 0) {
             for (uint256 i = 0; i < numValidators; i++) {
                 if (isRewardedValidator[i]){
+                    //DEBUG: this require has been added for debug reasons.
+                    require(epochPoolNativeReward[_stakingEpoch][validators[i]] == 0, 
+                        'cant distribute rewards: there is already a pool reward defined for this epoch and validator');
                     epochPoolNativeReward[_stakingEpoch][validators[i]] = poolReward;
+                    
                     distributedAmount += poolReward;
+
                     _epochsPoolGotRewardFor[validators[i]].push(_stakingEpoch);
                 }
             }

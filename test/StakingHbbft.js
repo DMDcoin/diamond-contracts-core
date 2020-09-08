@@ -700,14 +700,14 @@ contract('StakingHbbft', async accounts => {
           const reversedEpochsPoolRewarded = [...epochsPoolRewarded].reverse();
           const currentEpoch = (await stakingHbbft.stakingEpoch.call()).toNumber();
           if (reversedEpochsPoolRewarded[0] < currentEpoch) {
-            await stakingHbbft.claimReward(reversedEpochsPoolRewarded, stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: need strictly increasing order.");
+            await stakingHbbft.claimReward(reversedEpochsPoolRewarded, stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: need strictly increasing order");
           } else {
-            await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch.");    
+            await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch");    
           }
         }
 
         await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1]).should.be.fulfilled;
-        await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch.");
+        await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch");
         await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1] + 1).should.be.fulfilled;
 
         if (epochsPoolRewarded.length == 1) {
@@ -772,6 +772,7 @@ contract('StakingHbbft', async accounts => {
       //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
       //await setCurrentBlockNumber(startBlock);
+      await increaseTime(86400);
       await stakingHbbft.stake(stakingAddress, {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, {value: epochPoolReward}).should.be.fulfilled;
       (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
@@ -779,6 +780,7 @@ contract('StakingHbbft', async accounts => {
 
       // // Emulate rewards for the pool on epoch #11
       stakingEpoch = 11;
+      await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, {value: epochPoolReward}).should.be.fulfilled;
       (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
       await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
@@ -796,6 +798,9 @@ contract('StakingHbbft', async accounts => {
 
       result.logs.length.should.be.equal(0);
       delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
+
+      const unclaimedEpochs = await blockRewardHbbft.epochsPoolGotRewardFor(miningAddress);
+      
 
       result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
       result.logs.length.should.be.equal(5);
@@ -1167,7 +1172,7 @@ contract('StakingHbbft', async accounts => {
       //await setCurrentBlockNumber(fixedEpochEndBlock);
       await callReward(false);
 
-      endBlock = fixedEpochEndBlock.add(keyGenerationDuration);
+      //endBlock = fixedEpochEndBlock.add(keyGenerationDuration);
       //await setCurrentBlockNumber(endBlock);
 
       let blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));

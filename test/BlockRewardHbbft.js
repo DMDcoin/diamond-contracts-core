@@ -63,7 +63,7 @@ contract('BlockRewardHbbft', async accounts => {
       validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
       validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
 
-      await increaseTime(1);
+      //await increaseTime(1);
       
       keyGenHistory = await KeyGenHistory.new();
       keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
@@ -167,6 +167,9 @@ contract('BlockRewardHbbft', async accounts => {
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.length.should.be.equal(0);
 
+      //now, timeforward to transition 1: new validator set chosen.
+      //await goToTransition1();
+
       const validators = await validatorSetHbbft.getValidators.call();
       validators.length.should.be.equal(3);
     });
@@ -264,9 +267,6 @@ contract('BlockRewardHbbft', async accounts => {
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
   }
 
-  function sleep(milliseconds) {
-    return new Promise(resolve => setTimeout(resolve, milliseconds));
-   }
 
   async function increaseTime(time) {
   
@@ -278,6 +278,7 @@ contract('BlockRewardHbbft', async accounts => {
 
   }
 
+  
   // async function setCurrentBlockNumber(blockNumber) {
   //   await blockRewardHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
   //   await randomHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
