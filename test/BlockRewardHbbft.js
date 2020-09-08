@@ -28,6 +28,8 @@ contract('BlockRewardHbbft', async accounts => {
   // one epoch, 3 seconds
   const STAKING_FIXED_EPOCH_DURATION = new BN(3);
 
+  const STAKING_TRANSITION_WINDOW_LENGTH = new BN(2);
+  
   //const STAKING_EPOCH_DURATION = new BN(120954 + 2);
   
   const KEY_GEN_DURATION = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
@@ -99,6 +101,7 @@ contract('BlockRewardHbbft', async accounts => {
         MIN_STAKE, // _delegatorMinStake
         MIN_STAKE, // _candidateMinStake
         STAKING_FIXED_EPOCH_DURATION, // _stakingFixedEpochDuration,
+        STAKING_TRANSITION_WINDOW_LENGTH, // _stakingTransitionTimeframeLength
         STAKE_WITHDRAW_DISALLOW_PERIOD, // _stakeWithdrawDisallowPeriod
         initialValidatorsPubKeys, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses

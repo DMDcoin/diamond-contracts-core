@@ -9,6 +9,7 @@ interface IStakingHbbft {
         uint256,
         uint256,
         uint256,
+        uint256,
         bytes32[] calldata,
         bytes16[] calldata
     ) external;

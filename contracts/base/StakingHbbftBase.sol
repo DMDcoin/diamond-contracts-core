@@ -124,7 +124,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev The fixed duration of each staking epoch before KeyGen starts i.e. before the upcoming ("pending") validators are selected.
     uint256 public stakingFixedEpochDuration;
 
-    /// @dev The timestampt of the last block of the the previous epoch. The timestamp of the current epoch must be '>=' than this.
+    /// @dev Length of the timeframe in seconds for the transition to the new validator set.
+    uint256 public stakingTransitionTimeframeLength;
+
+    /// @dev The timestampt of the last block of the the previous epoch. 
+    /// The timestamp of the current epoch must be '>=' than this.
     uint256 public stakingEpochStartTime;
 
     /// @dev Returns the total amount of staking coins currently staked into the specified pool.
@@ -290,6 +294,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _delegatorMinStake The minimum allowed amount of delegator stake in Wei.
     /// @param _candidateMinStake The minimum allowed amount of candidate/validator stake in Wei.
     /// @param _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts.
+    /// @param _stakingTransitionTimeframeLength Length of the timeframe in seconds for the transition
+    /// to the new validator set.
     /// @param _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
@@ -298,6 +304,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 _delegatorMinStake,
         uint256 _candidateMinStake,
         uint256 _stakingFixedEpochDuration,
+        uint256 _stakingTransitionTimeframeLength,
         uint256 _stakingWithdrawDisallowPeriod,
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
@@ -306,6 +313,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         require(_stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod,
             "FixedEpochDuration must be longer than withdrawDisallowPeriod");
         require(_stakingWithdrawDisallowPeriod != 0, "WithdrawDisallowPeriod is 0");
+        require(_stakingTransitionTimeframeLength != 0, "The transition timeframe must be longer than 0");
+        require(_stakingTransitionTimeframeLength < _stakingFixedEpochDuration, 
+            "The transition timeframe must be shorter then the epoch duration");
+
         _initialize(
             _validatorSetContract,
             _initialStakingAddresses,
@@ -317,6 +328,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         stakingFixedEpochDuration = _stakingFixedEpochDuration;
         stakingWithdrawDisallowPeriod = _stakingWithdrawDisallowPeriod;
         stakingEpochStartTime = validatorSetContract.getCurrentTimestamp();
+        stakingTransitionTimeframeLength = _stakingTransitionTimeframeLength;
     }
 
     /// @dev Removes a specified pool from the `pools` array (a list of active pools which can be retrieved by the
@@ -767,6 +779,17 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     returns(uint256)
     {
         return _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch];
+    }
+
+    /// @dev indicates the time when the new validatorset for the next epoch gets chosen.
+    /// this is the start of a timeframe before the end of the epoch,
+    /// that is long enough for the validators
+    /// to create a new shared key.
+    function startTimeOfTransitionOne() 
+    public
+    view
+    returns(uint256) {
+        return stakingEpochStartTime + stakingFixedEpochDuration - stakingTransitionTimeframeLength;
     }
 
     /// @dev Returns an indicative time of the last block of the current staking epoch before key generation starts.

@@ -32,14 +32,15 @@ contract InitializerHbbft {
     /// _stakingParams[1]: _candidateMinStake The minimum allowed amount of candidate stake in Wei
     /// (see the `StakingHbbft` contract).
     /// _stakingParams[2]: _stakingEpochDuration The duration of a staking epoch.
-    /// _stakingParams[3]: _stakingWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
+    /// _stakingParams[3]: _stakingTransitionTimeframeLength Length of the timeframe in seconds for the transition
+    /// _stakingParams[4]: _stakingWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
     /// during which participants cannot stake or withdraw their staking tokens
     constructor(
         address[] memory _contracts,
         address _owner,
         address[] memory _miningAddresses,
         address[] memory _stakingAddresses,
-        uint256[4] memory _stakingParams,
+        uint256[5] memory _stakingParams,
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses,
         bytes[] memory _parts,
@@ -61,6 +62,7 @@ contract InitializerHbbft {
             _stakingParams[1],
             _stakingParams[2],
             _stakingParams[3],
+            _stakingParams[4],
             _publicKeys,
             _internetAddresses
         );
