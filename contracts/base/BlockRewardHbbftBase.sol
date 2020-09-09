@@ -136,20 +136,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 stakingFixedEpochEndTime = stakingContract.stakingFixedEpochEndTime();
         uint256 nativeTotalRewardAmount;
         
-        // Store the current timestamp in a local vairable
-        uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
-
-        bool isEpochEndBlock = currentTimestamp >= stakingFixedEpochEndTime;
-
         // If this is the last block of the epoch i.e. master key has been generated.
-        if (isEpochEndBlock) {
 
-            // Choose new validators
-            validatorSetContract.newValidatorSet();
+        if (_isEpochEndBlock) {
 
-            // this check should not be required anymore!! 
-            //It should always come after the fixed epoch duration has elapsed.
-            require(currentTimestamp >= stakingFixedEpochEndTime, "Fixed epoch duration has not elapsed yet");
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
@@ -177,6 +167,25 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             }
             // Remember validator's min reward percent for the upcoming staking epoch
             validatorMinRewardPercent[nextStakingEpoch] = VALIDATOR_MIN_REWARD_PERCENT;
+
+            // the rewards got distributed, 
+            // we now can finalize the epoch and start with a new one.
+            validatorSetContract.finalizeChange();
+
+        } else {
+            // Store the current timestamp in a local vairable
+            uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
+
+            //we are in a transition to phase 2 if the time for it arrived,
+            // and we do not have pendingValidators yet.
+            bool isPhaseTransition = 
+                currentTimestamp >= stakingFixedEpochEndTime 
+                && validatorSetContract.getPendingValidators().length == 0;
+
+            if (isPhaseTransition) {
+                // Choose new validators
+                validatorSetContract.newValidatorSet();
+            }
         }
 
         emit CoinsRewarded(nativeTotalRewardAmount);

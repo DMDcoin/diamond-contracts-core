@@ -137,26 +137,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     // =============================================== Setters ========================================================
 
-    /// @dev Called by the system when a pending validator set is ready to be activated.
-    /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
-    /// After this function is called, the `getValidators` getter returns the new validator set.
-    /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
-    /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
-    function finalizeChange()
-    external
-    onlySystem {
-        if (_pendingValidators.length != 0) {
-            // Apply a new validator set formed by the `newValidatorSet` function
-            _savePreviousValidators();
-            _finalizeNewValidators();
-            // new epoch starts
-            stakingContract.incrementStakingEpoch();
-            delete _pendingValidators;
-        }
-        // The very first call of  `finalizeChange` happens in the genesis block (block #0)
-        stakingContract.setStakingEpochStartTime(this.getCurrentTimestamp());            
-    }
-
     /// @dev Initializes the network parameters. Used by the
     /// constructor of the `InitializerHbbft` contract.
     /// @param _blockRewardContract The address of the `BlockRewardHbbft` contract.
@@ -198,6 +178,36 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             validatorCounter[miningAddress]++;
             _setStakingAddress(miningAddress, _initialStakingAddresses[i]);
         }
+    }
+
+      /// @dev Called by the system when a pending validator set is ready to be activated.
+    /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
+    /// After this function is called, the `getValidators` getter returns the new validator set.
+    /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
+    /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
+    function finalizeChange()
+    external
+    onlyBlockRewardContract {
+
+        //require(_pendingValidators.length != 0,
+        //    "DEBUG ASSERT: no pending Validators to finalize change.");
+
+        //in the case noone staked yet, the system keeps the current validator set.
+        //maybe do more checks here ?
+        //at least as debug asserts ?
+
+        if (_pendingValidators.length != 0) {
+
+            // Apply a new validator set formed by the `newValidatorSet` function
+            _savePreviousValidators();
+            _finalizeNewValidators();
+        }
+
+        // new epoch starts
+        stakingContract.incrementStakingEpoch();
+        delete _pendingValidators;
+        stakingContract.setStakingEpochStartTime(this.getCurrentTimestamp());
+
     }
 
     /// @dev Implements the logic which forms a new validator set. If the number of active pools

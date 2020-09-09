@@ -10,6 +10,7 @@ interface IValidatorSetHbbft {
         address[] calldata,
         address[] calldata
     ) external;
+    function finalizeChange() external;
     function newValidatorSet() external;
     function removeMaliciousValidators(address[] calldata) external;
     function setStakingAddress(address, address) external;

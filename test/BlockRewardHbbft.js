@@ -25,11 +25,12 @@ contract('BlockRewardHbbft', async accounts => {
   let initialValidatorsPubKeys;
   let initialValidatorsIpAddresses;
   
-  // one epoch, 3 seconds
-  const STAKING_FIXED_EPOCH_DURATION = new BN(3);
+  // one epoch in 1 day.
+  const STAKING_FIXED_EPOCH_DURATION = new BN(86400);
 
-  const STAKING_TRANSITION_WINDOW_LENGTH = new BN(2);
-  
+  // the transition time window is 1 hour.
+  const STAKING_TRANSITION_WINDOW_LENGTH = new BN(3600);
+
   //const STAKING_EPOCH_DURATION = new BN(120954 + 2);
   
   const KEY_GEN_DURATION = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
@@ -123,42 +124,33 @@ contract('BlockRewardHbbft', async accounts => {
 
     });
 
-    
 
     it('staking epoch #0 finished', async () => {
 
-      //try {
-
-      const stakingStartTime = await stakingHbbft.stakingEpochStartTime.call();
-      
-      //we can't really validate if stackingEpochStartBlock is 
-      //stakingEpochStartBlock.should.be.bignumber.equal(STAKING_EPOCH_START_BLOCK);
-
-      const stakingFixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime.call();
-      
-      await increaseTime(3);
-      //console.log('time increased');
-
+      let stakingEpoch = await stakingHbbft.stakingEpoch.call();
+      stakingEpoch.should.be.bignumber.equal(new BN(0));
+      // we are now in the Phase 1: Regular Block Creation
+      //means: just a normal and boring block.
       await callReward(false);
-      
-      // const endBlock = stakingEpochStartBlock.add(STAKING_FIXED_EPOCH_DURATION).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      // const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(KEY_GEN_DURATION);
-      // stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
-      // const startBlock = stakingEpochEndBlock.add(new BN(1)); // upcoming epoch's start block
-      // await setCurrentBlockNumber(stakingEpochEndBlock);
 
-      //TODO: why was callReward called with 'false' and then with 'true' ?!
-      await callReward(true);
+      //boring, thing happened, we still should have zero pendingValidors.
+      let pendingValidators = await validatorSetHbbft.getPendingValidators.call();
+      pendingValidators.length.should.be.equal(0);
       
-      await callFinalizeChange();
-      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
-      //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(startBlock);
+      //letz spin up the time until the beginning of the Transition phase.
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
+      // that was the end of epoch 0,
+      // we should be in epoch 1 now.
+      stakingEpoch = await stakingHbbft.stakingEpoch.call();
+      stakingEpoch.should.be.bignumber.equal(new BN(1));
+
+      // since noone stacked after all, pending validators should still be 0
+      pendingValidators = await validatorSetHbbft.getPendingValidators.call();
+      pendingValidators.length.should.be.equal(0);
+
       (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
-
-      // } catch (e) {
-      //   console.error(e);
-      //   throw e;
-      // }
     });
 
     it('staking epoch #1 started', async () => {
@@ -167,14 +159,12 @@ contract('BlockRewardHbbft', async accounts => {
       //stakingEpochStartBlock.should.be.bignumber.equal(STAKING_EPOCH_START_BLOCK.add(STAKING_FIXED_EPOCH_DURATION).add(KEY_GEN_DURATION));
       //await setCurrentBlockNumber(stakingEpochStartBlock);
 
+      const currentValudators = await validatorSetHbbft.getValidators.call();
+      currentValudators.length.should.be.equal(3);
+
+      //Docs: The pendingValidators set returned by the ValidatorSet contract is empty in this phase,.
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.length.should.be.equal(0);
-
-      //now, timeforward to transition 1: new validator set chosen.
-      //await goToTransition1();
-
-      const validators = await validatorSetHbbft.getValidators.call();
-      validators.length.should.be.equal(3);
     });
 
     it('validators and their delegators place stakes during the epoch #1', async () => {
@@ -197,6 +187,7 @@ contract('BlockRewardHbbft', async accounts => {
     //return;
 
     it('staking epoch #1 finished', async () => {
+
       const stakingEpoch = await stakingHbbft.stakingEpoch.call();
       stakingEpoch.should.be.bignumber.equal(new BN(1));
 
@@ -224,7 +215,7 @@ contract('BlockRewardHbbft', async accounts => {
         accounts[3]
       ]);
 
-      await callFinalizeChange();
+      // await callFinalizeChange();
       const nextStakingEpoch = stakingEpoch.add(new BN(1));
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(nextStakingEpoch);
 
@@ -254,11 +245,11 @@ contract('BlockRewardHbbft', async accounts => {
     [...this].sort().should.be.deep.equal([...arr].sort());
   }
 
-  async function callFinalizeChange() {
-    await validatorSetHbbft.setSystemAddress(owner).should.be.fulfilled;
-    await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-    await validatorSetHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
-  }
+  // async function callFinalizeChange() {
+  //   await validatorSetHbbft.setSystemAddress(owner).should.be.fulfilled;
+  //   await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
+  //   await validatorSetHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+  // }
 
   async function callReward(isEpochEndBlock) {
     // console.log('getting validators...');
@@ -279,6 +270,20 @@ contract('BlockRewardHbbft', async accounts => {
     const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp.call();
     futureTimestamp.should.be.bignumber.equal(currentTimestampAfter);
 
+  }
+
+  //time travels forward to the beginning of the next transition,
+  //and simulate a block mining (calling reward())
+  async function timeTravelToTransition() {
+    const startTimeOfNextEpochTransition = await stakingHbbft.startTimeOfNextEpochTransition.call();
+    await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextEpochTransition);
+    await callReward(false);
+  }
+
+  async function timeTravelToEndEpoch() {
+    const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
+    await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+    await callReward(true);
   }
 
   
