@@ -24,9 +24,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     // =============================================== Setters ========================================================
 
-    function clearPendingValidators() public {
-        delete _pendingValidators;
-    }
+    // todo: remove completly, not used!!
+    // function clearPendingValidators() public {
+    //     delete _pendingValidators;
+    // }
 
     function setBannedUntil(address _miningAddress, uint256 _bannedUntil) public {
         bannedUntil[_miningAddress] = _bannedUntil;
@@ -52,9 +53,12 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     function setCurrentTimestamp(uint256 _timeStamp)
     public {
-        // todo: maybe it makes sense to only allow to travel forward in time.
-        // this assumption would make tests more consistent,
-        // avoiding the usual time travel paradoxon problems.
+
+        // it makes sense to only allow to travel forward in time.
+        // this assumption makes tests more consistent,
+        // avoiding the usual time travel paradoxons.
+        require(_timeStamp > _currentTimeStamp, "setCurrentTimestamp: Can't timetravel back to the past!");
+        
         _currentTimeStamp = _timeStamp;
     }
 
