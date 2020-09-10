@@ -222,15 +222,20 @@ contract('BlockRewardHbbft', async accounts => {
 
       await timeTravelToEndEpoch();
 
+      //since the endEpoch happened, we should be in the epoch 2 now.
+      const nextStakingEpoch = await stakingHbbft.stakingEpoch.call();
+      nextStakingEpoch.should.be.bignumber.equal('2');
+
       // pending validators get deleted after being finalized
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
-
+      
       validators = await validatorSetHbbft.getValidators.call();
       validators.sortedEqual([
         accounts[1],
         accounts[2],
         accounts[3]
       ]);
+
       for (let i = 0; i < validators.length; i++) {
         (await blockRewardHbbft.snapshotPoolValidatorStakeAmount.call(nextStakingEpoch, validators[i])).should.be.bignumber.equal(
           candidateMinStake
