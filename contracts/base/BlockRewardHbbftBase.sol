@@ -117,9 +117,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     onlySystem
     returns(uint256 rewardsNative)
     {
-        if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
-            return 0;
-        }
+        // if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
+        //     return 0;
+        // }
 
         
         // if (_benefactors.length != _kind.length) {
@@ -132,14 +132,14 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         // }
 
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
-        uint256 stakingEpoch = stakingContract.stakingEpoch();
-        uint256 stakingFixedEpochEndTime = stakingContract.stakingFixedEpochEndTime();
-        uint256 nativeTotalRewardAmount;
-        
         // If this is the last block of the epoch i.e. master key has been generated.
 
         if (_isEpochEndBlock) {
 
+            
+            uint256 stakingEpoch = stakingContract.stakingEpoch();
+
+            uint256 nativeTotalRewardAmount;
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
@@ -172,14 +172,19 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             // we now can finalize the epoch and start with a new one.
             validatorSetContract.finalizeChange();
 
+
+            emit CoinsRewarded(nativeTotalRewardAmount);
+            return nativeTotalRewardAmount;
+
         } else {
-            // Store the current timestamp in a local vairable
+
+            uint256 phaseTransitionTime = stakingContract.startTimeOfNextPhaseTransition();
             uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
 
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
             bool isPhaseTransition = 
-                currentTimestamp >= stakingFixedEpochEndTime 
+                currentTimestamp >= phaseTransitionTime 
                 && validatorSetContract.getPendingValidators().length == 0;
 
             if (isPhaseTransition) {
@@ -188,8 +193,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             }
         }
 
-        emit CoinsRewarded(nativeTotalRewardAmount);
-        return nativeTotalRewardAmount;
 
     }
 

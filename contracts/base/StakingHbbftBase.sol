@@ -785,7 +785,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// this is the start of a timeframe before the end of the epoch,
     /// that is long enough for the validators
     /// to create a new shared key.
-    function startTimeOfNextEpochTransition()
+    function startTimeOfNextPhaseTransition()
     public
     view
     returns(uint256) {

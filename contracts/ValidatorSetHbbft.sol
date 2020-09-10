@@ -222,6 +222,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         // Choose new validators
         if (poolsToBeElected.length > MAX_VALIDATORS) {
 
+            //todo: in HBBFT this can be the blockhash ?!
             uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
 
             (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
@@ -246,7 +247,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             _setPendingValidators(poolsToBeElected);
         }
         
-        // clear previousValidator KetGenHistory state
+        // clear previousValidator KeyGenHistory state
         keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
 
         if (poolsToBeElected.length != 0) {
@@ -687,6 +688,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
                      _pendingValidators.push(_currentValidators[0]); // add at least on validator
             }
         } else {
+            
             for (uint256 i = 0; i < _stakingAddresses.length; i++) {
                 _pendingValidators.push(miningByStakingAddress[_stakingAddresses[i]]);
             }

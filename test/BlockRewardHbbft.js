@@ -137,7 +137,7 @@ contract('BlockRewardHbbft', async accounts => {
       let pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.length.should.be.equal(0);
       
-      //letz spin up the time until the beginning of the Transition phase.
+      //lets spin up the time until the beginning of the Transition phase.
       await timeTravelToTransition();
       await timeTravelToEndEpoch();
 
@@ -165,6 +165,10 @@ contract('BlockRewardHbbft', async accounts => {
       //Docs: The pendingValidators set returned by the ValidatorSet contract is empty in this phase,.
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.length.should.be.equal(0);
+
+      const pools = await stakingHbbft.getPoolsToBeElected.call();
+      pools.length.should.be.equal(0);
+
     });
 
     it('validators and their delegators place stakes during the epoch #1', async () => {
@@ -184,8 +188,6 @@ contract('BlockRewardHbbft', async accounts => {
       }
     });
 
-    //return;
-
     it('staking epoch #1 finished', async () => {
 
       const stakingEpoch = await stakingHbbft.stakingEpoch.call();
@@ -196,18 +198,13 @@ contract('BlockRewardHbbft', async accounts => {
 
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
 
-      //const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      //await setCurrentBlockNumber(stakingFixedEpochEndBlock);
-      await callReward(false);
+      // we have staked just before, now there should be 3 pools.
+      const pools = await stakingHbbft.getPoolsToBeElected.call();
+      pools.length.should.be.equal(3);
 
-      // const endBlock = stakingEpochStartBlock.add(STAKING_FIXED_EPOCH_DURATION).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      // const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(KEY_GEN_DURATION);
-      // stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
-      // const startBlock = stakingEpochEndBlock.add(new BN(1)); // upcoming epoch's start block
-      // await setCurrentBlockNumber(stakingEpochEndBlock);
+      //lets spin up the time until the beginning of the Transition phase.
+      await timeTravelToTransition();
 
-
-      await callReward(true);
       let pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.sortedEqual([
         accounts[1],
@@ -215,11 +212,15 @@ contract('BlockRewardHbbft', async accounts => {
         accounts[3]
       ]);
 
-      // await callFinalizeChange();
-      const nextStakingEpoch = stakingEpoch.add(new BN(1));
-      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(nextStakingEpoch);
+      // now we are in phase 2.
+      // Nodes are now responsible for creating a key together.
+      // they have a timeframe for this (see )
 
+      // since we are now  in phase 2 of the same epoch.
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal('1');
       (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
+
+      await timeTravelToEndEpoch();
 
       // pending validators get deleted after being finalized
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
@@ -275,8 +276,11 @@ contract('BlockRewardHbbft', async accounts => {
   //time travels forward to the beginning of the next transition,
   //and simulate a block mining (calling reward())
   async function timeTravelToTransition() {
-    const startTimeOfNextEpochTransition = await stakingHbbft.startTimeOfNextEpochTransition.call();
-    await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextEpochTransition);
+    let startTimeOfNextPhaseTransition = await stakingHbbft.startTimeOfNextPhaseTransition.call();
+    
+    await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextPhaseTransition);
+    const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+    currentTS.should.be.bignumber.equal(startTimeOfNextPhaseTransition);
     await callReward(false);
   }
 
