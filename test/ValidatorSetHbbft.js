@@ -8,6 +8,14 @@ const KeyGenHistory = artifacts.require('KeyGenHistory');
 const ERROR_MSG = 'VM Exception while processing transaction: revert';
 const BN = web3.utils.BN;
 
+
+// one epoch in 1 day.
+const stakingFixedEpochDuration = new BN(86400);
+// the transition time window is 1 hour.
+const stakingTransitionTimeframeLength = new BN(3600);
+const stakingWithdrawDisallowPeriod = new BN(1);
+
+
 const fp = require('lodash/fp');
 require('chai')
   .use(require('chai-as-promised'))
@@ -306,15 +314,16 @@ contract('ValidatorSetHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
       ).should.be.fulfilled;
       //await stakingHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+
       await stakingHbbft.initialize(
         validatorSetHbbft.address, // _validatorSetContract
         initialStakingAddresses, // _initialStakingAddresses
         web3.utils.toWei('1', 'ether'), // _delegatorMinStake
         web3.utils.toWei('1', 'ether'), // _candidateMinStake
-        120954, // _stakingEpochDuration
-        100, // _stakingTransitionTimeframeLength
-        0, // _stakingEpochStartBlock
-        4320, // _stakeWithdrawDisallowPeriod
+
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
+        stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeys, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
@@ -411,7 +420,7 @@ contract('ValidatorSetHbbft', async accounts => {
 
       // Generate a random seed
       (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(0));
-      await randomHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
+      //await randomHbbft.setCurrentBlockNumber(0).should.be.fulfilled;
       await randomHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
 
       const seed = random(1000000, 2000000);
@@ -423,7 +432,7 @@ contract('ValidatorSetHbbft', async accounts => {
       // Emulate calling `newValidatorSet()` at the last block of the staking epoch
       //await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
       //await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await randomHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+      //await randomHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
       await validatorSetHbbft.setBlockRewardContract(accounts[4]).should.be.fulfilled;
       await validatorSetHbbft.newValidatorSet({from: accounts[4]}).should.be.fulfilled;
 
