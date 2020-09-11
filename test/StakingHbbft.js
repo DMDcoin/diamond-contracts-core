@@ -1187,6 +1187,7 @@ contract('StakingHbbft', async accounts => {
     });
 
     it('gas consumption for 20 staking epochs is OK', async () => {
+
       const maxStakingEpoch = 20;
       maxStakingEpoch.should.be.above(2);
 
@@ -1195,8 +1196,7 @@ contract('StakingHbbft', async accounts => {
         // Finalize change i.e. finalize pending validators, increase epoch and set stakingEpochStartBlock
         if ( stakingEpoch == 1) {
           await stakingHbbft.setStakingEpoch(1).should.be.fulfilled;
-          const startBlock = new BN(120954 + 2 + 1);
-          //await setCurrentBlockNumber(startBlock);
+
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
           //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
@@ -1205,22 +1205,17 @@ contract('StakingHbbft', async accounts => {
         (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
         (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
 
-        //const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-        //epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
-
-        //const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-        //await setCurrentBlockNumber(fixedEpochEndBlock);
-        await callReward(false);
-
-        //const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
-        //await setCurrentBlockNumber(epochEndBlock);
+        // await timeTravelToTransition();
+        // await timeTravelToEndEpoch();
 
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true);
-        await callFinalizeChange();
+
+        await timeTravelToTransition();
+        await timeTravelToEndEpoch();
+
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
           const epochPoolNativeReward = await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i]);
@@ -1361,8 +1356,10 @@ contract('StakingHbbft', async accounts => {
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true);
-        await callFinalizeChange();
+
+        await timeTravelToTransition();
+        await timeTravelToEndEpoch();
+
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
           const epochPoolNativeReward = await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i]);
@@ -1472,7 +1469,7 @@ contract('StakingHbbft', async accounts => {
 
         //const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
         //await setCurrentBlockNumber(fixedEpochEndBlock);
-        await callReward(false);
+        //await callReward(false);
 
         //const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
         //await setCurrentBlockNumber(epochEndBlock);
@@ -1481,8 +1478,10 @@ contract('StakingHbbft', async accounts => {
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true);
-        await callFinalizeChange();
+
+        await timeTravelToTransition();
+        await timeTravelToEndEpoch();
+
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
           const epochPoolNativeReward = await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i]);
@@ -1699,7 +1698,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
-        3, // _stakingFixedEpochDuration
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
