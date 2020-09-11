@@ -2223,8 +2223,10 @@ contract('StakingHbbft', async accounts => {
       await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
       await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
       await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
-      // Finalize change (increases staking epoch)
-      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
+      // (increases staking epoch)
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+      
       //await stakingHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
       //await validatorSetHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
@@ -2243,7 +2245,10 @@ contract('StakingHbbft', async accounts => {
       await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
       await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
       await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
-      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
+
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
       //await stakingHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
       //await validatorSetHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
