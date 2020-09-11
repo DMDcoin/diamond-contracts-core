@@ -1111,6 +1111,7 @@ contract('StakingHbbft', async accounts => {
     });
 
     it('gas consumption for one staking epoch is OK', async () => {
+      
       const stakingEpoch = 2600;
 
       for (let i = 0; i < initialValidators.length; i++) {
@@ -1124,28 +1125,13 @@ contract('StakingHbbft', async accounts => {
       //await stakingHbbft.setStakingEpochStartBlock(epochStartBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
       // new validatorSet at the end of fixed epoch duration
-      //let fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      //await setCurrentBlockNumber(fixedEpochEndBlock);
-      await callReward(false);
-      // startBlock is the upcoming epoch 1st block
-      // let epochEndBlock = epochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      // let endBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
-      // epochEndBlock.should.be.bignumber.equal(endBlock);
-      //await setCurrentBlockNumber(endBlock);
+      
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
 
-      await callFinalizeChange();
       (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
-      // new epoch = stakingEpoch
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
-      //epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-      //epochStartBlock.should.be.bignumber.equal(new BN(120954 * stakingEpoch + 2 + 1)); // +2 for kegen duration
 
-      //fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      //await setCurrentBlockNumber(fixedEpochEndBlock);
-      await callReward(false);
-
-      //endBlock = fixedEpochEndBlock.add(keyGenerationDuration);
-      //await setCurrentBlockNumber(endBlock);
 
       let blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       
@@ -1153,8 +1139,8 @@ contract('StakingHbbft', async accounts => {
         (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
       }
       
-      await callReward(true);
-      await callFinalizeChange();
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
 
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch + 1));
       //epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
