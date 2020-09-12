@@ -1150,8 +1150,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @param _amount The amount of coins to be withdrawn.
     function _withdraw(address _poolStakingAddress, address _staker, uint256 _amount)
     internal {
-        require(_poolStakingAddress != address(0));
-        require(_amount != 0);
+        require(_poolStakingAddress != address(0), "Withdraw pool staking address must not be null");
+        require(_amount != 0, "amount to withdraw must not be 0");
 
         // How much can `staker` withdraw from `_poolStakingAddress` at the moment?
         require(_amount <= maxWithdrawAllowed(_poolStakingAddress, _staker), "Withdraw: maxWithdrawAllowed exceeded");
@@ -1161,7 +1161,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         // The amount to be withdrawn must be the whole staked amount or
         // must not exceed the diff between the entire amount and MIN_STAKE
         uint256 minAllowedStake = (_poolStakingAddress == _staker) ? candidateMinStake : delegatorMinStake;
-        require(newStakeAmount == 0 || newStakeAmount >= minAllowedStake);
+        require(newStakeAmount == 0 || newStakeAmount >= minAllowedStake, 
+            "newStake amount must be greater equal than the min stake.");
 
         stakeAmount[_poolStakingAddress][_staker] = newStakeAmount;
         uint256 amountByEpoch = stakeAmountByCurrentEpoch(_poolStakingAddress, _staker);
