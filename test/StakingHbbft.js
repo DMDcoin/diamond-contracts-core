@@ -1789,7 +1789,10 @@ contract('StakingHbbft', async accounts => {
     });
 
     it('should move entire stake', async () => {
-      await callReward(true);
+
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[0], delegatorAddress)).should.be.bignumber.equal(stakeAmount);
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
       await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.fulfilled;
