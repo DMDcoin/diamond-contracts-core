@@ -124,7 +124,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
 
         if (_poolStakingAddress != _staker) { // this is a delegator
             firstEpoch = stakeFirstEpoch[_poolStakingAddress][_staker];
-            require(firstEpoch != 0);
+            require(firstEpoch != 0, "Unable to get reward amount if no first epoch.");
             lastEpoch = stakeLastEpoch[_poolStakingAddress][_staker];
         }
 
@@ -140,8 +140,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
         for (uint256 i = 0; i < _stakingEpochs.length; i++) {
             uint256 epoch = _stakingEpochs[i];
 
-            require(i == 0 || epoch > _stakingEpochs[i - 1]);
-            require(epoch < stakingEpoch);
+            require(i == 0 || epoch > _stakingEpochs[i - 1], "internal Error: Staking Epochs required to be ordered.");
+            require(epoch < stakingEpoch, "internal Error: epoch must not be lesser than current epoch.");
 
             if (rewardWasTaken[_poolStakingAddress][_staker][epoch]) continue;
 

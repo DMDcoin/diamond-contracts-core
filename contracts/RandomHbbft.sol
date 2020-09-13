@@ -26,19 +26,19 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
 
     /// @dev Ensures the caller is the BlockRewardHbbft contract address.
     modifier onlyBlockReward() {
-        require(msg.sender == validatorSetContract.blockRewardContract());
+        require(msg.sender == validatorSetContract.blockRewardContract(), "Must be executed by blockRewardContract.");
         _;
     }
 
     /// @dev Ensures the `initialize` function was called before.
     modifier onlyInitialized {
-        require(isInitialized());
+        require(isInitialized(), "RandomHbbft must be initialized!");
         _;
     }
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
     modifier onlySystem() {
-        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
+        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE, "Must be executed by System");
         _;
     }
     // =============================================== Setters ========================================================
@@ -77,9 +77,9 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
     function _initialize(address _validatorSet)
     internal {
-        require(msg.sender == _admin() || block.number == 0);
-        require(!isInitialized());
-        require(_validatorSet != address(0));
+        require(msg.sender == _admin() || block.number == 0, "Must be executed by admin");
+        require(!isInitialized(), "initialization can only be done once");
+        require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
 

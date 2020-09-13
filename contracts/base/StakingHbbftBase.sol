@@ -121,7 +121,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev The serial number of the current staking epoch.
     uint256 public stakingEpoch;
 
-    /// @dev The fixed duration of each staking epoch before KeyGen starts i.e. before the upcoming ("pending") validators are selected.
+    /// @dev The fixed duration of each staking epoch before KeyGen starts i.e.
+    /// before the upcoming ("pending") validators are selected.
     uint256 public stakingFixedEpochDuration;
 
     /// @dev Length of the timeframe in seconds for the transition to the new validator set.
@@ -438,8 +439,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     external
     gasPriceIsValid
     onlyInitialized {
-        require(_poolStakingAddress != address(0));
-        require(_amount != 0);
+        require(_poolStakingAddress != address(0), "poolStakingAddress must not be 0x0");
+        require(_amount != 0, "ordered withdraw amount must not be 0");
 
         address staker = msg.sender;
 
@@ -479,7 +480,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         if (staker == _poolStakingAddress) {
             // The amount to be withdrawn must be the whole staked amount or
             // must not exceed the diff between the entire amount and `candidateMinStake`
-            require(newStakeAmount == 0 || newStakeAmount >= candidateMinStake);
+            require(newStakeAmount == 0 || newStakeAmount >= candidateMinStake, "newStake Amount must be greater than the min stake.");
 
             if (_amount > 0) { // if the validator orders the `_amount` for withdrawal
                 if (newStakeAmount == 0) {
@@ -495,7 +496,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         } else {
             // The amount to be withdrawn must be the whole staked amount or
             // must not exceed the diff between the entire amount and `delegatorMinStake`
-            require(newStakeAmount == 0 || newStakeAmount >= delegatorMinStake);
+            require(newStakeAmount == 0 || newStakeAmount >= delegatorMinStake,
+                "newStake Amount must be greater than the min stake.");
 
             if (_amount > 0) { // if the delegator orders the `_amount` for withdrawal
                 if (newStakeAmount == 0) {
@@ -527,14 +529,15 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     onlyInitialized {
         address payable staker = msg.sender;
 
-        require(stakingEpoch > orderWithdrawEpoch[_poolStakingAddress][staker]);
+        require(stakingEpoch > orderWithdrawEpoch[_poolStakingAddress][staker],
+            "cannot claim ordered withdraw in the same epoch it was ordered.");
         require(_isWithdrawAllowed(
             validatorSetContract.miningByStakingAddress(_poolStakingAddress), staker != _poolStakingAddress),
             "ClaimOrderedWithdraw: Withdraw not allowed"
         );
 
         uint256 claimAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
-        require(claimAmount != 0);
+        require(claimAmount != 0, "claim amount must not be 0");
 
         orderedWithdrawAmount[_poolStakingAddress][staker] = 0;
         orderedWithdrawAmountTotal[_poolStakingAddress] =

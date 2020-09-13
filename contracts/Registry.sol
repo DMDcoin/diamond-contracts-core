@@ -11,14 +11,14 @@ contract Owned {
     address public owner = msg.sender;
 
     modifier onlyOwner {
-        require(msg.sender == owner);
+        require(msg.sender == owner, "Only owner is allowed to execute");
         _;
     }
 
     function setOwner(address _new)
     external
     onlyOwner {
-        require(_new != address(0));
+        require(_new != address(0), "New owner must not be 0x0");
         emit NewOwner(owner, _new);
         owner = _new;
     }

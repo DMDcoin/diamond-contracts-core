@@ -156,10 +156,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         require(msg.sender == _admin() || block.number == 0, 
             "Initialization only on genesis block or by admin");
         require(!isInitialized(), "ValidatorSet contract is already initialized");
-        require(_blockRewardContract != address(0), "BlockReward contract address can't be 0");
-        require(_randomContract != address(0), "Random contract address can't be 0");
-        require(_stakingContract != address(0), "Staking contract address can't be 0");
-        require(_keyGenHistoryContract != address(0), "KeyGenHistory contract address can't be 0");
+        require(_blockRewardContract != address(0), "BlockReward contract address can't be 0x0");
+        require(_randomContract != address(0), "Random contract address can't be 0x0");
+        require(_stakingContract != address(0), "Staking contract address can't be 0x0");
+        require(_keyGenHistoryContract != address(0), "KeyGenHistory contract address can't be 0x0");
         require(_initialMiningAddresses.length > 0, "Must provide initial mining addresses");
         require(_initialMiningAddresses.length == _initialStakingAddresses.length,
             "Must provide the same amount of mining/staking addresses");

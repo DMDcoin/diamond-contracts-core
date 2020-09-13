@@ -36,7 +36,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
 
     /// @dev Ensures the `initialize` function was called before.
     modifier onlyInitialized {
-        require(isInitialized());
+        require(isInitialized(), "Contract requires to be initialized()");
         _;
     }
 
@@ -50,9 +50,9 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         address[] calldata _certifiedAddresses,
         address _validatorSet
     ) external {
-        require(msg.sender == _admin() || block.number == 0);
-        require(!isInitialized());
-        require(_validatorSet != address(0));
+        require(msg.sender == _admin() || block.number == 0, "Sender must be admin");
+        require(!isInitialized(), "Contract is already initialized");
+        require(_validatorSet != address(0), "Validatorset must not be 0");
         for (uint256 i = 0; i < _certifiedAddresses.length; i++) {
             _certify(_certifiedAddresses[i]);
         }
@@ -116,7 +116,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     /// @param _who The address for which transactions with a zero gas price must be allowed.
     function _certify(address _who)
     internal {
-        require(_who != address(0));
+        require(_who != address(0), "certifier must not be address 0");
         _certified[_who] = true;
         emit Confirmed(_who);
     }
