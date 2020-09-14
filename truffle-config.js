@@ -23,6 +23,10 @@
  */
 
 // const HDWallet = require('truffle-hdwallet-provider');
+const HDWalletProvider = require('@truffle/hdwallet-provider');
+
+const mnemonic = "vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit";
+
 // const infuraKey = "fj4jll3k.....";
 //
 // const fs = require('fs');
@@ -53,15 +57,13 @@ module.exports = {
     // },
 
     development: {
-      host: "localhost",
-      port: 8545,
+      provider: () => new HDWalletProvider(mnemonic, `http://127.0.0.1:8545`, 0, 200),
       gas: 9000000,
       network_id: "*" // Match any network id
     },
 
     test: {
-      host: "localhost",
-      port: 8544,
+      provider: () => new HDWalletProvider(mnemonic, `http://127.0.0.1:8545`, 0, 200),
       gas: 9000000,
       network_id: "*" // Match any network id
     },
@@ -105,12 +107,12 @@ module.exports = {
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
-    reporter: 'eth-gas-reporter',
-    reporterOptions : {
-      currency: 'USD',
-      gasPrice: 1,
-      showTimeSpent: true
-    },
+    //reporter: 'eth-gas-reporter',
+    // reporterOptions : {
+    //   currency: 'USD',
+    //   gasPrice: 1,
+    //   showTimeSpent: true
+    // },
     enableTimeouts: false
   },
 

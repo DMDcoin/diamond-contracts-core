@@ -41,8 +41,14 @@ contract('BlockRewardHbbft', async accounts => {
   describe('reward()', async () => {
 
     it('network started', async () => {
-      owner = accounts[0];
 
+      // printing out the accounts for usage in openethereum node specification.
+      // for(let i = 0; i < 200; i++) {
+      //   const account = accounts[i];
+      //   console.log(`    "${account}" : \{"balance": "1000000000000000000000000"\},`);
+      // }
+
+      owner = accounts[0];
       const initialValidators = accounts.slice(1, 3 + 1); // accounts[1...3]
       const initialStakingAddresses = accounts.slice(4, 6 + 1); // accounts[4...6]
       initialStakingAddresses.length.should.be.equal(3);
