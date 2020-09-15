@@ -58,13 +58,13 @@ module.exports = {
 
     development: {
       provider: () => new HDWalletProvider(mnemonic, `http://127.0.0.1:8545`, 0, 200),
-      gas: 9000000,
+      gas: 8000000,
       network_id: "*" // Match any network id
     },
 
     test: {
       provider: () => new HDWalletProvider(mnemonic, `http://127.0.0.1:8545`, 0, 200),
-      gas: 9000000,
+      gas: 8000000,
       network_id: "*" // Match any network id
     },
 
