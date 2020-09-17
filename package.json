@@ -13,7 +13,9 @@
     "solidity-docgen": "rm -rf docs/docs/api* && npm i && solidity-docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol,Migrations.sol . contracts docs && node docs/website/sidebars-fix.js",
     "runGanache": "node_modules/.bin/ganache-cli --gasLimit 0xfffffffffff --port \"8545\" --accounts 200 --defaultBalanceEther 1000000 --mnemonic \"vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit\"",
     "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
-    "testDev": "bash scripts/test.sh test/BlockRewardHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
+    "testDev": "bash scripts/test.sh test/StakingHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol",
+    "testFailed": "bash scripts/test.sh analysis/tests/testFailedTransaction.js"
+
   },
   "repository": {
     "type": "git",
