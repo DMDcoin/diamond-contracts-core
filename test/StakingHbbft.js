@@ -946,7 +946,7 @@ contract('StakingHbbft', async accounts => {
         [5, 15, 25]
       );
     });
-    it('stake increasing 6', async () => {
+    it('stake increasing', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [5, 7, 9],
         [6, 8, 10]
