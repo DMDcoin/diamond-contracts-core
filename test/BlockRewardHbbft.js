@@ -41,14 +41,8 @@ contract('BlockRewardHbbft', async accounts => {
   describe('reward()', async () => {
 
     it('network started', async () => {
-
-      // printing out the accounts for usage in openethereum node specification.
-      // for(let i = 0; i < 200; i++) {
-      //   const account = accounts[i];
-      //   console.log(`    "${account}" : \{"balance": "1000000000000000000000000"\},`);
-      // }
-
       owner = accounts[0];
+
       const initialValidators = accounts.slice(1, 3 + 1); // accounts[1...3]
       const initialStakingAddresses = accounts.slice(4, 6 + 1); // accounts[4...6]
       initialStakingAddresses.length.should.be.equal(3);
@@ -266,7 +260,7 @@ contract('BlockRewardHbbft', async accounts => {
   async function callReward(isEpochEndBlock) {
     // console.log('getting validators...');
     // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
-    const validators = await validatorSetHbbft.getValidators.call();
+    //const validators = await validatorSetHbbft.getValidators.call();
     //console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
     await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
