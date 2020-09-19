@@ -23,10 +23,6 @@
  */
 
 // const HDWallet = require('truffle-hdwallet-provider');
-const HDWalletProvider = require('@truffle/hdwallet-provider');
-
-const mnemonic = "vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit";
-
 // const infuraKey = "fj4jll3k.....";
 //
 // const fs = require('fs');
@@ -49,22 +45,18 @@ module.exports = {
     // You should run a client (like ganache-cli, geth or parity) in a separate terminal
     // tab if you use this network and you must also set the `host`, `port` and `network_id`
     // options below to some value.
-    //
-    // development: {
-    //  host: "127.0.0.1",     // Localhost (default: none)
-    //  port: 8545,            // Standard Ethereum port (default: none)
-    //  network_id: "*",       // Any network (default: none)
-    // },
 
     development: {
-      provider: () => new HDWalletProvider(mnemonic, `http://127.0.0.1:8545`, 0, 200),
-      gas: 8000000,
+      host: "localhost",
+      port: 8545,
+      gas: 7000000,
       network_id: "*" // Match any network id
     },
 
     test: {
-      provider: () => new HDWalletProvider(mnemonic, `http://127.0.0.1:8544`, 0, 200),
-      gas: 8000000,
+      host: "localhost",
+      port: 8544,
+      gas: 7000000,
       network_id: "*" // Match any network id
     },
 
@@ -74,19 +66,13 @@ module.exports = {
       gas: 0xfffffffffff,
       gasPrice: 0x01,
       network_id: "*"
-    },
+    }
   },
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
-    //reporter: 'eth-gas-reporter',
-    // reporterOptions : {
-    //   currency: 'USD',
-    //   gasPrice: 1,
-    //   showTimeSpent: true
-    // },
-    enableTimeouts: false,
-    timout: 1000000
+    reporter: 'eth-gas-reporter',
+    enableTimeouts: false
   },
 
   // Configure your compilers
