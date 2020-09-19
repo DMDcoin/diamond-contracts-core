@@ -19,6 +19,22 @@
         "${workspaceFolder}/lib/**/*.js",
         "<node_internals>/**/*.js"
       ]
+    },
+    {
+      "name": "run stakingTest",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceRoot}/node_modules/truffle/build/cli.bundled.js",
+      "args": ["test"],
+      "cwd": "${workspaceRoot}",
+      "outFiles": [
+          "${workspaceRoot}/test/StakingHbbft.js",
+          ],
+      "skipFiles": [
+        "${workspaceFolder}/node_modules/**/*.js",
+        "${workspaceFolder}/lib/**/*.js",
+        "<node_internals>/**/*.js"
+      ]
     }
   ]
 }

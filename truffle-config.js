@@ -49,14 +49,14 @@ module.exports = {
     development: {
       host: "localhost",
       port: 8545,
-      gas: 7000000,
+      gas: 8000000,
       network_id: "*" // Match any network id
     },
 
     test: {
       host: "localhost",
       port: 8544,
-      gas: 7000000,
+      gas: 8000000,
       network_id: "*" // Match any network id
     },
 
@@ -72,6 +72,10 @@ module.exports = {
   // Set default mocha options here, use special reporters etc.
   mocha: {
     reporter: 'eth-gas-reporter',
+    reporterOptions : { 
+      showTimeSpent: true,
+      showMethodSig: true
+    },
     enableTimeouts: false
   },
 

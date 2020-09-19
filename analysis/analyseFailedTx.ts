@@ -38,30 +38,47 @@ async function analyseTransactionsOnSubscribedBlocks() {
   })
 }
 
+async function showLastBocksTransaction() {
+  return showBlocksTransaction(await web3.eth.getBlockNumber());
+}
 
 
-async function analyseTransactionsOnSubscribedBlocks() {
+async function showBlocksTransaction(blockNumber) {
+  const block = await web3.eth.getBlock(blockNumber);
+  
+  block.transactions.forEach(async (x) => {
+    await showTransaction(x);
+  })
+}
+
+
+async function showTransaction(txHash) {
+  web3.eth.getTransactionReceipt(txHash).then((receipt=>{
+    if (receipt.status) {
+      console.log("Success: \n", receipt);
+      //success++;
+    } else {
+      console.log("Error: \n", receipt);
+      //failed++;
+    }
+  }))
+}
+
+async function analyseTransactionsSinceBlock(blocknumber) {
 
   let failed = 0;
   let success = 0;
 
-  web3.eth.subscribe("newBlockHeaders", (error, blockHeader) => {
-    if (blockHeader) {
-      web3.eth.getBlock(blockHeader.hash).then((value) => {
-        value.transactions.forEach((tx) => {
-          web3.eth.getTransactionReceipt(tx).then((receipt=>{
-            if (receipt.status) {
-              console.log("All Good: ", receipt);
-              success++;
-            } else {
-              console.log("Error: ", receipt);
-              failed++;
-            }
-          }))
-        })
+  const currentBlockNumber = await web3.eth.getBlockNumber();
+
+  let loopBlockNumber = blocknumber + 1;
+  while (loopBlockNumber < currentBlockNumber) {
+    web3.eth.getBlock(loopBlockNumber).then(async (value) => {
+      value.transactions.forEach(async (tx) => {
+        await showTransaction(tx);
       })
-    }
-  })
+    })
+  }
 }
 
 
