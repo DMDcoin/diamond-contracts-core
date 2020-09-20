@@ -53,15 +53,18 @@ async function showBlocksTransaction(blockNumber) {
 
 
 async function showTransaction(txHash) {
-  web3.eth.getTransactionReceipt(txHash).then((receipt=>{
-    if (receipt.status) {
-      console.log("Success: \n", receipt);
-      //success++;
-    } else {
-      console.log("Error: \n", receipt);
-      //failed++;
-    }
-  }))
+
+  const tx = await web3.eth.getTransaction(txHash);
+  console.log(tx);
+  const receipt = await web3.eth.getTransactionReceipt(txHash);
+
+  if (receipt.status) {
+    console.log("Success: \n", receipt);
+    //success++;
+  } else {
+    console.log("Error: \n", receipt);
+    //failed++;
+  }
 }
 
 async function analyseTransactionsSinceBlock(blocknumber) {
@@ -79,8 +82,7 @@ async function analyseTransactionsSinceBlock(blocknumber) {
       })
     })
   }
-}
-
+}  
 
 
 debugTX("0xd79bedb5d1ea769b7a86f887e218b82beaa866fac6603a75c25e5c020f51b337");
