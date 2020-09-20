@@ -24,25 +24,27 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
     /// @dev Ensures the `initialize` function was called before.
     modifier onlyInitialized {
-        require(isInitialized());
+        require(isInitialized(), "KeyGenHistory requires to be initialized");
         _;
     }
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
     modifier onlySystem() {
-        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
+        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE, "Must be executed by System");
         _;
     }
 
     /// @dev Ensures the caller is ValidatorSet contract.
     modifier onlyValidatorSet() {
-        require(msg.sender == address(validatorSetContract));
+        require(msg.sender == address(validatorSetContract), "Must by executed by validatorSetContract");
         _;
     }
 
     /// @dev Clears the state (acks and parts of previous validators.
     /// @param _prevValidators The list of previous validators.
-    function clearPrevKeyGenState(address[] calldata _prevValidators) external onlyValidatorSet {
+    function clearPrevKeyGenState(address[] calldata _prevValidators)
+    external
+    onlyValidatorSet {
 
         for (uint256 i = 0; i < _prevValidators.length; i++) {
             delete parts[_prevValidators[i]];
@@ -57,8 +59,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         bytes[][] memory _acks
     ) public {
         // Unit Tests may deploy at block numbers other than 0.
-        //require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
-        require(!isInitialized()); // initialization can only be done once
+        require(msg.sender == _admin() || block.number == 0, "Sender must be admin");
+        require(!isInitialized(), "initialization can only be done once"); // initialization can only be done once
         require(_validators.length != 0, "Validators must be more than 0.");
         require(_validators.length == _parts.length, "Wrong number of Parts!");
         require(_validators.length == _acks.length, "Wrong number of Acks!");
@@ -73,7 +75,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         }
     }
 
-    function writePart(bytes calldata _part) external {
+    function writePart(bytes calldata _part)
+    external {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -81,7 +84,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         parts[msg.sender] = _part;
     }
 
-    function writeAck(bytes calldata _ack) external {
+    function writeAck(bytes calldata _ack)
+    external {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -89,17 +93,18 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         acks[msg.sender].push(_ack);
     }
 
-    function getAcksLength(address val) public view returns(uint256) {
+    function getAcksLength(address val)
+    public
+    view
+    returns(uint256) {
         return acks[val].length;
     }
 
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
-    }
-
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 }

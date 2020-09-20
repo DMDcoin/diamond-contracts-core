@@ -5,7 +5,7 @@ import '../../contracts/ValidatorSetHbbft.sol';
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
-    uint256 internal _currentBlockNumber;
+    uint256 internal _currentTimeStamp;
     address internal _systemAddress;
 
     // ============================================== Modifiers =======================================================
@@ -15,11 +15,19 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _;
     }
 
+    // ============================================== Constructor ==========================================
+    constructor ()
+    public {
+        _currentTimeStamp = block.timestamp;
+        require(_currentTimeStamp != 0, '_currentTimeStamp must not be 0');
+    }
+
     // =============================================== Setters ========================================================
 
-    function clearPendingValidators() public {
-        delete _pendingValidators;
-    }
+    // todo: remove completly, not used!!
+    // function clearPendingValidators() public {
+    //     delete _pendingValidators;
+    // }
 
     function setBannedUntil(address _miningAddress, uint256 _bannedUntil) public {
         bannedUntil[_miningAddress] = _bannedUntil;
@@ -28,10 +36,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     
     function setBlockRewardContract(address _address) public {
         blockRewardContract = _address;
-    }
-
-    function setCurrentBlockNumber(uint256 _blockNumber) public {
-        _currentBlockNumber = _blockNumber;
     }
 
     function setRandomContract(address _address) public {
@@ -46,6 +50,19 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _systemAddress = _address;
     }
 
+
+    function setCurrentTimestamp(uint256 _timeStamp)
+    public {
+
+        // it makes sense to only allow to travel forward in time.
+        // this assumption makes tests more consistent,
+        // avoiding the usual time travel paradoxons.
+        require(_timeStamp > _currentTimeStamp, "setCurrentTimestamp: Can't timetravel back to the past!");
+        
+        _currentTimeStamp = _timeStamp;
+    }
+
+
     // =============================================== Getters ========================================================
 
     function getRandomIndex(
@@ -59,18 +76,17 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
             uint256(keccak256(abi.encode(_randomNumber)))
         );
     }
-
-    function getCurrentBlockNumber() external view returns(uint256) {
-        return _currentBlockNumber;
+    
+    /// @dev overrides the calculation of the current timestamp
+    /// to use the internal stored "fake" timestamp for testing purposes.
+    function getCurrentTimestamp() external view returns(uint256) {
+        //require(_currentTimeStamp != 0, 'Timestamp is never expected to be 0');
+        return _currentTimeStamp;
     }
+
     // =============================================== Private ========================================================
-
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return _currentBlockNumber;
-    }
 
     function _getSystemAddress() internal view returns(address) {
         return _systemAddress;
     }
-
 }

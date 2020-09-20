@@ -26,25 +26,28 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
 
     /// @dev Ensures the caller is the BlockRewardHbbft contract address.
     modifier onlyBlockReward() {
-        require(msg.sender == validatorSetContract.blockRewardContract());
+        require(msg.sender == validatorSetContract.blockRewardContract(), "Must be executed by blockRewardContract.");
         _;
     }
 
     /// @dev Ensures the `initialize` function was called before.
     modifier onlyInitialized {
-        require(isInitialized());
+        require(isInitialized(), "RandomHbbft must be initialized!");
         _;
     }
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
     modifier onlySystem() {
-        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
+        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE, "Must be executed by System");
         _;
     }
     // =============================================== Setters ========================================================
 
 
-    function setCurrentSeed(uint256 _currentSeed) external onlyInitialized onlySystem {
+    function setCurrentSeed(uint256 _currentSeed)
+    external
+    onlyInitialized
+    onlySystem {
         currentSeed = _currentSeed;
     }
 
@@ -60,7 +63,10 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     // =============================================== Getters ========================================================
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 
@@ -69,20 +75,19 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
 
     /// @dev Initializes the network parameters. Used by the `initialize` function.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function _initialize(address _validatorSet) internal {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
-        require(!isInitialized());
-        require(_validatorSet != address(0));
+    function _initialize(address _validatorSet)
+    internal {
+        require(msg.sender == _admin() || block.number == 0, "Must be executed by admin");
+        require(!isInitialized(), "initialization can only be done once");
+        require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
 
     /// @dev Returns the current `coinbase` address. Needed mostly for unit tests.
-    function _getCoinbase() internal view returns(address) {
+    function _getCoinbase()
+    internal
+    view
+    returns(address) {
         return block.coinbase;
-    }
-
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
     }
 }

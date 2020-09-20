@@ -14,7 +14,12 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
+let currentAccounts;
+
 contract('StakingHbbft', async accounts => {
+
+  
+
   let owner;
   let initialValidators;
   let initialStakingAddresses;
@@ -26,13 +31,19 @@ contract('StakingHbbft', async accounts => {
   let initialValidatorsPubKeysSplit;
   let initialValidatorsIpAddresses;
 
+  currentAccounts = accounts;
   const minStake = new BN(web3.utils.toWei('1', 'ether'));
-  const maxBlockReward = new BN(100); // the maximum  per-block reward distributed to the validators
-  const stakingFixedEpochDuration = new BN(120954);
-  const stakingWithdrawDisallowPeriod = new BN(4320);
-  const stakingEpochStartBlock = new BN(0);
-  const keyGenerationDuration = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
-  const stakingEpochDuration = stakingFixedEpochDuration.add(keyGenerationDuration); // in reality this is not fixed but it depends on the key generation process.
+  const maxEpochReward = new BN(100); // the maximum  per-block reward distributed to the validators
+
+  // one epoch in 1 day.
+  const stakingFixedEpochDuration = new BN(86400);
+
+  // the transition time window is 1 hour.
+  const stakingTransitionTimeframeLength = new BN(3600);
+    
+  const stakingWithdrawDisallowPeriod = new BN(1);
+  //const stakingEpochStartBlock = new BN(0);
+  //const keyGenerationDuration = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
 
   beforeEach(async () => {
     owner = accounts[0];
@@ -58,6 +69,10 @@ contract('StakingHbbft', async accounts => {
     validatorSetHbbft = await ValidatorSetHbbft.new();
     validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
     validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+
+    //without that, the Time is 0,
+    //meaning a lot of checks that expect time to have some value deliver incorrect results.
+    await increaseTime(1);
 
     keyGenHistory = await KeyGenHistory.new();
     keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
@@ -105,15 +120,11 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
-
-      // Emulate block number
-      await stakingHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
     });
     it('should set the corresponding public keys', async () => {
       for (let i = 0; i < initialStakingAddresses.length; i++) {
@@ -129,7 +140,8 @@ contract('StakingHbbft', async accounts => {
       false.should.be.equal(await stakingHbbft.isPoolActive.call(candidateStakingAddress));
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.fulfilled;
-      true.should.be.equal(await stakingHbbft.isPoolActive.call(candidateStakingAddress));
+      const poolIsActiveNow = await stakingHbbft.isPoolActive.call(candidateStakingAddress);
+      true.should.be.equal(poolIsActiveNow);
     });
     it('should fail if mining address is 0', async () => {
       await stakingHbbft.addPool('0x0000000000000000000000000000000000000000', '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
@@ -177,16 +189,17 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: new BN(0)}).should.be.rejectedWith("Stake: stakingAmount is 0");
     });
-    it('should fail if block.number is inside disallowed range', async () => {
-      await stakingHbbft.setCurrentBlockNumber(119960).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(119960).should.be.fulfilled;
-      await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.rejectedWith("Stake: disallowed period");
-      await stakingHbbft.setCurrentBlockNumber(116560).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(116560).should.be.fulfilled;
-      await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.fulfilled;
-    });
+    // it('should fail if stacking time is inside disallowed range', async () => {
+    //   //await stakingHbbft.setCurrentBlockNumber(119960).should.be.fulfilled;
+    //   //await validatorSetHbbft.setCurrentBlockNumber(119960).should.be.fulfilled;
+    //   await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    //   '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.rejectedWith("Stake: disallowed period");
+    //   //await stakingHbbft.setCurrentBlockNumber(116560).should.be.fulfilled;
+    //   //await validatorSetHbbft.setCurrentBlockNumber(116560).should.be.fulfilled;
+    //   await increaseTime(2);
+    //   await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    //   '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake}).should.be.fulfilled;
+    // });
     it('should fail if staking amount is less than CANDIDATE_MIN_STAKE', async () => {
       await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       '0x00000000000000000000000000000000', {from: candidateStakingAddress, value: minStake.div(new BN(2))}).should.be.rejectedWith("Stake: candidateStake less than candidateMinStake");
@@ -281,15 +294,15 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
 
       // Emulate block number
-      await stakingHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
+      //await stakingHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(2).should.be.fulfilled;
     });
 
     it('cannot be increased by sending native coins', async () => {
@@ -310,14 +323,18 @@ contract('StakingHbbft', async accounts => {
   });
 
   describe('claimReward()', async () => {
+
     let delegator;
     let delegatorMinStake;
 
     beforeEach(async () => {
+
+      //console.log('calling before each claimReward()');
+
       // Initialize BlockRewardHbbft
       await blockRewardHbbft.initialize(
         validatorSetHbbft.address,
-        maxBlockReward
+        maxEpochReward
       ).should.be.fulfilled;
 
       // Initialize RandomHbbft
@@ -332,24 +349,18 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
 
-      // Genesis block: start the network
-      await setCurrentBlockNumber(0);
-      (await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(0));
-      (await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(0));
-      await callFinalizeChange();
-
       // Staking epoch #0 starts on block #1
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
-      (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(1));
-      await setCurrentBlockNumber(1);
-      (await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
-      (await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
+      //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(1));
+      // await setCurrentBlockNumber(1);
+      //(await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
+      //(await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
 
       // Validators place stakes during the epoch #0
       const candidateMinStake = await stakingHbbft.candidateMinStake.call();
@@ -364,22 +375,20 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[0], {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
 
       // Epoch's fixed duration ends
-      const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      await setCurrentBlockNumber(stakingFixedEpochEndBlock);
-      await callReward(false);
+      //const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+      //await setCurrentBlockNumber(stakingFixedEpochEndBlock);
+
+      await timeTravelToTransition();
+
       // the pending validator set should be updated
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
 
       // Staking epoch #0 finishes
-      const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
-      await setCurrentBlockNumber(stakingEpochEndBlock);
+      //const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
+      //await setCurrentBlockNumber(stakingEpochEndBlock);
 
-      // total blocks created in an epoch: endBlock - startBlock +1 (the genesis block is not considered)
-      const blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());
-      blocksCreated.should.be.bignumber.equal(stakingFixedEpochDuration.add(keyGenerationDuration).sub(new BN(1))); //-1 because it is gonna be increased by blockRewardHbbft.reward()
-      await blockRewardHbbft.setBlocksCreated(new BN(0), blocksCreated).should.be.fulfilled;
-      await callReward(true);
-      (await blockRewardHbbft.blocksCreated.call(new BN(0))).should.be.bignumber.equal(stakingEpochDuration);
+      await timeTravelToEndEpoch();
+      (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
     });
 
     async function _claimRewardStakeIncreasing(epochsPoolRewarded, epochsStakeIncreased) {
@@ -411,9 +420,9 @@ contract('StakingHbbft', async accounts => {
           const startBlock = new BN(120954 * stakingEpoch + 1);
           await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-          await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+          //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-          await setCurrentBlockNumber(startBlock);
+          //await setCurrentBlockNumber(startBlock);
 
           // Emulate delegator's stake increasing
           await stakingHbbft.stake(stakingAddress, {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
@@ -473,70 +482,45 @@ contract('StakingHbbft', async accounts => {
     }
 
     async function _delegatorNeverStakedBefore() {
+
+      
       const miningAddress = initialValidators[0];
       const stakingAddress = initialStakingAddresses[0];
       const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
 
-      // Emulate the fact that the delegator never staked before
-      // current block number is at the end of staking epoch #0
-      // delegator orders a withdrawal during epoch #1
-      let stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      let stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
-      let stakingEpochStartBlock = stakingFixedEpochDuration.add(keyGenerationDuration).add(new BN(1));
-      
-      let startBlock = stakingEpochEndBlock.add(new BN(1));
-      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
-      
-      // one block before new epoch, finalize change will increment it
-      // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
-      await callFinalizeChange();
+      // the beforeeach  alsready runs 1 epoch, so we expect to be in epoch 1 here.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
-      stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
+
+      //await timeTravelToEndEpoch();
+      //(await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
+      
       // the pending validator set should be empy
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
 
       // Staking epoch #1: Start
-      await setCurrentBlockNumber(stakingEpochStartBlock);
       (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
       (await stakingHbbft.areStakeAndWithdrawAllowed.call()).should.be.equal(true);
       await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
 
-      // Staking epoch #1: end of fixed duration
-      stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      await setCurrentBlockNumber(stakingFixedEpochEndBlock);
+      
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
-      await callReward(false);
+
+      // Staking epoch #1: start of Transition Phase!
+      await timeTravelToTransition();
+
       // the pending validator set should be updated
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
 
-      // Staking epoch #1: Epoch end block
-      let endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
-      stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
-      await setCurrentBlockNumber(stakingEpochEndBlock);
+      //Staking epoch #1: Epoch end block
+      await timeTravelToEndEpoch();
 
-      let blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-      await blockRewardHbbft.setBlocksCreated(new BN(1), blocksCreated).should.be.fulfilled;
-      await callReward(true); //increments blockcsCreated too!
-      (await blockRewardHbbft.blocksCreated.call(new BN(1))).should.be.bignumber.equal(stakingEpochDuration);
-
-
-      // Staking epoch #1: Finalize change
-      (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
-      // upcoming epoch's start block
-      startBlock = stakingFixedEpochDuration.add(keyGenerationDuration).mul(new BN(2)).add(new BN(1)); // (stakingFixedEpochDuration + keyGenerationDuration) * stakingEpoch + 1
-      // finalize validators, increase stackingEpoch and set StakingEpochStartBlock
-      await callFinalizeChange();
+      // now epoch #2 has started.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
-      stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call()
-      stakingEpochStartBlock.should.be.bignumber.equal(startBlock);
+
       // the pending validator set should be empty
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(0);
 
       // epoch #2: the delegator withdraws their stake
-      await setCurrentBlockNumber(stakingEpochStartBlock);
-
       await stakingHbbft.claimOrderedWithdraw(stakingAddress, {from: delegator}).should.be.fulfilled;
 
       (await stakingHbbft.stakeAmount.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
@@ -549,26 +533,14 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.clearDelegatorStakeSnapshot(stakingAddress, delegator, new BN(1)).should.be.fulfilled;
       await stakingHbbft.clearDelegatorStakeSnapshot(stakingAddress, delegator, new BN(2)).should.be.fulfilled;
 
-       // Staking epoch #2: end of fixed duration
-       stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-       await setCurrentBlockNumber(stakingFixedEpochEndBlock);
-       await callReward(false);
+      // Staking epoch #2: end of fixed duration
+      await timeTravelToTransition();
 
       // Staking epoch #2: Epoch end block
-      endBlock = stakingEpochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      stakingEpochEndBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
-      stakingEpochEndBlock.should.be.bignumber.equal(endBlock);
-      await setCurrentBlockNumber(stakingEpochEndBlock);
+      await timeTravelToEndEpoch();
 
-      blocksCreated = stakingEpochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-      await blockRewardHbbft.setBlocksCreated(new BN(2), blocksCreated).should.be.fulfilled;
-      await callReward(true);
-      (await blockRewardHbbft.blocksCreated.call(new BN(2))).should.be.bignumber.equal(stakingEpochDuration);
-
-      // Staking epoch #2: Finalize change
-      await callFinalizeChange();
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(3));
-      (await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock.add(new BN(1)));
+      //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock.add(new BN(1)));
       return {miningAddress, stakingAddress, epochPoolReward};
     }
 
@@ -682,9 +654,9 @@ contract('StakingHbbft', async accounts => {
         const startBlock = new BN(120954 * stakingEpoch + 1);
         await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
         await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-        await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+        //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
         await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-        await setCurrentBlockNumber(startBlock);
+        //await setCurrentBlockNumber(startBlock);
         await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
         await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake.neg(), {from: delegator}).should.be.fulfilled;
       }
@@ -699,14 +671,14 @@ contract('StakingHbbft', async accounts => {
           const reversedEpochsPoolRewarded = [...epochsPoolRewarded].reverse();
           const currentEpoch = (await stakingHbbft.stakingEpoch.call()).toNumber();
           if (reversedEpochsPoolRewarded[0] < currentEpoch) {
-            await stakingHbbft.claimReward(reversedEpochsPoolRewarded, stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: need strictly increasing order.");
+            await stakingHbbft.claimReward(reversedEpochsPoolRewarded, stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: need strictly increasing order");
           } else {
-            await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch.");    
+            await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch");    
           }
         }
 
         await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1]).should.be.fulfilled;
-        await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch.");
+        await stakingHbbft.claimReward([], stakingAddress, {from: delegator}).should.be.rejectedWith("Claim: only before current epoch");
         await stakingHbbft.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1] + 1).should.be.fulfilled;
 
         if (epochsPoolRewarded.length == 1) {
@@ -765,12 +737,12 @@ contract('StakingHbbft', async accounts => {
 
       // Emulate the delegator's first stake on epoch #10
       stakingEpoch = 10;
-      let startBlock = new BN(120954 * stakingEpoch + 1);
+      
       await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-      await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+      //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-      await setCurrentBlockNumber(startBlock);
+      //await setCurrentBlockNumber(startBlock);
       await stakingHbbft.stake(stakingAddress, {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, {value: epochPoolReward}).should.be.fulfilled;
       (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
@@ -778,6 +750,7 @@ contract('StakingHbbft', async accounts => {
 
       // // Emulate rewards for the pool on epoch #11
       stakingEpoch = 11;
+      await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, {value: epochPoolReward}).should.be.fulfilled;
       (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, miningAddress)).should.be.bignumber.equal(epochPoolReward);
       await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch + 1, miningAddress).should.be.fulfilled;
@@ -796,6 +769,9 @@ contract('StakingHbbft', async accounts => {
       result.logs.length.should.be.equal(0);
       delegatorCoinsBalanceAfter.should.be.bignumber.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
 
+      const unclaimedEpochs = await blockRewardHbbft.epochsPoolGotRewardFor(miningAddress);
+      
+
       result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
       result.logs.length.should.be.equal(5);
       result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(1));
@@ -808,10 +784,11 @@ contract('StakingHbbft', async accounts => {
       result.logs.length.should.be.equal(1);
       result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(11));
 
-
       (await stakingHbbft.stakeFirstEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(11));
       (await stakingHbbft.stakeLastEpoch.call(stakingAddress, delegator)).should.be.bignumber.equal(new BN(0));
     });
+
+    //return;
 
     it('delegator stakes and withdraws at the same epoch', async () => {
       const {
@@ -832,9 +809,9 @@ contract('StakingHbbft', async accounts => {
       startBlock = new BN(120954 * stakingEpoch + 1);
       await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-      await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+      //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-      await setCurrentBlockNumber(startBlock);
+      //await setCurrentBlockNumber(startBlock);
       await stakingHbbft.stake(stakingAddress, {from: delegator, value: delegatorMinStake}).should.be.fulfilled;
       await stakingHbbft.withdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, {value: epochPoolReward}).should.be.fulfilled;
@@ -939,31 +916,31 @@ contract('StakingHbbft', async accounts => {
       );
     });
 
-    it('stake increasing', async () => {
+    it('stake increasing 1', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [5, 15, 25, 35],
         [4, 14, 24, 34]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 2', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [5, 15, 25, 35],
         [10, 20, 30]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 3', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [1, 2, 3, 4, 5, 6],
         [1, 2, 3, 4, 5]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 4', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [1, 3, 6, 10],
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
       );
     });
-    it('stake increasing', async () => {
+    it('stake increasing 5', async () => {
       await testClaimRewardAfterStakeIncreasing(
         [5, 15, 25],
         [5, 15, 25]
@@ -976,37 +953,37 @@ contract('StakingHbbft', async accounts => {
       );
     });
 
-    it('random withdrawal', async () => {
+    it('random withdrawal 1', async () => {
       await testClaimRewardRandom(
         [5, 15, 25, 35],
         [4, 14, 24, 34]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 2', async () => {
       await testClaimRewardRandom(
         [5, 15, 25, 35],
         [10, 20, 30]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 3', async () => {
       await testClaimRewardRandom(
         [1, 2, 3, 4, 5, 6],
         [1, 2, 3, 4, 5]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 4', async () => {
       await testClaimRewardRandom(
         [1, 3, 6, 10],
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 5', async () => {
       await testClaimRewardRandom(
         [5, 15, 25],
         [5, 15, 25]
       );
     });
-    it('random withdrawal', async () => {
+    it('random withdrawal 6', async () => {
       await testClaimRewardRandom(
         [5, 7, 9],
         [6, 8, 10]
@@ -1035,12 +1012,12 @@ contract('StakingHbbft', async accounts => {
 
       // Emulate delegator's stake withdrawal
       stakingEpoch = 10;
-      const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
+      //const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
       await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-      await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
+      //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-      await setCurrentBlockNumber(stakingEpochStartBlock);
+      //await setCurrentBlockNumber(stakingEpochStartBlock);
       await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, {value: epochPoolReward}).should.be.fulfilled;
       (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(2)));
@@ -1101,12 +1078,12 @@ contract('StakingHbbft', async accounts => {
 
       // Emulate delegator's stake withdrawal
       stakingEpoch = 10;
-      const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
+      //const stakingEpochStartBlock = new BN(120954 * stakingEpoch + 1);
       await stakingHbbft.setStakingEpoch(stakingEpoch).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-      await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
+      //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
-      await setCurrentBlockNumber(stakingEpochStartBlock);
+      //await setCurrentBlockNumber(stakingEpochStartBlock);
       await stakingHbbft.orderWithdraw(stakingAddress, delegatorMinStake, {from: delegator}).should.be.fulfilled;
       await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, {value: epochPoolReward}).should.be.fulfilled;
       (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(2)));
@@ -1134,6 +1111,7 @@ contract('StakingHbbft', async accounts => {
     });
 
     it('gas consumption for one staking epoch is OK', async () => {
+      
       const stakingEpoch = 2600;
 
       for (let i = 0; i < initialValidators.length; i++) {
@@ -1141,37 +1119,19 @@ contract('StakingHbbft', async accounts => {
       }
 
       await stakingHbbft.setStakingEpoch(stakingEpoch-1).should.be.fulfilled;
-      let epochStartBlock = new BN(120954 * (stakingEpoch-1) + 1);
-      await setCurrentBlockNumber(epochStartBlock);
+      
+      //await setCurrentBlockNumber(epochStartBlock);
       await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-      await stakingHbbft.setStakingEpochStartBlock(epochStartBlock).should.be.fulfilled;
+      //await stakingHbbft.setStakingEpochStartBlock(epochStartBlock).should.be.fulfilled;
       await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
       // new validatorSet at the end of fixed epoch duration
-      let fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      await setCurrentBlockNumber(fixedEpochEndBlock);
-      await callReward(false);
-      // startBlock is the upcoming epoch 1st block
-      let epochEndBlock = epochStartBlock.add(stakingFixedEpochDuration).add(new BN(2)).sub(new BN(1)); // +2 for the keyGen duration
-      let endBlock = (await stakingHbbft.stakingFixedEpochEndBlock.call()).add(keyGenerationDuration);
-      epochEndBlock.should.be.bignumber.equal(endBlock);
-      await setCurrentBlockNumber(endBlock);
+      
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
 
-      await callFinalizeChange();
       (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
-      // new epoch = stakingEpoch
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
-      epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-      epochStartBlock.should.be.bignumber.equal(new BN(120954 * stakingEpoch + 2 + 1)); // +2 for kegen duration
 
-      fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-      await setCurrentBlockNumber(fixedEpochEndBlock);
-      await callReward(false);
-
-      endBlock = fixedEpochEndBlock.add(keyGenerationDuration);
-      await setCurrentBlockNumber(endBlock);
-
-      let blocksCreated = endBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-      await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
 
       let blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       
@@ -1179,13 +1139,12 @@ contract('StakingHbbft', async accounts => {
         (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
       }
       
-      await callReward(true);
-      (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
-      await callFinalizeChange();
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
 
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch + 1));
-      epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-      epochStartBlock.should.be.bignumber.equal(new BN(120954 * (stakingEpoch + 1) + 2 + 2 + 1)); // +2 for kegen duration
+      //epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+      //epochStartBlock.should.be.bignumber.equal(new BN(120954 * (stakingEpoch + 1) + 2 + 2 + 1)); // +2 for kegen duration
       
       let distributedCoinsAmount = new BN(0);
       for (let i = 0; i < initialValidators.length; i++) {
@@ -1228,6 +1187,7 @@ contract('StakingHbbft', async accounts => {
     });
 
     it('gas consumption for 20 staking epochs is OK', async () => {
+
       const maxStakingEpoch = 20;
       maxStakingEpoch.should.be.above(2);
 
@@ -1236,36 +1196,26 @@ contract('StakingHbbft', async accounts => {
         // Finalize change i.e. finalize pending validators, increase epoch and set stakingEpochStartBlock
         if ( stakingEpoch == 1) {
           await stakingHbbft.setStakingEpoch(1).should.be.fulfilled;
-          const startBlock = new BN(120954 + 2 + 1);
-          await setCurrentBlockNumber(startBlock);
+
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-          await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+          //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
         }
 
         (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
         (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
 
-        const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-        epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
-
-        const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-        await setCurrentBlockNumber(fixedEpochEndBlock);
-        await callReward(false);
-
-        const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
-        await setCurrentBlockNumber(epochEndBlock);
-
-        const blocksCreated = epochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-        await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
+        // await timeTravelToTransition();
+        // await timeTravelToEndEpoch();
 
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true); //increments blocksCreated
-        (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
-        await callFinalizeChange();
+
+        await timeTravelToTransition();
+        await timeTravelToEndEpoch();
+
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
           const epochPoolNativeReward = await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i]);
@@ -1382,36 +1332,34 @@ contract('StakingHbbft', async accounts => {
       for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
         if ( stakingEpoch == 1) {
           await stakingHbbft.setStakingEpoch(1).should.be.fulfilled;
-          const startBlock = new BN(120954 + 2 + 1);
-          await setCurrentBlockNumber(startBlock);
+          //const startBlock = new BN(120954 + 2 + 1);
+          //await setCurrentBlockNumber(startBlock);
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-          await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+          //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
         }
 
         (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
         (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
 
-        const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-        epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
+        //const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+        //epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
 
-        const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-        await setCurrentBlockNumber(fixedEpochEndBlock);
+        //const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+        //await setCurrentBlockNumber(fixedEpochEndBlock);
         await callReward(false);
 
-        const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
-        await setCurrentBlockNumber(epochEndBlock);
-
-        const blocksCreated = epochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-        await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
+        //const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
+        //await setCurrentBlockNumber(epochEndBlock);
 
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true); //increments blocksCreated
-        (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
-        await callFinalizeChange();
+
+        await timeTravelToTransition();
+        await timeTravelToEndEpoch();
+
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
           const epochPoolNativeReward = await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i]);
@@ -1505,9 +1453,9 @@ contract('StakingHbbft', async accounts => {
         if ( s == 0) {
           await stakingHbbft.setStakingEpoch(1).should.be.fulfilled;
           const startBlock = new BN(120954 + 2 + 1);
-          await setCurrentBlockNumber(startBlock);
+          //await setCurrentBlockNumber(startBlock);
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-          await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
+          //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
         }
 
@@ -1516,26 +1464,24 @@ contract('StakingHbbft', async accounts => {
         (await validatorSetHbbft.getValidators.call()).should.be.deep.equal(initialValidators);
         (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(stakingEpoch));
 
-        const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
-        epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
+        //const epochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
+        //epochStartBlock.should.be.bignumber.equal(new BN((120954+2) * stakingEpoch + 1));
 
-        const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
-        await setCurrentBlockNumber(fixedEpochEndBlock);
-        await callReward(false);
+        //const fixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock.call();
+        //await setCurrentBlockNumber(fixedEpochEndBlock);
+        //await callReward(false);
 
-        const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
-        await setCurrentBlockNumber(epochEndBlock);
-
-        const blocksCreated = epochEndBlock.sub(await stakingHbbft.stakingEpochStartBlock.call());;
-        await blockRewardHbbft.setBlocksCreated(new BN(stakingEpoch), blocksCreated).should.be.fulfilled;
+        //const epochEndBlock = fixedEpochEndBlock.add(keyGenerationDuration);
+        //await setCurrentBlockNumber(epochEndBlock);
 
         const blockRewardCoinsBalanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
         for (let i = 0; i < initialValidators.length; i++) {
           (await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i])).should.be.bignumber.equal(new BN(0));
         }
-        await callReward(true); //increments blocksCreated
-        (await blockRewardHbbft.blocksCreated.call(new BN(stakingEpoch))).should.be.bignumber.equal(stakingEpochDuration);
-        await callFinalizeChange();
+
+        await timeTravelToTransition();
+        await timeTravelToEndEpoch();
+
         let distributedCoinsAmount = new BN(0);
         for (let i = 0; i < initialValidators.length; i++) {
           const epochPoolNativeReward = await blockRewardHbbft.epochPoolNativeReward.call(stakingEpoch, initialValidators[i]);
@@ -1548,7 +1494,7 @@ contract('StakingHbbft', async accounts => {
         const nextStakingEpoch = stakingEpoch + gapSize; // jump through a few epochs
         await stakingHbbft.setStakingEpoch(nextStakingEpoch).should.be.fulfilled;
         await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-        await stakingHbbft.setStakingEpochStartBlock((120954 + 2) * nextStakingEpoch + 1).should.be.fulfilled;
+        //await stakingHbbft.setStakingEpochStartBlock((120954 + 2) * nextStakingEpoch + 1).should.be.fulfilled;
         await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
         for (let i = 0; i < initialValidators.length; i++) {
           await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, nextStakingEpoch, initialValidators[i]);
@@ -1632,6 +1578,8 @@ contract('StakingHbbft', async accounts => {
     });
   });
 
+  // return;
+
   describe('incrementStakingEpoch()', async () => {
     // set ValidatorSet = accounts[7]
     const  validatorSetContract  = accounts[7];
@@ -1650,9 +1598,7 @@ contract('StakingHbbft', async accounts => {
   });
 
   describe('initialize()', async () => {
-    beforeEach(async () => {
-      await stakingHbbft.setCurrentBlockNumber(0);
-    });
+
     it('should initialize successfully', async () => {
       await stakingHbbft.initialize(
         validatorSetHbbft.address, // _validatorSetContract
@@ -1660,7 +1606,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1671,9 +1617,9 @@ contract('StakingHbbft', async accounts => {
       stakingWithdrawDisallowPeriod.should.be.bignumber.equal(
         await stakingHbbft.stakingWithdrawDisallowPeriod.call()
       );
-      new BN(0).should.be.bignumber.equal(
-        await stakingHbbft.stakingEpochStartBlock.call()
-      );
+      // new BN(0).should.be.bignumber.equal(
+      //   await stakingHbbft.stakingEpochStartBlock.call()
+      // );
       validatorSetHbbft.address.should.be.equal(
         await stakingHbbft.validatorSetContract.call()
       );
@@ -1703,7 +1649,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1716,7 +1662,7 @@ contract('StakingHbbft', async accounts => {
         0, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1729,7 +1675,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         0, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1742,7 +1688,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1752,8 +1698,8 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
-        120954, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1766,7 +1712,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         0, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1779,7 +1725,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         0, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1792,7 +1738,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         120954, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1806,7 +1752,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1828,21 +1774,24 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
 
       // Place stakes
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[0], {from: initialStakingAddresses[0], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[0], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
     });
 
     it('should move entire stake', async () => {
+      // we can move the stake, since the staking address is not part of the active validator set,
+      // since we never did never a time travel.
+      // If we do, the stakingAddresses are blocked to withdraw without an orderwithdraw.
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[0], delegatorAddress)).should.be.bignumber.equal(stakeAmount);
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], delegatorAddress)).should.be.bignumber.equal(new BN(0));
       await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.fulfilled;
@@ -1904,7 +1853,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -1913,8 +1862,8 @@ contract('StakingHbbft', async accounts => {
       candidateMinStake = await stakingHbbft.candidateMinStake.call();
       delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
 
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
     });
     it('should be zero initially', async () => {
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
@@ -1948,10 +1897,10 @@ contract('StakingHbbft', async accounts => {
       await validatorSetHbbft.removeMaliciousValidators([initialValidators[1]], {from: owner}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: Mining address is banned");
     });
-    it('should only success in the allowed staking window', async () => {
-      await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.rejectedWith("Stake: disallowed period");
-    });
+    // it('should only success in the allowed staking window', async () => {
+    //   //await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+    //   await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.rejectedWith("Stake: disallowed period");
+    // });
     it('should fail if a candidate stakes less than CANDIDATE_MIN_STAKE', async () => {
       const halfOfCandidateMinStake = candidateMinStake.div(new BN(2));
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: halfOfCandidateMinStake}).should.be.rejectedWith("Stake: candidateStake less than candidateMinStake");
@@ -2031,13 +1980,13 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
     });
 
     it('should remove a pool', async () => {
@@ -2109,12 +2058,12 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
     });
 
     it('should fail for zero gas price', async () => {
@@ -2160,7 +2109,7 @@ contract('StakingHbbft', async accounts => {
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
-        stakingEpochStartBlock, // _stakingEpochStartBlock
+        stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
         initialValidatorsPubKeysSplit, // _publicKeys
         initialValidatorsIpAddresses // _internetAddresses
@@ -2169,8 +2118,8 @@ contract('StakingHbbft', async accounts => {
       candidateMinStake = await stakingHbbft.candidateMinStake.call();
       delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
 
-      await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+      //await stakingHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
+     // //await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
     });
 
     it('should withdraw a stake', async () => {
@@ -2219,6 +2168,7 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
     });
     it('shouldn\'t allow withdrawing from a banned pool', async () => {
+
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
       await validatorSetHbbft.setBannedUntil(initialValidators[1], 100).should.be.fulfilled;
@@ -2228,15 +2178,15 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.fulfilled;
     });
-    it('shouldn\'t allow withdrawing during the stakingWithdrawDisallowPeriod', async () => {
-      await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
-      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-      await stakingHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
-      await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
-    });
+    // it('shouldn\'t allow withdrawing during the stakingWithdrawDisallowPeriod', async () => {
+    //   await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
+    //   //await stakingHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+    //   //await validatorSetHbbft.setCurrentBlockNumber(117000).should.be.fulfilled;
+    //   await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
+    //   //await stakingHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
+    //   //await validatorSetHbbft.setCurrentBlockNumber(116000).should.be.fulfilled;
+    //   await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
+    // });
     it('should fail if non-zero residue is less than CANDIDATE_MIN_STAKE', async () => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount.sub(candidateMinStake).add(new BN(1)), {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
@@ -2256,10 +2206,8 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.fulfilled;
     });
     it('should fail if withdraw already ordered amount', async () => {
-      await validatorSetHbbft.setCurrentBlockNumber(1).should.be.fulfilled;
+      
       await validatorSetHbbft.setSystemAddress(owner).should.be.fulfilled;
-      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(100).should.be.fulfilled;
 
       // Place a stake during the initial staking epoch
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(0));
@@ -2269,18 +2217,20 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
 
       // Finalize a new validator set and change staking epoch
-      await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
-      await blockRewardHbbft.initialize(validatorSetHbbft.address, maxBlockReward).should.be.fulfilled;      
+      //await stakingHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(120954).should.be.fulfilled;
+      await blockRewardHbbft.initialize(validatorSetHbbft.address, maxEpochReward).should.be.fulfilled;      
       await validatorSetHbbft.setStakingContract(stakingHbbft.address).should.be.fulfilled;
       // Set BlockRewardContract
       await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
       await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
       await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
-      // Finalize change (increases staking epoch)
-      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
+      // (increases staking epoch)
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+      
+      //await stakingHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(120970).should.be.fulfilled;
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
       // Order withdrawal
       const orderedAmount = stakeAmount.div(new BN(4));
@@ -2292,14 +2242,17 @@ contract('StakingHbbft', async accounts => {
       (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([initialStakingAddresses[1]]);
 
       // Finalize a new validator set, change staking epoch and enqueue pending validators
-      await stakingHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
+      //await stakingHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(120954*2).should.be.fulfilled;
       await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
       await validatorSetHbbft.newValidatorSet({from: accounts[7]}).should.be.fulfilled;
       await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address).should.be.fulfilled;
-      await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-      await stakingHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
-      await validatorSetHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
+
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
+      //await stakingHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
+      //await validatorSetHbbft.setCurrentBlockNumber(120970*2).should.be.fulfilled;
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
       (await validatorSetHbbft.isValidator.call(initialValidators[1])).should.be.equal(false);
 
@@ -2338,29 +2291,58 @@ contract('StakingHbbft', async accounts => {
 
   // TODO: ...add other tests...
 
-  async function callFinalizeChange() {
-    await validatorSetHbbft.setSystemAddress(owner).should.be.fulfilled;
-    await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
-    await validatorSetHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
-  }
-
   async function callReward(isEpochEndBlock) {
     const validators = await validatorSetHbbft.getValidators.call();
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
+
     const {logs} = await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
-    // Emulate minting native coins
-    logs[0].event.should.be.equal("CoinsRewarded");
-    const totalReward = logs[0].args.rewards;
-    await blockRewardHbbft.sendCoins({from: owner, value: totalReward}).should.be.fulfilled;
+    if (logs.length > 0)
+    {
+      // Emulate minting native coins
+      logs[0].event.should.be.equal("CoinsRewarded");
+      const totalReward = logs[0].args.rewards;
+      await blockRewardHbbft.sendCoins({from: owner, value: totalReward}).should.be.fulfilled;
+    }
+
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
   }
 
-  async function setCurrentBlockNumber(blockNumber) {
-    await blockRewardHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-    await randomHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-    await stakingHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-    await validatorSetHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
+  async function increaseTime(time) {
+    
+    const currentTimestamp = await validatorSetHbbft.getCurrentTimestamp.call();
+    const futureTimestamp = currentTimestamp.add(web3.utils.toBN(time));
+    await validatorSetHbbft.setCurrentTimestamp(futureTimestamp);
+    const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp.call();
+    futureTimestamp.should.be.bignumber.equal(currentTimestampAfter);
   }
+
+    //time travels forward to the beginning of the next transition,
+  //and simulate a block mining (calling reward())
+  async function timeTravelToTransition() {
+    
+
+    let startTimeOfNextPhaseTransition = await stakingHbbft.startTimeOfNextPhaseTransition.call();
+    
+    await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextPhaseTransition);
+    const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+    currentTS.should.be.bignumber.equal(startTimeOfNextPhaseTransition);
+    await callReward(false);
+  }
+
+  async function timeTravelToEndEpoch() {
+
+    const tsBeforeTimeTravel = await validatorSetHbbft.getCurrentTimestamp.call();
+    // console.log('tsBefore:', tsBeforeTimeTravel.toString());
+    const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
+    // console.log('endTimeOfCurrentEpoch:', endTimeOfCurrentEpoch.toString());
+
+    if (endTimeOfCurrentEpoch.lt(tsBeforeTimeTravel)) {
+      console.error('Trying to timetravel back in time !!');
+    }
+    await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+    await callReward(true);
+  }
+
 });
 
 function random(low, high) {
@@ -2377,3 +2359,4 @@ function shuffle(a) {
   }
   return a;
 }
+

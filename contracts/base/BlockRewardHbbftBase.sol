@@ -26,13 +26,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     mapping(address => uint256[]) internal _epochsPoolGotRewardFor;
 
-    /// @dev A number of blocks produced by the set of validators during the specified staking epoch
-    /// (beginning from the block when the `finalizeChange` function is called until the latest block
-    /// of the staking epoch. The results are used by the `_distributeRewards` function.
-    mapping(uint256 => uint256) public blocksCreated;
-
     /// @dev The maximum per-block reward distributed among the validators.
-    uint256 public maxBlockReward;
+    uint256 public maxEpochReward;
 
     /// @dev The reward amount to be distributed in native coins among participants (the validator and their
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
@@ -95,26 +90,18 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
     function () payable external {
-        revert();
-    }
-
-    /// @dev Called by the `ValidatorSetHbbft.finalizeChange` to clear the values in
-    /// the `blocksCreated` mapping for the current staking epoch and a new validator set.
-    function clearBlocksCreated() external onlyValidatorSetContract {
-        IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
-        uint256 stakingEpoch = stakingContract.stakingEpoch();
-        blocksCreated[stakingEpoch] = 0;
+        revert("BlockRewardContracts don't accept native coins!");
     }
 
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _validatorSet, uint256 _maxBlockReward) external {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin());
+    function initialize(address _validatorSet, uint256 _maxEpochReward) external {
+        require(msg.sender == _admin() || block.number == 0);
         require(!isInitialized());
         require(_validatorSet != address(0));
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        maxBlockReward = _maxBlockReward;
+        maxEpochReward = _maxEpochReward;
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
     }
 
@@ -123,16 +110,18 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// This function performs all of the automatic operations needed for accumulating block producing statistics,
     /// starting a new staking epoch, snapshotting staking amounts for the upcoming staking epoch,
     /// and rewards distributing at the end of a staking epoch.
-    /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e. just before the pending validators are fiinalized.
+    /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e.
+    /// just before the pending validators are fiinalized.
     function reward(address[] calldata _benefactors, uint16[] calldata _kind, bool _isEpochEndBlock)
-        external
-        onlySystem
-        returns(uint256 rewardsNative)
+    external
+    onlySystem
+    returns(uint256 rewardsNative)
     {
-        if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
-            return 0;
-        }
+        // if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
+        //     return 0;
+        // }
 
+        
         // if (_benefactors.length != _kind.length) {
         //     return (new address[](0), new uint256[](0));
         // }
@@ -143,28 +132,14 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         // }
 
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
-        uint256 stakingEpoch = stakingContract.stakingEpoch();
-        uint256 stakingFixedEpochEndTime = stakingContract.stakingFixedEpochEndTime();
-        uint256 nativeTotalRewardAmount;
-
-         // Store the current timestamp in a local vairable
-        uint256 currentTimestamp = _getCurrentTimestamp();
-         
-        // Accumulate block producing statistics for each of the
-        // active validators during the current staking epoch. This
-        // statistics is used by the `_distributeRewards` function
-        blocksCreated[stakingEpoch]++;
-
-        // If the end of the fixed epoch duration is reached, choose the new validator candidates aka pendingValidators.
-        if (currentTimestamp >= stakingFixedEpochEndTime) {
-           // Choose new validators
-            validatorSetContract.newValidatorSet();
-        }
-
         // If this is the last block of the epoch i.e. master key has been generated.
+
         if (_isEpochEndBlock) {
-            // It should always come after the fixed epoch duration has elapsed.
-            require(currentTimestamp > stakingFixedEpochEndTime, "Fixed epoch duration has not elapsed yet");
+
+            
+            uint256 stakingEpoch = stakingContract.stakingEpoch();
+
+            uint256 nativeTotalRewardAmount;
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
@@ -192,10 +167,32 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             }
             // Remember validator's min reward percent for the upcoming staking epoch
             validatorMinRewardPercent[nextStakingEpoch] = VALIDATOR_MIN_REWARD_PERCENT;
+
+            // the rewards got distributed, 
+            // we now can finalize the epoch and start with a new one.
+            validatorSetContract.finalizeChange();
+
+
+            emit CoinsRewarded(nativeTotalRewardAmount);
+            return nativeTotalRewardAmount;
+
+        } else {
+
+            uint256 phaseTransitionTime = stakingContract.startTimeOfNextPhaseTransition();
+            uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
+
+            //we are in a transition to phase 2 if the time for it arrived,
+            // and we do not have pendingValidators yet.
+            bool isPhaseTransition = 
+                currentTimestamp >= phaseTransitionTime 
+                && validatorSetContract.getPendingValidators().length == 0;
+
+            if (isPhaseTransition) {
+                // Choose new validators
+                validatorSetContract.newValidatorSet();
+            }
         }
 
-        emit CoinsRewarded(nativeTotalRewardAmount);
-        return nativeTotalRewardAmount;
 
     }
 
@@ -203,12 +200,18 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Returns an array of epoch numbers for which the specified pool (mining address)
     /// got a non-zero reward.
-    function epochsPoolGotRewardFor(address _miningAddress) public view returns(uint256[] memory) {
+    function epochsPoolGotRewardFor(address _miningAddress)
+    public
+    view
+    returns(uint256[] memory) {
         return _epochsPoolGotRewardFor[_miningAddress];
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized()
+    public
+    view
+    returns(bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 
@@ -219,7 +222,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     function epochsToClaimRewardFrom(
         address _poolStakingAddress,
         address _staker
-    ) public view returns(uint256[] memory epochsToClaimFrom) {
+    )
+    public
+    view
+    returns(uint256[] memory epochsToClaimFrom) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         bool isDelegator = _poolStakingAddress != _staker;
@@ -272,7 +278,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// the potentially possible reward coefficient is returned.
     /// @param _stakingAddress The staking address of the validator/candidate
     /// pool for which the getter must return the coefficient.
-    function validatorRewardPercent(address _stakingAddress) public view returns(uint256) {
+    function validatorRewardPercent(address _stakingAddress)
+    public
+    view
+    returns(uint256) {
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         uint256 stakingEpoch = stakingContract.stakingEpoch();
 
@@ -317,7 +326,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 _validatorStaked,
         uint256 _totalStaked,
         uint256 _poolReward
-    ) public view returns(uint256) {
+    )
+    public
+    view
+    returns(uint256) {
         if (_delegatorStaked == 0 || _validatorStaked == 0 || _totalStaked == 0) {
             return 0;
         }
@@ -345,7 +357,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 _validatorStaked,
         uint256 _totalStaked,
         uint256 _poolReward
-    ) public view returns(uint256) {
+    )
+    public
+    view
+    returns(uint256) {
         if (_validatorStaked == 0 || _totalStaked == 0) {
             return 0;
         }
@@ -373,14 +388,16 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @param _stakingEpoch The number of the current staking epoch.
     /// @return Returns the reward amount in native coins needed to be minted
     /// and accrued to the balance of this contract.
-    function _distributeRewards(uint256 _stakingEpoch) internal returns(uint256) {
+    function _distributeRewards(uint256 _stakingEpoch)
+    internal
+    returns(uint256) {
         
         address[] memory validators = validatorSetContract.getValidators();
 
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-       uint256 totalReward = blocksCreated[_stakingEpoch]*maxBlockReward + nativeRewardUndistributed;
+        uint256 totalReward = maxEpochReward + nativeRewardUndistributed;
 
         if (totalReward == 0) {
             return 0;
@@ -413,8 +430,13 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (poolReward != 0) {
             for (uint256 i = 0; i < numValidators; i++) {
                 if (isRewardedValidator[i]){
+                    //DEBUG: this require has been added for debug reasons.
+                    require(epochPoolNativeReward[_stakingEpoch][validators[i]] == 0, 
+                        'cant distribute rewards: there is already a pool reward defined for this epoch and validator');
                     epochPoolNativeReward[_stakingEpoch][validators[i]] = poolReward;
+                    
                     distributedAmount += poolReward;
+
                     _epochsPoolGotRewardFor[validators[i]].push(_stakingEpoch);
                 }
             }
@@ -426,16 +448,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         
     }
 
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
-    }
-
-    /// @dev Returns the current timestamp.
-    function _getCurrentTimestamp() internal view returns(uint256) {
-        return block.timestamp;
-    }
-
     /// @dev Makes snapshots of total amount staked into the specified pool
     /// before the specified staking epoch. Used by the `reward` function.
     /// @param _stakingContract The address of the `StakingHbbft` contract.
@@ -445,7 +457,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         IStakingHbbft _stakingContract,
         uint256 _stakingEpoch,
         address _miningAddress
-    ) internal {
+    )
+    internal {
         if (snapshotPoolTotalStakeAmount[_stakingEpoch][_miningAddress] != 0) {
             return;
         }
@@ -463,7 +476,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// from the balance of the `BlockRewardHbbft` contract to the specified address as a reward.
     /// @param _amount The amount of native coins to transfer as a reward.
     /// @param _to The target address to transfer the amounts to.
-    function _transferNativeReward(uint256 _amount, address payable _to) internal {
+    function _transferNativeReward(uint256 _amount, address payable _to)
+    internal {
         if (_amount != 0 && !_to.send(_amount)) {
             // We use the `Sacrifice` trick to be sure the coins can be 100% sent to the receiver.
             // Otherwise, if the receiver is a contract which has a revert in its fallback function,

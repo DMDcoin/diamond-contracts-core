@@ -11,7 +11,10 @@
     "flat": "bash scripts/make_flat.sh",
     "solhint": "node_modules/.bin/solhint \"contracts/**/*.sol\"",
     "solidity-docgen": "rm -rf docs/docs/api* && npm i && solidity-docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol,Migrations.sol . contracts docs && node docs/website/sidebars-fix.js",
-    "test": "node scripts/check_for_clashing.js && bash scripts/test.sh"
+    "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
+    "runGanache": "node_modules/.bin/ganache-cli  --allowUnlimitedContractSize --gasLimit 0xfffffffffff --port \"8545\" --accounts 200 --defaultBalanceEther 1000000 --mnemonic \"vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit\"",
+    "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
+    "testDev": "bash scripts/test.sh test/StakingHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
   },
   "repository": {
     "type": "git",
@@ -23,7 +26,7 @@
   },
   "homepage": "https://github.com/poanetwork/posdao-contracts#readme",
   "dependencies": {
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.20",
     "solidity-docgen": "^0.4.1",
     "solidity-flattener": "github:poanetwork/solidity-flattener#master"
   },
@@ -31,14 +34,14 @@
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "chai-bn": "^0.1.1",
-    "eth-gas-reporter": "^0.2.12",
-    "ganache-cli": "^6.6.0",
+    "eth-gas-reporter": "^0.2.17",
+    "ganache-cli": "^6.10.1",
     "mochawesome": "^3.1.1",
     "node-fetch": "^2.6.0",
     "solc": "^0.5.16",
     "solhint": "^2.0.0",
     "solidity-coverage": "^0.7.2",
-    "truffle": "^5.0.43",
-    "web3": "^1.2.1"
+    "truffle": "^5.1.42",
+    "web3": "^1.2.11"
   }
 }

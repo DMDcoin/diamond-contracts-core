@@ -127,26 +127,15 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         _;
     }
 
-    // =============================================== Setters ========================================================
-
-    /// @dev Called by the system when a pending validator set is ready to be activated.
-    /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
-    /// After this function is called, the `getValidators` getter returns the new validator set.
-    /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
-    /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
-    function finalizeChange() external onlySystem {
-        if (_pendingValidators.length != 0) {
-            // Apply a new validator set formed by the `newValidatorSet` function
-            _savePreviousValidators();
-            _finalizeNewValidators();
-            IBlockRewardHbbft(blockRewardContract).clearBlocksCreated();
-            // new epoch starts
-            stakingContract.incrementStakingEpoch();
-            delete _pendingValidators;
-        }
-        // The very first call of  `finalizeChange` happens in the genesis block (block #0)
-        stakingContract.setStakingEpochStartTime(_getCurrentTimestamp());            
+    /// @dev Returns the current timestamp.
+    function getCurrentTimestamp()
+    external
+    view
+    returns(uint256) {
+        return block.timestamp;
     }
+
+    // =============================================== Setters ========================================================
 
     /// @dev Initializes the network parameters. Used by the
     /// constructor of the `InitializerHbbft` contract.
@@ -164,14 +153,16 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external {
-        require(_getCurrentBlockNumber() == 0 || msg.sender == _admin(), "Initialization only on genesis block or by admin");
-        require(!isInitialized(), "ValidatorSet contract is already initialized"); // initialization can only be done once
-        require(_blockRewardContract != address(0), "BlockReward contract address can't be 0");
-        require(_randomContract != address(0), "Random contract address can't be 0");
-        require(_stakingContract != address(0), "Staking contract address can't be 0");
-        require(_keyGenHistoryContract != address(0), "KeyGenHistory contract address can't be 0");
+        require(msg.sender == _admin() || block.number == 0, 
+            "Initialization only on genesis block or by admin");
+        require(!isInitialized(), "ValidatorSet contract is already initialized");
+        require(_blockRewardContract != address(0), "BlockReward contract address can't be 0x0");
+        require(_randomContract != address(0), "Random contract address can't be 0x0");
+        require(_stakingContract != address(0), "Staking contract address can't be 0x0");
+        require(_keyGenHistoryContract != address(0), "KeyGenHistory contract address can't be 0x0");
         require(_initialMiningAddresses.length > 0, "Must provide initial mining addresses");
-        require(_initialMiningAddresses.length == _initialStakingAddresses.length, "Must provide the same amount of mining/staking addresses");
+        require(_initialMiningAddresses.length == _initialStakingAddresses.length,
+            "Must provide the same amount of mining/staking addresses");
 
         blockRewardContract = _blockRewardContract;
         randomContract = _randomContract;
@@ -189,16 +180,49 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         }
     }
 
+      /// @dev Called by the system when a pending validator set is ready to be activated.
+    /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
+    /// After this function is called, the `getValidators` getter returns the new validator set.
+    /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
+    /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
+    function finalizeChange()
+    external
+    onlyBlockRewardContract {
+
+        //require(_pendingValidators.length != 0,
+        //    "DEBUG ASSERT: no pending Validators to finalize change.");
+
+        //in the case noone staked yet, the system keeps the current validator set.
+        //maybe do more checks here ?
+        //at least as debug asserts ?
+
+        if (_pendingValidators.length != 0) {
+
+            // Apply a new validator set formed by the `newValidatorSet` function
+            _savePreviousValidators();
+            _finalizeNewValidators();
+        }
+
+        // new epoch starts
+        stakingContract.incrementStakingEpoch();
+        delete _pendingValidators;
+        stakingContract.setStakingEpochStartTime(this.getCurrentTimestamp());
+
+    }
+
     /// @dev Implements the logic which forms a new validator set. If the number of active pools
     /// is greater than MAX_VALIDATORS, the logic chooses the validators randomly using a random seed generated and
     /// stored by the `RandomHbbft` contract.
     /// Automatically called by the `BlockRewardHbbft.reward` function at the latest block of the staking epoch.
-    function newValidatorSet() external onlyBlockRewardContract {
+    function newValidatorSet()
+    external
+    onlyBlockRewardContract {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
     
         // Choose new validators
         if (poolsToBeElected.length > MAX_VALIDATORS) {
 
+            //todo: in HBBFT this can be the blockhash ?!
             uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
 
             (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
@@ -223,7 +247,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             _setPendingValidators(poolsToBeElected);
         }
         
-        // clear previousValidator KetGenHistory state
+        // clear previousValidator KeyGenHistory state
         keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
 
         if (poolsToBeElected.length != 0) {
@@ -232,9 +256,12 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         }
     }
 
-    /// @dev Removes malicious validators. Called by the the Hbbft engine when a validator has been inactive for a long period.
+    /// @dev Removes malicious validators.
+    /// Called by the the Hbbft engine when a validator has been inactive for a long period.
     /// @param _miningAddresses The mining addresses of the malicious validators.
-    function removeMaliciousValidators(address[] calldata _miningAddresses) external onlySystem {
+    function removeMaliciousValidators(address[] calldata _miningAddresses)
+    external
+    onlySystem {
         _removeMaliciousValidators(_miningAddresses, "inactive");
     }
 
@@ -247,7 +274,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function reportMalicious(
         address _maliciousMiningAddress,
         uint256 _blockNumber
-    ) external onlyInitialized {
+    )
+    external
+    onlyInitialized {
         address reportingMiningAddress = msg.sender;
 
         _incrementReportingCounter(reportingMiningAddress);
@@ -305,7 +334,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// and should never be used as a pool before.
     /// @param _stakingAddress The staking address of the newly created pool. Cannot be equal to the `_miningAddress`
     /// and should never be used as a pool before.
-    function setStakingAddress(address _miningAddress, address _stakingAddress) external onlyStakingContract {
+    function setStakingAddress(address _miningAddress, address _stakingAddress)
+    external
+    onlyStakingContract {
         _setStakingAddress(_miningAddress, _stakingAddress);
     }
 
@@ -314,27 +345,39 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns a boolean flag indicating whether delegators of the specified pool are currently banned.
     /// A validator pool can be banned when they misbehave (see the `_removeMaliciousValidator` function).
     /// @param _miningAddress The mining address of the pool.
-    function areDelegatorsBanned(address _miningAddress) public view returns(bool) {
-        return _getCurrentTimestamp() <= bannedDelegatorsUntil[_miningAddress];
+    function areDelegatorsBanned(address _miningAddress)
+    public
+    view
+    returns(bool) {
+        return this.getCurrentTimestamp() <= bannedDelegatorsUntil[_miningAddress];
     }
 
     /// @dev Returns the previous validator set (validators' mining addresses array).
     /// The array is stored by the `finalizeChange` function
     /// when a new staking epoch's validator set is finalized.
-    function getPreviousValidators() public view returns(address[] memory) {
+    function getPreviousValidators()
+    public
+    view
+    returns(address[] memory) {
         return _previousValidators;
     }
 
     /// @dev Returns the current array of pending validators i.e. waiting to be activated in the new epoch
     /// The pending array is changed when a validator is removed as malicious
     /// or the validator set is updated by the `newValidatorSet` function.
-    function getPendingValidators() public view returns(address[] memory) {
+    function getPendingValidators()
+    public
+    view
+    returns(address[] memory) {
         return _pendingValidators;
     }
 
     /// @dev Returns the current validator set (an array of mining addresses)
     /// which always matches the validator set kept in validator's node.
-    function getValidators() public view returns(address[] memory) {
+    function getValidators()
+    public
+    view
+    returns(address[] memory) {
         return _currentValidators;
     }
 
@@ -356,11 +399,12 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             return isValid;
         }
         // TO DO: arbitrarily chosen period stakingFixedEpochDuration/5.
-        if (_getCurrentTimestamp() - stakingContract.stakingEpochStartTime() <= stakingContract.stakingFixedEpochDuration()/5) {
+        if (this.getCurrentTimestamp() - stakingContract.stakingEpochStartTime() 
+            <= stakingContract.stakingFixedEpochDuration()/5) {
             // The current validator set was finalized by the engine,
             // but we should let the previous validators finish
             // reporting malicious validator within a few blocks
-            bool previousValidator = isValidatorPrevious[_miningAddress] && !isValidatorBanned(_miningAddress); // TODO: !isValidatorBanned() is not needed, it is included in isValid
+            bool previousValidator = isValidatorPrevious[_miningAddress];
             return isValid || previousValidator;
         }
         return isValid;
@@ -370,14 +414,17 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// A validator can be banned when they misbehave (see the `_removeMaliciousValidator` internal function).
     /// @param _miningAddress The mining address.
     function isValidatorBanned(address _miningAddress) public view returns(bool) {
-        return _getCurrentTimestamp() <= bannedUntil[_miningAddress];
+        return this.getCurrentTimestamp() <= bannedUntil[_miningAddress];
     }
 
     /// @dev Returns a boolean flag indicating whether the specified mining address is a validator
     /// or is in the `_pendingValidators`.
     /// Used by the `StakingHbbft.maxWithdrawAllowed` and `StakingHbbft.maxWithdrawOrderAllowed` getters.
     /// @param _miningAddress The mining address.
-    function isValidatorOrPending(address _miningAddress) public view returns(bool) {
+    function isValidatorOrPending(address _miningAddress)
+    public
+    view
+    returns(bool) {
         if (isValidator[_miningAddress]) {
             return true;
         }
@@ -388,7 +435,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns a boolean flag indicating whether the specified mining address is a pending validator.
     /// Used by the `isValidatorOrPending` and `KeyGenHistory.writeAck/Part` functions.
     /// @param _miningAddress The mining address.
-    function isPendingValidator(address _miningAddress) public view returns(bool) {
+    function isPendingValidator(address _miningAddress)
+    public
+    view
+    returns(bool) {
 
         for (uint256 i = 0; i < _pendingValidators.length; i++) {
             if (_miningAddress == _pendingValidators[i]) {
@@ -403,7 +453,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// validator misbehaved at the specified block.
     /// @param _miningAddress The mining address of malicious validator.
     /// @param _blockNumber The block number.
-    function maliceReportedForBlock(address _miningAddress, uint256 _blockNumber) public view returns(address[] memory) {
+    function maliceReportedForBlock(address _miningAddress, uint256 _blockNumber)
+    public
+    view
+    returns(address[] memory) {
         return _maliceReportedForBlock[_miningAddress][_blockNumber];
     }
 
@@ -424,7 +477,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address _reportingMiningAddress,
         address _maliciousMiningAddress,
         uint256 _blockNumber
-    ) public view returns(bool callable, bool removeReportingValidator) {
+    )
+    public
+    view
+    returns(bool callable, bool removeReportingValidator) {
         if (!isReportValidatorValid(_reportingMiningAddress)) return (false, false);
         if (!isReportValidatorValid(_maliciousMiningAddress)) return (false, false);
 
@@ -445,7 +501,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             }
         }
 
-        uint256 currentBlock = _getCurrentBlockNumber();
+        uint256 currentBlock = block.number; // TODO: _getCurrentBlockNumber(); Make it time based here ?
 
         if (_blockNumber > currentBlock) return (false, false); // avoid reporting about future blocks
 
@@ -474,7 +530,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// uses this counter for reporting checks so it must be up-to-date. Called by the `_removeMaliciousValidators`
     /// internal function.
     /// @param _miningAddress The mining address of the removed malicious validator.
-    function _clearReportingCounter(address _miningAddress) internal {
+    function _clearReportingCounter(address _miningAddress)
+    internal {
         uint256 currentStakingEpoch = stakingContract.stakingEpoch();
         uint256 total = reportingCounterTotal[currentStakingEpoch];
         uint256 counter = reportingCounter[_miningAddress][currentStakingEpoch];
@@ -490,7 +547,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     /// @dev Sets a new validator set stored in `_pendingValidators` array.
     /// Called by the `finalizeChange` function.
-    function _finalizeNewValidators() internal {
+    function _finalizeNewValidators()
+    internal {
         address[] memory validators;
         uint256 i;
 
@@ -513,7 +571,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// See the `reportingCounter` and `reportingCounterTotal` public mappings. Called by the `reportMalicious`
     /// function when the validator reports a misbehavior.
     /// @param _reportingMiningAddress The mining address of reporting validator.
-    function _incrementReportingCounter(address _reportingMiningAddress) internal {
+    function _incrementReportingCounter(address _reportingMiningAddress)
+    internal {
         if (!isReportValidatorValid(_reportingMiningAddress)) return;
         uint256 currentStakingEpoch = stakingContract.stakingEpoch();
         reportingCounter[_reportingMiningAddress][currentStakingEpoch]++;
@@ -528,7 +587,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// "malicious" - the validator was reported as malicious by other validators with the `reportMalicious` function.
     /// @return Returns `true` if the specified validator has been removed from the pending validator set.
     /// Otherwise returns `false` (if the specified validator has already been removed or cannot be removed).
-    function _removeMaliciousValidator(address _miningAddress, bytes32 _reason) internal returns(bool) {
+    function _removeMaliciousValidator(address _miningAddress, bytes32 _reason)
+    internal
+    returns(bool) {
 
         bool isBanned = isValidatorBanned(_miningAddress);
         // Ban the malicious validator for at least the next 12 staking epochs
@@ -627,6 +688,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
                      _pendingValidators.push(_currentValidators[0]); // add at least on validator
             }
         } else {
+            
             for (uint256 i = 0; i < _stakingAddresses.length; i++) {
                 _pendingValidators.push(miningByStakingAddress[_stakingAddresses[i]]);
             }
@@ -654,20 +716,11 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Returns the future timestamp until which a validator is banned.
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns(uint256) {
-        uint256 currentTimestamp =  _getCurrentTimestamp();
+        uint256 currentTimestamp = this.getCurrentTimestamp();
         uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime().sub(currentTimestamp);
-        // Ban for at least 12 full staking epochs: currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration. 
+        // Ban for at least 12 full staking epochs: 
+        // currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration. 
         return currentTimestamp.add(12 * stakingContract.stakingFixedEpochDuration()).add(ticksUntilEnd);
-    }
-
-    /// @dev Returns the current block number. Needed mostly for unit tests.
-    function _getCurrentBlockNumber() internal view returns(uint256) {
-        return block.number;
-    }
-
-    /// @dev Returns the current timestamp.
-    function _getCurrentTimestamp() internal view returns(uint256) {
-        return block.timestamp;
     }
 
     /// @dev Returns an index of a pool in the `poolsToBeElected` array

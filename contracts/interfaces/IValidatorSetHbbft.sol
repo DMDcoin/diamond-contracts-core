@@ -10,6 +10,7 @@ interface IValidatorSetHbbft {
         address[] calldata,
         address[] calldata
     ) external;
+    function finalizeChange() external;
     function newValidatorSet() external;
     function removeMaliciousValidators(address[] calldata) external;
     function setStakingAddress(address, address) external;
@@ -29,4 +30,5 @@ interface IValidatorSetHbbft {
     function reportMaliciousCallable(address, address, uint256) external view returns(bool, bool);
     function stakingByMiningAddress(address) external view returns(address);
     function stakingContract() external view returns(address);
+    function getCurrentTimestamp() external view returns(uint256);
 }
