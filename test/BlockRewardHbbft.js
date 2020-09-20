@@ -260,7 +260,7 @@ contract('BlockRewardHbbft', async accounts => {
   async function callReward(isEpochEndBlock) {
     // console.log('getting validators...');
     // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
-    //const validators = await validatorSetHbbft.getValidators.call();
+    const validators = await validatorSetHbbft.getValidators.call();
     //console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
     await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
