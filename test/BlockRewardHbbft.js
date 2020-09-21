@@ -157,7 +157,7 @@ contract('BlockRewardHbbft', async accounts => {
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
       //const stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock.call();
       //stakingEpochStartBlock.should.be.bignumber.equal(STAKING_EPOCH_START_BLOCK.add(STAKING_FIXED_EPOCH_DURATION).add(KEY_GEN_DURATION));
-      //await setCurrentBlockNumber(stakingEpochStartBlock);
+      
 
       const currentValudators = await validatorSetHbbft.getValidators.call();
       currentValudators.length.should.be.equal(3);
@@ -295,13 +295,4 @@ contract('BlockRewardHbbft', async accounts => {
     await callReward(true);
   }
 
-  
-  // async function setCurrentBlockNumber(blockNumber) {
-  //   await blockRewardHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-  //   await randomHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-  //   await stakingHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-  //   //await validatorSetHbbft.setCurrentBlockNumber(blockNumber).should.be.fulfilled;
-  // }
-
-  // TODO: ...add other tests...
 });
