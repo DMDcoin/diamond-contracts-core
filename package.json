@@ -8,6 +8,7 @@
     "coverage": "SOLIDITY_COVERAGE=true bash scripts/test.sh",
     "docs-publish": "npm run solidity-docgen && cd docs/website && npm i && npm run publish-gh-pages",
     "docs-start": "npm run solidity-docgen && cd docs/website && npm i && npm start",
+    "make_spec_test" : "node scripts/make_spec_hbbft.js ../openethereum/ethcore/engines/hbbft/hbbft_config_generator/keygen_history.json",
     "flat": "bash scripts/make_flat.sh",
     "solhint": "node_modules/.bin/solhint \"contracts/**/*.sol\"",
     "solidity-docgen": "rm -rf docs/docs/api* && npm i && solidity-docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol,Migrations.sol . contracts docs && node docs/website/sidebars-fix.js",

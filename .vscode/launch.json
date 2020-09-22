@@ -35,6 +35,15 @@
         "${workspaceFolder}/lib/**/*.js",
         "<node_internals>/**/*.js"
       ]
+    },
+    {
+      "name": "makeSpec",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run-script", "make_spec_test"]
     }
+    
   ]
 }
