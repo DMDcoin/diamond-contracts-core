@@ -36,12 +36,10 @@ async function main() {
   }
   const stakingEpochDuration = process.env.STAKING_EPOCH_DURATION;
   const stakeWithdrawDisallowPeriod = process.env.STAKE_WITHDRAW_DISALLOW_PERIOD;
-  const collectRoundLength = process.env.COLLECT_ROUND_LENGTH;
-  const erc20Restricted = process.env.ERC20_RESTRICTED === 'true';
-
+  const stakingTransitionWindowLength = process.env.STAKING_TRANSITION_WINDOW_LENGTH;
   const ethToWei = web3.utils.toWei('1', 'ether');
   //stakingParams = [_delegatorMinStake, _candidateMinStake, _stakingEpochDuration, _stakeWithdrawDisallowPeriod
-  let stakingParams = [ethToWei, ethToWei, stakingEpochDuration, stakeWithdrawDisallowPeriod];
+  let stakingParams = [ethToWei, ethToWei, stakingEpochDuration, stakingTransitionWindowLength, stakeWithdrawDisallowPeriod];
 
   let publicKeys = init_data.public_keys;
   for (let i = 0; i < publicKeys.length; i++) {
@@ -80,13 +78,14 @@ async function main() {
 
     if (contractName == 'AdminUpgradeabilityProxy') {
       dir = 'contracts/upgradeability/';
-    } else if (contractName == 'StakingHbbft' && erc20Restricted) {
-      realContractName = 'StakingHbbftCoins';
-      dir = 'contracts/base/';
-    } else if (contractName == 'BlockRewardHbbft' && erc20Restricted) {
-      realContractName = 'BlockRewardHbbftCoins';
-      dir = 'contracts/base/';
     }
+    // else if (contractName == 'StakingHbbft' && erc20Restricted) {
+    //   realContractName = 'StakingHbbftCoins';
+    //   dir = 'contracts/base/';
+    // } else if (contractName == 'BlockRewardHbbft' && erc20Restricted) {
+    //   realContractName = 'BlockRewardHbbftCoins';
+    //   dir = 'contracts/base/';
+    // }
 
     console.log(`Compiling ${contractName}...`);
     const compiled = await compile(
@@ -229,6 +228,27 @@ async function main() {
     constructor: '0x' + contractsCompiled['KeyGenHistory'].bytecode
   };
 
+  // console.log(`InitializerHbbft constructor arguments:
+  // contracts ${[ // _contracts
+  //   VALIDATOR_SET_CONTRACT,
+  //   BLOCK_REWARD_CONTRACT,
+  //   RANDOM_CONTRACT,
+  //   STAKING_CONTRACT,
+  //   PERMISSION_CONTRACT,
+  //   CERTIFIER_CONTRACT,
+  //   KEY_GEN_HISTORY_CONTRACT
+  // ]},
+  // owner ${owner},
+  // initialValidators ${initialValidators},
+  // stakingAddresses ${stakingAddresses},
+  // stakingParams ${stakingParams},
+  // publicKeysSplit ${publicKeysSplit},
+  // internetAddresses ${internetAddresses},
+  // init_data.parts ${init_data.parts},
+  // init_data.acks ${init_data.acks},
+  // ethToWei ${ethToWei}`
+  // );
+
   // Build InitializerHbbft contract
   contract = new web3.eth.Contract(contractsCompiled['InitializerHbbft'].abi);
   deploy = await contract.deploy({data: '0x' + contractsCompiled['InitializerHbbft'].bytecode, arguments: [
@@ -251,6 +271,7 @@ async function main() {
       init_data.acks,
       ethToWei
     ]});
+
   spec.accounts['0x7000000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: await deploy.encodeABI()
