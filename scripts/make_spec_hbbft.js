@@ -12,7 +12,8 @@ const RANDOM_CONTRACT = '0x3000000000000000000000000000000000000001';
 const STAKING_CONTRACT = '0x1100000000000000000000000000000000000001';
 const PERMISSION_CONTRACT = '0x4000000000000000000000000000000000000001';
 const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
-const KEY_GEN_HISTORY_CONTRACT = '0x8000000000000000000000000000000000000001';
+const REGISTRY_CONTRACT = '0x6000000000000000000000000000000000000001';
+const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
 main();
 
@@ -201,7 +202,7 @@ async function main() {
   // Build Registry contract
   contract = new web3.eth.Contract(contractsCompiled['Registry'].abi);
   deploy = await contract.deploy({data: '0x' + contractsCompiled['Registry'].bytecode, arguments: [
-      CERTIFIER_CONTRACT,
+      REGISTRY_CONTRACT,
       owner
     ]});
   spec.accounts['0x6000000000000000000000000000000000000000'] = {
@@ -213,7 +214,7 @@ async function main() {
   // Build KeyGenHistory contract
   contract = new web3.eth.Contract(contractsCompiled['KeyGenHistory'].abi);
   deploy = await contract.deploy({data: '0x' + contractsCompiled['KeyGenHistory'].bytecode, arguments: [
-      '0x8000000000000000000000000000000000000000', // implementation address
+      '0x7000000000000000000000000000000000000000', // implementation address
       owner,
       []
     ]});
@@ -222,8 +223,9 @@ async function main() {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
+  
 
-  spec.accounts['0x8000000000000000000000000000000000000000'] = {
+  spec.accounts['0x7000000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: '0x' + contractsCompiled['KeyGenHistory'].bytecode
   };
@@ -282,7 +284,7 @@ async function main() {
       ethToWei
     ]});
 
-  spec.accounts['0x7000000000000000000000000000000000000000'] = {
+  spec.accounts['0xFF00000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
