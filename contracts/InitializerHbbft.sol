@@ -58,11 +58,11 @@ contract InitializerHbbft {
         IStakingHbbft(_contracts[3]).initialize(
             _contracts[0], // _validatorSetContract
             _stakingAddresses,
-            _stakingParams[0],
-            _stakingParams[1],
-            _stakingParams[2],
-            _stakingParams[3],
-            _stakingParams[4],
+            _stakingParams[0], // _delegatorMinStake
+            _stakingParams[1], // _candidateMinStake
+            _stakingParams[2], // _stakingEpochDuration
+            _stakingParams[3], // _stakingTransitionTimeframeLength
+            _stakingParams[4], // _stakingWithdrawDisallowPeriod
             _publicKeys,
             _internetAddresses
         );
@@ -78,6 +78,10 @@ contract InitializerHbbft {
         permittedAddresses[0] = _owner;
         ITxPermission(_contracts[4]).initialize(permittedAddresses, _contracts[5], _contracts[0]);
         ICertifier(_contracts[5]).initialize(permittedAddresses, _contracts[0]);
+    }
+
+    function destruct()
+    external {
         selfdestruct(msg.sender);
     }
 }
