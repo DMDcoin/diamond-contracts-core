@@ -35,6 +35,11 @@ contract InitializerHbbft {
     /// _stakingParams[3]: _stakingTransitionTimeframeLength Length of the timeframe in seconds for the transition
     /// _stakingParams[4]: _stakingWithdrawDisallowPeriod The duration period (in blocks) at the end of a staking epoch
     /// during which participants cannot stake or withdraw their staking tokens
+    /// @param _publicKeys bytes32[] memory
+    /// @param _internetAddresses bytes16[] memory
+    /// @param _parts bytes[] memory
+    /// @param _acks bytes[][] memory
+    /// @param _blockReward uint256  
     constructor(
         address[] memory _contracts,
         address _owner,
