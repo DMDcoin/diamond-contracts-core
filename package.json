@@ -15,7 +15,7 @@
     "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
     "runGanache": "node_modules/.bin/ganache-cli  --allowUnlimitedContractSize --gasLimit 0xfffffffffff --port \"8545\" --accounts 200 --defaultBalanceEther 1000000 --mnemonic \"vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit\"",
     "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
-    "testDev": "bash scripts/test.sh test/StakingHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
+    "testDev": "bash scripts/test.sh test/Initializer.js"
   },
   "repository": {
     "type": "git",
