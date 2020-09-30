@@ -250,6 +250,10 @@ async function main() {
   // init_data.acks ${init_data.acks},
   // ethToWei ${ethToWei}`
   // );
+
+
+  //console.log('const partsRaw = ', JSON.stringify(init_data.parts));
+  //console.log('const acks = ', JSON.stringify(init_data.acks));
   
   //fixing parts.
   //there is a bug in web3-eth-abi handling byte arrays,
