@@ -77,7 +77,7 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
     function _initialize(address _validatorSet)
     internal {
-        require(msg.sender == _admin() || block.number == 0, "Must be executed by admin");
+        //require(msg.sender == _admin() || block.number == 0, "Must be executed by admin");
         require(!isInitialized(), "initialization can only be done once");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);

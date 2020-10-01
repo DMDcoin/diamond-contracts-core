@@ -15,6 +15,9 @@ import "./interfaces/IValidatorSetHbbft.sol";
 /// Needed for initializing upgradeable contracts since
 /// upgradeable contracts can't have constructors.
 contract InitializerHbbft {
+
+    string public data;
+
     /// @param _contracts An array of the contracts:
     ///   0 is ValidatorSetHbbft,
     ///   1 is BlockRewardHbbft,
@@ -81,12 +84,20 @@ contract InitializerHbbft {
         IRandomHbbft(_contracts[2]).initialize(_contracts[0]);
         address[] memory permittedAddresses = new address[](1);
         permittedAddresses[0] = _owner;
-        ITxPermission(_contracts[4]).initialize(permittedAddresses, _contracts[5], _contracts[0]);
+        
         ICertifier(_contracts[5]).initialize(permittedAddresses, _contracts[0]);
+        ITxPermission(_contracts[4]).initialize(permittedAddresses, _contracts[5], _contracts[0]);
     }
+
 
     function destruct()
     external {
         selfdestruct(msg.sender);
+    }
+
+    function
+    setData(string memory _data)
+    public {
+        data = _data;
     }
 }

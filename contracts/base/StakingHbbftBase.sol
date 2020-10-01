@@ -959,13 +959,13 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes16[] memory _internetAddresses
     )
     internal {
-        require(msg.sender == _admin() || block.number == 0,
-            "Initialization only on genesis block or by admin");
+        // require(msg.sender == _admin() || block.number == 0,
+        //     "Initialization only on genesis block or by admin");
         require(!isInitialized(), "Already initialized"); // initialization can only be done once
         require(_validatorSetContract != address(0),"ValidatorSet can't be 0");
         require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
-        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,"Must provide corresponging publicKeys");
-        require(_initialStakingAddresses.length == _internetAddresses.length, "Must provide corresponging IP adresses");
+        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,"Must provide corresponding publicKeys");
+        require(_initialStakingAddresses.length == _internetAddresses.length, "Must provide corresponding IP adresses");
         require(_delegatorMinStake != 0, "DelegatorMinStake is 0");
         require(_candidateMinStake != 0, "CandidateMinStake is 0");
 
