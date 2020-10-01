@@ -329,11 +329,6 @@ contract('StakingHbbft', async accounts => {
         maxEpochReward
       ).should.be.fulfilled;
 
-      // Initialize RandomHbbft
-      await randomHbbft.initialize(
-        validatorSetHbbft.address
-      ).should.be.fulfilled;
-
       // Initialize StakingHbbft
       await stakingHbbft.initialize(
         validatorSetHbbft.address, // _validatorSetContract
