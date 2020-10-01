@@ -116,12 +116,6 @@ contract('BlockRewardHbbft', async accounts => {
         validatorSetHbbft.address,
         MAX_BLOCK_REWARD
       ).should.be.fulfilled;
-
-      // Initialize RandomHbbft
-      await randomHbbft.initialize(
-        validatorSetHbbft.address
-      ).should.be.fulfilled;
-
     });
 
 

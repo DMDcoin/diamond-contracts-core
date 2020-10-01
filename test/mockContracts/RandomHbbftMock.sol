@@ -27,12 +27,7 @@ contract RandomHbbftMock is RandomHbbft {
 
     // =============================================== Private ========================================================
 
-    function _getCoinbase() internal view returns(address) {
-        return _coinbase != address(0) ? _coinbase : block.coinbase;
-    }
-
     function _getSystemAddress() internal view returns(address) {
         return _systemAddress;
     }
-
 }
