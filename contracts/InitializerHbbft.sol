@@ -81,7 +81,6 @@ contract InitializerHbbft {
             _acks
         );
         IBlockRewardHbbft(_contracts[1]).initialize(_contracts[0], _blockReward);
-        IRandomHbbft(_contracts[2]).initialize(_contracts[0]);
         address[] memory permittedAddresses = new address[](1);
         permittedAddresses[0] = _owner;
         

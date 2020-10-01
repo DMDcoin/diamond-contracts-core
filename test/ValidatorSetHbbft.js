@@ -402,7 +402,6 @@ contract('ValidatorSetHbbft', async accounts => {
 
       // Generate a random seed
       (await randomHbbft.currentSeed.call()).should.be.bignumber.equal(new BN(0));
-      await randomHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
 
       const seed = random(1000000, 2000000);
       await randomHbbft.setSystemAddress(owner).should.be.fulfilled;
