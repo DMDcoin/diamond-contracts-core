@@ -50,7 +50,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         address[] calldata _certifiedAddresses,
         address _validatorSet
     ) external {
-        //require(msg.sender == _admin() || block.number == 0, "Sender must be admin");
+        require(msg.sender == _admin() || tx.origin ==  _admin() || block.number == 0, "Sender must be admin");
         require(!isInitialized(), "Contract is already initialized");
         require(_validatorSet != address(0), "Validatorset must not be 0");
         for (uint256 i = 0; i < _certifiedAddresses.length; i++) {

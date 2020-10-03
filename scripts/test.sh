@@ -34,7 +34,7 @@ start_ganache() {
 }
 
 if ganache_running; then
-  echo "Using existing ganache-cli instance"
+  echo "Using existing ethereum network (ganache-cli?)"
 else
   echo "Starting ganache-cli instance"
   start_ganache

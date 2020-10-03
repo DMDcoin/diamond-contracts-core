@@ -64,7 +64,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         address _certifier,
         address _validatorSet
     ) external {
-        //require(msg.sender == _admin() || block.number == 0);
+        require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0);
         require(!isInitialized(), "initialization can only be done once");
         require(_certifier != address(0));
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
