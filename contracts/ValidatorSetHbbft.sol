@@ -160,8 +160,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external {
-        // require(msg.sender == _admin() || block.number == 0, 
-        //     "Initialization only on genesis block or by admin");
+        require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0, 
+             "Initialization only on genesis block or by admin");
         require(!isInitialized(), "ValidatorSet contract is already initialized");
         require(_blockRewardContract != address(0), "BlockReward contract address can't be 0x0");
         require(_randomContract != address(0), "Random contract address can't be 0x0");
