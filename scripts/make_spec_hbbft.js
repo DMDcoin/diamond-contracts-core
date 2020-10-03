@@ -202,7 +202,7 @@ async function main() {
   // Build Registry contract
   contract = new web3.eth.Contract(contractsCompiled['Registry'].abi);
   deploy = await contract.deploy({data: '0x' + contractsCompiled['Registry'].bytecode, arguments: [
-      REGISTRY_CONTRACT,
+    CERTIFIER_CONTRACT,
       owner
     ]});
   spec.accounts['0x6000000000000000000000000000000000000000'] = {
