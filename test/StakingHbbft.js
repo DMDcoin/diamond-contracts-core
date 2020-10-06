@@ -1724,6 +1724,38 @@ contract('StakingHbbft', async accounts => {
         initialValidatorsIpAddresses // _internetAddresses
       ).should.be.rejectedWith("InitialStakingAddresses can't be 0");
     });
+
+    it ('should fail if timewindow is 0', async () => {
+
+      await stakingHbbft.initialize(
+        validatorSetHbbft.address, // _validatorSetContract
+        initialStakingAddresses, // _initialStakingAddresses
+        minStake, // _delegatorMinStake
+        minStake, // _candidateMinStake
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        0, // _stakingTransitionTimeframeLength
+        stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+        initialValidatorsPubKeysSplit, // _publicKeys
+        initialValidatorsIpAddresses // _internetAddresses
+      ).should.be.rejectedWith("The transition timeframe must be longer than 0");
+    });
+
+    it ('should fail if transition timewindow is smaller than the staking time window', async () => {
+
+      await stakingHbbft.initialize(
+        validatorSetHbbft.address, // _validatorSetContract
+        initialStakingAddresses, // _initialStakingAddresses
+        minStake, // _delegatorMinStake
+        minStake, // _candidateMinStake
+        stakingFixedEpochDuration, // _stakingFixedEpochDuration
+        stakingFixedEpochDuration, // _stakingTransitionTimeframeLength
+        stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+        initialValidatorsPubKeysSplit, // _publicKeys
+        initialValidatorsIpAddresses // _internetAddresses
+      ).should.be.rejectedWith("The transition timeframe must be shorter then the epoch duration");
+
+    });
+
   });
 
   describe('moveStake()', async () => {
