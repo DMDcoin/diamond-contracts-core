@@ -530,6 +530,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         return (true, false);
     }
 
+    function publicKeyByStakingAddress(address stakingAddress) external view returns(bytes memory) {
+        return stakingContract.getPoolPublicKey(stakingAddress);
+    }
+
     // ============================================== Internal ========================================================
 
     /// @dev Updates the total reporting counter (see the `reportingCounterTotal` public mapping) for the current
