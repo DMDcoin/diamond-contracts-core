@@ -535,7 +535,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     }
 
     function getPublicKey(address miningAddress) external view returns(bytes memory) {
-        return stakingContract.getPoolPublicKey(stakingByMiningAddress[_stakingAddress]);
+        return stakingContract.getPoolPublicKey(stakingByMiningAddress[miningAddress]);
     }
 
     // ============================================== Internal ========================================================
