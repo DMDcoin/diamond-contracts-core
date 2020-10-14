@@ -178,7 +178,7 @@ async function main() {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
-  spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
+  //spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
   spec.accounts['0x4000000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: '0x' + contractsCompiled['TxPermissionHbbft'].bytecode
