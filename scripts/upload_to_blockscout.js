@@ -9,9 +9,11 @@ const fs = require('fs');
 
 // requires to flatten contracts first:
 // truffle-flattener contracts/SimpleToken.sol > FlattenedSimpleToken.sol
+var XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 
 
-const contractSourceRaw = fs.readFileSync(`build/flattened/ValidatorSetHbbft.sol`);
+
+const contractSourceRaw = fs.readFileSync(`flat/ValidatorSetHbbft_flat.sol`);
 
 const contractName='ValidatorSetHbbft';
 const optimizer='true';
