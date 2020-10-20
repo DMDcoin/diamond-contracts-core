@@ -19,7 +19,7 @@ const contractName='ValidatorSetHbbft';
 const optimizer='true';
 const optimizerRuns='200';
 
-console.log(contractSourceRaw);
+console.log(contractSourceRaw.toString('utf8'));
 
 //echo "url encode the source..."
 
@@ -32,7 +32,7 @@ const url = 'http://127.0.0.1:4000/api?module=contract&action=verify';
 request = {
   "addressHash":"0x1000000000000000000000000000000000000001",
   "compilerVersion":"v0.5.16+commit.9c3226ce",
-  "contractSourceCode":contractSourceRaw,
+  "contractSourceCode":contractSourceRaw.toString('utf8'),
   "name":contractName,
   "optimization":optimizer,
   "optimizationRuns": optimizerRuns
