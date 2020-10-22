@@ -162,6 +162,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     function allowedTxTypes(
         address _sender,
         address _to,
+        uint256 /*_value */,
         uint256 _gasPrice,
         bytes memory _data
     )
