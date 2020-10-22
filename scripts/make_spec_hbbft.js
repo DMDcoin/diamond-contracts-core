@@ -145,6 +145,7 @@ async function main() {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
+
   // spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
   // spec.engine.hbbft.params.blockRewardContractTransition = 0;
   spec.accounts['0x2000000000000000000000000000000000000000'] = {
@@ -178,7 +179,9 @@ async function main() {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
-  //spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
+  spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
+  spec.params.transactionPermissionContractTransition = '0x0';
+
   spec.accounts['0x4000000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: '0x' + contractsCompiled['TxPermissionHbbft'].bytecode
