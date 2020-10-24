@@ -27,7 +27,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     mapping(address => uint256[]) internal _epochsPoolGotRewardFor;
 
     /// @dev The maximum per-block reward distributed among the validators.
-    uint256 public maxEpochReward;
+    //uint256 public maxEpochReward;
 
     /// @dev The reward amount to be distributed in native coins among participants (the validator and their
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
@@ -50,6 +50,23 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// This is needed to have an ability to change validator's min reward percent in the VALIDATOR_MIN_REWARD_PERCENT
     /// constant by upgrading the contract.
     mapping(uint256 => uint256) public validatorMinRewardPercent;
+
+    /// @dev the Delta Pool holds all coins that never got emitted, since the maximum supply is 4,380,000
+    uint256 public deltaPool;
+
+    /// @dev each epoch reward, one Fraction of the delta pool gets payed out.
+    /// the number is the divisor of the fraction. 60 means 1/60 of the delta pool gets payed out.
+    uint256 public deltaPoolPayoutFraction = 60;
+
+
+    /// @dev the reinsertPool holds all coins that are designed for getting reinserted into the coin circulation.
+    /// sources are:
+    /// 
+    uint256 public reinsertPool;
+
+    /// @dev each epoch reward, one Fraction of the reinsert pool gets payed out.
+    /// the number is the divisor of the fraction. 60 means 1/60 of the reinsert pool gets payed out.
+    uint256 public reinsertPoolPayoutFraction = 60;
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
@@ -96,14 +113,40 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _validatorSet, uint256 _maxEpochReward) external {
+    function initialize(address _validatorSet, uint256 /*_maxEpochReward*/) external {
         require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0,
           "Initialization only on genesis block or by admin");
         require(!isInitialized(), "initialization can only be done once");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        maxEpochReward = _maxEpochReward;
+        //maxEpochReward = _maxEpochReward;
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
+    }
+
+    function addToDeltaPool()
+    external
+    payable {
+        deltaPool += msg.value;
+    }
+
+    function addToReinsertPool()
+    external
+    payable {
+        reinsertPool += msg.value;
+    }
+
+    function setDeltaPoolPayoutFraction(uint256 _value)
+    external 
+    onlyOwner {
+        require(_value != 0, "Payout fraction must not be 0");
+        deltaPoolPayoutFraction = _value;
+    }
+
+    function setReinsertPoolPayoutFraction(uint256 _value)
+    external 
+    onlyOwner {
+        require(_value != 0, "Payout fraction must not be 0");
+        reinsertPoolPayoutFraction = _value;
     }
 
     /// @dev Called by the engine when producing and closing a block,
@@ -113,7 +156,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// and rewards distributing at the end of a staking epoch.
     /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e.
     /// just before the pending validators are fiinalized.
-    function reward(address[] calldata _benefactors, uint16[] calldata _kind, bool _isEpochEndBlock)
+    function reward(address[] calldata /*_benefactors */, uint16[] calldata /*_kind */, bool _isEpochEndBlock)
     external
     onlySystem
     returns(uint256 rewardsNative)
@@ -398,7 +441,17 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-        uint256 totalReward = maxEpochReward + nativeRewardUndistributed;
+        uint256 deltaPoolShare = deltaPool / deltaPoolPayoutFraction;
+        deltaPool -= deltaPoolShare;
+
+        uint256 reinsertPoolShare = reinsertPool / reinsertPoolPayoutFraction;
+        reinsertPool -= reinsertPoolShare;
+
+        uint256 totalReward = deltaPoolShare + reinsertPoolShare + nativeRewardUndistributed;
+
+        // if (totalReward > maxEpochReward) {
+        //     totalReward = maxEpochReward;
+        // }
 
         if (totalReward == 0) {
             return 0;
