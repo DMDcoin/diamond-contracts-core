@@ -114,7 +114,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
     function initialize(address _validatorSet, uint256 /*_maxEpochReward*/) external {
-        require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0,
+        require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) ==  _admin() || block.number == 0,
           "Initialization only on genesis block or by admin");
         require(!isInitialized(), "initialization can only be done once");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");

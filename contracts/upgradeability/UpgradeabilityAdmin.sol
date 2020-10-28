@@ -21,7 +21,7 @@ contract UpgradeabilityAdmin {
         }
     }
 
-    // function adminAddress() 
+    // function getAdminAddress() 
     // public
     // view
     // returns (address adm) {

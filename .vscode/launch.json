@@ -18,7 +18,10 @@
         "${workspaceFolder}/node_modules/**/*.js",
         "${workspaceFolder}/lib/**/*.js",
         "<node_internals>/**/*.js"
-      ]
+      ],
+      "env": {
+        "CONTRACTS_NO_UPGRADE_PROXY": "true"
+      }
     },
     {
       "name": "run stakingTest",

@@ -59,7 +59,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         bytes[][] memory _acks
     ) public {
         // Unit Tests may deploy at block numbers other than 0.
-        require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0, "Sender must be admin");
+        require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) ==  _admin() || block.number == 0, "Sender must be admin");
         require(!isInitialized(), "initialization can only be done once"); // initialization can only be done once
         require(_validators.length != 0, "Validators must be more than 0.");
         require(_validators.length == _parts.length, "Wrong number of Parts!");

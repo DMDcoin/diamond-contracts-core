@@ -32,18 +32,34 @@ contract('ValidatorSetHbbft', async accounts => {
 
   beforeEach(async () => {
     owner = accounts[0];
+
+    // delegatecall are a problem for truffle debugger
+    // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+    // and to not use it if specific transactions needs to get debugged, 
+    // like truffle `debug 0xabc`.
+    const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+    console.log('useUpgradeProxy:', useUpgradeProxy);
+
     // Deploy BlockReward contract
     blockRewardHbbft = await BlockRewardHbbft.new();
-    blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
-    blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+    if (useUpgradeProxy) {
+      blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
+      blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+    }
+
     // Deploy Staking contract
     stakingHbbft = await StakingHbbft.new();
-    stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-    stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+    if (useUpgradeProxy) {
+      stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
+      stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+    }
+
     // Deploy ValidatorSet contract
     validatorSetHbbft = await ValidatorSetHbbft.new();
-    validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-    validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+    if (useUpgradeProxy) {
+      validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
+      validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+    }
 
     await increaseTime(1);
 

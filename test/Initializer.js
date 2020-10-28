@@ -104,7 +104,7 @@ contract('InitializerHbbft', async accounts => {
       // Deploy TxPermission contract
       txPermission = await TxPermission.new();
       txPermission = await AdminUpgradeabilityProxy.new(txPermission.address, owner, []);
-      txPermission = await StakingHbbft.at(txPermission.address);
+      txPermission = await TxPermission.at(txPermission.address);
       // Deploy Certifier contract
       certifier = await Certifier.new();
       certifier = await AdminUpgradeabilityProxy.new(certifier.address, owner, []);
@@ -144,7 +144,7 @@ contract('InitializerHbbft', async accounts => {
         stakingEpochDuration, //_stakingEpochDuration
         stakingTransitionwindowLength, //_stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, //_stakingWithdrawDisallowPeriod
-      ]
+      ];
  
       await Initializer.new(
         contractAddresses ,
