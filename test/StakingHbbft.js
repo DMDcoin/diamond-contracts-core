@@ -33,7 +33,6 @@ contract('StakingHbbft', async accounts => {
 
   currentAccounts = accounts;
   const minStake = new BN(web3.utils.toWei('1', 'ether'));
-  const maxEpochReward = new BN(100); // the maximum  per-block reward distributed to the validators
 
   // one epoch in 1 day.
   const stakingFixedEpochDuration = new BN(86400);
@@ -343,8 +342,7 @@ contract('StakingHbbft', async accounts => {
 
       // Initialize BlockRewardHbbft
       await blockRewardHbbft.initialize(
-        validatorSetHbbft.address,
-        maxEpochReward
+        validatorSetHbbft.address
       ).should.be.fulfilled;
 
       // Initialize StakingHbbft
@@ -489,6 +487,7 @@ contract('StakingHbbft', async accounts => {
       
       const miningAddress = initialValidators[0];
       const stakingAddress = initialStakingAddresses[0];
+
       const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
 
       // the beforeeach  alsready runs 1 epoch, so we expect to be in epoch 1 here.
@@ -2224,7 +2223,7 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
 
       // Finalize a new validator set and change staking epoch
-      await blockRewardHbbft.initialize(validatorSetHbbft.address, maxEpochReward).should.be.fulfilled;      
+      await blockRewardHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
       await validatorSetHbbft.setStakingContract(stakingHbbft.address).should.be.fulfilled;
       // Set BlockRewardContract
       await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;

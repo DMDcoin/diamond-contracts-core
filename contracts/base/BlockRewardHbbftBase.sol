@@ -26,9 +26,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     mapping(address => uint256[]) internal _epochsPoolGotRewardFor;
 
-    /// @dev The maximum per-block reward distributed among the validators.
-    //uint256 public maxEpochReward;
-
     /// @dev The reward amount to be distributed in native coins among participants (the validator and their
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
     mapping(uint256 => mapping(address => uint256)) public epochPoolNativeReward;
@@ -113,13 +110,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _validatorSet, uint256 /*_maxEpochReward*/) external {
+    function initialize(address _validatorSet) external {
         require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) ==  _admin() || block.number == 0,
           "Initialization only on genesis block or by admin");
         require(!isInitialized(), "initialization can only be done once");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        //maxEpochReward = _maxEpochReward;
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
     }
 
@@ -448,10 +444,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         reinsertPool -= reinsertPoolShare;
 
         uint256 totalReward = deltaPoolShare + reinsertPoolShare + nativeRewardUndistributed;
-
-        // if (totalReward > maxEpochReward) {
-        //     totalReward = maxEpochReward;
-        // }
 
         if (totalReward == 0) {
             return 0;

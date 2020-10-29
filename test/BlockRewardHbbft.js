@@ -36,7 +36,6 @@ contract('BlockRewardHbbft', async accounts => {
   const KEY_GEN_DURATION = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
   const STAKE_WITHDRAW_DISALLOW_PERIOD = 2; // one less than EPOCH DURATION, therefore it meets the conditions.
   const MIN_STAKE = new BN(web3.utils.toWei('1', 'ether'));
-  const MAX_BLOCK_REWARD = new BN(100); // the maximum  per-block reward distributed to the validators
 
   describe('reward()', async () => {
 
@@ -135,9 +134,9 @@ contract('BlockRewardHbbft', async accounts => {
 
       // Initialize BlockRewardHbbft
       await blockRewardHbbft.initialize(
-        validatorSetHbbft.address,
-        MAX_BLOCK_REWARD
+        validatorSetHbbft.address
       ).should.be.fulfilled;
+
     });
 
 
