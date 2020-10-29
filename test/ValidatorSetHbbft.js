@@ -22,6 +22,13 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
+// delegatecall are a problem for truffle debugger
+// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+// and to not use it if specific transactions needs to get debugged, 
+// like truffle `debug 0xabc`.
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+console.log('useUpgradeProxy:', useUpgradeProxy);
+
 contract('ValidatorSetHbbft', async accounts => {
   let owner;
   let blockRewardHbbft;
@@ -33,12 +40,7 @@ contract('ValidatorSetHbbft', async accounts => {
   beforeEach(async () => {
     owner = accounts[0];
 
-    // delegatecall are a problem for truffle debugger
-    // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-    // and to not use it if specific transactions needs to get debugged, 
-    // like truffle `debug 0xabc`.
-    const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-    console.log('useUpgradeProxy:', useUpgradeProxy);
+
 
     // Deploy BlockReward contract
     blockRewardHbbft = await BlockRewardHbbft.new();

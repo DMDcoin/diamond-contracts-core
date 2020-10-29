@@ -16,6 +16,13 @@ require('chai')
 
 let currentAccounts;
 
+// delegatecall are a problem for truffle debugger
+// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+// and to not use it if specific transactions needs to get debugged, 
+// like truffle `debug 0xabc`.
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+console.log('useUpgradeProxy:', useUpgradeProxy);
+
 contract('StakingHbbft', async accounts => {
 
   
@@ -53,12 +60,7 @@ contract('StakingHbbft', async accounts => {
     initialStakingAddresses[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
     initialStakingAddresses[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
 
-    // delegatecall are a problem for truffle debugger
-    // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-    // and to not use it if specific transactions needs to get debugged, 
-    // like truffle `debug 0xabc`.
-    const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-    console.log('useUpgradeProxy:', useUpgradeProxy);
+
   
     // Deploy BlockReward contract
     blockRewardHbbft = await BlockRewardHbbft.new();
@@ -490,6 +492,11 @@ contract('StakingHbbft', async accounts => {
 
       const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
 
+      const deltaPoolFillupValue = epochPoolReward.mul(new BN('60'));
+      //blockRewardHbbft.add
+      await blockRewardHbbft.addToDeltaPool({value: deltaPoolFillupValue}).should.be.fulfilled;
+  
+
       // the beforeeach  alsready runs 1 epoch, so we expect to be in epoch 1 here.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
 
@@ -516,6 +523,11 @@ contract('StakingHbbft', async accounts => {
       //!!! here it failes for some reason
       //Staking epoch #1: Epoch end block
       await timeTravelToEndEpoch();
+
+      // we restock this one epoch reward that got payed out.
+      // todo: think about: Maybe this restocking should happen in the timeTravelToEndEpoch function to have 
+      // constant epoch payouts.
+      await blockRewardHbbft.addToDeltaPool({value: epochPoolReward}).should.be.fulfilled;
 
       // now epoch #2 has started.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
@@ -731,6 +743,9 @@ contract('StakingHbbft', async accounts => {
         epochPoolReward
       } = await _delegatorNeverStakedBefore();
 
+      //const deltaPoolFillupValue = new BN(web3.eth.toWei(60));
+      //await blockRewardHbbft.addToDeltaPool({value: deltaPoolFillupValue});
+
       // Emulate snapshotting and rewards for the pool on the epoch #9
       let stakingEpoch = 9;
       await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, miningAddress).should.be.fulfilled;
@@ -776,6 +791,8 @@ contract('StakingHbbft', async accounts => {
       
 
       result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
+      console.log('rewards for ', stakingAddress);
+      console.log(result);
       result.logs.length.should.be.equal(5);
       result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(1));
       result.logs[1].args.stakingEpoch.should.be.bignumber.equal(new BN(2));

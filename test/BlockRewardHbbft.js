@@ -13,6 +13,14 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
+// delegatecall are a problem for truffle debugger
+// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+// and to not use it if specific transactions needs to get debugged, 
+// like truffle `debug 0xabc`.
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+console.log('useUpgradeProxy:', useUpgradeProxy);
+
+
 contract('BlockRewardHbbft', async accounts => {
   let owner;
   let blockRewardHbbft;
@@ -37,6 +45,7 @@ contract('BlockRewardHbbft', async accounts => {
   const STAKE_WITHDRAW_DISALLOW_PERIOD = 2; // one less than EPOCH DURATION, therefore it meets the conditions.
   const MIN_STAKE = new BN(web3.utils.toWei('1', 'ether'));
 
+
   describe('reward()', async () => {
 
     it('network started', async () => {
@@ -49,12 +58,7 @@ contract('BlockRewardHbbft', async accounts => {
       initialStakingAddresses[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
       initialStakingAddresses[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
 
-      // delegatecall are a problem for truffle debugger
-      // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-      // and to not use it if specific transactions needs to get debugged, 
-      // like truffle `debug 0xabc`.
-      const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-      console.log('useUpgradeProxy:', useUpgradeProxy);
+
 
       // Deploy BlockRewardHbbft contract
       blockRewardHbbft = await BlockRewardHbbft.new();
