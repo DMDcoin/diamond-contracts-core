@@ -48,8 +48,14 @@ contract('StakingHbbft', async accounts => {
   const stakingTransitionTimeframeLength = new BN(3600);
     
   const stakingWithdrawDisallowPeriod = new BN(1);
-  //const stakingEpochStartBlock = new BN(0);
-  //const keyGenerationDuration = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
+  
+  // the reward for the first epoch. 
+  const epochReward = new BN(web3.utils.toWei('1', 'ether'));
+
+  // the amount the deltaPot gets filled up.
+  // this is 60-times more, since the deltaPot get's
+  // drained each step by 60 by default.
+  const deltaPotFillupValue = epochReward.mul(new BN('60'));
 
   beforeEach(async () => {
     owner = accounts[0];
@@ -122,6 +128,9 @@ contract('StakingHbbft', async accounts => {
     // The IP addresses are irrelevant for these unit test, just initialize them to 0.
     initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
     
+
+    //await blockRewardHbbft.addTodeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
+
   });
 
   describe('addPool()', async () => {
@@ -491,10 +500,9 @@ contract('StakingHbbft', async accounts => {
       const stakingAddress = initialStakingAddresses[0];
 
       const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
-
-      const deltaPoolFillupValue = epochPoolReward.mul(new BN('60'));
+      const deltaPotFillupValue = epochPoolReward.mul(new BN('60'));
       //blockRewardHbbft.add
-      await blockRewardHbbft.addToDeltaPool({value: deltaPoolFillupValue}).should.be.fulfilled;
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
   
 
       // the beforeeach  alsready runs 1 epoch, so we expect to be in epoch 1 here.
@@ -527,7 +535,7 @@ contract('StakingHbbft', async accounts => {
       // we restock this one epoch reward that got payed out.
       // todo: think about: Maybe this restocking should happen in the timeTravelToEndEpoch function to have 
       // constant epoch payouts.
-      await blockRewardHbbft.addToDeltaPool({value: epochPoolReward}).should.be.fulfilled;
+      await blockRewardHbbft.addTodeltaPot({value: epochPoolReward}).should.be.fulfilled;
 
       // now epoch #2 has started.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
@@ -556,7 +564,7 @@ contract('StakingHbbft', async accounts => {
 
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(3));
       //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock.add(new BN(1)));
-      return {miningAddress, stakingAddress, epochPoolReward};
+      return {miningAddress, stakingAddress};
     }
 
     async function testClaimRewardRandom(epochsPoolRewarded, epochsStakeIncreased) {
@@ -646,7 +654,13 @@ contract('StakingHbbft', async accounts => {
       const stakingAddress = initialStakingAddresses[0];
       const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
 
-      (await web3.eth.getBalance(blockRewardHbbft.address)).should.be.equal('0');
+
+      const deltaPotFillupValue = epochPoolReward.mul(new BN('60'));
+      //blockRewardHbbft.add
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
+  
+      const currentblockRewardHbbftBalance = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
+      currentblockRewardHbbftBalance.should.be.bignumber.equal(deltaPotFillupValue);
 
       for (let i = 0; i < epochsPoolRewarded.length; i++) {
         const stakingEpoch = epochsPoolRewarded[i];
@@ -660,7 +674,8 @@ contract('StakingHbbft', async accounts => {
 
       // initial validator got reward for epochsPoolRewarded
       (await blockRewardHbbft.epochsPoolGotRewardFor.call(miningAddress)).length.should.be.equal(epochsPoolRewarded.length);
-      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
+
+      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(deltaPotFillupValue.add(epochPoolReward.mul(new BN(epochsPoolRewarded.length))));
 
       for (let i = 0; i < epochsStakeMovement.length; i++) {
         const stakingEpoch = epochsStakeMovement[i];
@@ -740,11 +755,13 @@ contract('StakingHbbft', async accounts => {
       const {
         miningAddress,
         stakingAddress,
-        epochPoolReward
       } = await _delegatorNeverStakedBefore();
 
-      //const deltaPoolFillupValue = new BN(web3.eth.toWei(60));
-      //await blockRewardHbbft.addToDeltaPool({value: deltaPoolFillupValue});
+      //const deltaPotFillupValue = new BN(web3.eth.toWei(60));
+      //await blockRewardHbbft.addTodeltaPot({value: deltaPotFillupValue});
+
+      // a fake epoch reward.
+      const epochPoolReward = '1000';
 
       // Emulate snapshotting and rewards for the pool on the epoch #9
       let stakingEpoch = 9;

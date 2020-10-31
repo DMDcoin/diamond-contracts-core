@@ -49,11 +49,11 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     mapping(uint256 => uint256) public validatorMinRewardPercent;
 
     /// @dev the Delta Pool holds all coins that never got emitted, since the maximum supply is 4,380,000
-    uint256 public deltaPool;
+    uint256 public deltaPot;
 
     /// @dev each epoch reward, one Fraction of the delta pool gets payed out.
     /// the number is the divisor of the fraction. 60 means 1/60 of the delta pool gets payed out.
-    uint256 public deltaPoolPayoutFraction = 60;
+    uint256 public deltaPotPayoutFraction = 60;
 
 
     /// @dev the reinsertPool holds all coins that are designed for getting reinserted into the coin circulation.
@@ -67,6 +67,13 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
+
+    /// @dev parts of the epoch reward get forwarded to a maintenance pool
+    /// just a dummy function for now.
+    address payable public maintenancePot = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+
+    uint256 public maintenancePotShareFraction = 10;
+
 
     // ================================================ Events ========================================================
 
@@ -119,10 +126,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
     }
 
-    function addToDeltaPool()
+    function addToDeltaPot()
     external
     payable {
-        deltaPool += msg.value;
+        deltaPot += msg.value;
     }
 
     function addToReinsertPool()
@@ -131,11 +138,11 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         reinsertPool += msg.value;
     }
 
-    function setDeltaPoolPayoutFraction(uint256 _value)
+    function setdeltaPotPayoutFraction(uint256 _value)
     external 
     onlyOwner {
         require(_value != 0, "Payout fraction must not be 0");
-        deltaPoolPayoutFraction = _value;
+        deltaPotPayoutFraction = _value;
     }
 
     function setReinsertPoolPayoutFraction(uint256 _value)
@@ -437,17 +444,21 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-        uint256 deltaPoolShare = deltaPool / deltaPoolPayoutFraction;
-        deltaPool -= deltaPoolShare;
+        uint256 deltaPotShare = deltaPot / deltaPotPayoutFraction;
+        deltaPot -= deltaPotShare;
 
         uint256 reinsertPoolShare = reinsertPool / reinsertPoolPayoutFraction;
         reinsertPool -= reinsertPoolShare;
 
-        uint256 totalReward = deltaPoolShare + reinsertPoolShare + nativeRewardUndistributed;
+        uint256 totalReward = deltaPotShare + reinsertPoolShare + nativeRewardUndistributed;
 
         if (totalReward == 0) {
             return 0;
         }
+
+        //todo: add maintenancePotShare here.
+        //uint256 maintenancePotShare = totalReward / maintenancePotShareFraction;
+        uint256 rewardToDistribute = totalReward; // - maintenancePotShare;
 
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
@@ -461,7 +472,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             ) {
                 isRewardedValidator[i] = true;
                 numRewardedValidators++;
-            } 
+            }
         }
 
         // No rewards distributed in this epoch
@@ -470,7 +481,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         }
 
         // Share the reward equally among the validators.
-        uint256 poolReward = totalReward / numRewardedValidators;
+        uint256 poolReward = rewardToDistribute / numRewardedValidators;
+
+        //todo: add maintenancePotShare here.
+        //uint256 distributedAmount = maintenancePotShare;
         uint256 distributedAmount;
 
         if (poolReward != 0) {
