@@ -535,7 +535,7 @@ contract('StakingHbbft', async accounts => {
       // we restock this one epoch reward that got payed out.
       // todo: think about: Maybe this restocking should happen in the timeTravelToEndEpoch function to have 
       // constant epoch payouts.
-      await blockRewardHbbft.addTodeltaPot({value: epochPoolReward}).should.be.fulfilled;
+      await blockRewardHbbft.addToDeltaPot({value: epochPoolReward}).should.be.fulfilled;
 
       // now epoch #2 has started.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
@@ -748,7 +748,7 @@ contract('StakingHbbft', async accounts => {
           result.logs.length.should.be.equal(0);
         }
       }
-      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(new BN(0));
+      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(deltaPotFillupValue);
     }
 
     it('reward tries to be withdrawn before first stake', async () => {
