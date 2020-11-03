@@ -70,9 +70,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev parts of the epoch reward get forwarded to a maintenance pool
     /// just a dummy function for now.
-    address payable public maintenancePot = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+    address payable public maintenanceFundAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
 
-    uint256 public maintenancePotShareFraction = 10;
+    uint256 public maintenanceFundShareFraction = 10;
 
 
     // ================================================ Events ========================================================
@@ -455,10 +455,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (totalReward == 0) {
             return 0;
         }
+        
+        uint256 rewardToDistribute = totalReward - (totalReward / maintenanceFundShareFraction);
 
-        //todo: add maintenancePotShare here.
-        //uint256 maintenancePotShare = totalReward / maintenancePotShareFraction;
-        uint256 rewardToDistribute = totalReward; // - maintenancePotShare;
 
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
@@ -482,10 +481,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
         // Share the reward equally among the validators.
         uint256 poolReward = rewardToDistribute / numRewardedValidators;
-
-        //todo: add maintenancePotShare here.
-        //uint256 distributedAmount = maintenancePotShare;
-        uint256 distributedAmount;
+        uint256 distributedAmount = totalReward / maintenanceFundShareFraction;
 
         if (poolReward != 0) {
             for (uint256 i = 0; i < numValidators; i++) {
