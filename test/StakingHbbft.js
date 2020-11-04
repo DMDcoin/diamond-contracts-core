@@ -131,7 +131,7 @@ contract('StakingHbbft', async accounts => {
     initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
     
 
-    //await blockRewardHbbft.addTodeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
+    //await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
 
   });
 
@@ -761,7 +761,7 @@ contract('StakingHbbft', async accounts => {
       } = await _delegatorNeverStakedBefore();
 
       //const deltaPotFillupValue = new BN(web3.eth.toWei(60));
-      //await blockRewardHbbft.addTodeltaPot({value: deltaPotFillupValue});
+      //await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
 
       // a fake epoch reward.
       const epochPoolReward = '1000';
@@ -1155,6 +1155,8 @@ contract('StakingHbbft', async accounts => {
       
       const stakingEpoch = 2600;
 
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
+
       for (let i = 0; i < initialValidators.length; i++) {
         await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, initialValidators[i]);
       }
@@ -1192,6 +1194,11 @@ contract('StakingHbbft', async accounts => {
         epochPoolNativeReward.should.be.bignumber.above(new BN(0));
         distributedCoinsAmount = distributedCoinsAmount.add(epochPoolNativeReward);
       }
+
+      // const blockRewardHbbft.maintenanceFundAddress.call();
+      // console.log('DAO Coin amount');
+      // distributedCoinsAmount
+
       let blockRewardCoinsBalanceAfter = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       blockRewardCoinsBalanceAfter.should.be.bignumber.equal(blockRewardCoinsBalanceBefore.add(distributedCoinsAmount));
 
@@ -1230,6 +1237,8 @@ contract('StakingHbbft', async accounts => {
 
       const maxStakingEpoch = 20;
       maxStakingEpoch.should.be.above(2);
+
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
 
       // Loop of staking epochs
       for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
@@ -1368,6 +1377,8 @@ contract('StakingHbbft', async accounts => {
     it('gas consumption for 52 staking epochs is OK 1', async () => {
       const maxStakingEpoch = 52;
 
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
+
       // Loop of staking epochs
       for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
         if ( stakingEpoch == 1) {
@@ -1480,14 +1491,13 @@ contract('StakingHbbft', async accounts => {
       const maxStakingEpochs = 52;
       const gapSize = 10;
 
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
+
       // Loop of staking epochs
       for (let s = 0; s < maxStakingEpochs; s++) {
         if ( s == 0) {
           await stakingHbbft.setStakingEpoch(1).should.be.fulfilled;
-          const startBlock = new BN(120954 + 2 + 1);
-          
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-          //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
         }
 

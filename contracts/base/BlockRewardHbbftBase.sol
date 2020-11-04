@@ -68,9 +68,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
 
-    /// @dev parts of the epoch reward get forwarded to a maintenance pool
+    /// @dev parts of the epoch reward get forwarded to a governance fund
     /// just a dummy function for now.
-    address payable public maintenanceFundAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+    address payable public governanceFundAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
 
     uint256 public maintenanceFundShareFraction = 10;
 
@@ -447,6 +447,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 deltaPotShare = deltaPot / deltaPotPayoutFraction;
         deltaPot -= deltaPotShare;
 
+        // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
         uint256 reinsertPoolShare = reinsertPool / reinsertPoolPayoutFraction;
         reinsertPool -= reinsertPoolShare;
 
@@ -457,7 +458,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         }
         
         uint256 rewardToDistribute = totalReward - (totalReward / maintenanceFundShareFraction);
-
+        governanceFundAddress.transfer(totalReward / maintenanceFundShareFraction);
 
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
@@ -482,6 +483,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         // Share the reward equally among the validators.
         uint256 poolReward = rewardToDistribute / numRewardedValidators;
         uint256 distributedAmount = totalReward / maintenanceFundShareFraction;
+
+
 
         if (poolReward != 0) {
             for (uint256 i = 0; i < numValidators; i++) {
