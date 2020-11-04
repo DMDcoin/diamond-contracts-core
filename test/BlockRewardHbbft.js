@@ -17,9 +17,12 @@ require('chai')
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
 // and to not use it if specific transactions needs to get debugged, 
 // like truffle `debug 0xabc`.
-const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-console.log('useUpgradeProxy:', useUpgradeProxy);
+//const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+const useUpgradeProxy = false;
 
+console.log('useUpgradeProxy:', useUpgradeProxy);
+console.log('CONTRACTS_NO_UPGRADE_PROXY:', process.env.CONTRACTS_NO_UPGRADE_PROXY);
+//console.log(process.env);
 
 contract('BlockRewardHbbft', async accounts => {
   let owner;

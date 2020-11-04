@@ -20,8 +20,10 @@ let currentAccounts;
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
 // and to not use it if specific transactions needs to get debugged, 
 // like truffle `debug 0xabc`.
-const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+//const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+const useUpgradeProxy = false;
 console.log('useUpgradeProxy:', useUpgradeProxy);
+
 
 contract('StakingHbbft', async accounts => {
 
@@ -375,6 +377,7 @@ contract('StakingHbbft', async accounts => {
       //(await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
       //(await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
 
+
       // Validators place stakes during the epoch #0
       const candidateMinStake = await stakingHbbft.candidateMinStake.call();
       for (let i = 0; i < initialStakingAddresses.length; i++) {
@@ -564,7 +567,7 @@ contract('StakingHbbft', async accounts => {
 
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(3));
       //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(stakingEpochEndBlock.add(new BN(1)));
-      return {miningAddress, stakingAddress};
+      return {miningAddress, stakingAddress, epochPoolReward};
     }
 
     async function testClaimRewardRandom(epochsPoolRewarded, epochsStakeIncreased) {
@@ -830,9 +833,10 @@ contract('StakingHbbft', async accounts => {
     it('delegator stakes and withdraws at the same epoch', async () => {
       const {
         miningAddress,
-        stakingAddress,
-        epochPoolReward
+        stakingAddress
       } = await _delegatorNeverStakedBefore();
+
+      const epochPoolReward = '1000';
 
       // Emulate snapshotting and rewards for the pool on the epoch #9
       let stakingEpoch = 9;
