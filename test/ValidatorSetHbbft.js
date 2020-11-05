@@ -123,17 +123,21 @@ contract('ValidatorSetHbbft', async accounts => {
         await validatorSetHbbft.isValidator.call('0x0000000000000000000000000000000000000000')
       );
     });
-    it('should fail if initialization is not done on the genesis block and sender is not admin', async () => {
-      await validatorSetHbbft.initialize(
-        blockRewardHbbft.address, // _blockRewardContract
-        '0x3000000000000000000000000000000000000001', // _randomContract
-        stakingHbbft.address, // _stakingContract
-        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-        initialValidators, // _initialMiningAddresses
-        initialStakingAddresses, // _initialStakingAddresses
-        {from: accounts[1]}
-      ).should.be.rejectedWith("Initialization only on genesis block or by admin");
-    });
+    
+      it('should fail if initialization is not done on the genesis block and sender is not admin', async () => {
+        if (useUpgradeProxy) { //this test only works if using the upgrade proxy.
+          await validatorSetHbbft.initialize(
+            blockRewardHbbft.address, // _blockRewardContract
+            '0x3000000000000000000000000000000000000001', // _randomContract
+            stakingHbbft.address, // _stakingContract
+            '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+            initialValidators, // _initialMiningAddresses
+            initialStakingAddresses, // _initialStakingAddresses
+            {from: accounts[1]}
+          ).should.be.rejectedWith("Initialization only on genesis block or by admin");
+        }
+      });
+    
     it('should initialize successfully if not done on genesis block but sender is admin', async () => {
       await validatorSetHbbft.initialize(
         blockRewardHbbft.address, // _blockRewardContract
