@@ -811,8 +811,8 @@ contract('StakingHbbft', async accounts => {
       
 
       result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
-      console.log('rewards for ', stakingAddress);
-      console.log(result);
+      //console.log('rewards for ', stakingAddress);
+      //console.log(result);
       result.logs.length.should.be.equal(5);
       result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(1));
       result.logs[1].args.stakingEpoch.should.be.bignumber.equal(new BN(2));
@@ -2225,7 +2225,7 @@ contract('StakingHbbft', async accounts => {
 
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
-      await validatorSetHbbft.setBannedUntil(initialValidators[1], 100).should.be.fulfilled;
+      await validatorSetHbbft.setBannedUntil(initialValidators[1], '0xffffffffffffffff').should.be.fulfilled;
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
       await validatorSetHbbft.setBannedUntil(initialValidators[1], 0).should.be.fulfilled;
@@ -2342,6 +2342,7 @@ contract('StakingHbbft', async accounts => {
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
 
     const {logs} = await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
+    console.error('reward call successful!', isEpochEndBlock);
     if (logs.length > 0)
     {
       // Emulate minting native coins
