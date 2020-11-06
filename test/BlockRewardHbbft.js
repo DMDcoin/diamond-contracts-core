@@ -283,9 +283,7 @@ contract('BlockRewardHbbft', async accounts => {
     const validators = await validatorSetHbbft.getValidators.call();
     // console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
-    // console.error('calling reward', isEpochEndBlock);
-    await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
-    // console.error('reward call successful!', isEpochEndBlock);
+    await blockRewardHbbft.reward(isEpochEndBlock, {from: owner}).should.be.fulfilled;
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
    
   }

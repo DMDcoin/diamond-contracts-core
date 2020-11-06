@@ -160,25 +160,11 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// and rewards distributing at the end of a staking epoch.
     /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e.
     /// just before the pending validators are fiinalized.
-    function reward(address[] calldata /*_benefactors */, uint16[] calldata /*_kind */, bool _isEpochEndBlock)
+    function reward(bool _isEpochEndBlock)
     external
     onlySystem
     returns(uint256 rewardsNative)
     {
-        // if (_benefactors.length != _kind.length || _benefactors.length != 1 || _kind[0] != 0) {
-        //     return 0;
-        // }
-
-        
-        // if (_benefactors.length != _kind.length) {
-        //     return (new address[](0), new uint256[](0));
-        // }
-        
-        // Check if the validator exists
-        // if (!validatorSetContract.isValidator(_benefactors[0])) {
-        //     return (new address[](0), new uint256[](0));
-        // }
-
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
         // If this is the last block of the epoch i.e. master key has been generated.
 
