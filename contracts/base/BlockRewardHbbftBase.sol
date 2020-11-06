@@ -70,9 +70,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev parts of the epoch reward get forwarded to a governance fund
     /// just a dummy function for now.
-    address payable public governanceFundAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+    address payable public governancePotAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
 
-    uint256 public maintenanceFundShareFraction = 10;
+    uint256 public governancePotShareNominator = 1;
+    uint256 public governancePotShareDenominator = 10;
 
 
     // ================================================ Events ========================================================
@@ -146,7 +147,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     }
 
     function setReinsertPoolPayoutFraction(uint256 _value)
-    external 
+    external     
     onlyOwner {
         require(_value != 0, "Payout fraction must not be 0");
         reinsertPoolPayoutFraction = _value;
@@ -457,8 +458,15 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             return 0;
         }
         
-        uint256 rewardToDistribute = totalReward - (totalReward / maintenanceFundShareFraction);
-        governanceFundAddress.transfer(totalReward / maintenanceFundShareFraction);
+        // we calculate the governance share here, and store it in the distributeAmount variable.
+        // the distributedAmount variable is later resused to track all distributed shares 
+        // in order to handle division results in a correct way.
+        // we can not write clean code here, because of EVMs restriction to use only 16 local variables.
+        uint256 distributedAmount = totalReward * governancePotShareNominator / governancePotShareDenominator;
+    
+        governancePotAddress.transfer(distributedAmount);
+
+        uint256 rewardToDistribute = totalReward - distributedAmount;
 
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
@@ -482,9 +490,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
         // Share the reward equally among the validators.
         uint256 poolReward = rewardToDistribute / numRewardedValidators;
-        uint256 distributedAmount = totalReward / maintenanceFundShareFraction;
-
-
 
         if (poolReward != 0) {
             for (uint256 i = 0; i < numValidators; i++) {
