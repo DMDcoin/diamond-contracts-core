@@ -12,7 +12,6 @@ const RANDOM_CONTRACT = '0x3000000000000000000000000000000000000001';
 const STAKING_CONTRACT = '0x1100000000000000000000000000000000000001';
 const PERMISSION_CONTRACT = '0x4000000000000000000000000000000000000001';
 const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
-const REGISTRY_CONTRACT = '0x6000000000000000000000000000000000000001';
 const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
 main();
@@ -145,6 +144,7 @@ async function main() {
     balance: '0',
     constructor: await deploy.encodeABI()
   };
+
   // spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
   // spec.engine.hbbft.params.blockRewardContractTransition = 0;
   spec.accounts['0x2000000000000000000000000000000000000000'] = {
@@ -179,6 +179,8 @@ async function main() {
     constructor: await deploy.encodeABI()
   };
   spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
+  spec.params.transactionPermissionContractTransition = '0x0';
+
   spec.accounts['0x4000000000000000000000000000000000000000'] = {
     balance: '0',
     constructor: '0x' + contractsCompiled['TxPermissionHbbft'].bytecode

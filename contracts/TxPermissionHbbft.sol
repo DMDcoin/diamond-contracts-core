@@ -24,6 +24,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev The address of the `Certifier` contract.
     ICertifier public certifierContract;
 
+    address public keyGenHistoryContract;
+
     /// @dev A boolean flag indicating whether the specified address is allowed
     /// to initiate transactions of any type. Used by the `allowedTxTypes` getter.
     /// See also the `addAllowedSender` and `removeAllowedSender` functions.
@@ -62,7 +64,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     function initialize(
         address[] calldata _allowed,
         address _certifier,
-        address _validatorSet
+        address _validatorSet,
+        address _keyGenHistoryContract
     ) external {
         require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0);
         require(!isInitialized(), "initialization can only be done once");
@@ -73,6 +76,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         }
         certifierContract = ICertifier(_certifier);
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
+        keyGenHistoryContract = _keyGenHistoryContract;
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
@@ -162,6 +166,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     function allowedTxTypes(
         address _sender,
         address _to,
+        uint256 /*_value */,
         uint256 _gasPrice,
         bytes memory _data
     )
@@ -210,6 +215,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 // The other functions of ValidatorSet contract can be called
                 // by anyone except validators' mining addresses if gasPrice is not zero
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
+            }
+        } else if (_to == keyGenHistoryContract) {
+            if (validatorSetContract.isPendingValidator(_sender)) {
+                return (CALL, false);
             }
         }
 
@@ -265,13 +274,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
     bytes4 internal constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
-
-    // bytes4(keccak256("revealSecret(uint256)"))
-    bytes4 internal constant REVEAL_SECRET_SIGNATURE = 0x98df67c6;
-
-    // bytes4(keccak256("revealNumber(uint256)"))
-    bytes4 internal constant REVEAL_NUMBER_SIGNATURE = 0xfe7d567d;
-
 
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.

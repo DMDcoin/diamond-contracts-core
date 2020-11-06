@@ -2275,7 +2275,7 @@ contract('StakingHbbft', async accounts => {
     const validators = await validatorSetHbbft.getValidators.call();
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
 
-    const {logs} = await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
+    const {logs} = await blockRewardHbbft.reward(isEpochEndBlock, {from: owner}).should.be.fulfilled;
     if (logs.length > 0)
     {
       // Emulate minting native coins

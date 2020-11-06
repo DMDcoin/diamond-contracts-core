@@ -85,7 +85,7 @@ contract InitializerHbbft {
         permittedAddresses[0] = _owner;
         
         ICertifier(_contracts[5]).initialize(permittedAddresses, _contracts[0]);
-        ITxPermission(_contracts[4]).initialize(permittedAddresses, _contracts[5], _contracts[0]);
+        ITxPermission(_contracts[4]).initialize(permittedAddresses, _contracts[5], _contracts[0], _contracts[6]);
     }
 
 
