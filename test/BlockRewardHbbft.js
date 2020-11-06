@@ -17,12 +17,10 @@ require('chai')
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
 // and to not use it if specific transactions needs to get debugged, 
 // like truffle `debug 0xabc`.
-//const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-const useUpgradeProxy = false;
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 
+const governanceFundAddress = '0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0';
 console.log('useUpgradeProxy:', useUpgradeProxy);
-console.log('CONTRACTS_NO_UPGRADE_PROXY:', process.env.CONTRACTS_NO_UPGRADE_PROXY);
-//console.log(process.env);
 
 contract('BlockRewardHbbft', async accounts => {
   let owner;
@@ -283,10 +281,13 @@ contract('BlockRewardHbbft', async accounts => {
     // console.log('getting validators...');
     // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
     const validators = await validatorSetHbbft.getValidators.call();
-    //console.log('got validators:', validators);
+    // console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
+    // console.error('calling reward', isEpochEndBlock);
     await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
+    // console.error('reward call successful!', isEpochEndBlock);
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+   
   }
 
 

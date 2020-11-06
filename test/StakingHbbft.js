@@ -20,8 +20,7 @@ let currentAccounts;
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
 // and to not use it if specific transactions needs to get debugged, 
 // like truffle `debug 0xabc`.
-//const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-const useUpgradeProxy = false;
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 console.log('useUpgradeProxy:', useUpgradeProxy);
 
 
@@ -2342,7 +2341,7 @@ contract('StakingHbbft', async accounts => {
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
 
     const {logs} = await blockRewardHbbft.reward([validators[0]], [0], isEpochEndBlock, {from: owner}).should.be.fulfilled;
-    console.error('reward call successful!', isEpochEndBlock);
+    // console.error('reward call successful!', isEpochEndBlock);
     if (logs.length > 0)
     {
       // Emulate minting native coins
