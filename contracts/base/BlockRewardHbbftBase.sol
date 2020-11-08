@@ -63,17 +63,17 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev each epoch reward, one Fraction of the reinsert pool gets payed out.
     /// the number is the divisor of the fraction. 60 means 1/60 of the reinsert pool gets payed out.
-    uint256 public reinsertPoolPayoutFraction = 60;
+    uint256 public reinsertPoolPayoutFraction;
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
 
     /// @dev parts of the epoch reward get forwarded to a governance fund
     /// just a dummy function for now.
-    address payable public governancePotAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+    address payable public governancePotAddress;
 
-    uint256 public governancePotShareNominator = 1;
-    uint256 public governancePotShareDenominator = 10;
+    uint256 public governancePotShareNominator;
+    uint256 public governancePotShareDenominator;
 
 
     // ================================================ Events ========================================================
@@ -125,6 +125,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
+
+        deltaPotPayoutFraction = 6000;
+        reinsertPoolPayoutFraction = 6000;
+        governancePotAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+        governancePotShareNominator = 1;
+        governancePotShareDenominator = 10;
     }
 
     function addToDeltaPot()
