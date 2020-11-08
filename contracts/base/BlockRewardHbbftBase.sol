@@ -63,7 +63,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev each epoch reward, one Fraction of the reinsert pool gets payed out.
     /// the number is the divisor of the fraction. 60 means 1/60 of the reinsert pool gets payed out.
-    uint256 public reinsertPoolPayoutFraction;
+    uint256 public reinsertPotPayoutFraction;
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
@@ -127,7 +127,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
 
         deltaPotPayoutFraction = 6000;
-        reinsertPoolPayoutFraction = 6000;
+        reinsertPotPayoutFraction = 6000;
         governancePotAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
         governancePotShareNominator = 1;
         governancePotShareDenominator = 10;
@@ -152,11 +152,11 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         deltaPotPayoutFraction = _value;
     }
 
-    function setReinsertPoolPayoutFraction(uint256 _value)
+    function setReinsertPotPayoutFraction(uint256 _value)
     external     
     onlyOwner {
         require(_value != 0, "Payout fraction must not be 0");
-        reinsertPoolPayoutFraction = _value;
+        reinsertPotPayoutFraction = _value;
     }
 
     /// @dev Called by the engine when producing and closing a block,
@@ -441,7 +441,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         deltaPot -= deltaPotShare;
 
         // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
-        uint256 reinsertPoolShare = reinsertPool / reinsertPoolPayoutFraction;
+        uint256 reinsertPoolShare = reinsertPool / reinsertPotPayoutFraction;
         reinsertPool -= reinsertPoolShare;
 
         uint256 totalReward = deltaPotShare + reinsertPoolShare + nativeRewardUndistributed;
