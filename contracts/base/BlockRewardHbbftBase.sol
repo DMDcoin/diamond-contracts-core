@@ -56,10 +56,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     uint256 public deltaPotPayoutFraction = 60;
 
 
-    /// @dev the reinsertPool holds all coins that are designed for getting reinserted into the coin circulation.
+    /// @dev the reinsertPot holds all coins that are designed for getting reinserted into the coin circulation.
     /// sources are:
     /// 
-    uint256 public reinsertPool;
+    uint256 public reinsertPot;
 
     /// @dev each epoch reward, one Fraction of the reinsert pool gets payed out.
     /// the number is the divisor of the fraction. 60 means 1/60 of the reinsert pool gets payed out.
@@ -74,6 +74,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     uint256 public governancePotShareNominator;
     uint256 public governancePotShareDenominator;
+
+    uint256 public constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
+    uint256 public constant REWARD_PERCENT_MULTIPLIER = 1000000;
 
 
     // ================================================ Events ========================================================
@@ -139,10 +142,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         deltaPot += msg.value;
     }
 
-    function addToReinsertPool()
+    function addToReinsertPot()
     external
     payable {
-        reinsertPool += msg.value;
+        reinsertPot += msg.value;
     }
 
     function setdeltaPotPayoutFraction(uint256 _value)
@@ -419,9 +422,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     // ============================================== Internal ========================================================
 
-    uint256 internal constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
-    uint256 internal constant REWARD_PERCENT_MULTIPLIER = 1000000;
-
 
     /// @dev Distributes rewards among pools at the latest block of a staking epoch.
     /// This function is called by the `reward` function.
@@ -441,10 +441,10 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         deltaPot -= deltaPotShare;
 
         // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
-        uint256 reinsertPoolShare = reinsertPool / reinsertPotPayoutFraction;
-        reinsertPool -= reinsertPoolShare;
+        uint256 reinsertPotShare = reinsertPot / reinsertPotPayoutFraction;
+        reinsertPot -= reinsertPotShare;
 
-        uint256 totalReward = deltaPotShare + reinsertPoolShare + nativeRewardUndistributed;
+        uint256 totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
 
         if (totalReward == 0) {
             return 0;

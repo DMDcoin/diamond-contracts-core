@@ -145,6 +145,7 @@ contract('BlockRewardHbbft', async accounts => {
     });
 
 
+
     it('staking epoch #0 finished', async () => {
 
       let stakingEpoch = await stakingHbbft.stakingEpoch.call();
@@ -265,6 +266,65 @@ contract('BlockRewardHbbft', async accounts => {
         );
       }
     });
+
+    const addToDeltaPotValue = new BN(web3.utils.toWei('60'));
+
+    it('DMD Pots: filling delta pot', async () => {
+
+      const stakingEpoch = await stakingHbbft.stakingEpoch.call();
+      stakingEpoch.should.be.bignumber.equal(new BN(2));
+
+      //checking preconditions.
+      // get the current address pof the governance pot.
+
+      const blockRewardBalance = await web3.eth.getBalance(blockRewardHbbft.address);
+      blockRewardBalance.should.be.equal('0');
+
+      (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(new BN('0'));
+      (await blockRewardHbbft.reinsertPot.call()).should.be.bignumber.equal(new BN('0'));
+      
+      await blockRewardHbbft.addToDeltaPot({value: addToDeltaPotValue}).should.be.fulfilled;
+      (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(addToDeltaPotValue);
+
+    });
+
+
+    it('DMD Pots: governance and validators got correct share.', async () => {
+
+      const governnancePotAddress = await blockRewardHbbft.governancePotAddress.call();
+      (new BN(governnancePotAddress)).should.be.bignumber.gt(new BN(0));
+
+      const currentValidators = await validatorSetHbbft.getValidators.call();
+      currentValidators.length.should.be.equal(3);
+
+      const initialGovernancePotBalance = new BN(await web3.eth.getBalance(governnancePotAddress));
+
+      stakingEpoch = await stakingHbbft.stakingEpoch.call();
+
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
+      
+
+      const currentGovernancePotBalance = new BN (await web3.eth.getBalance(governnancePotAddress));
+      const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
+
+      const totalReward =  addToDeltaPotValue.div(new BN('6000'));
+      const expectedDAOShare =  totalReward.div(new BN('10'));
+
+      governancePotIncrease.should.to.be.bignumber.equal(expectedDAOShare);
+
+      //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
+      const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
+
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
+      const actualValidatorReward =  await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
+      
+      actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
+
+    });
+
+
   });
 
   Array.prototype.sortedEqual = function(arr) {
@@ -311,6 +371,7 @@ contract('BlockRewardHbbft', async accounts => {
   }
 
   async function timeTravelToEndEpoch() {
+
     const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
     await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
     await callReward(true);
