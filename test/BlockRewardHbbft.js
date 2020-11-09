@@ -288,25 +288,18 @@ contract('BlockRewardHbbft', async accounts => {
 
     });
 
-
+  
     it('DMD Pots: governance and validators got correct share.', async () => {
-
-      const governnancePotAddress = await blockRewardHbbft.governancePotAddress.call();
-      (new BN(governnancePotAddress)).should.be.bignumber.gt(new BN(0));
 
       const currentValidators = await validatorSetHbbft.getValidators.call();
       currentValidators.length.should.be.equal(3);
-
-      const initialGovernancePotBalance = new BN(await web3.eth.getBalance(governnancePotAddress));
-
+      const initialGovernancePotBalance = await getCurrentGovernancePotValue();
       stakingEpoch = await stakingHbbft.stakingEpoch.call();
 
       await timeTravelToTransition();
       await timeTravelToEndEpoch();
 
-      
-
-      const currentGovernancePotBalance = new BN (await web3.eth.getBalance(governnancePotAddress));
+      const currentGovernancePotBalance = await getCurrentGovernancePotValue();
       const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
 
       const totalReward =  addToDeltaPotValue.div(new BN('6000'));
@@ -325,6 +318,50 @@ contract('BlockRewardHbbft', async accounts => {
     });
 
 
+
+    it('DMD Pots: reinsert pot works as expected.', async () => {
+
+      //refilling the delta pot.
+      const deltaPotCurrentValue = await blockRewardHbbft.deltaPot.call()
+      const fillUpMissing = addToDeltaPotValue.sub(deltaPotCurrentValue);
+
+      await blockRewardHbbft.addToDeltaPot({value: fillUpMissing}).should.be.fulfilled;
+      (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(addToDeltaPotValue);
+
+      const addedToReinsertPot = new BN(web3.utils.toWei('60'));
+
+      await blockRewardHbbft.addToReinsertPot({value: addedToReinsertPot}).should.be.fulfilled;
+      const reinsertPotAfterAdd = await blockRewardHbbft.reinsertPot.call();
+      reinsertPotAfterAdd.should.be.bignumber.equal(addedToReinsertPot);
+
+      stakingEpoch = await stakingHbbft.stakingEpoch.call();
+
+      const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
+      const currentGovernancePotBalance = await getCurrentGovernancePotValue();
+      const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
+
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000')));
+
+      const expectedDAOShare =  totalReward.div(new BN('10'));
+
+      // we expect 1 wei difference, since the reward combination from 2 pots results in that.
+      //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(new BN('1'));
+      governancePotIncrease.should.to.be.bignumber.equal(expectedDAOShare);
+
+      //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
+      const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
+      const currentValidators = await validatorSetHbbft.getValidators.call();
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
+      const actualValidatorReward =  await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
+      
+      actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
+    });
+
+
   });
 
   Array.prototype.sortedEqual = function(arr) {
@@ -336,6 +373,14 @@ contract('BlockRewardHbbft', async accounts => {
   //   await validatorSetHbbft.finalizeChange({from: owner}).should.be.fulfilled;
   //   await validatorSetHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
   // }
+
+  async function getCurrentGovernancePotValue() {
+    const governnancePotAddress = await blockRewardHbbft.governancePotAddress.call();
+    (new BN(governnancePotAddress)).should.be.bignumber.gt(new BN(0));
+    const result = new BN(await web3.eth.getBalance(governnancePotAddress));
+    return result;
+  }
+
 
   async function callReward(isEpochEndBlock) {
     // console.log('getting validators...');
