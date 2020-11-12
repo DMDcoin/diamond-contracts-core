@@ -84,7 +84,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     // ============================================== Constants =======================================================
 
     /// @dev The max number of validators.
-    uint256 public constant MAX_VALIDATORS = 19;
+    uint256 public constant MAX_VALIDATORS = 25;
 
     // ================================================ Events ========================================================
 
