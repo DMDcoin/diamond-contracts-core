@@ -13,6 +13,15 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
+// delegatecall are a problem for truffle debugger
+// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+// and to not use it if specific transactions needs to get debugged, 
+// like truffle `debug 0xabc`.
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+
+const governanceFundAddress = '0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0';
+console.log('useUpgradeProxy:', useUpgradeProxy);
+
 contract('BlockRewardHbbft', async accounts => {
   let owner;
   let blockRewardHbbft;
@@ -36,7 +45,7 @@ contract('BlockRewardHbbft', async accounts => {
   const KEY_GEN_DURATION = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
   const STAKE_WITHDRAW_DISALLOW_PERIOD = 2; // one less than EPOCH DURATION, therefore it meets the conditions.
   const MIN_STAKE = new BN(web3.utils.toWei('1', 'ether'));
-  const MAX_BLOCK_REWARD = new BN(100); // the maximum  per-block reward distributed to the validators
+
 
   describe('reward()', async () => {
 
@@ -49,28 +58,45 @@ contract('BlockRewardHbbft', async accounts => {
       initialStakingAddresses[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
       initialStakingAddresses[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
       initialStakingAddresses[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
+
+
+
       // Deploy BlockRewardHbbft contract
       blockRewardHbbft = await BlockRewardHbbft.new();
-      blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
-      blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+      if (useUpgradeProxy) {
+        blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
+        blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+      }
+      
       // Deploy RandomHbbft contract
       randomHbbft = await RandomHbbft.new();
-      randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
-      randomHbbft = await RandomHbbft.at(randomHbbft.address);
+      if (useUpgradeProxy) {
+        randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
+        randomHbbft = await RandomHbbft.at(randomHbbft.address);
+      }
       // Deploy StakingHbbft contract
       stakingHbbft = await StakingHbbft.new();
-      stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-      stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+      if (useUpgradeProxy) {
+        stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
+        stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+      }
       // Deploy ValidatorSetHbbft contract
       validatorSetHbbft = await ValidatorSetHbbft.new();
-      validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-      validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+      if (useUpgradeProxy) {
+        validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
+        validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+      }
 
       //await increaseTime(1);
       
       keyGenHistory = await KeyGenHistory.new();
-      keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
-      keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+      if (useUpgradeProxy) {
+        keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
+        keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+      }
+
+      // console.log('keyGenHistory._admin(): ', await keyGenHistory._admin.call());
+      // console.log('owner: ', owner);
 
       await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
       [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
@@ -113,10 +139,11 @@ contract('BlockRewardHbbft', async accounts => {
 
       // Initialize BlockRewardHbbft
       await blockRewardHbbft.initialize(
-        validatorSetHbbft.address,
-        MAX_BLOCK_REWARD
+        validatorSetHbbft.address
       ).should.be.fulfilled;
+
     });
+
 
 
     it('staking epoch #0 finished', async () => {
@@ -239,6 +266,102 @@ contract('BlockRewardHbbft', async accounts => {
         );
       }
     });
+
+    const addToDeltaPotValue = new BN(web3.utils.toWei('60'));
+
+    it('DMD Pots: filling delta pot', async () => {
+
+      const stakingEpoch = await stakingHbbft.stakingEpoch.call();
+      stakingEpoch.should.be.bignumber.equal(new BN(2));
+
+      //checking preconditions.
+      // get the current address pof the governance pot.
+
+      const blockRewardBalance = await web3.eth.getBalance(blockRewardHbbft.address);
+      blockRewardBalance.should.be.equal('0');
+
+      (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(new BN('0'));
+      (await blockRewardHbbft.reinsertPot.call()).should.be.bignumber.equal(new BN('0'));
+      
+      await blockRewardHbbft.addToDeltaPot({value: addToDeltaPotValue}).should.be.fulfilled;
+      (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(addToDeltaPotValue);
+
+    });
+
+  
+    it('DMD Pots: governance and validators got correct share.', async () => {
+
+      const currentValidators = await validatorSetHbbft.getValidators.call();
+      currentValidators.length.should.be.equal(3);
+      const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+      stakingEpoch = await stakingHbbft.stakingEpoch.call();
+
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
+      const currentGovernancePotBalance = await getCurrentGovernancePotValue();
+      const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
+
+      const totalReward =  addToDeltaPotValue.div(new BN('6000'));
+      const expectedDAOShare =  totalReward.div(new BN('10'));
+
+      governancePotIncrease.should.to.be.bignumber.equal(expectedDAOShare);
+
+      //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
+      const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
+
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
+      const actualValidatorReward =  await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
+      
+      actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
+
+    });
+
+
+
+    it('DMD Pots: reinsert pot works as expected.', async () => {
+
+      //refilling the delta pot.
+      const deltaPotCurrentValue = await blockRewardHbbft.deltaPot.call()
+      const fillUpMissing = addToDeltaPotValue.sub(deltaPotCurrentValue);
+
+      await blockRewardHbbft.addToDeltaPot({value: fillUpMissing}).should.be.fulfilled;
+      (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(addToDeltaPotValue);
+
+      const addedToReinsertPot = new BN(web3.utils.toWei('60'));
+
+      await blockRewardHbbft.addToReinsertPot({value: addedToReinsertPot}).should.be.fulfilled;
+      const reinsertPotAfterAdd = await blockRewardHbbft.reinsertPot.call();
+      reinsertPotAfterAdd.should.be.bignumber.equal(addedToReinsertPot);
+
+      stakingEpoch = await stakingHbbft.stakingEpoch.call();
+
+      const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
+
+      const currentGovernancePotBalance = await getCurrentGovernancePotValue();
+      const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
+
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000')));
+
+      const expectedDAOShare =  totalReward.div(new BN('10'));
+
+      // we expect 1 wei difference, since the reward combination from 2 pots results in that.
+      //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(new BN('1'));
+      governancePotIncrease.should.to.be.bignumber.equal(expectedDAOShare);
+
+      //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
+      const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
+      const currentValidators = await validatorSetHbbft.getValidators.call();
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
+      const actualValidatorReward =  await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
+      
+      actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
+    });
+
+
   });
 
   Array.prototype.sortedEqual = function(arr) {
@@ -251,14 +374,23 @@ contract('BlockRewardHbbft', async accounts => {
   //   await validatorSetHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
   // }
 
+  async function getCurrentGovernancePotValue() {
+    const governnancePotAddress = await blockRewardHbbft.governancePotAddress.call();
+    (new BN(governnancePotAddress)).should.be.bignumber.gt(new BN(0));
+    const result = new BN(await web3.eth.getBalance(governnancePotAddress));
+    return result;
+  }
+
+
   async function callReward(isEpochEndBlock) {
     // console.log('getting validators...');
     // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
     const validators = await validatorSetHbbft.getValidators.call();
-    //console.log('got validators:', validators);
+    // console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
     await blockRewardHbbft.reward(isEpochEndBlock, {from: owner}).should.be.fulfilled;
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+   
   }
 
 
@@ -284,6 +416,7 @@ contract('BlockRewardHbbft', async accounts => {
   }
 
   async function timeTravelToEndEpoch() {
+
     const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
     await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
     await callReward(true);

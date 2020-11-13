@@ -84,7 +84,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     // ============================================== Constants =======================================================
 
     /// @dev The max number of validators.
-    uint256 public constant MAX_VALIDATORS = 19;
+    uint256 public constant MAX_VALIDATORS = 25;
 
     // ================================================ Events ========================================================
 
@@ -160,8 +160,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external {
-        require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0, 
-             "Initialization only on genesis block or by admin");
+        require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) ==  _admin() || block.number == 0, 
+             "ValidatorSet: Initialization only on genesis block or by admin");
         require(!isInitialized(), "ValidatorSet contract is already initialized");
         require(_blockRewardContract != address(0), "BlockReward contract address can't be 0x0");
         require(_randomContract != address(0), "Random contract address can't be 0x0");

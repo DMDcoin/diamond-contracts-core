@@ -22,6 +22,13 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
+// delegatecall are a problem for truffle debugger
+// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+// and to not use it if specific transactions needs to get debugged, 
+// like truffle `debug 0xabc`.
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+console.log('useUpgradeProxy:', useUpgradeProxy);
+
 contract('ValidatorSetHbbft', async accounts => {
   let owner;
   let blockRewardHbbft;
@@ -32,18 +39,29 @@ contract('ValidatorSetHbbft', async accounts => {
 
   beforeEach(async () => {
     owner = accounts[0];
+
+
+
     // Deploy BlockReward contract
     blockRewardHbbft = await BlockRewardHbbft.new();
-    blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
-    blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+    if (useUpgradeProxy) {
+      blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
+      blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+    }
+
     // Deploy Staking contract
     stakingHbbft = await StakingHbbft.new();
-    stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-    stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+    if (useUpgradeProxy) {
+      stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
+      stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+    }
+
     // Deploy ValidatorSet contract
     validatorSetHbbft = await ValidatorSetHbbft.new();
-    validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-    validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+    if (useUpgradeProxy) {
+      validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
+      validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+    }
 
     await increaseTime(1);
 
@@ -104,17 +122,21 @@ contract('ValidatorSetHbbft', async accounts => {
         await validatorSetHbbft.isValidator.call('0x0000000000000000000000000000000000000000')
       );
     });
-    it('should fail if initialization is not done on the genesis block and sender is not admin', async () => {
-      await validatorSetHbbft.initialize(
-        blockRewardHbbft.address, // _blockRewardContract
-        '0x3000000000000000000000000000000000000001', // _randomContract
-        stakingHbbft.address, // _stakingContract
-        '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-        initialValidators, // _initialMiningAddresses
-        initialStakingAddresses, // _initialStakingAddresses
-        {from: accounts[1]}
-      ).should.be.rejectedWith("Initialization only on genesis block or by admin");
-    });
+    
+      it('should fail if initialization is not done on the genesis block and sender is not admin', async () => {
+        if (useUpgradeProxy) { //this test only works if using the upgrade proxy.
+          await validatorSetHbbft.initialize(
+            blockRewardHbbft.address, // _blockRewardContract
+            '0x3000000000000000000000000000000000000001', // _randomContract
+            stakingHbbft.address, // _stakingContract
+            '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+            initialValidators, // _initialMiningAddresses
+            initialStakingAddresses, // _initialStakingAddresses
+            {from: accounts[1]}
+          ).should.be.rejectedWith("Initialization only on genesis block or by admin");
+        }
+      });
+    
     it('should initialize successfully if not done on genesis block but sender is admin', async () => {
       await validatorSetHbbft.initialize(
         blockRewardHbbft.address, // _blockRewardContract
@@ -359,7 +381,7 @@ contract('ValidatorSetHbbft', async accounts => {
       (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([initialValidators[0]]);
     });
     it('should choose validators randomly', async () => {
-      const stakingAddresses = accounts.slice(7, 29 + 1); // accounts[7...29]
+      const stakingAddresses = accounts.slice(7, 29 + 3); // accounts[7...31]
       let miningAddresses = [];
 
       for (let i = 0; i < stakingAddresses.length; i++) {

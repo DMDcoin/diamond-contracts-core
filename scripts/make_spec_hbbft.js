@@ -286,8 +286,7 @@ async function main() {
       publicKeysSplit,
       internetAddresses,
       init_data.parts,
-      init_data.acks,
-      ethToWei
+      init_data.acks
     ]});
 
   spec.accounts['0xFF00000000000000000000000000000000000000'] = {

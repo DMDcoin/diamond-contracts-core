@@ -26,9 +26,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     mapping(address => uint256[]) internal _epochsPoolGotRewardFor;
 
-    /// @dev The maximum per-block reward distributed among the validators.
-    uint256 public maxEpochReward;
-
     /// @dev The reward amount to be distributed in native coins among participants (the validator and their
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
     mapping(uint256 => mapping(address => uint256)) public epochPoolNativeReward;
@@ -51,8 +48,36 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// constant by upgrading the contract.
     mapping(uint256 => uint256) public validatorMinRewardPercent;
 
+    /// @dev the Delta Pool holds all coins that never got emitted, since the maximum supply is 4,380,000
+    uint256 public deltaPot;
+
+    /// @dev each epoch reward, one Fraction of the delta pool gets payed out.
+    /// the number is the divisor of the fraction. 60 means 1/60 of the delta pool gets payed out.
+    uint256 public deltaPotPayoutFraction = 60;
+
+
+    /// @dev the reinsertPot holds all coins that are designed for getting reinserted into the coin circulation.
+    /// sources are:
+    /// 
+    uint256 public reinsertPot;
+
+    /// @dev each epoch reward, one Fraction of the reinsert pool gets payed out.
+    /// the number is the divisor of the fraction. 60 means 1/60 of the reinsert pool gets payed out.
+    uint256 public reinsertPotPayoutFraction;
+
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
+
+    /// @dev parts of the epoch reward get forwarded to a governance fund
+    /// just a dummy function for now.
+    address payable public governancePotAddress;
+
+    uint256 public governancePotShareNominator;
+    uint256 public governancePotShareDenominator;
+
+    uint256 public constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
+    uint256 public constant REWARD_PERCENT_MULTIPLIER = 1000000;
+
 
     // ================================================ Events ========================================================
 
@@ -96,14 +121,45 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _validatorSet, uint256 _maxEpochReward) external {
-        require(msg.sender == _admin()  || tx.origin ==  _admin() || block.number == 0,
+    function initialize(address _validatorSet) external {
+        require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) ==  _admin() || block.number == 0,
           "Initialization only on genesis block or by admin");
         require(!isInitialized(), "initialization can only be done once");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        maxEpochReward = _maxEpochReward;
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
+
+        deltaPotPayoutFraction = 6000;
+        reinsertPotPayoutFraction = 6000;
+        governancePotAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+        governancePotShareNominator = 1;
+        governancePotShareDenominator = 10;
+    }
+
+    function addToDeltaPot()
+    external
+    payable {
+        deltaPot += msg.value;
+    }
+
+    function addToReinsertPot()
+    external
+    payable {
+        reinsertPot += msg.value;
+    }
+
+    function setdeltaPotPayoutFraction(uint256 _value)
+    external 
+    onlyOwner {
+        require(_value != 0, "Payout fraction must not be 0");
+        deltaPotPayoutFraction = _value;
+    }
+
+    function setReinsertPotPayoutFraction(uint256 _value)
+    external     
+    onlyOwner {
+        require(_value != 0, "Payout fraction must not be 0");
+        reinsertPotPayoutFraction = _value;
     }
 
     /// @dev Called by the engine when producing and closing a block,
@@ -366,9 +422,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     // ============================================== Internal ========================================================
 
-    uint256 internal constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
-    uint256 internal constant REWARD_PERCENT_MULTIPLIER = 1000000;
-
 
     /// @dev Distributes rewards among pools at the latest block of a staking epoch.
     /// This function is called by the `reward` function.
@@ -384,11 +437,28 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-        uint256 totalReward = maxEpochReward + nativeRewardUndistributed;
+        uint256 deltaPotShare = deltaPot / deltaPotPayoutFraction;
+        deltaPot -= deltaPotShare;
+
+        // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
+        uint256 reinsertPotShare = reinsertPot / reinsertPotPayoutFraction;
+        reinsertPot -= reinsertPotShare;
+
+        uint256 totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
 
         if (totalReward == 0) {
             return 0;
         }
+        
+        // we calculate the governance share here, and store it in the distributeAmount variable.
+        // the distributedAmount variable is later resused to track all distributed shares 
+        // in order to handle division results in a correct way.
+        // we can not write clean code here, because of EVMs restriction to use only 16 local variables.
+        uint256 distributedAmount = totalReward * governancePotShareNominator / governancePotShareDenominator;
+    
+        governancePotAddress.transfer(distributedAmount);
+
+        uint256 rewardToDistribute = totalReward - distributedAmount;
 
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
@@ -402,7 +472,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             ) {
                 isRewardedValidator[i] = true;
                 numRewardedValidators++;
-            } 
+            }
         }
 
         // No rewards distributed in this epoch
@@ -411,8 +481,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         }
 
         // Share the reward equally among the validators.
-        uint256 poolReward = totalReward / numRewardedValidators;
-        uint256 distributedAmount;
+        uint256 poolReward = rewardToDistribute / numRewardedValidators;
 
         if (poolReward != 0) {
             for (uint256 i = 0; i < numValidators; i++) {

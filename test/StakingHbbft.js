@@ -16,6 +16,14 @@ require('chai')
 
 let currentAccounts;
 
+// delegatecall are a problem for truffle debugger
+// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+// and to not use it if specific transactions needs to get debugged, 
+// like truffle `debug 0xabc`.
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+console.log('useUpgradeProxy:', useUpgradeProxy);
+
+
 contract('StakingHbbft', async accounts => {
 
   
@@ -33,7 +41,6 @@ contract('StakingHbbft', async accounts => {
 
   currentAccounts = accounts;
   const minStake = new BN(web3.utils.toWei('1', 'ether'));
-  const maxEpochReward = new BN(100); // the maximum  per-block reward distributed to the validators
 
   // one epoch in 1 day.
   const stakingFixedEpochDuration = new BN(86400);
@@ -42,8 +49,14 @@ contract('StakingHbbft', async accounts => {
   const stakingTransitionTimeframeLength = new BN(3600);
     
   const stakingWithdrawDisallowPeriod = new BN(1);
-  //const stakingEpochStartBlock = new BN(0);
-  //const keyGenerationDuration = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
+  
+  // the reward for the first epoch. 
+  const epochReward = new BN(web3.utils.toWei('1', 'ether'));
+
+  // the amount the deltaPot gets filled up.
+  // this is 60-times more, since the deltaPot get's
+  // drained each step by 60 by default.
+  const deltaPotFillupValue = epochReward.mul(new BN('60'));
 
   beforeEach(async () => {
     owner = accounts[0];
@@ -53,30 +66,43 @@ contract('StakingHbbft', async accounts => {
     initialStakingAddresses[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
     initialStakingAddresses[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
     initialStakingAddresses[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
+
+
+  
     // Deploy BlockReward contract
     blockRewardHbbft = await BlockRewardHbbft.new();
-    blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
-    blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+    if (useUpgradeProxy) {
+      blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
+      blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+    }
     // Deploy Random contract
     randomHbbft = await RandomHbbft.new();
-    randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
-    randomHbbft = await RandomHbbft.at(randomHbbft.address);
+    if (useUpgradeProxy) {
+      randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
+      randomHbbft = await RandomHbbft.at(randomHbbft.address);
+    }
     // Deploy Staking contract
     stakingHbbft = await StakingHbbftCoins.new();
-    stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-    stakingHbbft = await StakingHbbftCoins.at(stakingHbbft.address);
+    if (useUpgradeProxy) {
+      stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
+      stakingHbbft = await StakingHbbftCoins.at(stakingHbbft.address);
+    }
     // Deploy ValidatorSet contract
     validatorSetHbbft = await ValidatorSetHbbft.new();
-    validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-    validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+    if (useUpgradeProxy) {
+      validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
+      validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+    }
 
     //without that, the Time is 0,
     //meaning a lot of checks that expect time to have some value deliver incorrect results.
     await increaseTime(1);
 
     keyGenHistory = await KeyGenHistory.new();
-    keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
-    keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+    if (useUpgradeProxy) {
+      keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
+      keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+    }
 
     await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41],[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,181,129,31,84,186,242,5,151,59,35,196,140,106,29,40,112,142,156,132,158,47,223,253,185,227,249,190,96,5,99,239,213,127,29,136,115,71,164,202,44,6,171,131,251,147,159,54,49,1,0,0,0,0,0,0,0,153,0,0,0,0,0,0,0,4,177,133,61,18,58,222,74,65,5,126,253,181,113,165,43,141,56,226,132,208,218,197,119,179,128,30,162,251,23,33,73,38,120,246,223,233,11,104,60,154,241,182,147,219,81,45,134,239,69,169,198,188,152,95,254,170,108,60,166,107,254,204,195,170,234,154,134,26,91,9,139,174,178,248,60,65,196,218,46,163,218,72,1,98,12,109,186,152,148,159,121,254,34,112,51,70,121,51,167,35,240,5,134,197,125,252,3,213,84,70,176,160,36,73,140,104,92,117,184,80,26,240,106,230,241,26,79,46,241,195,20,106,12,186,49,254,168,233,25,179,96,62,104,118,153,95,53,127,160,237,246,41]],
       [[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]],[[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,145,0,0,0,0,0,0,0,4,239,1,112,13,13,251,103,186,212,78,44,47,250,221,84,118,88,7,64,206,186,11,2,8,204,140,106,179,52,251,237,19,53,74,187,217,134,94,66,68,89,42,85,207,155,220,101,223,51,199,37,38,203,132,13,77,78,114,53,219,114,93,21,25,164,12,43,252,160,16,23,111,79,230,121,95,223,174,211,172,231,0,52,25,49,152,79,128,39,117,216,85,201,237,242,151,219,149,214,77,233,145,47,10,184,175,162,174,237,177,131,45,126,231,32,147,227,170,125,133,36,123,164,232,129,135,196,136,186,45,73,226,179,169,147,42,41,140,202,191,12,73,146,2]]]
@@ -103,6 +129,9 @@ contract('StakingHbbft', async accounts => {
     // The IP addresses are irrelevant for these unit test, just initialize them to 0.
     initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
     
+
+    //await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
+
   });
 
   describe('addPool()', async () => {
@@ -325,8 +354,7 @@ contract('StakingHbbft', async accounts => {
 
       // Initialize BlockRewardHbbft
       await blockRewardHbbft.initialize(
-        validatorSetHbbft.address,
-        maxEpochReward
+        validatorSetHbbft.address
       ).should.be.fulfilled;
 
       // Initialize StakingHbbft
@@ -347,6 +375,7 @@ contract('StakingHbbft', async accounts => {
       //(await stakingHbbft.stakingEpochStartBlock.call()).should.be.bignumber.equal(new BN(1));
       //(await validatorSetHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
       //(await stakingHbbft.getCurrentBlockNumber.call()).should.be.bignumber.equal(new BN(1));
+
 
       // Validators place stakes during the epoch #0
       const candidateMinStake = await stakingHbbft.candidateMinStake.call();
@@ -471,7 +500,12 @@ contract('StakingHbbft', async accounts => {
       
       const miningAddress = initialValidators[0];
       const stakingAddress = initialStakingAddresses[0];
+
       const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
+      const deltaPotFillupValue = epochPoolReward.mul(new BN('60'));
+      //blockRewardHbbft.add
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
+  
 
       // the beforeeach  alsready runs 1 epoch, so we expect to be in epoch 1 here.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(1));
@@ -496,8 +530,14 @@ contract('StakingHbbft', async accounts => {
       // the pending validator set should be updated
       (await validatorSetHbbft.getPendingValidators.call()).length.should.be.equal(3);
 
+      //!!! here it failes for some reason
       //Staking epoch #1: Epoch end block
       await timeTravelToEndEpoch();
+
+      // we restock this one epoch reward that got payed out.
+      // todo: think about: Maybe this restocking should happen in the timeTravelToEndEpoch function to have 
+      // constant epoch payouts.
+      await blockRewardHbbft.addToDeltaPot({value: epochPoolReward}).should.be.fulfilled;
 
       // now epoch #2 has started.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal(new BN(2));
@@ -616,7 +656,13 @@ contract('StakingHbbft', async accounts => {
       const stakingAddress = initialStakingAddresses[0];
       const epochPoolReward = new BN(web3.utils.toWei('1', 'ether'));
 
-      (await web3.eth.getBalance(blockRewardHbbft.address)).should.be.equal('0');
+
+      const deltaPotFillupValue = epochPoolReward.mul(new BN('60'));
+      //blockRewardHbbft.add
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue}).should.be.fulfilled;
+  
+      const currentblockRewardHbbftBalance = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
+      currentblockRewardHbbftBalance.should.be.bignumber.equal(deltaPotFillupValue);
 
       for (let i = 0; i < epochsPoolRewarded.length; i++) {
         const stakingEpoch = epochsPoolRewarded[i];
@@ -630,7 +676,8 @@ contract('StakingHbbft', async accounts => {
 
       // initial validator got reward for epochsPoolRewarded
       (await blockRewardHbbft.epochsPoolGotRewardFor.call(miningAddress)).length.should.be.equal(epochsPoolRewarded.length);
-      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(epochPoolReward.mul(new BN(epochsPoolRewarded.length)));
+
+      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(deltaPotFillupValue.add(epochPoolReward.mul(new BN(epochsPoolRewarded.length))));
 
       for (let i = 0; i < epochsStakeMovement.length; i++) {
         const stakingEpoch = epochsStakeMovement[i];
@@ -703,15 +750,20 @@ contract('StakingHbbft', async accounts => {
           result.logs.length.should.be.equal(0);
         }
       }
-      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(new BN(0));
+      (new BN(await web3.eth.getBalance(blockRewardHbbft.address))).should.be.bignumber.equal(deltaPotFillupValue);
     }
 
     it('reward tries to be withdrawn before first stake', async () => {
       const {
         miningAddress,
         stakingAddress,
-        epochPoolReward
       } = await _delegatorNeverStakedBefore();
+
+      //const deltaPotFillupValue = new BN(web3.eth.toWei(60));
+      //await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
+
+      // a fake epoch reward.
+      const epochPoolReward = '1000';
 
       // Emulate snapshotting and rewards for the pool on the epoch #9
       let stakingEpoch = 9;
@@ -758,6 +810,8 @@ contract('StakingHbbft', async accounts => {
       
 
       result = await stakingHbbft.claimReward([], stakingAddress, {from: stakingAddress}).should.be.fulfilled;
+      //console.log('rewards for ', stakingAddress);
+      //console.log(result);
       result.logs.length.should.be.equal(5);
       result.logs[0].args.stakingEpoch.should.be.bignumber.equal(new BN(1));
       result.logs[1].args.stakingEpoch.should.be.bignumber.equal(new BN(2));
@@ -778,9 +832,10 @@ contract('StakingHbbft', async accounts => {
     it('delegator stakes and withdraws at the same epoch', async () => {
       const {
         miningAddress,
-        stakingAddress,
-        epochPoolReward
+        stakingAddress
       } = await _delegatorNeverStakedBefore();
+
+      const epochPoolReward = '1000';
 
       // Emulate snapshotting and rewards for the pool on the epoch #9
       let stakingEpoch = 9;
@@ -1099,6 +1154,8 @@ contract('StakingHbbft', async accounts => {
       
       const stakingEpoch = 2600;
 
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
+
       for (let i = 0; i < initialValidators.length; i++) {
         await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, stakingEpoch, initialValidators[i]);
       }
@@ -1136,6 +1193,11 @@ contract('StakingHbbft', async accounts => {
         epochPoolNativeReward.should.be.bignumber.above(new BN(0));
         distributedCoinsAmount = distributedCoinsAmount.add(epochPoolNativeReward);
       }
+
+      // const blockRewardHbbft.maintenanceFundAddress.call();
+      // console.log('DAO Coin amount');
+      // distributedCoinsAmount
+
       let blockRewardCoinsBalanceAfter = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       blockRewardCoinsBalanceAfter.should.be.bignumber.equal(blockRewardCoinsBalanceBefore.add(distributedCoinsAmount));
 
@@ -1174,6 +1236,8 @@ contract('StakingHbbft', async accounts => {
 
       const maxStakingEpoch = 20;
       maxStakingEpoch.should.be.above(2);
+
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
 
       // Loop of staking epochs
       for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
@@ -1312,6 +1376,8 @@ contract('StakingHbbft', async accounts => {
     it('gas consumption for 52 staking epochs is OK 1', async () => {
       const maxStakingEpoch = 52;
 
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
+
       // Loop of staking epochs
       for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
         if ( stakingEpoch == 1) {
@@ -1424,14 +1490,13 @@ contract('StakingHbbft', async accounts => {
       const maxStakingEpochs = 52;
       const gapSize = 10;
 
+      await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
+
       // Loop of staking epochs
       for (let s = 0; s < maxStakingEpochs; s++) {
         if ( s == 0) {
           await stakingHbbft.setStakingEpoch(1).should.be.fulfilled;
-          const startBlock = new BN(120954 + 2 + 1);
-          
           await stakingHbbft.setValidatorSetAddress(owner).should.be.fulfilled;
-          //await stakingHbbft.setStakingEpochStartBlock(startBlock).should.be.fulfilled;
           await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address).should.be.fulfilled;
         }
 
@@ -2159,7 +2224,7 @@ contract('StakingHbbft', async accounts => {
 
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount}).should.be.fulfilled;
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
-      await validatorSetHbbft.setBannedUntil(initialValidators[1], 100).should.be.fulfilled;
+      await validatorSetHbbft.setBannedUntil(initialValidators[1], '0xffffffffffffffff').should.be.fulfilled;
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
       await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: delegatorAddress}).should.be.rejectedWith(ERROR_MSG);
       await validatorSetHbbft.setBannedUntil(initialValidators[1], 0).should.be.fulfilled;
@@ -2205,7 +2270,7 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: stakeAmount}).should.be.fulfilled;
 
       // Finalize a new validator set and change staking epoch
-      await blockRewardHbbft.initialize(validatorSetHbbft.address, maxEpochReward).should.be.fulfilled;      
+      await blockRewardHbbft.initialize(validatorSetHbbft.address).should.be.fulfilled;
       await validatorSetHbbft.setStakingContract(stakingHbbft.address).should.be.fulfilled;
       // Set BlockRewardContract
       await validatorSetHbbft.setBlockRewardContract(accounts[7]).should.be.fulfilled;
