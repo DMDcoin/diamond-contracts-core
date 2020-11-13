@@ -381,7 +381,7 @@ contract('ValidatorSetHbbft', async accounts => {
       (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([initialValidators[0]]);
     });
     it('should choose validators randomly', async () => {
-      const stakingAddresses = accounts.slice(7, 29 + 1); // accounts[7...29]
+      const stakingAddresses = accounts.slice(7, 29 + 3); // accounts[7...31]
       let miningAddresses = [];
 
       for (let i = 0; i < stakingAddresses.length; i++) {
