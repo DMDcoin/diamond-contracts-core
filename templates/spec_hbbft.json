@@ -4,7 +4,8 @@
     "hbbft": {
       "params": {
         "minimumBlockTime": 1,
-        "transactionQueueSizeTrigger": 1
+        "transactionQueueSizeTrigger": 1,
+        "blockRewardContractAddress": "0x2000000000000000000000000000000000000001"
       }
     }
   },
