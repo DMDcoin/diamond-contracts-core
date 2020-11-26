@@ -215,9 +215,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             // we now can finalize the epoch and start with a new one.
             validatorSetContract.finalizeChange();
 
-
             emit CoinsRewarded(nativeTotalRewardAmount);
-            return nativeTotalRewardAmount;
+            return 0;
 
         } else {
 
@@ -235,12 +234,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 validatorSetContract.newValidatorSet();
             }
         }
-
-
     }
 
     // =============================================== Getters ========================================================
-
     /// @dev Returns an array of epoch numbers for which the specified pool (mining address)
     /// got a non-zero reward.
     function epochsPoolGotRewardFor(address _miningAddress)
