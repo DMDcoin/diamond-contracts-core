@@ -361,6 +361,30 @@ contract('BlockRewardHbbft', async accounts => {
       actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
     });
 
+    it('transfers to reward contract works with 100k gas and fills reinsert pot', async () => {
+
+      const fillUpValue = new BN(web3.utils.toWei('1'));
+
+      const balanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
+      const reinsertPotBefore = new BN(await blockRewardHbbft.reinsertPot.call());
+
+      let fillUpTx = {
+        from: accounts[0],
+        to: blockRewardHbbft.address,
+        value: fillUpValue,
+        gas: '100000'
+      };
+
+      //blockRewardHbbft.address
+      await web3.eth.sendTransaction(fillUpTx);
+
+      const balanceAfter = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
+      const reinsertPotAfter = new BN(await blockRewardHbbft.reinsertPot.call());
+
+      balanceAfter.should.be.bignumber.equal(balanceBefore.add(fillUpValue));
+      reinsertPotAfter.should.be.bignumber.equal(reinsertPotBefore.add(fillUpValue));
+    });
+
 
   });
 
