@@ -84,13 +84,13 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         parts[msg.sender] = _part;
     }
 
-    function writeAck(bytes calldata _ack)
-    external {
+    function writeAcks(bytes[] memory _acks)
+    public {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
         require(acks[msg.sender].length == 0, "Acks already submitted");
-        acks[msg.sender].push(_ack);
+        acks[msg.sender] = _acks;
     }
 
     function getAcksLength(address val)
