@@ -29,7 +29,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev How many times a given mining address was banned.
     mapping(address => uint256) public banCounter;
 
-    /// @dev Returns the block number when the ban will be lifted for the specified mining address.
+    /// @dev Returns the time when the ban will be lifted for the specified mining address.
     mapping(address => uint256) public bannedUntil;
 
     /// @dev Returns the timestamp after which the ban will be lifted for delegators

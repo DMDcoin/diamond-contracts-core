@@ -38,7 +38,7 @@ async function main() {
   const stakeWithdrawDisallowPeriod = process.env.STAKE_WITHDRAW_DISALLOW_PERIOD;
   const stakingTransitionWindowLength = process.env.STAKING_TRANSITION_WINDOW_LENGTH;
   const ethToWei = web3.utils.toWei('1', 'ether');
-  //stakingParams = [_delegatorMinStake, _candidateMinStake, _stakingEpochDuration, _stakeWithdrawDisallowPeriod
+
   let stakingParams = [ethToWei, ethToWei, stakingEpochDuration, stakingTransitionWindowLength, stakeWithdrawDisallowPeriod];
 
   let publicKeys = init_data.public_keys;
