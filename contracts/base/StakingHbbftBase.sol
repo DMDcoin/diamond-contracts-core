@@ -382,7 +382,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     external
     onlyValidatorSetContract {
         stakingEpochStartTime = _timestamp;
-        stakingEpochStartBlock = block.number + 1;
+        stakingEpochStartBlock = block.number;
     }
 
     /// @dev Moves staking coins from one pool to another. A staker calls this function when they want
