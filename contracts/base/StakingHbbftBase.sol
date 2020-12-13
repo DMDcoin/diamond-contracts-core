@@ -128,9 +128,16 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Length of the timeframe in seconds for the transition to the new validator set.
     uint256 public stakingTransitionTimeframeLength;
 
-    /// @dev The timestampt of the last block of the the previous epoch. 
+    /// @dev The timestamp of the last block of the the previous epoch. 
     /// The timestamp of the current epoch must be '>=' than this.
     uint256 public stakingEpochStartTime;
+
+    /// @dev the blocknumber of the first block in this epoch.
+    /// this is mainly used for a historic lookup in the key gen history to read out the 
+    /// ACKS and PARTS so a client is able to verify an epoch, even in the case that 
+    /// the transition to the next epoch has already started, 
+    /// and the information of the old keys is not available anymore. 
+    uint256 public stakingEpochStartBlock;
 
     /// @dev Returns the total amount of staking coins currently staked into the specified pool.
     /// Doesn't include the amount ordered for withdrawal.
@@ -375,6 +382,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     external
     onlyValidatorSetContract {
         stakingEpochStartTime = _timestamp;
+        stakingEpochStartBlock = block.number + 1;
     }
 
     /// @dev Moves staking coins from one pool to another. A staker calls this function when they want
