@@ -123,7 +123,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
     function initialize(address _validatorSet) external {
         require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) ==  _admin() || block.number == 0,
-          "Initialization only on genesis block or by admin");
+            "Initialization only on genesis block or by admin");
         require(!isInitialized(), "initialization can only be done once");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
