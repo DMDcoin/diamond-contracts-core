@@ -488,7 +488,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         if (staker == _poolStakingAddress) {
             // The amount to be withdrawn must be the whole staked amount or
             // must not exceed the diff between the entire amount and `candidateMinStake`
-            require(newStakeAmount == 0 || newStakeAmount >= candidateMinStake, "newStake Amount must be greater than the min stake.");
+            require(newStakeAmount == 0 || newStakeAmount >= candidateMinStake, 
+                "newStake Amount must be greater than the min stake.");
 
             if (_amount > 0) { // if the validator orders the `_amount` for withdrawal
                 if (newStakeAmount == 0) {
@@ -967,8 +968,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes16[] memory _internetAddresses
     )
     internal {
-        require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) == _admin() || block.number == 0,
-             "Initialization only on genesis block or by admin");
+        require(msg.sender == _admin() || tx.origin ==  _admin() ||
+            address(0) == _admin() || block.number == 0,
+            "Initialization only on genesis block or by admin");
         require(!isInitialized(), "Already initialized"); // initialization can only be done once
         require(_validatorSetContract != address(0),"ValidatorSet can't be 0");
         require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
