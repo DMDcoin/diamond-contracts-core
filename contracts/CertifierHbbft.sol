@@ -88,7 +88,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         if (_certified[_who]) {
             return true;
         }
-        return validatorSetContract.isReportValidatorValid(_who);
+        return validatorSetContract.isReportValidatorValid(_who) || validatorSetContract.isPendingValidator(_who);
     }
 
     /// @dev Returns a boolean flag indicating whether the specified address is allowed to use zero gas price
