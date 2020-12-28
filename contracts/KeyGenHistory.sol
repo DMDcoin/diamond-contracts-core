@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeabilityAdmin.sol";
+import "./interfaces/IStakingHbbft.sol";
 
 contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
@@ -37,6 +38,15 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     /// @dev Ensures the caller is ValidatorSet contract.
     modifier onlyValidatorSet() {
         require(msg.sender == address(validatorSetContract), "Must by executed by validatorSetContract");
+        _;
+    }
+
+
+    /// @dev ensures that Key Generation functions are called with wrong _epoch 
+    /// parameter to prevent old and wrong transactions get picked up.
+    modifier onlyUpcommingEpoch(uint _epoch) {
+        require(IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1 == _epoch, 
+            "Key Generation function called with wrong _epoch parameter.");
         _;
     }
 
@@ -76,8 +86,9 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         }
     }
 
-    function writePart(bytes calldata _part)
-    external {
+    function writePart(uint _upcommingEpoch, bytes calldata _part)
+    external
+    onlyUpcommingEpoch(_upcommingEpoch) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -85,8 +96,9 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         parts[msg.sender] = _part;
     }
 
-    function writeAcks(bytes[] memory _acks)
-    public {
+    function writeAcks(uint _upcommingEpoch, bytes[] memory _acks)
+    public
+    onlyUpcommingEpoch(_upcommingEpoch) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -94,8 +106,15 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         acks[msg.sender] = _acks;
     }
 
+    function getPart(address _val)
+    external
+    view
+    returns (bytes memory) {
+        return parts[_val];
+    }
+
     function getAcksLength(address val)
-    public
+    external
     view
     returns(uint256) {
         return acks[val].length;
