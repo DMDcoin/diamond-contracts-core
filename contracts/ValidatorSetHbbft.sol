@@ -81,6 +81,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev How many times the given mining address has become a validator.
     mapping(address => uint256) public validatorCounter;
 
+    /// @dev When the last 
+    /// mapping(address => uint256) public validatorLastSuccess;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of validators.
