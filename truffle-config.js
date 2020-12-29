@@ -25,8 +25,28 @@
 // const HDWallet = require('truffle-hdwallet-provider');
 // const infuraKey = "fj4jll3k.....";
 //
-// const fs = require('fs');
-// const mnemonic = fs.readFileSync(".secret").toString().trim();
+
+const fs = require('fs');
+
+let pk; 
+let network;
+
+try {
+  pk = fs.readFileSync(".pk").toString().trim();
+
+} catch (e) {
+  console.warn("file .pk not found. Required for updating the testNet.");
+}
+
+try {
+  network = fs.readFileSync(".network").toString().trim();
+}
+catch (e) {
+  console.warn("file .network not found. Required for locating the testNet.");
+}
+
+
+var PrivateKeyProvider = require("truffle-privatekey-provider");
 
 module.exports = {
   /**
@@ -66,7 +86,13 @@ module.exports = {
       gas: 0xfffffffffff,
       gasPrice: 0x01,
       network_id: "*"
-    }
+    },
+
+    testNet: {
+      provider: () => new PrivateKeyProvider(pk, network),
+      gas: 8000000,
+      network_id: "*" // Match any network id
+    },
   },
 
   // Set default mocha options here, use special reporters etc.

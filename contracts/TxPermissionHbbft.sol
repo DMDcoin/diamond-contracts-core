@@ -217,7 +217,17 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
             }
         } else if (_to == keyGenHistoryContract) {
+            // we allow all calls to the validatorSetContract if the pending validator
+            // has to send it's acks and Parts,
+            // but has not done this yet.
+            
             if (validatorSetContract.isPendingValidator(_sender)) {
+
+                // the pending validator is only allowed to send his part if he has not done it yet.
+                
+
+                // the pending validator is only allowed to send his ack if ht has not done it yet.
+
                 return (CALL, false);
             }
         }
@@ -274,6 +284,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
     bytes4 internal constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
+
+    
 
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
