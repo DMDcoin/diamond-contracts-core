@@ -243,7 +243,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
                 uint256 poolsToBeElectedLength = poolsToBeElected.length;
                 for (uint256 i = 0; i < newValidators.length; i++) {
-                    randomNumber = uint256(keccak256(abi.encode(randomNumber)));
+                    randomNumber = uint256(keccak256(abi.encode(randomNumber ^ block.timestamp)));
                     uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
                     newValidators[i] = poolsToBeElected[randomPoolIndex];
                     likelihoodSum -= likelihood[randomPoolIndex];
