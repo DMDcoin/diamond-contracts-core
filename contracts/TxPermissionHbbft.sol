@@ -1,11 +1,14 @@
 pragma solidity ^0.5.16;
 
 import "./interfaces/ICertifier.sol";
+import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IRandomHbbft.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/ITxPermission.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
+
+
 
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
@@ -24,7 +27,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev The address of the `Certifier` contract.
     ICertifier public certifierContract;
 
-    address public keyGenHistoryContract;
+    IKeyGenHistory public keyGenHistoryContract;
 
     /// @dev A boolean flag indicating whether the specified address is allowed
     /// to initiate transactions of any type. Used by the `allowedTxTypes` getter.
@@ -76,7 +79,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         }
         certifierContract = ICertifier(_certifier);
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        keyGenHistoryContract = _keyGenHistoryContract;
+        keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
@@ -216,7 +219,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 // by anyone except validators' mining addresses if gasPrice is not zero
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
             }
-        } else if (_to == keyGenHistoryContract) {
+        } else if (_to == address(keyGenHistoryContract)) {
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
@@ -224,7 +227,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             if (validatorSetContract.isPendingValidator(_sender)) {
 
                 // the pending validator is only allowed to send his part if he has not done it yet.
-                
+                //if (keyGenHistoryContract)
 
                 // the pending validator is only allowed to send his ack if ht has not done it yet.
 
@@ -232,6 +235,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             }
         }
 
+        //TODO: figure out if this applies to HBBFT as well.
         if (validatorSetContract.isValidator(_sender) && _gasPrice > 0) {
             // Let the validator's mining address send their accumulated tx fees to some wallet
             return (_sender.balance > 0 ? BASIC : NONE, false);

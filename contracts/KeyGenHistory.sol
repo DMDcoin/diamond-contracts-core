@@ -18,6 +18,13 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     mapping(address => bytes) public parts;
     mapping(address => bytes[]) public acks;
 
+    /// @dev number of parts written in this key generation round.
+    uint128 public numberOfPartsWritten;
+
+    /// @dev number of full ack sets written in this key generation round.
+    uint128 public numberOfAcksWritten;
+
+
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
 
@@ -60,6 +67,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
             delete parts[_prevValidators[i]];
             delete acks[_prevValidators[i]];
         }
+        numberOfPartsWritten = 0;
+        numberOfAcksWritten = 0;
     }
 
     function initialize(
@@ -94,6 +103,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
         require(parts[msg.sender].length == 0, "Parts already submitted!");
         parts[msg.sender] = _part;
+        numberOfPartsWritten++;
     }
 
     function writeAcks(uint _upcommingEpoch, bytes[] memory _acks)
@@ -104,6 +114,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
         require(acks[msg.sender].length == 0, "Acks already submitted");
         acks[msg.sender] = _acks;
+        numberOfAcksWritten++;
     }
 
     function getPart(address _val)
@@ -118,6 +129,13 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     view
     returns(uint256) {
         return acks[val].length;
+    }
+
+    function getNumberOfKeyFragmentsWritten()
+    external
+    view 
+    returns(uint128, uint128) {
+        return (numberOfPartsWritten, numberOfAcksWritten);
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
