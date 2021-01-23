@@ -287,7 +287,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // Function signatures
 
     // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
-    bytes4 internal constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
+    bytes4 public constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
 
     
 
