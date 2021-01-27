@@ -47,6 +47,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// Used by the `blockGasLimit` public getter.
     uint256 public constant BLOCK_GAS_LIMIT_REDUCED = 2000000;
 
+    /// @dev this is a constant for testing purposes to not cause upgrade issues with an existing network 
+    /// because of storage modifictions.
+    uint256 public constant MINIMUM_GAS_PRICE = 1000000000; // (1 gwei)
+
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the `initialize` function was called before.
@@ -223,16 +227,58 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
-            
-            if (validatorSetContract.isPendingValidator(_sender)) {
 
-                // the pending validator is only allowed to send his part if he has not done it yet.
-                //if (keyGenHistoryContract)
+            if (signature == WRITE_PART_SIGNATURE) {
 
-                // the pending validator is only allowed to send his ack if ht has not done it yet.
+                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                    == IValidatorSetHbbft.KeyGenMode.WritePart) {
+                    //is the epoch parameter correct ?
 
-                return (CALL, false);
+                    (
+                        uint256 epochNumber
+                    ) = abi.decode(
+                        abiParams,
+                        (uint256)
+                    );
+
+                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                        return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+
+                } else {
+                    // we want to write the Part, but it's not time for write the part.
+                    // so this transaction is not allowed.
+                    return (NONE, false);
+                }
+
+            } else if (signature == WRITE_ACKS_SIGNATURE) {
+
+                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                    == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+                    //is the correct epoch parameter passed ?
+                    (
+                        uint256 epochNumber
+                    ) = abi.decode(
+                        abiParams,
+                        (uint256)
+                    );
+
+                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                        return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+                } else {
+                    // we want to write the Acks, but it's not time for write the Acks.
+                    // so this transaction is not allowed.
+                    return (NONE, false);
+                }
             }
+
+            // if there is another external call to keygenhistory contracts.
+            // just treat it as normal call
         }
 
         //TODO: figure out if this applies to HBBFT as well.
@@ -251,8 +297,9 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             return (certifierContract.certifiedExplicitly(_sender) ? ALL : NONE, false);
         }
 
-        // In other cases let the `_sender` create any transaction with non-zero gas price
-        return (ALL, false);
+        // In other cases let the `_sender` create any transaction with non-zero gas price,
+        // as long the gas price is above the minimum gas price.
+        return (_gasPrice >= MINIMUM_GAS_PRICE ? ALL : NONE, false);
     }
 
     /// @dev Returns the current block gas limit which depends on the stage of the current
@@ -289,8 +336,13 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
     bytes4 public constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
 
-    
+    // bytes4(keccak256("writePart(uint256,bytes)"))
+    bytes4 public constant WRITE_PART_SIGNATURE = 0x0334657d;
 
+    // bytes4(keccak256("writeAcks(uint256,bytes[])"))
+    bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
+    
+    
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
     function _addAllowedSender(address _sender)
