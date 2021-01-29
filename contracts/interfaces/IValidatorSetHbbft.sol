@@ -17,6 +17,7 @@ interface IValidatorSetHbbft {
     function newValidatorSet() external;
     function removeMaliciousValidators(address[] calldata) external;
     function setStakingAddress(address, address) external;
+    function handleFailedKeyGeneration() external;
     function areDelegatorsBanned(address) external view returns(bool);
     function blockRewardContract() external view returns(address);
     function getPendingValidators() external view returns(address[] memory);

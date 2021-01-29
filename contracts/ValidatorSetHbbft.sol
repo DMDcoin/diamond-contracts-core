@@ -80,8 +80,15 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev How many times the given mining address has become a validator.
     mapping(address => uint256) public validatorCounter;
 
-    /// @dev When the last 
-    /// mapping(address => uint256) public validatorLastSuccess;
+    /// @dev Block Timestamp when a validator was successfully part of 
+    mapping(address => uint256) public validatorLastSuccess;
+
+    /// @dev holds unavailability information for each specific mining address
+    /// unavailability happens if a validator gets voted to become a pending validator,
+    /// but misses out the sending of the ACK or PART within the given timeframe.
+    /// validators are required to declare availability,
+    /// in order to become available for voting again.
+    mapping(address => uint256) public validatorNotAvailableSince;
 
     // ============================================== Constants =======================================================
 
@@ -96,6 +103,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param maliciousValidator The mining address of the malicious validator.
     /// @param blockNumber The block number at which the `maliciousValidator` misbehaved.
     event ReportedMalicious(address reportingValidator, address maliciousValidator, uint256 blockNumber);
+
+    
+    event ValidatorAvailable(address validator, uint256 timestamp);
+
+    /// @dev Emitted by the `handleFailedKeyGeneration` function to signal that a specific validator was
+    /// marked as unavailable since he dit not contribute to the required key shares.
+    event ValidatorUnavailable(address validator, uint256 timestamp);
 
     // ============================================== Modifiers =======================================================
 
@@ -232,7 +246,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         // Choose new validators
         if (poolsToBeElected.length > MAX_VALIDATORS) {
 
-            //todo: in HBBFT this can be the blockhash ?!
             uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
 
             (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
@@ -273,6 +286,63 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     external
     onlySystem {
         _removeMaliciousValidators(_miningAddresses, "inactive");
+    }
+
+    /// @dev called by validators when a validator comes online after
+    /// getting marked as unavailable caused by a failed key generation.
+    function announceAvailability()
+    external {
+        require(validatorNotAvailableSince[msg.sender] > 0, "Validator was not marked as unavailable.");
+        validatorNotAvailableSince[msg.sender] = 0;
+    }
+
+    function handleFailedKeyGeneration()
+    external
+    onlyBlockRewardContract {
+
+        // we should only kick out nodes if the nodes have been really to late.
+
+        require(this.getCurrentTimestamp() >= stakingContract.stakingFixedEpochEndTime(),
+            "failed key generation can only be processed after the staking epoch is over.");
+
+        // check if the current epoch should have been ended already
+        // but some of the validators failed to write his PARTS / ACKS.
+
+        // there are 2 scenarious:
+        // 1.) missing Part: one or more validator was chosen, but never wrote his PART (most likely)
+        // 2.) missing ACK: all validators were able to write their parts, but one or more failed to write
+        // it's part.
+        //
+        // ad missing Part:
+        // in this case we can just replace the validator with another one,
+        // or if there is no other one available, continue with a smaller set.
+
+        // ad missing ACK:
+        // this case is more complex, since nodes did already write their acks for the parts
+        // of a node that now drops out.
+        // this should be a very rare case, and to make it simple, 
+        // we can just start over with the random selection of validators again.
+
+        (uint128 numberOfPartsWritten,uint128 numberOfAcksWritten)
+            = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
+
+        
+        if (_pendingValidators.length > numberOfPartsWritten) {
+            // case 1: missing part scenario.
+
+            // block validators, that missed out writing their
+            // part.
+        }
+        else if (_pendingValidators.length > numberOfAcksWritten) {
+
+            // case 2: missing ack scenario.
+
+            // block validator missed out writing their
+            // acks. 
+
+        }
+        //else: critical error: 1 out of those 2 branches must hit!
+        //
     }
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.

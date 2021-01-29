@@ -223,6 +223,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             uint256 phaseTransitionTime = stakingContract.startTimeOfNextPhaseTransition();
             uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
 
+            
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
             bool isPhaseTransition = 
@@ -232,6 +233,20 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             if (isPhaseTransition) {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
+            } else {
+
+                if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime()) {
+                    validatorSetContract.handleFailedKeyGeneration();
+                }
+                // check if the current epoch should have been ended already
+                // but some of the validators failed to write his PARTS / ACKS.
+
+                // there are 2 scenarious:
+                // missing Part: one or more validator was chosen, but never wrote his PART (most likely)
+                // missing ACK: all validators were able to write their parts, but one or more failed to write
+                // it's part.
+
+                
             }
         }
     }
