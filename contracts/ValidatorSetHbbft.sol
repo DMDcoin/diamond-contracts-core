@@ -244,63 +244,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         _newValidatorSet(new address[](0));
     }
 
-    function _newValidatorSet(address[] memory _forcedPools)
-    internal
-    {
-        address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
-        // Choose new validators
-        if (poolsToBeElected.length > MAX_VALIDATORS) {
-
-            uint256 poolsToBeElectedLength = poolsToBeElected.length;
-            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
-            address[] memory newValidators = new address[](MAX_VALIDATORS);
-
-            uint256 indexNewValidator = 0;
-            for(uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {
-                for(uint256 iPoolToBeElected = 0; iPoolToBeElected < poolsToBeElectedLength; iPoolToBeElected++) {
-                    if (poolsToBeElected[iPoolToBeElected] == _forcedPools[iForced]) {
-                        newValidators[indexNewValidator] = _forcedPools[iForced];
-                        indexNewValidator++;
-                        likelihoodSum -= likelihood[iPoolToBeElected];
-                        // kicking out this pools from the "to be elected" list,
-                        // by replacing it with the last element,
-                        // and virtually reducing it's size. 
-                        poolsToBeElectedLength--;
-                        poolsToBeElected[iPoolToBeElected] = poolsToBeElected[poolsToBeElectedLength];
-                        likelihood[iPoolToBeElected] = likelihood[poolsToBeElectedLength];
-                        break;
-                    }
-                }
-            }
-
-            uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
-
-            if (likelihood.length > 0 && likelihoodSum > 0) {
-                for (uint256 i = 0; i < newValidators.length; i++) {
-                    randomNumber = uint256(keccak256(abi.encode(randomNumber)));
-                    uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
-                    newValidators[i] = poolsToBeElected[randomPoolIndex];
-                    likelihoodSum -= likelihood[randomPoolIndex];
-                    poolsToBeElectedLength--;
-                    poolsToBeElected[randomPoolIndex] = poolsToBeElected[poolsToBeElectedLength];
-                    likelihood[randomPoolIndex] = likelihood[poolsToBeElectedLength];
-                }
-
-                _setPendingValidators(newValidators);
-            }
-        } else {
-            _setPendingValidators(poolsToBeElected);
-        }
-        
-        // clear previousValidator KeyGenHistory state
-        keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
-
-        if (poolsToBeElected.length != 0) {
-            // Remove pools marked as `to be removed`
-            stakingContract.removePools();
-        }
-    }
-
     /// @dev Removes malicious validators.
     /// Called by the the Hbbft engine when a validator has been inactive for a long period.
     /// @param _miningAddresses The mining addresses of the malicious validators.
@@ -708,6 +651,63 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             reportingCounterTotal[currentStakingEpoch] -= counter;
         } else {
             reportingCounterTotal[currentStakingEpoch] = 0;
+        }
+    }
+
+    function _newValidatorSet(address[] memory _forcedPools)
+    internal
+    {
+        address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
+        // Choose new validators
+        if (poolsToBeElected.length > MAX_VALIDATORS) {
+
+            uint256 poolsToBeElectedLength = poolsToBeElected.length;
+            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
+            address[] memory newValidators = new address[](MAX_VALIDATORS);
+
+            uint256 indexNewValidator = 0;
+            for(uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {
+                for(uint256 iPoolToBeElected = 0; iPoolToBeElected < poolsToBeElectedLength; iPoolToBeElected++) {
+                    if (poolsToBeElected[iPoolToBeElected] == _forcedPools[iForced]) {
+                        newValidators[indexNewValidator] = _forcedPools[iForced];
+                        indexNewValidator++;
+                        likelihoodSum -= likelihood[iPoolToBeElected];
+                        // kicking out this pools from the "to be elected" list,
+                        // by replacing it with the last element,
+                        // and virtually reducing it's size. 
+                        poolsToBeElectedLength--;
+                        poolsToBeElected[iPoolToBeElected] = poolsToBeElected[poolsToBeElectedLength];
+                        likelihood[iPoolToBeElected] = likelihood[poolsToBeElectedLength];
+                        break;
+                    }
+                }
+            }
+
+            uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
+
+            if (likelihood.length > 0 && likelihoodSum > 0) {
+                for (uint256 i = 0; i < newValidators.length; i++) {
+                    randomNumber = uint256(keccak256(abi.encode(randomNumber)));
+                    uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
+                    newValidators[i] = poolsToBeElected[randomPoolIndex];
+                    likelihoodSum -= likelihood[randomPoolIndex];
+                    poolsToBeElectedLength--;
+                    poolsToBeElected[randomPoolIndex] = poolsToBeElected[poolsToBeElectedLength];
+                    likelihood[randomPoolIndex] = likelihood[poolsToBeElectedLength];
+                }
+
+                _setPendingValidators(newValidators);
+            }
+        } else {
+            _setPendingValidators(poolsToBeElected);
+        }
+        
+        // clear previousValidator KeyGenHistory state
+        keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
+
+        if (poolsToBeElected.length != 0) {
+            // Remove pools marked as `to be removed`
+            stakingContract.removePools();
         }
     }
 
