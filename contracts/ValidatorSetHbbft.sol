@@ -288,26 +288,50 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         // this should be a very rare case, and to make it simple, 
         // we can just start over with the random selection of validators again.
 
+        // temporary array to keep track of the good validators.
+        // not all storage slots might be used.
+        // we asume that there is at minimum 1 bad validator.
+        address[] memory goodValidators = new address[](_pendingValidators.length - 1);
+        uint goodValidatorsCount = 0;
+
+
         (uint128 numberOfPartsWritten,uint128 numberOfAcksWritten)
             = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
-
         
-        if (_pendingValidators.length > numberOfPartsWritten) {
-            // case 1: missing part scenario.
 
-            // block validators, that missed out writing their
-            // part.
+        for(uint i = 0; i < _pendingValidators.length; i++) {
+            
+            //get mining address for this pool.
+            // if the mining address did his job.
+            // add it to the good pool.
+            address miningAddress = miningByStakingAddress[_pendingValidators[i]];
+
+            // if a validator is good or bad, depends if he managed
+            // the write the information required for the current state.
+            bool isGood = false;
+
+            if (_pendingValidators.length > numberOfPartsWritten) {
+                // case 1: missing part scenario.
+                // pending validator that missed out writing their part ?
+                // maybe make a more precise length check in the future here ?
+                isGood =  keyGenHistoryContract.getPart(miningAddress).length > 0;
+            } else if (_pendingValidators.length > numberOfAcksWritten) {
+
+                isGood = keyGenHistoryContract.getAcksLength(miningAddress) > 0;
+            }
+
+            if (isGood) { 
+                goodValidators[goodValidatorsCount] = _pendingValidators[i];
+                goodValidatorsCount++;
+            }
         }
-        else if (_pendingValidators.length > numberOfAcksWritten) {
 
-            // case 2: missing ack scenario.
-
-            // block validator missed out writing their
-            // acks. 
-
+        address[] memory forcedPools = new address[](goodValidatorsCount);
+        for (uint i = 0; i < goodValidatorsCount; i++) {
+            forcedPools[i] = goodValidators[i];
         }
-        //else: critical error: 1 out of those 2 branches must hit!
-        //
+
+         _newValidatorSet(forcedPools);
     }
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.
