@@ -241,19 +241,41 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function newValidatorSet()
     external
     onlyBlockRewardContract {
+        _newValidatorSet(new address[](0));
+    }
+
+    function _newValidatorSet(address[] memory _forcedPools)
+    internal
+    {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
-    
         // Choose new validators
         if (poolsToBeElected.length > MAX_VALIDATORS) {
 
+            uint256 poolsToBeElectedLength = poolsToBeElected.length;
+            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
+            address[] memory newValidators = new address[](MAX_VALIDATORS);
+
+            uint256 indexNewValidator = 0;
+            for(uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {
+                for(uint256 iPoolToBeElected = 0; iPoolToBeElected < poolsToBeElectedLength; iPoolToBeElected++) {
+                    if (poolsToBeElected[iPoolToBeElected] == _forcedPools[iForced]) {
+                        newValidators[indexNewValidator] = _forcedPools[iForced];
+                        indexNewValidator++;
+                        likelihoodSum -= likelihood[iPoolToBeElected];
+                        // kicking out this pools from the "to be elected" list,
+                        // by replacing it with the last element,
+                        // and virtually reducing it's size. 
+                        poolsToBeElectedLength--;
+                        poolsToBeElected[iPoolToBeElected] = poolsToBeElected[poolsToBeElectedLength];
+                        likelihood[iPoolToBeElected] = likelihood[poolsToBeElectedLength];
+                        break;
+                    }
+                }
+            }
+
             uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
 
-            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
-
             if (likelihood.length > 0 && likelihoodSum > 0) {
-                address[] memory newValidators = new address[](MAX_VALIDATORS);
-
-                uint256 poolsToBeElectedLength = poolsToBeElected.length;
                 for (uint256 i = 0; i < newValidators.length; i++) {
                     randomNumber = uint256(keccak256(abi.encode(randomNumber)));
                     uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
