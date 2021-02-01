@@ -338,7 +338,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             forcedPools[i] = goodValidators[i];
         }
 
-         _newValidatorSet(forcedPools);
+        stakingContract.notifyKeyGenFailed();
+        _newValidatorSet(forcedPools);
     }
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.

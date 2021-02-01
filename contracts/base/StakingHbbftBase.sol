@@ -588,6 +588,20 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         delegatorMinStake = _minStake;
     }
 
+
+    /// @dev Notifies hbbft staking contract that the
+    /// key generation has failed, and a new round 
+    /// of keygeneration starts.
+    function notifyKeyGenFailed()
+    public
+    onlyValidatorSetContract
+    {
+        // we allow a extra time window for the current key generation
+        // equal in the size of the usual transition timeframe.
+        currentKeyGenExtraTimeWindow += stakingTransitionTimeframeLength;
+    }
+
+
     // =============================================== Getters ========================================================
 
     /// @dev Returns an array of the current active pools (the staking addresses of candidates and validators).
@@ -821,18 +835,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             + stakingFixedEpochDuration
             + currentKeyGenExtraTimeWindow
             - (stakingFixedEpochDuration == 0 ? 0 : 1);
-    }
-
-    /// @dev Notifies hbbft staking contract that the
-    /// key generation has failed, and a new round 
-    /// of keygeneration starts.
-    function notifyKeyGenFailed()
-    public
-    onlyValidatorSetContract
-    {
-        // we allow a extra time window for the current key generation
-        // equal in the size of the usual transition timeframe.
-        currentKeyGenExtraTimeWindow += stakingTransitionTimeframeLength;
     }
 
     // ============================================== Internal ========================================================

@@ -238,15 +238,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
                     validatorSetContract.handleFailedKeyGeneration();
                 }
-                // check if the current epoch should have been ended already
-                // but some of the validators failed to write his PARTS / ACKS.
-
-                // there are 2 scenarious:
-                // missing Part: one or more validator was chosen, but never wrote his PART (most likely)
-                // missing ACK: all validators were able to write their parts, but one or more failed to write
-                // it's part.
-
-                
             }
         }
     }
