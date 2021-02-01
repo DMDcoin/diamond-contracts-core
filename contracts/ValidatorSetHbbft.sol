@@ -301,8 +301,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
         for(uint i = 0; i < _pendingValidators.length; i++) {
             
-            //get mining address for this pool.
-            // if the mining address did his job.
+            // get mining address for this pool.
+            // if the mining address did his job (writing PART or ACKS).
             // add it to the good pool.
             address miningAddress = miningByStakingAddress[_pendingValidators[i]];
 
@@ -316,16 +316,23 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
                 // maybe make a more precise length check in the future here ?
                 isGood =  keyGenHistoryContract.getPart(miningAddress).length > 0;
             } else if (_pendingValidators.length > numberOfAcksWritten) {
-
+                // case 2: parts were written, but did this validator also write it's ACKS ??
+                // Note: we do not really need to check if the validator has written his part,
+                // since all validators managed to write it's part. 
                 isGood = keyGenHistoryContract.getAcksLength(miningAddress) > 0;
             }
 
-            if (isGood) { 
+            if (isGood) {
+                // we track all good validators,
+                // so we can later pass the good validators
+                // to the _newValidatorSet function. 
                 goodValidators[goodValidatorsCount] = _pendingValidators[i];
                 goodValidatorsCount++;
             }
         }
 
+        // we might only set a subset to the newValidatorSet function,
+        // since the last indexes of the array are holding unused slots.
         address[] memory forcedPools = new address[](goodValidatorsCount);
         for (uint i = 0; i < goodValidatorsCount; i++) {
             forcedPools[i] = goodValidators[i];
