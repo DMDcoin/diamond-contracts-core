@@ -139,6 +139,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// and the information of the old keys is not available anymore. 
     uint256 public stakingEpochStartBlock;
 
+    /// @dev the extra time window pending validators have to write
+    /// to write their honey badger key shares.
+    /// this value is increased in response to a failed key generation event,
+    /// if one or more validators miss out writing their key shares.
+    uint256 public currentKeyGenExtraTimeWindow;
+
     /// @dev Returns the total amount of staking coins currently staked into the specified pool.
     /// Doesn't include the amount ordered for withdrawal.
     /// The pool staking address is accepted as a parameter.
@@ -293,6 +299,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     external
     onlyValidatorSetContract {
         stakingEpoch++;
+        currentKeyGenExtraTimeWindow = 0;
     }
 
     /// @dev Initializes the network parameters.
@@ -810,7 +817,22 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     view
     returns(uint256) {
         uint256 startTime = stakingEpochStartTime;
-        return startTime + stakingFixedEpochDuration - (stakingFixedEpochDuration == 0 ? 0 : 1);
+        return startTime 
+            + stakingFixedEpochDuration
+            + currentKeyGenExtraTimeWindow
+            - (stakingFixedEpochDuration == 0 ? 0 : 1);
+    }
+
+    /// @dev Notifies hbbft staking contract that the
+    /// key generation has failed, and a new round 
+    /// of keygeneration starts.
+    function notifyKeyGenFailed()
+    public
+    onlyValidatorSetContract
+    {
+        // we allow a extra time window for the current key generation
+        // equal in the size of the usual transition timeframe.
+        currentKeyGenExtraTimeWindow += stakingTransitionTimeframeLength;
     }
 
     // ============================================== Internal ========================================================

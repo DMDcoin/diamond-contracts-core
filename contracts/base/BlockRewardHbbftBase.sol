@@ -235,7 +235,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 validatorSetContract.newValidatorSet();
             } else {
 
-                if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime()) {
+                if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
                     validatorSetContract.handleFailedKeyGeneration();
                 }
                 // check if the current epoch should have been ended already

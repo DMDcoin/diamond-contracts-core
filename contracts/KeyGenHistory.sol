@@ -24,7 +24,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     /// @dev number of full ack sets written in this key generation round.
     uint128 public numberOfAcksWritten;
 
-
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
 
@@ -47,7 +46,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         require(msg.sender == address(validatorSetContract), "Must by executed by validatorSetContract");
         _;
     }
-
 
     /// @dev ensures that Key Generation functions are called with wrong _epoch 
     /// parameter to prevent old and wrong transactions get picked up.
