@@ -27,19 +27,23 @@ contract('InitializerHbbft', async accounts => {
   let keyGenHistory;
 
   let owner = accounts[0];
+
+  const miningAccounts = accounts.slice(11, 20);
+  const stakingAccounts = accounts.slice(21, 30);
   
   let miningAddresses = [
-    '0x0000000000000000000000000000000000000111',
-    '0x0000000000000000000000000000000000000222',
-    '0x0000000000000000000000000000000000000333'
+    miningAccounts[0],
+    miningAccounts[1],
+    miningAccounts[2]
   ];
 
   let stakingAddresses = [
-    '0x1110000000000000000000000000000000000000',
-    '0x2220000000000000000000000000000000000000',
-    '0x3330000000000000000000000000000000000000'
+    stakingAccounts[0],
+    stakingAccounts[1],
+    stakingAccounts[2]
   ];
 
+  //this info does not match the mininAccounts, but thats not a problem for this tests.
   let publicKeys = [
     '0x1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1',
     '0x1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB1',
