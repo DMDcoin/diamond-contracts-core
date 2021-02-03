@@ -16,32 +16,25 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
+
+let blockRewardHbbft;
+let randomHbbft;
+let stakingHbbft;
+let txPermission;
+let certifier;
+let validatorSetHbbft;
+let keyGenHistory;
+
 contract('InitializerHbbft', async accounts => {
   
-  let blockRewardHbbft;
-  let randomHbbft;
-  let stakingHbbft;
-  let txPermission;
-  let certifier;
-  let validatorSetHbbft;
-  let keyGenHistory;
 
   let owner = accounts[0];
 
-  const miningAccounts = accounts.slice(11, 20);
-  const stakingAccounts = accounts.slice(21, 30);
-  
-  let miningAddresses = [
-    miningAccounts[0],
-    miningAccounts[1],
-    miningAccounts[2]
-  ];
+  const miningAddresses = accounts.slice(11, 20);
+  const stakingAddresses = accounts.slice(21, 30);
 
-  let stakingAddresses = [
-    stakingAccounts[0],
-    stakingAccounts[1],
-    stakingAccounts[2]
-  ];
+  const initializingMiningAddresses = miningAddresses.slice(0, 3);
+  const initializingStakingAddresses = stakingAddresses.slice(0, 3);
 
   //this info does not match the mininAccounts, but thats not a problem for this tests.
   let publicKeys = [
@@ -140,8 +133,8 @@ contract('InitializerHbbft', async accounts => {
       await Initializer.new(
         contractAddresses ,
         owner, // _owner
-        miningAddresses, // _miningAddresses
-        stakingAddresses, // _stakingAddresses
+        initializingMiningAddresses, // _miningAddresses
+        initializingStakingAddresses, // _stakingAddresses
         stakingParams,
         publicKeys,
         initialValidatorsIpAddresses,
@@ -150,7 +143,7 @@ contract('InitializerHbbft', async accounts => {
 
       const validators = await validatorSetHbbft.getValidators.call();
 
-      validators.should.be.deep.equal(miningAddresses);
+      validators.should.be.deep.equal(initializingMiningAddresses);
 
       //candidateMinStake = await stakingHbbft.candidateMinStake.call();
       //delegatorMinStake = await stakingHbbft.delegatorMinStake.call();
@@ -158,7 +151,57 @@ contract('InitializerHbbft', async accounts => {
 
     })
 
+    describe('Staking', async () => {
+
+      it('Node 1,2,3', async() => {
+
+        const stakingBanned = await validatorSetHbbft.bannedUntil.call(stakingAddresses[0]);
+        console.log('stakingBanned?', stakingBanned);
+
+        const miningBanned = await validatorSetHbbft.bannedUntil.call(miningAddresses[0]);
+        console.log('miningBanned?', miningBanned);
+
+        await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake}).should.be.fulfilled;
+        await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
+        await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
+
+        const isPending = await validatorSetHbbft.isPendingValidator.call(miningAddresses[0]);
+        console.log('isPending?', isPending);
+        
+        //await timeTravelToTransition();
+
+    });
+      
+    })
+
   }); // describe
 
 }); // contract
 
+
+async function callReward(isEpochEndBlock) {
+  // console.log('getting validators...');
+  // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
+  // console.log('got validators:', validators);
+  await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
+  await blockRewardHbbft.reward(isEpochEndBlock, {from: owner}).should.be.fulfilled;
+  await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+  
+}
+//time travels forward to the beginning of the next transition,
+//and simulate a block mining (calling reward())
+async function timeTravelToTransition() {
+  let startTimeOfNextPhaseTransition = await stakingHbbft.startTimeOfNextPhaseTransition.call();
+  
+  await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextPhaseTransition);
+  const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+  currentTS.should.be.bignumber.equal(startTimeOfNextPhaseTransition);
+  await callReward(false);
+}
+
+async function timeTravelToEndEpoch() {
+
+  const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
+  await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+  await callReward(true);
+}
