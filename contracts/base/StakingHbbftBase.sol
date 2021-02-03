@@ -998,8 +998,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         require(!isInitialized(), "Already initialized"); // initialization can only be done once
         require(_validatorSetContract != address(0),"ValidatorSet can't be 0");
         require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
-        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,"Must provide corresponding publicKeys");
-        require(_initialStakingAddresses.length == _internetAddresses.length, "Must provide corresponding IP adresses");
+        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,
+            "Must provide correct number of publicKeys");
+        require(_initialStakingAddresses.length == _internetAddresses.length,
+            "Must provide correct number of IP adresses");
         require(_delegatorMinStake != 0, "DelegatorMinStake is 0");
         require(_candidateMinStake != 0, "CandidateMinStake is 0");
 
@@ -1139,7 +1141,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        require(poolMiningAddress != address(0), "Stake: miningAddress is 0");
+        require(poolMiningAddress != address(0), "Pool does not exist. miningAddres for that staking address is 0");
         require(_poolStakingAddress != address(0), "Stake: stakingAddress is 0");
         require(_amount != 0, "Stake: stakingAmount is 0");
         require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");
