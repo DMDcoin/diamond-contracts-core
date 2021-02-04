@@ -17,11 +17,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     // =============================================== Setters ========================================================
 
-    // todo: remove completly, not used!!
-    // function clearPendingValidators() public {
-    //     delete _pendingValidators;
-    // }
-
     function setBannedUntil(address _miningAddress, uint256 _bannedUntil) public {
         bannedUntil[_miningAddress] = _bannedUntil;
         bannedDelegatorsUntil[_miningAddress] = _bannedUntil;
