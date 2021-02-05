@@ -1944,8 +1944,8 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake, gasPrice: 0}).should.be.rejectedWith("GasPrice is 0");
     });
     it('should fail for a non-existing pool', async () => {
-      await stakingHbbft.stake(accounts[10], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: miningAddress is 0");
-      await stakingHbbft.stake('0x0000000000000000000000000000000000000000', {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Stake: miningAddress is 0");
+      await stakingHbbft.stake(accounts[10], {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Pool does not exist. miningAddress for that staking address is 0.");
+      await stakingHbbft.stake('0x0000000000000000000000000000000000000000', {from: delegatorAddress, value: delegatorMinStake}).should.be.rejectedWith("Pool does not exist. miningAddress for that staking address is 0.");
     });
     it('should fail for a zero amount', async () => {
       await stakingHbbft.stake(initialStakingAddresses[1], {from: delegatorAddress, value: 0}).should.be.rejectedWith("Stake: stakingAmount is 0");
