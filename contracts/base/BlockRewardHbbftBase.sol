@@ -233,11 +233,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             if (isPhaseTransition) {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
-            } else {
-
-                if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
-                    validatorSetContract.handleFailedKeyGeneration();
-                }
+            } else if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
+                validatorSetContract.handleFailedKeyGeneration();
             }
         }
     }

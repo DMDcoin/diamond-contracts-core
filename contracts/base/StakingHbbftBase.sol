@@ -601,6 +601,19 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         currentKeyGenExtraTimeWindow += stakingTransitionTimeframeLength;
     }
 
+    /// @dev Notifies hbbft staking contract that a validator
+    /// asociated with the given `_stakingAddress` became
+    /// available again and can be put on to the list 
+    /// of available nodes again.
+    function notifyAvailability(address _stakingAddress)
+    public
+    onlyValidatorSetContract
+    {
+        if (stakeAmount[_stakingAddress][_stakingAddress] >= candidateMinStake) {
+            _addPoolActive(_stakingAddress, true);
+        }
+    }
+
 
     // =============================================== Getters ========================================================
 
@@ -1141,7 +1154,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        require(poolMiningAddress != address(0), "Pool does not exist. miningAddres for that staking address is 0");
+        require(poolMiningAddress != address(0), "Pool does not exist. miningAddress for that staking address is 0");
         require(_poolStakingAddress != address(0), "Stake: stakingAddress is 0");
         require(_amount != 0, "Stake: stakingAmount is 0");
         require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");

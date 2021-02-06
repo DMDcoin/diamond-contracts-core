@@ -1,6 +1,6 @@
 const AdminUpgradeabilityProxy = artifacts.require('AdminUpgradeabilityProxy');
-const ValidatorSetHbbft = artifacts.require('ValidatorSetHbbft');
-const BlockRewardHbbft = artifacts.require('BlockRewardHbbft');
+const ValidatorSetHbbft = artifacts.require('ValidatorSetHbbftMock');
+const BlockRewardHbbft = artifacts.require('BlockRewardHbbftCoinsMock');
 const RandomHbbft = artifacts.require('RandomHbbft');
 const StakingHbbft = artifacts.require('StakingHbbftCoins');
 const TxPermission = artifacts.require('TxPermissionHbbft');
@@ -16,7 +16,7 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
-
+let owner;
 let blockRewardHbbft;
 let randomHbbft;
 let stakingHbbft;
@@ -25,16 +25,26 @@ let certifier;
 let validatorSetHbbft;
 let keyGenHistory;
 
+let candidateMinStake = new BN(web3.utils.toWei('2', 'ether'));
+let delegatorMinStake = new BN(web3.utils.toWei('1', 'ether'));
+
+//const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+const useUpgradeProxy = false;
+const logOutput = false;
+
 contract('InitializerHbbft', async accounts => {
   
 
-  let owner = accounts[0];
+  owner = accounts[0];
 
   const miningAddresses = accounts.slice(11, 20);
   const stakingAddresses = accounts.slice(21, 30);
 
   const initializingMiningAddresses = miningAddresses.slice(0, 3);
   const initializingStakingAddresses = stakingAddresses.slice(0, 3);
+
+  console.log('initial Mining Addresses', initializingMiningAddresses);
+  console.log('initial Staking Addresses', initializingStakingAddresses);
 
   //this info does not match the mininAccounts, but thats not a problem for this tests.
   let publicKeys = [
@@ -46,9 +56,7 @@ contract('InitializerHbbft', async accounts => {
     '0x3BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB3'
   ];
   
-  let candidateMinStake = new BN(web3.utils.toWei('2', 'ether'));
-  let delegatorMinStake = new BN(web3.utils.toWei('1', 'ether'));
-  
+
   let initialValidatorsIpAddresses = [
      '0x10100000000000000000000000000000', 
      '0x20200000000000000000000000000000', 
@@ -56,13 +64,13 @@ contract('InitializerHbbft', async accounts => {
 
   const { parts, acks } = testdata.getTestPartNAcks();
 
-  // one epoch in 5 seconds day.
-  const stakingEpochDuration = new BN(5);
+  // one epoch in 1000 seconds.
+  const stakingEpochDuration = new BN(1000);
 
-  // the transition time window is second.
-  const stakingTransitionwindowLength = new BN(1);
+  // the transition time window is 100 seconds.
+  const stakingTransitionwindowLength = new BN(100);
 
-  const stakingWithdrawDisallowPeriod = new BN(2);
+  const stakingWithdrawDisallowPeriod = new BN(100);
 
   describe('Initializer', async () => {
 
@@ -70,34 +78,51 @@ contract('InitializerHbbft', async accounts => {
 
       // Deploy ValidatorSetHbbft contract
       validatorSetHbbft = await ValidatorSetHbbft.new();
-      validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
-      validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+
+      if (useUpgradeProxy) {
+        validatorSetHbbft = await AdminUpgradeabilityProxy.new(validatorSetHbbft.address, owner, []);
+        validatorSetHbbft = await ValidatorSetHbbft.at(validatorSetHbbft.address);
+      }
 
       // Deploy BlockRewardHbbft contract
       blockRewardHbbft = await BlockRewardHbbft.new();
-      blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
-      blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+
+      if (useUpgradeProxy) {
+        blockRewardHbbft = await AdminUpgradeabilityProxy.new(blockRewardHbbft.address, owner, []);
+        blockRewardHbbft = await BlockRewardHbbft.at(blockRewardHbbft.address);
+      }
       // Deploy RandomHbbft contract
       randomHbbft = await RandomHbbft.new();
-      randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
-      randomHbbft = await RandomHbbft.at(randomHbbft.address);
+
+      if (useUpgradeProxy) {
+        randomHbbft = await AdminUpgradeabilityProxy.new(randomHbbft.address, owner, []);
+        randomHbbft = await RandomHbbft.at(randomHbbft.address);
+      }
       // Deploy StakingHbbft contract
       stakingHbbft = await StakingHbbft.new();
-      stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
-      stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+      if (useUpgradeProxy) {
+        stakingHbbft = await AdminUpgradeabilityProxy.new(stakingHbbft.address, owner, []);
+        stakingHbbft = await StakingHbbft.at(stakingHbbft.address);
+      }
       // Deploy TxPermission contract
       txPermission = await TxPermission.new();
-      txPermission = await AdminUpgradeabilityProxy.new(txPermission.address, owner, []);
-      txPermission = await TxPermission.at(txPermission.address);
+      if (useUpgradeProxy) {
+        txPermission = await AdminUpgradeabilityProxy.new(txPermission.address, owner, []);
+        txPermission = await TxPermission.at(txPermission.address);
+      }
       // Deploy Certifier contract
       certifier = await Certifier.new();
-      certifier = await AdminUpgradeabilityProxy.new(certifier.address, owner, []);
-      certifier = await Certifier.at(certifier.address);
+      if (useUpgradeProxy) {
+        certifier = await AdminUpgradeabilityProxy.new(certifier.address, owner, []);
+        certifier = await Certifier.at(certifier.address);
+      }
       // Deploy KeyGenHistory contract
       keyGenHistory = await KeyGenHistory.new();
-      keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
-      keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
-      
+      if (useUpgradeProxy) {
+        keyGenHistory = await AdminUpgradeabilityProxy.new(keyGenHistory.address, owner, []);
+        keyGenHistory = await KeyGenHistory.at(keyGenHistory.address);
+      }
+
       // analysis of admin addresses.
       // console.log(await validatorSetHbbft.getInfo());
       // console.log(owner);
@@ -155,19 +180,118 @@ contract('InitializerHbbft', async accounts => {
 
       it('Node 1,2,3', async() => {
 
+        await timeTravelToTransition();
+        await timeTravelToEndEpoch();
+
         const stakingBanned = await validatorSetHbbft.bannedUntil.call(stakingAddresses[0]);
-        console.log('stakingBanned?', stakingBanned);
-
         const miningBanned = await validatorSetHbbft.bannedUntil.call(miningAddresses[0]);
-        console.log('miningBanned?', miningBanned);
+        const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+        const newPoolStakingAddress = stakingAddresses[4];
+        const newPoolMiningAddress = miningAddresses[4];
 
-        await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake}).should.be.fulfilled;
-        await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
-        await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
+        if (logOutput) {
+          console.log('stakingBanned?', stakingBanned);
+          console.log('miningBanned?', miningBanned);
+          console.log('currentTS:', currentTS);
+          console.log('newPoolStakingAddress:', newPoolStakingAddress);
+          console.log('newPoolMiningAddress:', newPoolMiningAddress);
+        }
 
-        const isPending = await validatorSetHbbft.isPendingValidator.call(miningAddresses[0]);
-        console.log('isPending?', isPending);
+        false.should.be.equal(await stakingHbbft.isPoolActive.call(newPoolStakingAddress));
+
+        await stakingHbbft.addPool(newPoolMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+        '0x00000000000000000000000000000000', {from: newPoolStakingAddress, value: candidateMinStake}).should.be.fulfilled;
+
+        //await stakingHbbft.addPool(miningAddresses[5], '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+        //'0x00000000000000000000000000000000', {from: stakingAddresses[5], value: candidateMinStake}).should.be.fulfilled;
+
+        const poolIsActiveNow = await stakingHbbft.isPoolActive.call(newPoolStakingAddress);
+        true.should.be.equal(poolIsActiveNow);
+
+        //await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake}).should.be.fulfilled;
+        //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
+        //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
+
+        async function printValidatorState(info) {
+
+          if (!logOutput) {
+            return;
+          }
+          const validators = await validatorSetHbbft.getValidators.call();
+          const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
+          
+          //Note: toBeElected are Pool (staking) addresses, and not Mining adresses. 
+          // all other adresses are mining adresses.
+          const toBeElected = await stakingHbbft.getPoolsToBeElected.call();
+          const pools = await stakingHbbft.getPools.call();
+          const poolsInactive = await stakingHbbft.getPoolsInactive.call();
+          const epoch = await stakingHbbft.stakingEpoch.call();
+
+          console.log(info + ' epoch : ', epoch);
+          console.log(info + ' pending   :', pendingValidators);
+          console.log(info + ' validators:', validators);
+          console.log(info + ' pools: ', pools);
+          console.log(info + ' inactive pools: ', poolsInactive);
+          console.log(info + ' pools toBeElected: ', toBeElected);
+
+        }
+
+        await printValidatorState('after staking on new Pool:');
+
+        await timeTravelToTransition();
+
+        await printValidatorState('after travel to transition:');
+
+        // let isPending = await validatorSetHbbft.isPendingValidator.call(miningAddresses[0]);
+        // console.log('isPending?', isPending);
+
+        // let validators = await validatorSetHbbft.getValidators.call();
+        // console.log('validators while pending: ', validators);
+
+        await timeTravelToEndEpochFailedKeys();
         
+        // the pools did not manage to write it's part and acks.
+        // 
+        
+        await printValidatorState('after failure:');
+
+        (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([]);
+        (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([newPoolStakingAddress]);
+
+        // pending validators still should not have changed, since we dit not call end block.
+        // WIP: this test currently failes. one of the initial validators takes over the list of pending validators
+        // what should it be anyway ? the original validators ?
+        // they are gone :-o
+        //(await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([]);
+
+        // announcing availability.
+        // this should place us back on the list of active and available pools.
+        (await validatorSetHbbft.announceAvailability({from: newPoolMiningAddress}));
+
+        // pool is available again!
+        (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([newPoolStakingAddress]);
+        (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([]);
+
+        (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([]);
+        
+        // pending validators still should not have changed, since we dit not call end block.
+        // WIP: this test currently failes. one of the initial validators takes over the list of pending validators
+        // what should it be anyway ? the original validators ?
+        // they are gone :-o
+        //(await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([]);
+
+        // time travel to transition as again.
+        //await timeTravelToTransition();
+
+        // we should be now a pending validator.
+        // (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([newPoolMiningAddress]);
+
+
+        // await timeTravelToEndEpoch();
+        // await timeTravel();
+        // await timeTravel();
+
+
         //await timeTravelToTransition();
 
     });
@@ -199,9 +323,25 @@ async function timeTravelToTransition() {
   await callReward(false);
 }
 
+
 async function timeTravelToEndEpoch() {
 
   const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
   await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
   await callReward(true);
+}
+
+async function timeTravelToEndEpochFailedKeys() {
+
+  const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
+  await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+  await callReward(false);
+}
+
+// time travels just 1 second.
+async function timeTravel() {
+
+  const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+  await validatorSetHbbft.setCurrentTimestamp(new BN(currentTS).add(new BN('1')));
+  await callReward(false);
 }

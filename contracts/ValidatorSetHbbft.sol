@@ -83,12 +83,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev Block Timestamp when a validator was successfully part of 
     mapping(address => uint256) public validatorLastSuccess;
 
-    /// @dev holds unavailability information for each specific mining address
+    /// @dev holds Availability information for each specific mining address
     /// unavailability happens if a validator gets voted to become a pending validator,
     /// but misses out the sending of the ACK or PART within the given timeframe.
     /// validators are required to declare availability,
     /// in order to become available for voting again.
-    mapping(address => uint256) public validatorNotAvailableSince;
+    /// the value is of type timestamp
+    mapping(address => uint256) public validatorAvailableSince;
 
     // ============================================== Constants =======================================================
 
@@ -257,8 +258,16 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// getting marked as unavailable caused by a failed key generation.
     function announceAvailability()
     external {
-        require(validatorNotAvailableSince[msg.sender] > 0, "Validator was not marked as unavailable.");
-        validatorNotAvailableSince[msg.sender] = 0;
+        require(canCallAnnounceAvailability(msg.sender), 'Announcing availability not possible');
+
+        uint timestamp = this.getCurrentTimestamp();
+        validatorAvailableSince[msg.sender] = timestamp;
+        emit ValidatorAvailable(msg.sender, timestamp);
+        // as long the mining node is not banned as well,
+        // it can be picked up as regular active node again.
+        if (!isValidatorBanned(msg.sender)) {
+            stakingContract.notifyAvailability(stakingByMiningAddress[msg.sender]);
+        }
     }
 
     function handleFailedKeyGeneration()
@@ -304,7 +313,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             // get mining address for this pool.
             // if the mining address did his job (writing PART or ACKS).
             // add it to the good pool.
-            address miningAddress = miningByStakingAddress[_pendingValidators[i]];
+            address miningAddress = _pendingValidators[i]; //miningByStakingAddress[];
 
             // if a validator is good or bad, depends if he managed
             // the write the information required for the current state.
@@ -328,6 +337,17 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
                 // to the _newValidatorSet function. 
                 goodValidators[goodValidatorsCount] = _pendingValidators[i];
                 goodValidatorsCount++;
+            }
+            else {
+
+                // this Pool is not available anymore.
+                // the pool does not get a Ban,
+                // but is treated as "inactive" as long it does not `announceAvailability()`
+                
+                stakingContract.removePool(stakingByMiningAddress[miningAddress]);
+                // mark the Node address as not available.
+                validatorAvailableSince[miningAddress] = 0;
+                emit ValidatorUnavailable(miningAddress, this.getCurrentTimestamp());
             }
         }
 
@@ -593,6 +613,27 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         return _maliceReportedForBlock[_miningAddress][_blockNumber];
     }
 
+
+    function canCallAnnounceAvailability(address _miningAddress)
+    public
+    view
+    returns(bool) {
+
+        if (stakingByMiningAddress[_miningAddress] == address(0)) {
+            // not a validator node.
+            // revert('this address is not a validator');
+            return false;
+        }
+
+        if (validatorAvailableSince[_miningAddress] != 0) {
+             // "Validator was not marked as unavailable."
+            return false;
+        }
+
+        return true;
+    }
+
+
     /// @dev Returns whether the `reportMalicious` function can be called by the specified validator with the
     /// given parameters. Used by the `reportMalicious` function and `TxPermission` contract. Also, returns
     /// a boolean flag indicating whether the reporting validator should be removed as malicious due to
@@ -666,6 +707,23 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     // ============================================== Internal ========================================================
 
+
+    // function _canCallAnnounceAvailability(address _miningAddress)
+    // internal
+    // view
+    // returns(bool) {
+
+    //     if (stakingByMiningAddress[_miningAddress] == address(0)) {
+    //         // not a validator node.
+    //         return false;
+    //     }
+
+    //     if (validatorAvailableSince[_miningAddress] == 0) {
+    //          // "Validator was not marked as unavailable."
+    //         return false;
+    //     }
+    // }
+
     /// @dev Updates the total reporting counter (see the `reportingCounterTotal` public mapping) for the current
     /// staking epoch after the specified validator is removed as malicious. The `reportMaliciousCallable` getter
     /// uses this counter for reporting checks so it must be up-to-date. Called by the `_removeMaliciousValidators`
@@ -731,6 +789,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
                 _setPendingValidators(newValidators);
             }
         } else {
+            //note: it is assumed here that _forcedPools is always a subset of poolsToBeElected.
+            // a forcedPool can never get picked up if it is not part of the poolsToBeElected.
+            // the logic needs to be that consistent.
             _setPendingValidators(poolsToBeElected);
         }
         
