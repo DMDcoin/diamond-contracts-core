@@ -214,15 +214,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     external
     onlyBlockRewardContract {
 
-        //require(_pendingValidators.length != 0,
-        //    "DEBUG ASSERT: no pending Validators to finalize change.");
-
-        //in the case noone staked yet, the system keeps the current validator set.
-        //maybe do more checks here ?
-        //at least as debug asserts ?
-
         if (_pendingValidators.length != 0) {
-
             // Apply a new validator set formed by the `newValidatorSet` function
             _savePreviousValidators();
             _finalizeNewValidators();

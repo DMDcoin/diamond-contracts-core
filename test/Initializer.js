@@ -43,8 +43,10 @@ contract('InitializerHbbft', async accounts => {
   const initializingMiningAddresses = miningAddresses.slice(0, 3);
   const initializingStakingAddresses = stakingAddresses.slice(0, 3);
 
-  console.log('initial Mining Addresses', initializingMiningAddresses);
-  console.log('initial Staking Addresses', initializingStakingAddresses);
+  if (logOutput) {
+    console.log('initial Mining Addresses', initializingMiningAddresses);
+    console.log('initial Staking Addresses', initializingStakingAddresses);
+  }
 
   //this info does not match the mininAccounts, but thats not a problem for this tests.
   let publicKeys = [
@@ -176,128 +178,128 @@ contract('InitializerHbbft', async accounts => {
 
     })
 
-    describe('Staking', async () => {
+    it('failed KeyGeneration, availability.', async() => {
 
-      it('Node 1,2,3', async() => {
+      await timeTravelToTransition();
+      await timeTravelToEndEpoch();
 
-        await timeTravelToTransition();
-        await timeTravelToEndEpoch();
+      const stakingBanned = await validatorSetHbbft.bannedUntil.call(stakingAddresses[0]);
+      const miningBanned = await validatorSetHbbft.bannedUntil.call(miningAddresses[0]);
+      const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+      const newPoolStakingAddress = stakingAddresses[4];
+      const newPoolMiningAddress = miningAddresses[4];
 
-        const stakingBanned = await validatorSetHbbft.bannedUntil.call(stakingAddresses[0]);
-        const miningBanned = await validatorSetHbbft.bannedUntil.call(miningAddresses[0]);
-        const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
-        const newPoolStakingAddress = stakingAddresses[4];
-        const newPoolMiningAddress = miningAddresses[4];
+      if (logOutput) {
+        console.log('stakingBanned?', stakingBanned);
+        console.log('miningBanned?', miningBanned);
+        console.log('currentTS:', currentTS);
+        console.log('newPoolStakingAddress:', newPoolStakingAddress);
+        console.log('newPoolMiningAddress:', newPoolMiningAddress);
+      }
 
-        if (logOutput) {
-          console.log('stakingBanned?', stakingBanned);
-          console.log('miningBanned?', miningBanned);
-          console.log('currentTS:', currentTS);
-          console.log('newPoolStakingAddress:', newPoolStakingAddress);
-          console.log('newPoolMiningAddress:', newPoolMiningAddress);
+      false.should.be.equal(await stakingHbbft.isPoolActive.call(newPoolStakingAddress));
+
+      await stakingHbbft.addPool(newPoolMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      '0x00000000000000000000000000000000', {from: newPoolStakingAddress, value: candidateMinStake}).should.be.fulfilled;
+
+      //await stakingHbbft.addPool(miningAddresses[5], '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      //'0x00000000000000000000000000000000', {from: stakingAddresses[5], value: candidateMinStake}).should.be.fulfilled;
+
+      const poolIsActiveNow = await stakingHbbft.isPoolActive.call(newPoolStakingAddress);
+      true.should.be.equal(poolIsActiveNow);
+
+      //await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake}).should.be.fulfilled;
+      //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
+      //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
+
+      async function printValidatorState(info) {
+
+        if (!logOutput) {
+          return;
         }
-
-        false.should.be.equal(await stakingHbbft.isPoolActive.call(newPoolStakingAddress));
-
-        await stakingHbbft.addPool(newPoolMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-        '0x00000000000000000000000000000000', {from: newPoolStakingAddress, value: candidateMinStake}).should.be.fulfilled;
-
-        //await stakingHbbft.addPool(miningAddresses[5], '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-        //'0x00000000000000000000000000000000', {from: stakingAddresses[5], value: candidateMinStake}).should.be.fulfilled;
-
-        const poolIsActiveNow = await stakingHbbft.isPoolActive.call(newPoolStakingAddress);
-        true.should.be.equal(poolIsActiveNow);
-
-        //await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake}).should.be.fulfilled;
-        //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
-        //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
-
-        async function printValidatorState(info) {
-
-          if (!logOutput) {
-            return;
-          }
-          const validators = await validatorSetHbbft.getValidators.call();
-          const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
-          
-          //Note: toBeElected are Pool (staking) addresses, and not Mining adresses. 
-          // all other adresses are mining adresses.
-          const toBeElected = await stakingHbbft.getPoolsToBeElected.call();
-          const pools = await stakingHbbft.getPools.call();
-          const poolsInactive = await stakingHbbft.getPoolsInactive.call();
-          const epoch = await stakingHbbft.stakingEpoch.call();
-
-          console.log(info + ' epoch : ', epoch);
-          console.log(info + ' pending   :', pendingValidators);
-          console.log(info + ' validators:', validators);
-          console.log(info + ' pools: ', pools);
-          console.log(info + ' inactive pools: ', poolsInactive);
-          console.log(info + ' pools toBeElected: ', toBeElected);
-
-        }
-
-        await printValidatorState('after staking on new Pool:');
-
-        await timeTravelToTransition();
-
-        await printValidatorState('after travel to transition:');
-
-        // let isPending = await validatorSetHbbft.isPendingValidator.call(miningAddresses[0]);
-        // console.log('isPending?', isPending);
-
-        // let validators = await validatorSetHbbft.getValidators.call();
-        // console.log('validators while pending: ', validators);
-
-        await timeTravelToEndEpochFailedKeys();
+        const validators = await validatorSetHbbft.getValidators.call();
+        const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
         
-        // the pools did not manage to write it's part and acks.
-        // 
-        
-        await printValidatorState('after failure:');
+        //Note: toBeElected are Pool (staking) addresses, and not Mining adresses. 
+        // all other adresses are mining adresses.
+        const toBeElected = await stakingHbbft.getPoolsToBeElected.call();
+        const pools = await stakingHbbft.getPools.call();
+        const poolsInactive = await stakingHbbft.getPoolsInactive.call();
+        const epoch = await stakingHbbft.stakingEpoch.call();
 
-        (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([]);
-        (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([newPoolStakingAddress]);
+        console.log(info + ' epoch : ', epoch);
+        console.log(info + ' pending   :', pendingValidators);
+        console.log(info + ' validators:', validators);
+        console.log(info + ' pools: ', pools);
+        console.log(info + ' inactive pools: ', poolsInactive);
+        console.log(info + ' pools toBeElected: ', toBeElected);
 
-        // pending validators still should not have changed, since we dit not call end block.
-        // WIP: this test currently failes. one of the initial validators takes over the list of pending validators
-        // what should it be anyway ? the original validators ?
-        // they are gone :-o
-        //(await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([]);
+      }
 
-        // announcing availability.
-        // this should place us back on the list of active and available pools.
-        (await validatorSetHbbft.announceAvailability({from: newPoolMiningAddress}));
+      await printValidatorState('after staking on new Pool:');
+      await timeTravelToTransition();
+      await printValidatorState('after travel to transition:');
 
-        // pool is available again!
-        (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([newPoolStakingAddress]);
-        (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([]);
+      // let isPending = await validatorSetHbbft.isPendingValidator.call(miningAddresses[0]);
+      // console.log('isPending?', isPending);
 
-        (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([]);
-        
-        // pending validators still should not have changed, since we dit not call end block.
-        // WIP: this test currently failes. one of the initial validators takes over the list of pending validators
-        // what should it be anyway ? the original validators ?
-        // they are gone :-o
-        //(await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([]);
+      // let validators = await validatorSetHbbft.getValidators.call();
+      // console.log('validators while pending: ', validators);
 
-        // time travel to transition as again.
-        //await timeTravelToTransition();
+      await timeTravelToEndEpochFailedKeys();
+      
+      // the pools did not manage to write it's part and acks.
+      // 
+      
+      await printValidatorState('after failure:');
 
-        // we should be now a pending validator.
-        // (await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([newPoolMiningAddress]);
+      (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([]);
+      (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([newPoolStakingAddress]);
+
+      // pending validators still should not have changed, since we dit not call end block.
+      // WIP: this test currently failes. one of the initial validators takes over the list of pending validators
+      // what should it be anyway ? the original validators ?
+      // they are gone :-o
+      //(await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([]);
+
+      // announcing availability.
+      // this should place us back on the list of active and available pools.
+      (await validatorSetHbbft.announceAvailability({from: newPoolMiningAddress}));
+
+      await printValidatorState('after announceAvailability:');
+
+      // pool is available again!
+      (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([newPoolStakingAddress]);
+      (await stakingHbbft.getPoolsInactive.call()).should.be.deep.equal([]);
 
 
-        // await timeTravelToEndEpoch();
-        // await timeTravel();
-        // await timeTravel();
+      // the original validators took over.
+      // lets travel again to the end of the epoch, to switch into the next epoch
+      // to invoke another voting.
 
+      await timeTravelToEndEpoch();
 
-        //await timeTravelToTransition();
+      let epoch = (await stakingHbbft.stakingEpoch.call()); 
+
+      await printValidatorState('epoch2 start:');
+      //.should.be.bignumber(new BN('2'));
+      await timeTravelToTransition();
+
+      await printValidatorState('epoch2 phase2:');
+
+      // now write the ACK and the PART:
+
+      keyGenHistory.writePart('3', parts[0], {from: newPoolMiningAddress});
+      keyGenHistory.writeAcks('3', acks[0], {from: newPoolMiningAddress});
+
+      // it's now job of the current validators to verify the correct write of the PARTS and ACKS
+      // (this is simulated by the next call)
+      await timeTravelToEndEpoch();
+
+      // now the new node should be a validator.
+      (await validatorSetHbbft.getValidators.call()).should.be.deep.equal([newPoolMiningAddress]);
 
     });
-      
-    })
-
   }); // describe
 
 }); // contract
