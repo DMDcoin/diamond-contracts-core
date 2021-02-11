@@ -265,6 +265,8 @@ contract('InitializerHbbft', async accounts => {
       
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
 
+      pendingValidators.should.be.deep.equal([initializingMiningAddresses[0]]);
+
       keyGenHistory.writePart('1', parts[0], {from: pendingValidators[0]});
       keyGenHistory.writeAcks('1', acks[0], {from: pendingValidators[0]});
 
@@ -273,22 +275,32 @@ contract('InitializerHbbft', async accounts => {
       let epoch = (await stakingHbbft.stakingEpoch.call()); 
 
       await printValidatorState('epoch1 start:');
-      //epoch.should.be.bignumber(new BN('1'));
-      //await timeTravelToTransition();
+      
+      epoch.should.be.bignumber.equal(new BN('1'));
+      
+      
+      await timeTravelToTransition();
 
-      // await printValidatorState('epoch1 phase2:');
+      await printValidatorState('epoch1 phase2:');
 
       // // now write the ACK and the PART:
 
-      // keyGenHistory.writePart('3', parts[0], {from: newPoolMiningAddress});
-      // keyGenHistory.writeAcks('3', acks[0], {from: newPoolMiningAddress});
+      keyGenHistory.writePart('2', parts[0], {from: newPoolMiningAddress});
+      keyGenHistory.writeAcks('2', acks[0], {from: newPoolMiningAddress});
 
-      // // it's now job of the current validators to verify the correct write of the PARTS and ACKS
-      // // (this is simulated by the next call)
-      // await timeTravelToEndEpoch();
+      // it's now job of the current validators to verify the correct write of the PARTS and ACKS
+      // (this is simulated by the next call)
+      await timeTravelToEndEpoch();
+
+      // now everything is fine, we can do the transition after failing 
+      // the first one.
+
+      epoch = (await stakingHbbft.stakingEpoch.call()); 
+      await printValidatorState('epoch2 start:');
+      epoch.should.be.bignumber.equal(new BN('2'));
 
       // // now the new node should be a validator.
-      // (await validatorSetHbbft.getValidators.call()).should.be.deep.equal([newPoolMiningAddress]);
+      (await validatorSetHbbft.getValidators.call()).should.be.deep.equal([newPoolMiningAddress]);
 
     });
 
@@ -306,22 +318,52 @@ contract('InitializerHbbft', async accounts => {
       const poolMiningAddress1 = miningAddresses[4];
 
       // address1 is already picked up and a validator.
+      // we double check if he is also marked for being available:
+
+      let validatorAvailableSince = await validatorSetHbbft.validatorAvailableSince.call(poolMiningAddress1);
+      validatorAvailableSince.should.not.be.bignumber.equal(new BN('0'));
 
       const poolStakingAddress2 = stakingAddresses[5];
       const poolMiningAddress2 = miningAddresses[5];
 
-
       await stakingHbbft.addPool(poolMiningAddress2, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       '0x00000000000000000000000000000000', {from: poolStakingAddress2, value: candidateMinStake}).should.be.fulfilled;
 
-      //await timeTravelToTransition();
+      await printValidatorState('After adding mining address2:');
+      await timeTravelToTransition();
       await printValidatorState('validator2 pending:');
 
-      // now let pending validator 2 write it's ack,
-      // but pending validator 1 misses out.
+      // now let pending validator 2 write it's Part,
+      // but pending validator 1 misses out to write it's part.
       
-      //keyGenHistory.writePart('4', parts[0], {from: poolMiningAddress2});
+      keyGenHistory.writePart('3', parts[0], {from: poolMiningAddress2});
 
+      //TODO: add handling that someone is not allowed to write his ack, 
+      //if not all have written their part ?! or just rely on the reporting system for that ?!
+      keyGenHistory.writeAcks('3', acks[0], {from: poolMiningAddress2});
+
+      //const callResult = await keyGenHistory.getNumberOfKeyFragmentsWritten.call();
+      //console.log(callResult);
+
+      await timeTravelToEndEpoch();
+
+      await printValidatorState('failedEnd:');
+
+      // another TimeTravel to end epoch happened,
+      // we expect that there was NO epoch change.
+      // since Validator 1 failed writing his keys.
+      let epoch = (await stakingHbbft.stakingEpoch.call()); 
+      epoch.should.be.bignumber.equal(new BN('2'));
+
+      // we expect Validator 1 now to be marked as unavailable,
+      // since he failed to write his key.
+      validatorAvailableSince = await validatorSetHbbft.validatorAvailableSince.call(poolMiningAddress1);
+      validatorAvailableSince.should.be.bignumber.equal(new BN('0'));
+
+      // and only validator 2 is part of the Set.
+      // validator 2 needs to write his keys again.
+      const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
+      pendingValidators.should.be.deep.equal([poolMiningAddress2]);
 
     });
   }); // describe
@@ -373,14 +415,6 @@ async function timeTravelToTransition() {
   await callReward(false);
 }
 
-
-// async function timeTravelToEndEpoch() {
-
-//   const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
-//   await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
-//   await callReward(true);
-// }
-
 async function timeTravelToEndEpoch() {
 
   // todo: mimic the behavor of the nodes here:
@@ -390,14 +424,13 @@ async function timeTravelToEndEpoch() {
   // note: the Nodes they DO check if the ACKS and PARTS
   // make it possible to generate a treshold key here,
   // but within the tests, we just mimic this behavior.
+  const callResult = await keyGenHistory.getNumberOfKeyFragmentsWritten.call();
 
-  const { numberOfAcks, numberOfParts } = await keyGenHistory.getNumberOfKeyFragmentsWritten.call();
+  const numberOfParts = callResult['0'].toNumber();
+  const numberOfAcks = callResult['1'].toNumber();
 
   const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
-  console.log('pending: ', pendingValidators);
-  const numberOfPendingValidators = pendingValidators.length.toString();
-  console.log('numberOfPending: ', numberOfPendingValidators);
-
+  const numberOfPendingValidators = pendingValidators.length;
   let callRewardParameter = (numberOfParts === numberOfPendingValidators && numberOfAcks === numberOfPendingValidators);
 
   const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
