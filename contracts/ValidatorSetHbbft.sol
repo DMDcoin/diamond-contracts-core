@@ -266,6 +266,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     external
     onlyBlockRewardContract {
 
+
         // we should only kick out nodes if the nodes have been really to late.
 
         require(this.getCurrentTimestamp() >= stakingContract.stakingFixedEpochEndTime(),
@@ -356,13 +357,14 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.
     /// Called by the node of each honest validator after the specified validator misbehaved.
-    /// See https://wiki.parity.io/Validator-Set.html#reporting-contract
+    /// See https://openethereum.github.io/Validator-Set.html#reporting-contract
     /// Can only be called when the `reportMaliciousCallable` getter returns `true`.
     /// @param _maliciousMiningAddress The mining address of the malicious validator.
     /// @param _blockNumber The block number where the misbehavior was observed.
     function reportMalicious(
         address _maliciousMiningAddress,
-        uint256 _blockNumber
+        uint256 _blockNumber,
+        bytes calldata
     )
     external
     onlyInitialized {
@@ -769,7 +771,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
             if (likelihood.length > 0 && likelihoodSum > 0) {
                 for (uint256 i = 0; i < newValidators.length; i++) {
-                    randomNumber = uint256(keccak256(abi.encode(randomNumber)));
+                    randomNumber = uint256(keccak256(abi.encode(randomNumber ^ block.timestamp)));
                     uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
                     newValidators[i] = poolsToBeElected[randomPoolIndex];
                     likelihoodSum -= likelihood[randomPoolIndex];
