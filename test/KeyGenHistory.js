@@ -6,7 +6,7 @@ const StakingHbbft = artifacts.require('StakingHbbftCoins');
 const TxPermission = artifacts.require('TxPermissionHbbft');
 const Certifier = artifacts.require('CertifierHbbft');
 const KeyGenHistory = artifacts.require('KeyGenHistory');
-const Initializer =  artifacts.require('InitializerHbbft');
+const Initializer = artifacts.require('InitializerHbbft');
 const testdata = require('./testhelpers/data');
 
 const BN = web3.utils.BN;
@@ -33,7 +33,7 @@ const useUpgradeProxy = false;
 const logOutput = false;
 
 contract('InitializerHbbft', async accounts => {
-  
+
 
   owner = accounts[0];
 
@@ -57,12 +57,12 @@ contract('InitializerHbbft', async accounts => {
     '0x3AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3',
     '0x3BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB3'
   ];
-  
+
 
   let initialValidatorsIpAddresses = [
-     '0x10100000000000000000000000000000', 
-     '0x20200000000000000000000000000000', 
-     '0x30300000000000000000000000000000'];
+    '0x10100000000000000000000000000000',
+    '0x20200000000000000000000000000000',
+    '0x30300000000000000000000000000000'];
 
   const { parts, acks } = testdata.getTestPartNAcks();
 
@@ -137,8 +137,8 @@ contract('InitializerHbbft', async accounts => {
 
     });
 
-    it('Deploy Initializer', async() => {
-   
+    it('Deploy Initializer', async () => {
+
       const contractAddresses = [ // _contracts
         validatorSetHbbft.address,
         blockRewardHbbft.address,
@@ -156,9 +156,9 @@ contract('InitializerHbbft', async accounts => {
         stakingTransitionwindowLength, //_stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, //_stakingWithdrawDisallowPeriod
       ];
- 
+
       await Initializer.new(
-        contractAddresses ,
+        contractAddresses,
         owner, // _owner
         initializingMiningAddresses, // _miningAddresses
         initializingStakingAddresses, // _stakingAddresses
@@ -181,7 +181,7 @@ contract('InitializerHbbft', async accounts => {
 
     })
 
-    it('failed KeyGeneration, availability.', async() => {
+    it('failed KeyGeneration, availability.', async () => {
 
       // console.log('start failed key gen');
       // await timeTravelToTransition();
@@ -206,7 +206,7 @@ contract('InitializerHbbft', async accounts => {
       false.should.be.equal(await stakingHbbft.isPoolActive.call(newPoolStakingAddress));
 
       await stakingHbbft.addPool(newPoolMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: newPoolStakingAddress, value: candidateMinStake}).should.be.fulfilled;
+        '0x00000000000000000000000000000000', { from: newPoolStakingAddress, value: candidateMinStake }).should.be.fulfilled;
 
       //await stakingHbbft.addPool(miningAddresses[5], '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       //'0x00000000000000000000000000000000', {from: stakingAddresses[5], value: candidateMinStake}).should.be.fulfilled;
@@ -218,7 +218,7 @@ contract('InitializerHbbft', async accounts => {
       //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
       //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
 
-      
+
 
       await printValidatorState('after staking on new Pool:');
       await timeTravelToTransition();
@@ -231,10 +231,10 @@ contract('InitializerHbbft', async accounts => {
       // console.log('validators while pending: ', validators);
 
       await timeTravelToEndEpoch();
-      
+
       // the pools did not manage to write it's part and acks.
       // 
-      
+
       await printValidatorState('after failure:');
 
       (await stakingHbbft.getPoolsToBeElected.call()).should.be.deep.equal([]);
@@ -248,7 +248,7 @@ contract('InitializerHbbft', async accounts => {
 
       // announcing availability.
       // this should place us back on the list of active and available pools.
-      (await validatorSetHbbft.announceAvailability({from: newPoolMiningAddress}));
+      (await validatorSetHbbft.announceAvailability({ from: newPoolMiningAddress }));
 
       await printValidatorState('after announceAvailability:');
 
@@ -262,31 +262,31 @@ contract('InitializerHbbft', async accounts => {
       // to invoke another voting.
 
       //write the PART and ACK for the pending validator:
-      
+
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
 
       pendingValidators.should.be.deep.equal([initializingMiningAddresses[0]]);
 
-      keyGenHistory.writePart('1', parts[0], {from: pendingValidators[0]});
-      keyGenHistory.writeAcks('1', acks[0], {from: pendingValidators[0]});
+      keyGenHistory.writePart('1', parts[0], { from: pendingValidators[0] });
+      keyGenHistory.writeAcks('1', acks[0], { from: pendingValidators[0] });
 
       await timeTravelToEndEpoch();
 
-      let epoch = (await stakingHbbft.stakingEpoch.call()); 
+      let epoch = (await stakingHbbft.stakingEpoch.call());
 
       await printValidatorState('epoch1 start:');
-      
+
       epoch.should.be.bignumber.equal(new BN('1'));
-      
-      
+
+
       await timeTravelToTransition();
 
       await printValidatorState('epoch1 phase2:');
 
       // // now write the ACK and the PART:
 
-      keyGenHistory.writePart('2', parts[0], {from: newPoolMiningAddress});
-      keyGenHistory.writeAcks('2', acks[0], {from: newPoolMiningAddress});
+      keyGenHistory.writePart('2', parts[0], { from: newPoolMiningAddress });
+      keyGenHistory.writeAcks('2', acks[0], { from: newPoolMiningAddress });
 
       // it's now job of the current validators to verify the correct write of the PARTS and ACKS
       // (this is simulated by the next call)
@@ -295,7 +295,7 @@ contract('InitializerHbbft', async accounts => {
       // now everything is fine, we can do the transition after failing 
       // the first one.
 
-      epoch = (await stakingHbbft.stakingEpoch.call()); 
+      epoch = (await stakingHbbft.stakingEpoch.call());
       await printValidatorState('epoch2 start:');
       epoch.should.be.bignumber.equal(new BN('2'));
 
@@ -304,7 +304,7 @@ contract('InitializerHbbft', async accounts => {
 
     });
 
-    it('1/2 KeyGeneration - PART Failure', async() => { 
+    it('1/2 KeyGeneration - PART Failure', async () => {
       //tests  a 2 validators setup.
       // 1 manages to write it's part.
       // 1 does not manage to write it's part.
@@ -327,7 +327,7 @@ contract('InitializerHbbft', async accounts => {
       const poolMiningAddress2 = miningAddresses[5];
 
       await stakingHbbft.addPool(poolMiningAddress2, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      '0x00000000000000000000000000000000', {from: poolStakingAddress2, value: candidateMinStake}).should.be.fulfilled;
+        '0x00000000000000000000000000000000', { from: poolStakingAddress2, value: candidateMinStake }).should.be.fulfilled;
 
       await printValidatorState('After adding mining address2:');
       await timeTravelToTransition();
@@ -335,12 +335,12 @@ contract('InitializerHbbft', async accounts => {
 
       // now let pending validator 2 write it's Part,
       // but pending validator 1 misses out to write it's part.
-      
-      keyGenHistory.writePart('3', parts[0], {from: poolMiningAddress2});
+
+      keyGenHistory.writePart('3', parts[0], { from: poolMiningAddress2 });
 
       //TODO: add handling that someone is not allowed to write his ack, 
       //if not all have written their part ?! or just rely on the reporting system for that ?!
-      keyGenHistory.writeAcks('3', acks[0], {from: poolMiningAddress2});
+      keyGenHistory.writeAcks('3', acks[0], { from: poolMiningAddress2 });
 
       //const callResult = await keyGenHistory.getNumberOfKeyFragmentsWritten.call();
       //console.log(callResult);
@@ -352,7 +352,7 @@ contract('InitializerHbbft', async accounts => {
       // another TimeTravel to end epoch happened,
       // we expect that there was NO epoch change.
       // since Validator 1 failed writing his keys.
-      let epoch = (await stakingHbbft.stakingEpoch.call()); 
+      let epoch = (await stakingHbbft.stakingEpoch.call());
       epoch.should.be.bignumber.equal(new BN('2'));
 
       // we expect Validator 1 now to be marked as unavailable,
@@ -378,7 +378,7 @@ async function printValidatorState(info) {
   }
   const validators = await validatorSetHbbft.getValidators.call();
   const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
-  
+
   //Note: toBeElected are Pool (staking) addresses, and not Mining adresses. 
   // all other adresses are mining adresses.
   const toBeElected = await stakingHbbft.getPoolsToBeElected.call();
@@ -400,9 +400,9 @@ async function callReward(isEpochEndBlock) {
   // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
   // console.log('got validators:', validators);
   await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
-  await blockRewardHbbft.reward(isEpochEndBlock, {from: owner}).should.be.fulfilled;
+  await blockRewardHbbft.reward(isEpochEndBlock, { from: owner }).should.be.fulfilled;
   await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
-  
+
 }
 //time travels forward to the beginning of the next transition,
 //and simulate a block mining (calling reward())
