@@ -1,11 +1,14 @@
 pragma solidity ^0.5.16;
 
 import "./interfaces/ICertifier.sol";
+import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IRandomHbbft.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/ITxPermission.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
+
+
 
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
@@ -24,7 +27,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev The address of the `Certifier` contract.
     ICertifier public certifierContract;
 
-    address public keyGenHistoryContract;
+    IKeyGenHistory public keyGenHistoryContract;
 
     /// @dev A boolean flag indicating whether the specified address is allowed
     /// to initiate transactions of any type. Used by the `allowedTxTypes` getter.
@@ -33,6 +36,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
+
+     /// @dev this is a constant for testing purposes to not cause upgrade issues with an existing network 
+    /// because of storage modifictions.
+    uint256 public minimumGasPrice;
 
     // ============================================== Constants =======================================================
 
@@ -76,7 +83,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         }
         certifierContract = ICertifier(_certifier);
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        keyGenHistoryContract = _keyGenHistoryContract;
+        keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
+        minimumGasPrice = 1000000000; // (1 gwei)
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
@@ -110,6 +118,26 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         }
 
         isSenderAllowed[_sender] = false;
+    }
+
+    /// @dev set's the minimum gas price that is allowed by non-service transactions.
+    /// IN HBBFT, there must be consens about the validator nodes about wich transaction is legal, 
+    /// and wich is not.
+    /// therefore the contract (could be the DAO) has to check the minimum gas price.
+    /// HBBFT Node implementations can also check if a transaction surpases the minimumGasPrice,
+    /// before submitting it as contribution.
+    /// The limit can be changed by the owner (typical the DAO)
+    /// @param _value The new minimum gas price.
+    function setMinimumGasPrice(uint256 _value)
+    public
+    onlyOwner
+    onlyInitialized {
+
+        // currently, we do not allow to set the minimum gas price to 0,
+        // that would open pandoras box, and the consequences of doing that, 
+        // requires deeper research.
+        require(_value > 0, "Minimum gas price must not be zero"); 
+        minimumGasPrice = _value;
     }
 
     // =============================================== Getters ========================================================
@@ -216,22 +244,65 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 // by anyone except validators' mining addresses if gasPrice is not zero
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
             }
-        } else if (_to == keyGenHistoryContract) {
+        } else if (_to == address(keyGenHistoryContract)) {
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
-            
-            if (validatorSetContract.isPendingValidator(_sender)) {
 
-                // the pending validator is only allowed to send his part if he has not done it yet.
-                
+            if (signature == WRITE_PART_SIGNATURE) {
 
-                // the pending validator is only allowed to send his ack if ht has not done it yet.
+                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                    == IValidatorSetHbbft.KeyGenMode.WritePart) {
+                    //is the epoch parameter correct ?
 
-                return (CALL, false);
+                    (
+                        uint256 epochNumber
+                    ) = abi.decode(
+                        abiParams,
+                        (uint256)
+                    );
+
+                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                        return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+
+                } else {
+                    // we want to write the Part, but it's not time for write the part.
+                    // so this transaction is not allowed.
+                    return (NONE, false);
+                }
+
+            } else if (signature == WRITE_ACKS_SIGNATURE) {
+
+                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                    == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+                    //is the correct epoch parameter passed ?
+                    (
+                        uint256 epochNumber
+                    ) = abi.decode(
+                        abiParams,
+                        (uint256)
+                    );
+
+                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                        return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+                } else {
+                    // we want to write the Acks, but it's not time for write the Acks.
+                    // so this transaction is not allowed.
+                    return (NONE, false);
+                }
             }
+
+            // if there is another external call to keygenhistory contracts.
+            // just treat it as normal call
         }
 
+        //TODO: figure out if this applies to HBBFT as well.
         if (validatorSetContract.isValidator(_sender) && _gasPrice > 0) {
             // Let the validator's mining address send their accumulated tx fees to some wallet
             return (_sender.balance > 0 ? BASIC : NONE, false);
@@ -247,8 +318,9 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             return (certifierContract.certifiedExplicitly(_sender) ? ALL : NONE, false);
         }
 
-        // In other cases let the `_sender` create any transaction with non-zero gas price
-        return (ALL, false);
+        // In other cases let the `_sender` create any transaction with non-zero gas price,
+        // as long the gas price is above the minimum gas price.
+        return (_gasPrice >= minimumGasPrice ? ALL : NONE, false);
     }
 
     /// @dev Returns the current block gas limit which depends on the stage of the current
@@ -283,10 +355,15 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // Function signatures
 
     // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
-    bytes4 internal constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
+    bytes4 public constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
 
+    // bytes4(keccak256("writePart(uint256,bytes)"))
+    bytes4 public constant WRITE_PART_SIGNATURE = 0x0334657d;
+
+    // bytes4(keccak256("writeAcks(uint256,bytes[])"))
+    bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
     
-
+    
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
     function _addAllowedSender(address _sender)

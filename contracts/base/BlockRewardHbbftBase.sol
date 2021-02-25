@@ -223,6 +223,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             uint256 phaseTransitionTime = stakingContract.startTimeOfNextPhaseTransition();
             uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
 
+            
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
             bool isPhaseTransition = 
@@ -232,6 +233,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             if (isPhaseTransition) {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
+            } else if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
+                validatorSetContract.handleFailedKeyGeneration();
             }
         }
     }

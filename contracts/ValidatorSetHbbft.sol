@@ -18,7 +18,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     // WARNING: since this contract is upgradeable, do not remove
     // existing storage variables and do not change their types!
-
     address[] internal _currentValidators;
     address[] internal _pendingValidators;
     address[] internal _previousValidators;
@@ -81,8 +80,16 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @dev How many times the given mining address has become a validator.
     mapping(address => uint256) public validatorCounter;
 
-    /// @dev When the last 
-    /// mapping(address => uint256) public validatorLastSuccess;
+    /// @dev Block Timestamp when a validator was successfully part of 
+    mapping(address => uint256) public validatorLastSuccess;
+
+    /// @dev holds Availability information for each specific mining address
+    /// unavailability happens if a validator gets voted to become a pending validator,
+    /// but misses out the sending of the ACK or PART within the given timeframe.
+    /// validators are required to declare availability,
+    /// in order to become available for voting again.
+    /// the value is of type timestamp
+    mapping(address => uint256) public validatorAvailableSince;
 
     // ============================================== Constants =======================================================
 
@@ -97,6 +104,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// @param maliciousValidator The mining address of the malicious validator.
     /// @param blockNumber The block number at which the `maliciousValidator` misbehaved.
     event ReportedMalicious(address reportingValidator, address maliciousValidator, uint256 blockNumber);
+
+    
+    event ValidatorAvailable(address validator, uint256 timestamp);
+
+    /// @dev Emitted by the `handleFailedKeyGeneration` function to signal that a specific validator was
+    /// marked as unavailable since he dit not contribute to the required key shares.
+    event ValidatorUnavailable(address validator, uint256 timestamp);
 
     // ============================================== Modifiers =======================================================
 
@@ -200,15 +214,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     external
     onlyBlockRewardContract {
 
-        //require(_pendingValidators.length != 0,
-        //    "DEBUG ASSERT: no pending Validators to finalize change.");
-
-        //in the case noone staked yet, the system keeps the current validator set.
-        //maybe do more checks here ?
-        //at least as debug asserts ?
-
         if (_pendingValidators.length != 0) {
-
             // Apply a new validator set formed by the `newValidatorSet` function
             _savePreviousValidators();
             _finalizeNewValidators();
@@ -228,43 +234,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     function newValidatorSet()
     external
     onlyBlockRewardContract {
-        address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
-    
-        // Choose new validators
-        if (poolsToBeElected.length > MAX_VALIDATORS) {
-
-            //todo: in HBBFT this can be the blockhash ?!
-            uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
-
-            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
-
-            if (likelihood.length > 0 && likelihoodSum > 0) {
-                address[] memory newValidators = new address[](MAX_VALIDATORS);
-
-                uint256 poolsToBeElectedLength = poolsToBeElected.length;
-                for (uint256 i = 0; i < newValidators.length; i++) {
-                    randomNumber = uint256(keccak256(abi.encode(randomNumber ^ block.timestamp)));
-                    uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
-                    newValidators[i] = poolsToBeElected[randomPoolIndex];
-                    likelihoodSum -= likelihood[randomPoolIndex];
-                    poolsToBeElectedLength--;
-                    poolsToBeElected[randomPoolIndex] = poolsToBeElected[poolsToBeElectedLength];
-                    likelihood[randomPoolIndex] = likelihood[poolsToBeElectedLength];
-                }
-
-                _setPendingValidators(newValidators);
-            }
-        } else {
-            _setPendingValidators(poolsToBeElected);
-        }
-        
-        // clear previousValidator KeyGenHistory state
-        keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
-
-        if (poolsToBeElected.length != 0) {
-            // Remove pools marked as `to be removed`
-            stakingContract.removePools();
-        }
+        _newValidatorSet(new address[](0));
     }
 
     /// @dev Removes malicious validators.
@@ -276,15 +246,125 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         _removeMaliciousValidators(_miningAddresses, "inactive");
     }
 
+    /// @dev called by validators when a validator comes online after
+    /// getting marked as unavailable caused by a failed key generation.
+    function announceAvailability()
+    external {
+        require(canCallAnnounceAvailability(msg.sender), 'Announcing availability not possible');
+
+        uint timestamp = this.getCurrentTimestamp();
+        validatorAvailableSince[msg.sender] = timestamp;
+        emit ValidatorAvailable(msg.sender, timestamp);
+        // as long the mining node is not banned as well,
+        // it can be picked up as regular active node again.
+        if (!isValidatorBanned(msg.sender)) {
+            stakingContract.notifyAvailability(stakingByMiningAddress[msg.sender]);
+        }
+    }
+
+    function handleFailedKeyGeneration()
+    external
+    onlyBlockRewardContract {
+
+
+        // we should only kick out nodes if the nodes have been really to late.
+
+        require(this.getCurrentTimestamp() >= stakingContract.stakingFixedEpochEndTime(),
+            "failed key generation can only be processed after the staking epoch is over.");
+
+        // check if the current epoch should have been ended already
+        // but some of the validators failed to write his PARTS / ACKS.
+
+        // there are 2 scenarious:
+        // 1.) missing Part: one or more validator was chosen, but never wrote his PART (most likely)
+        // 2.) missing ACK: all validators were able to write their parts, but one or more failed to write
+        // it's part.
+        //
+        // ad missing Part:
+        // in this case we can just replace the validator with another one,
+        // or if there is no other one available, continue with a smaller set.
+
+        // ad missing ACK:
+        // this case is more complex, since nodes did already write their acks for the parts
+        // of a node that now drops out.
+        // this should be a very rare case, and to make it simple, 
+        // we can just start over with the random selection of validators again.
+
+        // temporary array to keep track of the good validators.
+        // not all storage slots might be used.
+        // we asume that there is at minimum 1 bad validator.
+        address[] memory goodValidators = new address[](_pendingValidators.length - 1);
+        uint goodValidatorsCount = 0;
+
+
+        (uint128 numberOfPartsWritten,uint128 numberOfAcksWritten)
+            = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
+        
+
+        for(uint i = 0; i < _pendingValidators.length; i++) {
+            
+            // get mining address for this pool.
+            // if the mining address did his job (writing PART or ACKS).
+            // add it to the good pool.
+            address miningAddress = _pendingValidators[i]; //miningByStakingAddress[];
+
+            // if a validator is good or bad, depends if he managed
+            // the write the information required for the current state.
+            bool isGood = false;
+
+            if (_pendingValidators.length > numberOfPartsWritten) {
+                // case 1: missing part scenario.
+                // pending validator that missed out writing their part ?
+                // maybe make a more precise length check in the future here ?
+                isGood =  keyGenHistoryContract.getPart(miningAddress).length > 0;
+            } else if (_pendingValidators.length > numberOfAcksWritten) {
+                // case 2: parts were written, but did this validator also write it's ACKS ??
+                // Note: we do not really need to check if the validator has written his part,
+                // since all validators managed to write it's part. 
+                isGood = keyGenHistoryContract.getAcksLength(miningAddress) > 0;
+            }
+
+            if (isGood) {
+                // we track all good validators,
+                // so we can later pass the good validators
+                // to the _newValidatorSet function. 
+                goodValidators[goodValidatorsCount] = _pendingValidators[i];
+                goodValidatorsCount++;
+            }
+            else {
+
+                // this Pool is not available anymore.
+                // the pool does not get a Ban,
+                // but is treated as "inactive" as long it does not `announceAvailability()`
+                
+                stakingContract.removePool(stakingByMiningAddress[miningAddress]);
+                // mark the Node address as not available.
+                validatorAvailableSince[miningAddress] = 0;
+                emit ValidatorUnavailable(miningAddress, this.getCurrentTimestamp());
+            }
+        }
+
+        // we might only set a subset to the newValidatorSet function,
+        // since the last indexes of the array are holding unused slots.
+        address[] memory forcedPools = new address[](goodValidatorsCount);
+        for (uint i = 0; i < goodValidatorsCount; i++) {
+            forcedPools[i] = goodValidators[i];
+        }
+
+        stakingContract.notifyKeyGenFailed();
+        _newValidatorSet(forcedPools);
+    }
+
     /// @dev Reports that the malicious validator misbehaved at the specified block.
     /// Called by the node of each honest validator after the specified validator misbehaved.
-    /// See https://wiki.parity.io/Validator-Set.html#reporting-contract
+    /// See https://openethereum.github.io/Validator-Set.html#reporting-contract
     /// Can only be called when the `reportMaliciousCallable` getter returns `true`.
     /// @param _maliciousMiningAddress The mining address of the malicious validator.
     /// @param _blockNumber The block number where the misbehavior was observed.
     function reportMalicious(
         address _maliciousMiningAddress,
-        uint256 _blockNumber
+        uint256 _blockNumber,
+        bytes calldata
     )
     external
     onlyInitialized {
@@ -421,6 +501,62 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         return isValid;
     }
 
+    function getPendingValidatorKeyGenerationMode(address _miningAddress)
+    public
+    view
+    returns(KeyGenMode) {
+
+        // enum KeyGenMode { NotAPendingValidator, WritePart, WaitForOtherParts, 
+        // WriteAck, WaitForOtherAcks, AllKeysDone }
+
+        if (!isPendingValidator(_miningAddress)) {
+            return KeyGenMode.NotAPendingValidator;
+        }
+
+        //TODO: Do we have to check for banned validator here ?
+        if (isPendingValidator(_miningAddress)) {
+
+            // since we got a part, maybe to validator is about to write his ack ?
+            // he is allowed to write his ack, if all nodes have written their part.
+
+            (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) 
+                = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
+
+            if (numberOfPartsWritten < _pendingValidators.length) {
+
+                bytes memory part = keyGenHistoryContract.getPart(_miningAddress);
+                if (part.length == 0) {
+                    // we know here that the validator is pending, 
+                    // but dit not have written the part yet.
+                    // so he is allowed to write it's part.
+                    return KeyGenMode.WritePart;
+                }
+                else {
+                    // this mining address has written their part.
+                    return KeyGenMode.WaitForOtherParts;
+                }
+
+            } else if (numberOfAcksWritten < _pendingValidators.length) {
+
+                // not all Acks Written, so the key is not complete.
+                // we know know that all Nodes have written their PART.
+                // but not all have written their ACK.
+                // are we the one who has written his ACK.
+
+                if (keyGenHistoryContract.getAcksLength(_miningAddress) == 0) {
+                    return KeyGenMode.WriteAck;
+                }
+                else {
+                    return KeyGenMode.WaitForOtherAcks;
+                }
+
+            } else {
+                return KeyGenMode.AllKeysDone;
+            }
+        }
+    }
+
+
     /// @dev Returns a boolean flag indicating whether the specified mining address is currently banned.
     /// A validator can be banned when they misbehave (see the `_removeMaliciousValidator` internal function).
     /// @param _miningAddress The mining address.
@@ -470,6 +606,27 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     returns(address[] memory) {
         return _maliceReportedForBlock[_miningAddress][_blockNumber];
     }
+
+
+    function canCallAnnounceAvailability(address _miningAddress)
+    public
+    view
+    returns(bool) {
+
+        if (stakingByMiningAddress[_miningAddress] == address(0)) {
+            // not a validator node.
+            // revert('this address is not a validator');
+            return false;
+        }
+
+        if (validatorAvailableSince[_miningAddress] != 0) {
+             // "Validator was not marked as unavailable."
+            return false;
+        }
+
+        return true;
+    }
+
 
     /// @dev Returns whether the `reportMalicious` function can be called by the specified validator with the
     /// given parameters. Used by the `reportMalicious` function and `TxPermission` contract. Also, returns
@@ -544,6 +701,23 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     // ============================================== Internal ========================================================
 
+
+    // function _canCallAnnounceAvailability(address _miningAddress)
+    // internal
+    // view
+    // returns(bool) {
+
+    //     if (stakingByMiningAddress[_miningAddress] == address(0)) {
+    //         // not a validator node.
+    //         return false;
+    //     }
+
+    //     if (validatorAvailableSince[_miningAddress] == 0) {
+    //          // "Validator was not marked as unavailable."
+    //         return false;
+    //     }
+    // }
+
     /// @dev Updates the total reporting counter (see the `reportingCounterTotal` public mapping) for the current
     /// staking epoch after the specified validator is removed as malicious. The `reportMaliciousCallable` getter
     /// uses this counter for reporting checks so it must be up-to-date. Called by the `_removeMaliciousValidators`
@@ -561,6 +735,66 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             reportingCounterTotal[currentStakingEpoch] -= counter;
         } else {
             reportingCounterTotal[currentStakingEpoch] = 0;
+        }
+    }
+
+    function _newValidatorSet(address[] memory _forcedPools)
+    internal
+    {
+        address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
+        // Choose new validators
+        if (poolsToBeElected.length > MAX_VALIDATORS) {
+
+            uint256 poolsToBeElectedLength = poolsToBeElected.length;
+            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
+            address[] memory newValidators = new address[](MAX_VALIDATORS);
+
+            uint256 indexNewValidator = 0;
+            for(uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {
+                for(uint256 iPoolToBeElected = 0; iPoolToBeElected < poolsToBeElectedLength; iPoolToBeElected++) {
+                    if (poolsToBeElected[iPoolToBeElected] == _forcedPools[iForced]) {
+                        newValidators[indexNewValidator] = _forcedPools[iForced];
+                        indexNewValidator++;
+                        likelihoodSum -= likelihood[iPoolToBeElected];
+                        // kicking out this pools from the "to be elected" list,
+                        // by replacing it with the last element,
+                        // and virtually reducing it's size. 
+                        poolsToBeElectedLength--;
+                        poolsToBeElected[iPoolToBeElected] = poolsToBeElected[poolsToBeElectedLength];
+                        likelihood[iPoolToBeElected] = likelihood[poolsToBeElectedLength];
+                        break;
+                    }
+                }
+            }
+
+            uint256 randomNumber = IRandomHbbft(randomContract).currentSeed();
+
+            if (likelihood.length > 0 && likelihoodSum > 0) {
+                for (uint256 i = 0; i < newValidators.length; i++) {
+                    randomNumber = uint256(keccak256(abi.encode(randomNumber ^ block.timestamp)));
+                    uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
+                    newValidators[i] = poolsToBeElected[randomPoolIndex];
+                    likelihoodSum -= likelihood[randomPoolIndex];
+                    poolsToBeElectedLength--;
+                    poolsToBeElected[randomPoolIndex] = poolsToBeElected[poolsToBeElectedLength];
+                    likelihood[randomPoolIndex] = likelihood[poolsToBeElectedLength];
+                }
+
+                _setPendingValidators(newValidators);
+            }
+        } else {
+            //note: it is assumed here that _forcedPools is always a subset of poolsToBeElected.
+            // a forcedPool can never get picked up if it is not part of the poolsToBeElected.
+            // the logic needs to be that consistent.
+            _setPendingValidators(poolsToBeElected);
+        }
+        
+        // clear previousValidator KeyGenHistory state
+        keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
+
+        if (poolsToBeElected.length != 0) {
+            // Remove pools marked as `to be removed`
+            stakingContract.removePools();
         }
     }
 

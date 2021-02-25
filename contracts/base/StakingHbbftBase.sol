@@ -139,6 +139,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// and the information of the old keys is not available anymore. 
     uint256 public stakingEpochStartBlock;
 
+    /// @dev the extra time window pending validators have to write
+    /// to write their honey badger key shares.
+    /// this value is increased in response to a failed key generation event,
+    /// if one or more validators miss out writing their key shares.
+    uint256 public currentKeyGenExtraTimeWindow;
+
     /// @dev Returns the total amount of staking coins currently staked into the specified pool.
     /// Doesn't include the amount ordered for withdrawal.
     /// The pool staking address is accepted as a parameter.
@@ -293,6 +299,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     external
     onlyValidatorSetContract {
         stakingEpoch++;
+        currentKeyGenExtraTimeWindow = 0;
     }
 
     /// @dev Initializes the network parameters.
@@ -581,6 +588,33 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         delegatorMinStake = _minStake;
     }
 
+
+    /// @dev Notifies hbbft staking contract that the
+    /// key generation has failed, and a new round 
+    /// of keygeneration starts.
+    function notifyKeyGenFailed()
+    public
+    onlyValidatorSetContract
+    {
+        // we allow a extra time window for the current key generation
+        // equal in the size of the usual transition timeframe.
+        currentKeyGenExtraTimeWindow += stakingTransitionTimeframeLength;
+    }
+
+    /// @dev Notifies hbbft staking contract that a validator
+    /// asociated with the given `_stakingAddress` became
+    /// available again and can be put on to the list 
+    /// of available nodes again.
+    function notifyAvailability(address _stakingAddress)
+    public
+    onlyValidatorSetContract
+    {
+        if (stakeAmount[_stakingAddress][_stakingAddress] >= candidateMinStake) {
+            _addPoolActive(_stakingAddress, true);
+        }
+    }
+
+
     // =============================================== Getters ========================================================
 
     /// @dev Returns an array of the current active pools (the staking addresses of candidates and validators).
@@ -810,7 +844,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     view
     returns(uint256) {
         uint256 startTime = stakingEpochStartTime;
-        return startTime + stakingFixedEpochDuration - (stakingFixedEpochDuration == 0 ? 0 : 1);
+        return startTime 
+            + stakingFixedEpochDuration
+            + currentKeyGenExtraTimeWindow
+            - (stakingFixedEpochDuration == 0 ? 0 : 1);
     }
 
     // ============================================== Internal ========================================================
@@ -974,8 +1011,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         require(!isInitialized(), "Already initialized"); // initialization can only be done once
         require(_validatorSetContract != address(0),"ValidatorSet can't be 0");
         require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
-        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,"Must provide corresponding publicKeys");
-        require(_initialStakingAddresses.length == _internetAddresses.length, "Must provide corresponding IP adresses");
+        require(_initialStakingAddresses.length.mul(2) == _publicKeys.length,
+            "Must provide correct number of publicKeys");
+        require(_initialStakingAddresses.length == _internetAddresses.length,
+            "Must provide correct number of IP adresses");
         require(_delegatorMinStake != 0, "DelegatorMinStake is 0");
         require(_candidateMinStake != 0, "CandidateMinStake is 0");
 
@@ -1115,7 +1154,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     internal {
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        require(poolMiningAddress != address(0), "Stake: miningAddress is 0");
+        require(poolMiningAddress != address(0), "Pool does not exist. miningAddress for that staking address is 0");
         require(_poolStakingAddress != address(0), "Stake: stakingAddress is 0");
         require(_amount != 0, "Stake: stakingAmount is 0");
         require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");

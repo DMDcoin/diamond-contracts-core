@@ -79,7 +79,8 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
 
     /// @dev Returns a boolean flag indicating whether the specified address is allowed to use zero gas price
     /// transactions. Returns `true` if either the address is certified using the `_certify` function or if
-    /// `ValidatorSet.isReportValidatorValid` returns `true` for the specified address.
+    /// `ValidatorSet.isReportValidatorValid` returns `true` for the specified address,
+    /// or the address is a pending validator who has to write it's key shares (ACK and PART).
     /// @param _who The address for which the boolean flag must be determined.
     function certified(address _who)
     external
@@ -88,7 +89,19 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         if (_certified[_who]) {
             return true;
         }
-        return validatorSetContract.isReportValidatorValid(_who) || validatorSetContract.isPendingValidator(_who);
+        if (validatorSetContract.isReportValidatorValid(_who)) {
+            return true;
+        }
+        IValidatorSetHbbft.KeyGenMode currentGenGenMode = 
+            validatorSetContract.getPendingValidatorKeyGenerationMode(_who);
+
+        if (currentGenGenMode == IValidatorSetHbbft.KeyGenMode.WritePart || 
+            currentGenGenMode == IValidatorSetHbbft.KeyGenMode.WriteAck ) {
+            return true;
+        }
+
+        return false;
+        
     }
 
     /// @dev Returns a boolean flag indicating whether the specified address is allowed to use zero gas price

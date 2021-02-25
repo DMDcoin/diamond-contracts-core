@@ -25,6 +25,8 @@ Check also the [BlockRewardHbbft call graph](/docs/BlockRewardHbbft-call-graph.p
 
 - `Certifier`: allows validators to use a zero gas price for their service transactions (see [Parity Wiki](https://wiki.parity.io/Permissioning.html#gas-price) for more info). The following functions are considered service transactions:
   - ValidatorSetHbbft.reportMalicious
+  - KeyGenHistory.writeAck
+  - KeyGenHistory.writePart
 
 - `InitializerHbbft`: used once on network startup and then destroyed. This contract is needed for initializing upgradable contracts since an upgradable contract can't have the constructor. The bytecode of this contract is written by the `scripts/make_spec_hbbft.js` into `spec.json` along with other contracts when initializing on genesis block.
 

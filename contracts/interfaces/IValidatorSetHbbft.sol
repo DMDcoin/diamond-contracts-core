@@ -2,6 +2,9 @@ pragma solidity ^0.5.16;
 
 
 interface IValidatorSetHbbft {
+
+    enum KeyGenMode { NotAPendingValidator, WritePart, WaitForOtherParts, WriteAck, WaitForOtherAcks, AllKeysDone }
+
     function initialize(
         address,
         address,
@@ -14,8 +17,10 @@ interface IValidatorSetHbbft {
     function newValidatorSet() external;
     function removeMaliciousValidators(address[] calldata) external;
     function setStakingAddress(address, address) external;
+    function handleFailedKeyGeneration() external;
     function areDelegatorsBanned(address) external view returns(bool);
     function blockRewardContract() external view returns(address);
+    //function canCallAnnounceAvailability() external view returns(bool);
     function getPendingValidators() external view returns(address[] memory);
     function getPreviousValidators() external view returns(address[] memory);
     function getValidators() external view returns(address[] memory);
@@ -24,6 +29,7 @@ interface IValidatorSetHbbft {
     function isValidatorBanned(address) external view returns(bool);
     function isValidatorOrPending(address) external view returns(bool);
     function isPendingValidator(address) external view returns(bool);
+    function getPendingValidatorKeyGenerationMode(address) external view returns(KeyGenMode);
     function MAX_VALIDATORS() external view returns(uint256); // solhint-disable-line func-name-mixedcase
     function miningByStakingAddress(address) external view returns(address);
     function randomContract() external view returns(address);

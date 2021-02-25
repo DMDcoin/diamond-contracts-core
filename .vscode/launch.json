@@ -40,6 +40,22 @@
       ]
     },
     {
+      "name": "run keyGenTest",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceRoot}/node_modules/truffle/build/cli.bundled.js",
+      "args": ["test"],
+      "cwd": "${workspaceRoot}",
+      "outFiles": [
+          "${workspaceRoot}/test/Initializer.js",
+          ],
+      "skipFiles": [
+        "${workspaceFolder}/node_modules/**/*.js",
+        "${workspaceFolder}/lib/**/*.js",
+        "<node_internals>/**/*.js"
+      ]
+    },
+    {
       "name": "makeSpec",
       "type": "node",
       "request": "launch",

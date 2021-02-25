@@ -16,7 +16,8 @@
     "runGanache": "node_modules/.bin/ganache-cli  --allowUnlimitedContractSize --gasLimit 0xfffffffffff --port \"8545\" --accounts 200 --defaultBalanceEther 1000000 --mnemonic \"vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit\"",
     "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
     "testNoUpgradeProxy": "export CONTRACTS_NO_UPGRADE_PROXY=true && node scripts/check_for_clashing.js && bash scripts/test.sh",
-    "testDev": "bash scripts/test.sh test/BlockRewardHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
+    "getFunctionSignatures": " ./node_modules/.bin/truffle exec scripts/getFunctionSignatures.js",
+    "testDev": "bash scripts/test.sh test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
   },
   "repository": {
     "type": "git",
@@ -43,7 +44,7 @@
     "node-fetch": "^2.6.0",
     "solc": "^0.5.16",
     "solhint": "^2.0.0",
-    "solidity-coverage": "^0.7.11",
+    "solidity-coverage": "^0.7.15",
     "truffle": "^5.1.49"
   }
 }

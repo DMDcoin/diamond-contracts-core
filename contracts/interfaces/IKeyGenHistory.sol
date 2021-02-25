@@ -9,8 +9,7 @@ interface IKeyGenHistory {
         bytes[][] calldata
     ) external;
     function clearPrevKeyGenState(address[] calldata) external;
-
     function getAcksLength(address val) external view returns(uint256);
-
     function getPart(address val) external view returns (bytes memory);
+    function getNumberOfKeyFragmentsWritten() external view returns(uint128, uint128);
 }
