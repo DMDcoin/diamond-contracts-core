@@ -37,6 +37,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
 
+     /// @dev this is a constant for testing purposes to not cause upgrade issues with an existing network 
+    /// because of storage modifictions.
+    uint256 public minimumGasPrice;
+
     // ============================================== Constants =======================================================
 
     /// @dev A constant that defines a regular block gas limit.
@@ -46,10 +50,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev A constant that defines a reduced block gas limit.
     /// Used by the `blockGasLimit` public getter.
     uint256 public constant BLOCK_GAS_LIMIT_REDUCED = 2000000;
-
-    /// @dev this is a constant for testing purposes to not cause upgrade issues with an existing network 
-    /// because of storage modifictions.
-    uint256 public constant MINIMUM_GAS_PRICE = 1000000000; // (1 gwei)
 
     // ============================================== Modifiers =======================================================
 
@@ -84,6 +84,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         certifierContract = ICertifier(_certifier);
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
+        minimumGasPrice = 1000000000; // (1 gwei)
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
@@ -117,6 +118,26 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         }
 
         isSenderAllowed[_sender] = false;
+    }
+
+    /// @dev set's the minimum gas price that is allowed by non-service transactions.
+    /// IN HBBFT, there must be consens about the validator nodes about wich transaction is legal, 
+    /// and wich is not.
+    /// therefore the contract (could be the DAO) has to check the minimum gas price.
+    /// HBBFT Node implementations can also check if a transaction surpases the minimumGasPrice,
+    /// before submitting it as contribution.
+    /// The limit can be changed by the owner (typical the DAO)
+    /// @param _value The new minimum gas price.
+    function setMinimumGasPrice(uint256 _value)
+    public
+    onlyOwner
+    onlyInitialized {
+
+        // currently, we do not allow to set the minimum gas price to 0,
+        // that would open pandoras box, and the consequences of doing that, 
+        // requires deeper research.
+        require(_value > 0, "Minimum gas price must not be zero"); 
+        minimumGasPrice = _value;
     }
 
     // =============================================== Getters ========================================================
@@ -299,7 +320,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
         // In other cases let the `_sender` create any transaction with non-zero gas price,
         // as long the gas price is above the minimum gas price.
-        return (_gasPrice >= MINIMUM_GAS_PRICE ? ALL : NONE, false);
+        return (_gasPrice >= minimumGasPrice ? ALL : NONE, false);
     }
 
     /// @dev Returns the current block gas limit which depends on the stage of the current
