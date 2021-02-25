@@ -44,7 +44,7 @@
     "node-fetch": "^2.6.0",
     "solc": "^0.5.16",
     "solhint": "^2.0.0",
-    "solidity-coverage": "^0.7.11",
+    "solidity-coverage": "^0.7.15",
     "truffle": "^5.1.49"
   }
 }
