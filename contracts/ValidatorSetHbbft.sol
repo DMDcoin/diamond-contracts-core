@@ -262,6 +262,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         }
     }
 
+    /// @dev called by blockreward contract when a the reward when the block reward contract 
+    /// came to the conclusion that the validators could not manage to create a new shared key together.
+    /// this starts the process to find replacements for the failing candites,
+    /// as well as marking them unavailable.
     function handleFailedKeyGeneration()
     external
     onlyBlockRewardContract {
