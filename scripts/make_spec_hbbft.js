@@ -145,7 +145,8 @@ async function main() {
     constructor: await deploy.encodeABI()
   };
 
-  // spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
+  spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
+  
   // spec.engine.hbbft.params.blockRewardContractTransition = 0;
   spec.accounts['0x2000000000000000000000000000000000000000'] = {
     balance: '0',
