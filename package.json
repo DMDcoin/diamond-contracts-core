@@ -16,7 +16,8 @@
     "runGanache": "node_modules/.bin/ganache-cli  --allowUnlimitedContractSize --gasLimit 0xfffffffffff --port \"8545\" --accounts 200 --defaultBalanceEther 1000000 --mnemonic \"vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit\"",
     "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
     "testNoUpgradeProxy": "export CONTRACTS_NO_UPGRADE_PROXY=true && node scripts/check_for_clashing.js && bash scripts/test.sh",
-    "getFunctionSignatures": " ./node_modules/.bin/truffle exec scripts/getFunctionSignatures.js",
+    "getFunctionSignatures": "./node_modules/.bin/truffle exec scripts/getFunctionSignatures.js",
+    "feedTestAccountsOnTestnet": "./node_modules/.bin/truffle exec scripts/feedTestAccounts.js --network testNet",
     "testDev": "bash scripts/test.sh test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
   },
   "repository": {
@@ -29,6 +30,7 @@
   },
   "homepage": "https://github.com/poanetwork/posdao-contracts#readme",
   "dependencies": {
+    "@truffle/hdwallet-provider": "^1.2.2",
     "lodash": "^4.17.20",
     "solidity-docgen": "^0.4.1",
     "solidity-flattener": "github:poanetwork/solidity-flattener#master",

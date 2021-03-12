@@ -24,3 +24,4 @@ node_modules
 # hbbft-posdao-contracts specific files
 .network
 .pk
+.mnemonic

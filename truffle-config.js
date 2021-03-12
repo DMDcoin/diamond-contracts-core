@@ -22,20 +22,18 @@
  *
  */
 
-// const HDWallet = require('truffle-hdwallet-provider');
-// const infuraKey = "fj4jll3k.....";
-//
+const HDWalletProvider = require("@truffle/hdwallet-provider");
 
 const fs = require('fs');
 
-let pk; 
+let mnemonic; 
 let network;
 
 try {
-  pk = fs.readFileSync(".pk").toString().trim();
+  mnemonic = fs.readFileSync(".mnemonic").toString().trim();
 
 } catch (e) {
-  console.warn("file .pk not found. Required for updating the testNet.");
+  console.warn("file .mnemonic not found. Required for updating the testNet.");
 }
 
 try {
@@ -68,14 +66,15 @@ module.exports = {
 
     development: {
       host: "localhost",
-      port: 8545,
+      port: 8540,
       gas: 8000000,
-      network_id: "*" // Match any network id
+      network_id: "*", // Match any network id
+      from: "0x1230000000000000000000000000000000000001"
     },
 
     test: {
       host: "localhost",
-      port: 8545,
+      port: 8540,
       gas: 8000000,
       network_id: "*" // Match any network id
     },
@@ -89,19 +88,20 @@ module.exports = {
     },
 
     testNet: {
-      provider: () => new PrivateKeyProvider(pk, network),
-      gas: 8000000,
-      network_id: "*" // Match any network id
+      provider: function() {
+        return new HDWalletProvider(
+          { mnemonic: mnemonic,
+            providerOrUrl: network,
+            numberOfAddresses: 100}
+          );
+      },
+      network_id: '*',
     },
   },
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
-    reporter: 'eth-gas-reporter',
-    reporterOptions : { 
-      showTimeSpent: true,
-      showMethodSig: true
-    },
+    
     enableTimeouts: false
   },
 
