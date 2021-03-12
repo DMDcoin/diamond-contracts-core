@@ -66,15 +66,14 @@ module.exports = {
 
     development: {
       host: "localhost",
-      port: 8540,
+      port: 8545,
       gas: 8000000,
-      network_id: "*", // Match any network id
-      from: "0x1230000000000000000000000000000000000001"
+      network_id: "*" // Match any network id
     },
 
     test: {
       host: "localhost",
-      port: 8540,
+      port: 8545,
       gas: 8000000,
       network_id: "*" // Match any network id
     },
