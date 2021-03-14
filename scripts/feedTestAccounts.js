@@ -52,7 +52,7 @@ module.exports = function(callback) {
 
   
 
-  doFeedAccounts(web3, 100, web3.utils.toWei('100')).then(()=>{
+  doFeedAccounts(web3, 99, web3.utils.toWei('100')).then(()=>{
     callback();
   }).catch((e) => {
     console.error('An Error occured:');
