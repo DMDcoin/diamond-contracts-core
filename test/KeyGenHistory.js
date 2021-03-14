@@ -212,8 +212,8 @@ contract('InitializerHbbft', async accounts => {
       //'0x00000000000000000000000000000000', {from: stakingAddresses[5], value: candidateMinStake}).should.be.fulfilled;
 
       const poolIsActiveNow = await stakingHbbft.isPoolActive.call(newPoolStakingAddress);
-      true.should.be.equal(poolIsActiveNow);
-
+      poolIsActiveNow.should.be.equal(true);
+      
       //await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake}).should.be.fulfilled;
       //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
       //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
@@ -267,8 +267,9 @@ contract('InitializerHbbft', async accounts => {
 
       pendingValidators.should.be.deep.equal([initializingMiningAddresses[0]]);
 
-      keyGenHistory.writePart('1', parts[0], { from: pendingValidators[0] });
-      keyGenHistory.writeAcks('1', acks[0], { from: pendingValidators[0] });
+      await keyGenHistory.writePart('1', parts[0], { from: pendingValidators[0] });
+
+      await keyGenHistory.writeAcks('1', acks[0], { from: pendingValidators[0] });
 
       await timeTravelToEndEpoch();
 
@@ -284,9 +285,8 @@ contract('InitializerHbbft', async accounts => {
       await printValidatorState('epoch1 phase2:');
 
       // // now write the ACK and the PART:
-
-      keyGenHistory.writePart('2', parts[0], { from: newPoolMiningAddress });
-      keyGenHistory.writeAcks('2', acks[0], { from: newPoolMiningAddress });
+      await keyGenHistory.writePart('2', parts[0], { from: newPoolMiningAddress });
+      await keyGenHistory.writeAcks('2', acks[0], { from: newPoolMiningAddress });
 
       // it's now job of the current validators to verify the correct write of the PARTS and ACKS
       // (this is simulated by the next call)
@@ -336,11 +336,11 @@ contract('InitializerHbbft', async accounts => {
       // now let pending validator 2 write it's Part,
       // but pending validator 1 misses out to write it's part.
 
-      keyGenHistory.writePart('3', parts[0], { from: poolMiningAddress2 });
+      await keyGenHistory.writePart('3', parts[0], { from: poolMiningAddress2 });
 
       //TODO: add handling that someone is not allowed to write his ack, 
       //if not all have written their part ?! or just rely on the reporting system for that ?!
-      keyGenHistory.writeAcks('3', acks[0], { from: poolMiningAddress2 });
+      await keyGenHistory.writeAcks('3', acks[0], { from: poolMiningAddress2 });
 
       //const callResult = await keyGenHistory.getNumberOfKeyFragmentsWritten.call();
       //console.log(callResult);
