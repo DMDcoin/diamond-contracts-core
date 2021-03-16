@@ -249,6 +249,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             // has to send it's acks and Parts,
             // but has not done this yet.
 
+
+            return (CALL, false); // TODO: This is a experimental change, allowing all calls against keyGenHistoryContract. 
+                                //this has been done because the following code doesn't work as expected.
+
             if (signature == WRITE_PART_SIGNATURE) {
 
                 if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
@@ -276,26 +280,27 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
             } else if (signature == WRITE_ACKS_SIGNATURE) {
 
-                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
-                    == IValidatorSetHbbft.KeyGenMode.WriteAck) {
-                    //is the correct epoch parameter passed ?
-                    (
-                        uint256 epochNumber
-                    ) = abi.decode(
-                        abiParams,
-                        (uint256)
-                    );
+                return (ALL, false);
+                // if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                //     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+                //     //is the correct epoch parameter passed ?
+                //     (
+                //         uint256 epochNumber
+                //     ) = abi.decode(
+                //         abiParams,
+                //         (uint256, bytes[])
+                //     );
 
-                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
-                        return (CALL, false);
-                    } else {
-                        return (NONE, false);
-                    }
-                } else {
-                    // we want to write the Acks, but it's not time for write the Acks.
-                    // so this transaction is not allowed.
-                    return (NONE, false);
-                }
+                //     if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                //         return (CALL, false);
+                //     } else {
+                //         return (NONE, false);
+                //     }
+                // } else {
+                //     // we want to write the Acks, but it's not time for write the Acks.
+                //     // so this transaction is not allowed.
+                //     return (NONE, false);
+                // }
             }
 
             // if there is another external call to keygenhistory contracts.
@@ -362,7 +367,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     // bytes4(keccak256("writeAcks(uint256,bytes[])"))
     bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
-    
     
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
