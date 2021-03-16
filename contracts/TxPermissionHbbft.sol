@@ -249,38 +249,27 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             // has to send it's acks and Parts,
             // but has not done this yet.
 
-
-            return (CALL, false); // TODO: This is a experimental change, allowing all calls against keyGenHistoryContract. 
-                                //this has been done because the following code doesn't work as expected.
+            // TODO: This is a experimental version,
+            // allowing all calls against keyGenHistoryContract to be legit, even without correct
+            // epoch number.
 
             if (signature == WRITE_PART_SIGNATURE) {
 
                 if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
                     == IValidatorSetHbbft.KeyGenMode.WritePart) {
-                    //is the epoch parameter correct ?
-
-                    (
-                        uint256 epochNumber
-                    ) = abi.decode(
-                        abiParams,
-                        (uint256)
-                    );
-
-                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
                         return (CALL, false);
-                    } else {
-                        return (NONE, false);
-                    }
-
-                } else {
-                    // we want to write the Part, but it's not time for write the part.
-                    // so this transaction is not allowed.
-                    return (NONE, false);
                 }
+
+                return (NONE, false);
 
             } else if (signature == WRITE_ACKS_SIGNATURE) {
 
-                return (ALL, false);
+                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+                        return (CALL, false);
+                }
+
+                return (NONE, false);
                 // if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
                 //     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
                 //     //is the correct epoch parameter passed ?
