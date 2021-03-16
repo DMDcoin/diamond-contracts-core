@@ -264,10 +264,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
             } else if (signature == WRITE_ACKS_SIGNATURE) {
 
-                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
-                     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+                //if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                //     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
                         return (CALL, false);
-                }
+                //}
 
                 return (NONE, false);
                 // if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
@@ -290,6 +290,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 //     // so this transaction is not allowed.
                 //     return (NONE, false);
                 // }
+            } else {
+                return (CALL, false);
             }
 
             // if there is another external call to keygenhistory contracts.
