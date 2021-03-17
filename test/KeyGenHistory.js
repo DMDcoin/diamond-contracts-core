@@ -269,6 +269,10 @@ contract('InitializerHbbft', async accounts => {
 
       await keyGenHistory.writePart('1', parts[0], { from: pendingValidators[0] });
 
+      //confirm that part was written.
+      const partFromBc = await keyGenHistory.getPart.call(pendingValidators[0]);
+      partFromBc.should.be.equal('0x' + parts[0].toString('hex'), partFromBc, 'parts read from the blockchain require to be equal to the written data.');
+
       await keyGenHistory.writeAcks('1', acks[0], { from: pendingValidators[0] });
 
       await timeTravelToEndEpoch();
