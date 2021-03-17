@@ -25,20 +25,24 @@ async function doFeedAccounts(web3, countOfRecipients, valueToFeed = '1000000000
 
   for(let i = 0; i < countOfRecipients; i++) {
 
-      //console.log(`next nonce: ${nonce}`);
-      const txObj = {
-          from: mainAddress,
-          to: addresses[i],
-          gas: 21000,
-          gasPrice: '090000000000',
-          value: valueToFeed,
-          nonce: nonceBase + i,
-      };
+    //don't continue to loop if there are no known adresses anymore.
+    if (!addresses[i]){
+      break;
+    }
 
-      console.log(`sending TX: `, txObj);
-      
-      await web3.eth.sendTransaction(txObj);
-      
+    //console.log(`next nonce: ${nonce}`);
+    const txObj = {
+        from: mainAddress,
+        to: addresses[i],
+        gas: 21000,
+        gasPrice: '090000000000',
+        value: valueToFeed,
+        nonce: nonceBase + i,
+    };
+
+    console.log(`sending TX: `, txObj);
+    
+    await web3.eth.sendTransaction(txObj);
   }
 
   console.log(`All Transactions send to the blockchain.`);
