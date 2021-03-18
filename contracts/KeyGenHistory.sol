@@ -104,6 +104,11 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         numberOfPartsWritten++;
     }
 
+    function writePartEmpty(uint _upcommingEpoch, bytes calldata _part)
+    external {
+    }
+
+
     function writeAcks(uint _upcommingEpoch, bytes[] memory _acks)
     public
     onlyUpcommingEpoch(_upcommingEpoch) {
@@ -112,6 +117,46 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
         require(acks[msg.sender].length == 0, "Acks already submitted");
         acks[msg.sender] = _acks;
+        numberOfAcksWritten++;
+    }
+
+
+    function writeAcksEmpty(uint _upcommingEpoch, bytes[] memory _acks)
+    public {
+        
+    }
+
+    function writeAcksPublicNoCheck(uint _upcommingEpoch, bytes[] memory _acks)
+    public {
+        acks[msg.sender] = _acks;
+        numberOfAcksWritten++;
+    }
+
+
+    function writeAcksExternal(uint _upcommingEpoch, bytes[] calldata _acks)
+    external
+    onlyUpcommingEpoch(_upcommingEpoch) {
+        // It can only be called by a new validator which is elected but not yet finalized...
+        // ...or by a validator which is already in the validator set.
+        require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
+        require(acks[msg.sender].length == 0, "Acks already submitted");
+        bytes[] memory data = new bytes[](_acks.length);
+        for(uint i = 0; i < _acks.length; i++) {
+            data[i] = _acks[i];
+        }
+        
+        acks[msg.sender] = data;
+        numberOfAcksWritten++;
+    }
+
+    function writeAcksExternalNoCheck(uint _upcommingEpoch, bytes[] calldata _acks)
+    external {
+        bytes[] memory data = new bytes[](_acks.length);
+        for(uint i = 0; i < _acks.length; i++) {
+            data[i] = _acks[i];
+        }
+        
+        acks[msg.sender] = data;
         numberOfAcksWritten++;
     }
 
