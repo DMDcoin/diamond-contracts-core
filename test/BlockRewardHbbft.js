@@ -368,11 +368,13 @@ contract('BlockRewardHbbft', async accounts => {
       const balanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       const reinsertPotBefore = new BN(await blockRewardHbbft.reinsertPot.call());
 
+      
       let fillUpTx = {
         from: accounts[0],
         to: blockRewardHbbft.address,
         value: fillUpValue,
-        gas: '100000'
+        gas: '100000',
+        gasPrice: web3.utils.toWei('100', 'gwei') //in some configurations the default gasPrice is used here, it uses 0 instead..
       };
 
       //blockRewardHbbft.address
