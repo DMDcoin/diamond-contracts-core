@@ -40,7 +40,6 @@ async function doPrintSignatures() {
   const reportMalicious = await valSet.reportMalicious.request('0xabcdef0000000000000000000000000000000001', '0x01', '0x02');
   console.log('reportMaliciousLog:', reportMalicious.data);
 
-
   //const writePart = await keyGenHistory.writePart.request('', ''):
 
   
@@ -60,16 +59,13 @@ async function doPrintSignatures() {
 console.log('script loaded.');
 
 module.exports = function(callback) {
-
   
-
   doPrintSignatures().then(()=>{
     callback();
   }).catch((e) => {
     console.error('An Error occured:');
     callback(e);
   });
-
 }
 
 // console.log('starting update process');
