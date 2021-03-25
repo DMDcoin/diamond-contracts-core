@@ -342,6 +342,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         );
         stakingFixedEpochDuration = _stakingFixedEpochDuration;
         stakingWithdrawDisallowPeriod = _stakingWithdrawDisallowPeriod;
+        //note: this might be still 0 when created in the genesis block.
         stakingEpochStartTime = validatorSetContract.getCurrentTimestamp();
         stakingTransitionTimeframeLength = _stakingTransitionTimeframeLength;
     }
