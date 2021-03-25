@@ -218,7 +218,7 @@ async function main() {
 
     // Build KeyGenHistory contract
     contract = new web3.eth.Contract(contractsCompiled['KeyGenHistory'].abi);
-    deploy = await contract.deploy({data: '0x' + contractsCompiled['KeyGenHistory'].bytecode, arguments: [
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
         '0x7000000000000000000000000000000000000000', // implementation address
         owner,
         []
