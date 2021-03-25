@@ -203,6 +203,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             validatorCounter[miningAddress]++;
             _setStakingAddress(miningAddress, _initialStakingAddresses[i]);
         }
+
+
     }
 
       /// @dev Called by the system when a pending validator set is ready to be activated.
@@ -275,6 +277,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
         require(this.getCurrentTimestamp() >= stakingContract.stakingFixedEpochEndTime(),
             "failed key generation can only be processed after the staking epoch is over.");
+
+        if (stakingContract.getPoolsToBeElected().length == 0) {
+            // if there is currently noone able to be elected, we just wait.
+            // probably this happens, until there is someone manages to make 
+            // his pool available for staking again.
+            return;
+        }
 
         // check if the current epoch should have been ended already
         // but some of the validators failed to write his PARTS / ACKS.
