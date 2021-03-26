@@ -95,6 +95,8 @@ module.exports = {
           );
       },
       network_id: '*',
+      networkCheckTimeout: 1000000,
+      timeoutBlocks: 200
     },
   },
 
