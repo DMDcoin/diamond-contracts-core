@@ -208,7 +208,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
         // Get the called function's signature
         bytes4 signature = bytes4(0);
-        bytes memory abiParams;
+        
         uint256 i;
         for (i = 0; _data.length >= 4 && i < 4; i++) {
             signature |= bytes4(_data[i]) >> i*8;
@@ -218,6 +218,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         if (_to == address(validatorSetContract)) {
             // The rules for the ValidatorSet contract
             if (signature == REPORT_MALICIOUS_SIGNATURE) {
+                bytes memory abiParams;
                 abiParams = new bytes(_data.length - 4 > 64 ? 64 : _data.length - 4);
 
                 for (i = 0; i < abiParams.length; i++) {
@@ -245,53 +246,57 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
             }
         } else if (_to == address(keyGenHistoryContract)) {
+
+
+            // return if the data length is not big enough to pass a upcommingEpoch parameter.
+            //  if (_data.length < )
+
+             if (_data.length < 8) {
+                 return (NONE, false);
+             }
+
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
-
-            // TODO: This is a experimental version,
-            // allowing all calls against keyGenHistoryContract to be legit, even without correct
-            // epoch number.
 
             if (signature == WRITE_PART_SIGNATURE) {
 
                 if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
                     == IValidatorSetHbbft.KeyGenMode.WritePart) {
-                        return (CALL, false);
-                }
+                    //is the epoch parameter correct ?
 
-                return (NONE, false);
+                    uint256 epochNumber = _getSliceUInt256(4, _data);
+
+                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                        return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+
+                } else {
+                    // we want to write the Part, but it's not time for write the part.
+                    // so this transaction is not allowed.
+                    return (NONE, false);
+                }
 
             } else if (signature == WRITE_ACKS_SIGNATURE) {
 
-                //if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
-                //     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                    == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+                    //is the correct epoch parameter passed ?
+                    
+                    uint256 epochNumber = _getSliceUInt256(4, _data);
+
+                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
                         return (CALL, false);
-                //}
-
-                return (NONE, false);
-                // if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
-                //     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
-                //     //is the correct epoch parameter passed ?
-                //     (
-                //         uint256 epochNumber
-                //     ) = abi.decode(
-                //         abiParams,
-                //         (uint256, bytes[])
-                //     );
-
-                //     if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
-                //         return (CALL, false);
-                //     } else {
-                //         return (NONE, false);
-                //     }
-                // } else {
-                //     // we want to write the Acks, but it's not time for write the Acks.
-                //     // so this transaction is not allowed.
-                //     return (NONE, false);
-                // }
-            } else {
-                return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+                } else {
+                    // we want to write the Acks, but it's not time for write the Acks.
+                    // so this transaction is not allowed.
+                    return (NONE, false);
+                }
             }
 
             // if there is another external call to keygenhistory contracts.
@@ -368,4 +373,34 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         _allowedSenders.push(_sender);
         isSenderAllowed[_sender] = true;
     }
+
+
+    function _getSliceUInt256(uint256 begin, bytes memory data) 
+    internal
+    pure
+    returns (uint256) {
+        
+        uint256 a = 0;
+        for(uint256 i=0;i<32;i++) {
+            a = a + (((uint256)((uint8)(data[begin + i]))) * ((uint256)(2 ** ((31 - i) * 8))));
+        }
+        return a;
+    }
+
+    //alternative to _getSliceUInt256.
+    // function _decodeUInt256Param(uint256 begin, bytes memory data) public pure returns (uint256) {
+    //     bytes memory a = new bytes(32);
+    //     for(uint256 i=0;i<32;i++) {
+    //         a[i] = data[i+begin];
+    //     }
+
+    //     (
+    //         uint256 result
+    //     ) = abi.decode(
+    //         a,
+    //         (uint256)
+    //     );
+        
+    //     return result;
+    // }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.5.16;
 
 interface IValidatorSetHbbft {
 
+    // Key Generation states of validator.
     enum KeyGenMode { NotAPendingValidator, WritePart, WaitForOtherParts, WriteAck, WaitForOtherAcks, AllKeysDone }
 
     function initialize(

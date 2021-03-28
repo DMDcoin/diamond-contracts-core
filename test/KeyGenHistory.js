@@ -342,12 +342,14 @@ contract('InitializerHbbft', async accounts => {
 
       await writePart('3', parts[0], poolMiningAddress2);
 
-      //TODO: add handling that someone is not allowed to write his ack, 
-      //if not all have written their part ?! or just rely on the reporting system for that ?!
-      await writeAcks('3', acks[0], poolMiningAddress2);
 
-      //const callResult = await keyGenHistory.getNumberOfKeyFragmentsWritten.call();
-      //console.log(callResult);
+      await writeAcks('3', acks[0], poolMiningAddress2).should.be.rejected;
+
+      if (logOutput) {
+        console.log('numberOfPartsWritten: ',  await keyGenHistory.numberOfPartsWritten.call());
+        console.log('numberOfAcksWritten: ',  await keyGenHistory.numberOfAcksWritten.call());
+      }
+      
 
       await timeTravelToEndEpoch();
 
@@ -416,19 +418,38 @@ async function call2ParaFunction(functionName, from, upcommingEpochNumber, parts
   //
   const call = keyGenHistory.contract.methods[functionName](upcommingEpochNumber, parts);
 
+  
+  
+  //(await txPermission._getSliceUInt256(5, keyGenHistory.contract.methods[functionName](upcommingEpochNumber.sub(new BN('1')), parts).encodeABI());
+
+
   const asEncoded = call.encodeABI();
 
-  const result = await txPermission.allowedTxTypes(from, keyGenHistory.address, '0x0' /* value */, '0x0' /* gas price */, asEncoded);
+  if (logOutput) {
+    console.log('calling: ', functionName);
+    console.log('from: ', from)
+    console.log('epoch: ', upcommingEpochNumber.toString());
+    console.log('ecodedCall: ', asEncoded);
+  }
+    
+  //const numberFromContract = await txPermission._getSliceUInt256(4, asEncoded);
+  //const numberFromContract2 = await txPermission._decodeUInt256Param(4, asEncoded);
+  //console.log('upcommingEpochNumber: ', numberFromContract.toString());
+  //console.log('numberFromContract2', numberFromContract2.toString());
 
+
+  const allowedTxType = await txPermission.allowedTxTypes(from, keyGenHistory.address, '0x0' /* value */, '0x0' /* gas price */, asEncoded);
+
+  //console.log(allowedTxType.typesMask.toString());
   // don't ask to cache this result.
-  result.cache.should.be.equal(false);
+  allowedTxType.cache.should.be.equal(false);
 
   /// 0x01 - basic transaction (e.g. ether transferring to user wallet);
   /// 0x02 - contract call;
   /// 0x04 - contract creation;
   /// 0x08 - private transaction.
 
-  result.typesMask.should.be.bignumber.equal(new BN('2'));
+  allowedTxType.typesMask.should.be.bignumber.equal(new BN('2'), 'Transaction should be allowed according to TxPermission Contract.');
   
   // we know now, that this call is allowed. 
   // so we can execute it.
