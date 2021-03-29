@@ -258,14 +258,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             }
         } else if (_to == address(keyGenHistoryContract)) {
 
-
-            // return if the data length is not big enough to pass a upcommingEpoch parameter.
-            //  if (_data.length < )
-
-             if (_data.length < 8) {
-                 return (NONE, false);
-             }
-
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
@@ -275,6 +267,12 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
                     == IValidatorSetHbbft.KeyGenMode.WritePart) {
                     //is the epoch parameter correct ?
+
+                    // return if the data length is not big enough to pass a upcommingEpoch parameter.
+                    // we could add an addition size check, that include the minimal size of the part as well.
+                    if (_data.length < 36) {
+                        return (NONE, false);
+                    }
 
                     uint256 epochNumber = _getSliceUInt256(4, _data);
 
@@ -294,8 +292,15 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
                 if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
                     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+
+                    // return if the data length is not big enough to pass a upcommingEpoch parameter.
+                    // we could add an addition size check, that include the minimal size of the part as well.
+                    if (_data.length < 36) {
+                        return (NONE, false);
+                    }
+
                     //is the correct epoch parameter passed ?
-                    
+
                     uint256 epochNumber = _getSliceUInt256(4, _data);
 
                     if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
