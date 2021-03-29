@@ -43,13 +43,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     // ============================================== Constants =======================================================
 
-    /// @dev A constant that defines a regular block gas limit.
-    /// Used by the `blockGasLimit` public getter.
-    uint256 public constant BLOCK_GAS_LIMIT = 10000000;
-
-    /// @dev A constant that defines a reduced block gas limit.
-    /// Used by the `blockGasLimit` public getter.
-    uint256 public constant BLOCK_GAS_LIMIT_REDUCED = 2000000;
+    /// @dev defines the block gas limit, respected by the hbbft validators.
+    uint256 public blockGasLimit;
 
     // ============================================== Modifiers =======================================================
 
@@ -139,6 +134,22 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         require(_value > 0, "Minimum gas price must not be zero"); 
         minimumGasPrice = _value;
     }
+
+
+    /// @dev set's the block gas limit.
+    /// IN HBBFT, there must be consens about the block gas limit.
+    function setBlockGasLimit(uint256 _value)
+    public
+    onlyOwner
+    onlyInitialized {
+
+        // we make some check that the block gas limit can not be set to low, 
+        // to prevent the chain to be completly inoperatable.
+        // this value is chosen arbitrarily
+        require(_value >= 1000000, "Block Gas limit gas price must be at minimum 1,000,000");
+        blockGasLimit = _value;
+    }
+
 
     // =============================================== Getters ========================================================
 
@@ -323,17 +334,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         // as long the gas price is above the minimum gas price.
         return (_gasPrice >= minimumGasPrice ? ALL : NONE, false);
     }
-
-    /// @dev Returns the current block gas limit which depends on the stage of the current
-    // /// staking epoch: the block gas limit is temporarily reduced for the latest block of the epoch.
-    // function blockGasLimit() public view returns(uint256) {
-    //     address stakingContract = validatorSetContract.stakingContract();
-    //     uint256 stakingEpochEndTime = IStakingHbbft(stakingContract).stakingFixedEpochEndTime();
-    //     if (block.timestamp == stakingEpochEndBlock - 1 || block.number == stakingEpochEndBlock) {
-    //         return BLOCK_GAS_LIMIT_REDUCED;
-    //     }
-    //     return BLOCK_GAS_LIMIT;
-    // }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
     function isInitialized()
