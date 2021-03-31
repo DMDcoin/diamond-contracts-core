@@ -40,15 +40,13 @@
       ]
     },
     {
-      "name": "run keyGenTest",
+      "name": "run testDev",
       "type": "node",
       "request": "launch",
       "program": "${workspaceRoot}/node_modules/truffle/build/cli.bundled.js",
-      "args": ["test"],
+      "args": ["testDev"],
       "cwd": "${workspaceRoot}",
-      "outFiles": [
-          "${workspaceRoot}/test/Initializer.js",
-          ],
+      "outFiles": [],
       "skipFiles": [
         "${workspaceFolder}/node_modules/**/*.js",
         "${workspaceFolder}/lib/**/*.js",
@@ -63,6 +61,20 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run-script", "make_spec_test"]
     }
+    {
+      "name": "npm run testDev",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceRoot}",
+      "outFiles": [],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run-script", "testDev"],
+      "skipFiles": [
+        "${workspaceFolder}/node_modules/**/*.js",
+        "${workspaceFolder}/lib/**/*.js",
+        "<node_internals>/**/*.js"
+      ]
+    },
     
   ]
 }
