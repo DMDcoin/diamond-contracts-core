@@ -2,8 +2,7 @@
   "extends": "solhint:default",
   "plugins": [],
   "rules": {
-    "code-complexity": "on",
-    "function-max-lines": "on",
-    "separate-by-one-line-in-contract": "on"
+    "code-complexity": ["warn", 19],
+    "function-max-lines": ["warn", 135]
   }
 }
