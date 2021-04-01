@@ -14,6 +14,8 @@ const PERMISSION_CONTRACT = '0x4000000000000000000000000000000000000001';
 const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
 const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
+let useUpgradeProxy = false;
+
 main();
 
 async function main() {
@@ -99,139 +101,199 @@ async function main() {
   let contract = new web3.eth.Contract(storageProxyCompiled.abi);
   let deploy;
 
-  // Build ValidatorSetHbbft contract
-  deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+  if (useUpgradeProxy) {
+
+    // Build ValidatorSetHbbft contract
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
       '0x1000000000000000000000000000000000000000', // implementation address
       owner,
       []
     ]});
-  // spec.engine.hbbft.params.validators.multi = {
-  //   "0": {
-  //     "contract": VALIDATOR_SET_CONTRACT
-  //   }
-  // };
-  spec.accounts[VALIDATOR_SET_CONTRACT] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
-  spec.accounts['0x1000000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: '0x' + contractsCompiled['ValidatorSetHbbft'].bytecode
-  };
 
-  // Build StakingHbbft contract
-  deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+    spec.accounts[VALIDATOR_SET_CONTRACT] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+
+    spec.accounts['0x1000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['ValidatorSetHbbft'].bytecode
+    };
+
+      // Build StakingHbbft contract
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
       '0x1100000000000000000000000000000000000000', // implementation address
       owner,
       []
     ]});
-  spec.accounts[STAKING_CONTRACT] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
-  spec.accounts['0x1100000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: '0x' + contractsCompiled['StakingHbbft'].bytecode
-  };
+    
+    spec.accounts[STAKING_CONTRACT] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+    spec.accounts['0x1100000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['StakingHbbft'].bytecode
+    };
 
-  // Build BlockRewardHbbft contract
-  deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
-      '0x2000000000000000000000000000000000000000', // implementation address
-      owner,
-      []
+    // Build BlockRewardHbbft contract
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+        '0x2000000000000000000000000000000000000000', // implementation address
+        owner,
+        []
+      ]});
+    spec.accounts[BLOCK_REWARD_CONTRACT] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+
+    spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
+
+    // spec.engine.hbbft.params.blockRewardContractTransition = 0;
+    spec.accounts['0x2000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['BlockRewardHbbft'].bytecode
+    };
+
+    // Build RandomHbbft contract
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+        '0x3000000000000000000000000000000000000000', // implementation address
+        owner,
+        []
+      ]});
+    spec.accounts[RANDOM_CONTRACT] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+    spec.accounts['0x3000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['RandomHbbft'].bytecode
+    };
+    //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
+
+    // Build TxPermission contract
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+        '0x4000000000000000000000000000000000000000', // implementation address
+        owner,
+        []
+      ]});
+    spec.accounts[PERMISSION_CONTRACT] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+    spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
+    spec.params.transactionPermissionContractTransition = '0x0';
+
+    spec.accounts['0x4000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['TxPermissionHbbft'].bytecode
+    };
+
+    // Build Certifier contract
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+        '0x5000000000000000000000000000000000000000', // implementation address
+        owner,
+        []
+      ]});
+    spec.accounts[CERTIFIER_CONTRACT] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+    spec.accounts['0x5000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['CertifierHbbft'].bytecode
+    };
+
+    // Build Registry contract
+    contract = new web3.eth.Contract(contractsCompiled['Registry'].abi);
+    deploy = await contract.deploy({data: '0x' + contractsCompiled['Registry'].bytecode, arguments: [
+      CERTIFIER_CONTRACT,
+        owner
+      ]});
+    spec.accounts['0x6000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+    spec.params.registrar = '0x6000000000000000000000000000000000000000';
+
+    // Build KeyGenHistory contract
+    contract = new web3.eth.Contract(contractsCompiled['KeyGenHistory'].abi);
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+        '0x7000000000000000000000000000000000000000', // implementation address
+        owner,
+        []
+      ]});
+
+    spec.accounts[KEY_GEN_HISTORY_CONTRACT] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+
+
+    spec.accounts['0x7000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['KeyGenHistory'].bytecode
+    };
+
+  }
+  else { // not useUpgradeProxy
+
+    spec.accounts[VALIDATOR_SET_CONTRACT] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['ValidatorSetHbbft'].bytecode
+    };
+
+    spec.accounts[STAKING_CONTRACT] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['StakingHbbft'].bytecode
+    };
+
+    spec.accounts[BLOCK_REWARD_CONTRACT] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['BlockRewardHbbft'].bytecode
+    };
+
+    spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
+
+    spec.accounts[RANDOM_CONTRACT] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['RandomHbbft'].bytecode
+    };
+    
+    spec.accounts[PERMISSION_CONTRACT] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['TxPermissionHbbft'].bytecode
+    };
+
+    spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
+    spec.params.transactionPermissionContractTransition = '0x0';
+
+    spec.accounts[CERTIFIER_CONTRACT] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['CertifierHbbft'].bytecode
+    };
+
+    // Build Registry contract
+    contract = new web3.eth.Contract(contractsCompiled['Registry'].abi);
+
+    deploy = await contract.deploy({data: '0x' + contractsCompiled['Registry'].bytecode, arguments: [
+        CERTIFIER_CONTRACT,
+        owner
     ]});
-  spec.accounts[BLOCK_REWARD_CONTRACT] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
 
-  // spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
-  // spec.engine.hbbft.params.blockRewardContractTransition = 0;
-  spec.accounts['0x2000000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: '0x' + contractsCompiled['BlockRewardHbbft'].bytecode
-  };
+    spec.accounts['0x6000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+    spec.params.registrar = '0x6000000000000000000000000000000000000000';
 
-  // Build RandomHbbft contract
-  deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
-      '0x3000000000000000000000000000000000000000', // implementation address
-      owner,
-      []
-    ]});
-  spec.accounts[RANDOM_CONTRACT] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
-  spec.accounts['0x3000000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: '0x' + contractsCompiled['RandomHbbft'].bytecode
-  };
-  //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
+    spec.accounts[KEY_GEN_HISTORY_CONTRACT] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['KeyGenHistory'].bytecode
+    };
+  }
 
-  // Build TxPermission contract
-  deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
-      '0x4000000000000000000000000000000000000000', // implementation address
-      owner,
-      []
-    ]});
-  spec.accounts[PERMISSION_CONTRACT] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
-  spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
-  spec.params.transactionPermissionContractTransition = '0x0';
-
-  spec.accounts['0x4000000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: '0x' + contractsCompiled['TxPermissionHbbft'].bytecode
-  };
-
-  // Build Certifier contract
-  deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
-      '0x5000000000000000000000000000000000000000', // implementation address
-      owner,
-      []
-    ]});
-  spec.accounts[CERTIFIER_CONTRACT] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
-  spec.accounts['0x5000000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: '0x' + contractsCompiled['CertifierHbbft'].bytecode
-  };
-
-  // Build Registry contract
-  contract = new web3.eth.Contract(contractsCompiled['Registry'].abi);
-  deploy = await contract.deploy({data: '0x' + contractsCompiled['Registry'].bytecode, arguments: [
-    CERTIFIER_CONTRACT,
-      owner
-    ]});
-  spec.accounts['0x6000000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
-  spec.params.registrar = '0x6000000000000000000000000000000000000000';
-
-  // Build KeyGenHistory contract
-  contract = new web3.eth.Contract(contractsCompiled['KeyGenHistory'].abi);
-  deploy = await contract.deploy({data: '0x' + contractsCompiled['KeyGenHistory'].bytecode, arguments: [
-      '0x7000000000000000000000000000000000000000', // implementation address
-      owner,
-      []
-    ]});
-
-  spec.accounts[KEY_GEN_HISTORY_CONTRACT] = {
-    balance: '0',
-    constructor: await deploy.encodeABI()
-  };
   
-
-  spec.accounts['0x7000000000000000000000000000000000000000'] = {
-    balance: '0',
-    constructor: '0x' + contractsCompiled['KeyGenHistory'].bytecode
-  };
-
   // console.log(`InitializerHbbft constructor arguments:
   // contracts ${[ // _contracts
   //   VALIDATOR_SET_CONTRACT,

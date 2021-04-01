@@ -212,8 +212,8 @@ contract('InitializerHbbft', async accounts => {
       //'0x00000000000000000000000000000000', {from: stakingAddresses[5], value: candidateMinStake}).should.be.fulfilled;
 
       const poolIsActiveNow = await stakingHbbft.isPoolActive.call(newPoolStakingAddress);
-      true.should.be.equal(poolIsActiveNow);
-
+      poolIsActiveNow.should.be.equal(true);
+      
       //await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake}).should.be.fulfilled;
       //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
       //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
@@ -267,8 +267,13 @@ contract('InitializerHbbft', async accounts => {
 
       pendingValidators.should.be.deep.equal([initializingMiningAddresses[0]]);
 
-      keyGenHistory.writePart('1', parts[0], { from: pendingValidators[0] });
-      keyGenHistory.writeAcks('1', acks[0], { from: pendingValidators[0] });
+      await writePart('1', parts[0], pendingValidators[0]);
+
+      //confirm that part was written.
+      const partFromBc = await keyGenHistory.getPart.call(pendingValidators[0]);
+      partFromBc.should.be.equal('0x' + parts[0].toString('hex'), partFromBc, 'parts read from the blockchain require to be equal to the written data.');
+
+      await writeAcks('1', acks[0], pendingValidators[0]);
 
       await timeTravelToEndEpoch();
 
@@ -284,9 +289,8 @@ contract('InitializerHbbft', async accounts => {
       await printValidatorState('epoch1 phase2:');
 
       // // now write the ACK and the PART:
-
-      keyGenHistory.writePart('2', parts[0], { from: newPoolMiningAddress });
-      keyGenHistory.writeAcks('2', acks[0], { from: newPoolMiningAddress });
+      await writePart('2', parts[0], newPoolMiningAddress);
+      await writeAcks('2', acks[0], newPoolMiningAddress );
 
       // it's now job of the current validators to verify the correct write of the PARTS and ACKS
       // (this is simulated by the next call)
@@ -336,14 +340,16 @@ contract('InitializerHbbft', async accounts => {
       // now let pending validator 2 write it's Part,
       // but pending validator 1 misses out to write it's part.
 
-      keyGenHistory.writePart('3', parts[0], { from: poolMiningAddress2 });
+      await writePart('3', parts[0], poolMiningAddress2);
 
-      //TODO: add handling that someone is not allowed to write his ack, 
-      //if not all have written their part ?! or just rely on the reporting system for that ?!
-      keyGenHistory.writeAcks('3', acks[0], { from: poolMiningAddress2 });
 
-      //const callResult = await keyGenHistory.getNumberOfKeyFragmentsWritten.call();
-      //console.log(callResult);
+      await writeAcks('3', acks[0], poolMiningAddress2).should.be.rejected;
+
+      if (logOutput) {
+        console.log('numberOfPartsWritten: ',  await keyGenHistory.numberOfPartsWritten.call());
+        console.log('numberOfAcksWritten: ',  await keyGenHistory.numberOfAcksWritten.call());
+      }
+      
 
       await timeTravelToEndEpoch();
 
@@ -394,6 +400,61 @@ async function printValidatorState(info) {
   console.log(info + ' pools toBeElected: ', toBeElected);
 }
 
+// checks if a validator is able to write parts for free
+// and executes it.
+// NOTE: It does not really send the transaction with 0 gas price, 
+// because that would only work if the network nodes would already 
+// run on the test contracts deployed here.
+async function writePart(upcommingEpochNumber, parts, from) {
+
+  await call2ParaFunction('writePart', from, upcommingEpochNumber, parts);
+}
+
+async function writeAcks(upcommingEpochNumber, parts, from) {
+  await call2ParaFunction('writeAcks', from, upcommingEpochNumber, parts);
+}
+
+async function call2ParaFunction(functionName, from, upcommingEpochNumber, parts) {
+  //
+  const call = keyGenHistory.contract.methods[functionName](upcommingEpochNumber, parts);
+
+  
+  
+  //(await txPermission._getSliceUInt256(5, keyGenHistory.contract.methods[functionName](upcommingEpochNumber.sub(new BN('1')), parts).encodeABI());
+
+
+  const asEncoded = call.encodeABI();
+
+  if (logOutput) {
+    console.log('calling: ', functionName);
+    console.log('from: ', from)
+    console.log('epoch: ', upcommingEpochNumber.toString());
+    console.log('ecodedCall: ', asEncoded);
+  }
+    
+  //const numberFromContract = await txPermission._getSliceUInt256(4, asEncoded);
+  //const numberFromContract2 = await txPermission._decodeUInt256Param(4, asEncoded);
+  //console.log('upcommingEpochNumber: ', numberFromContract.toString());
+  //console.log('numberFromContract2', numberFromContract2.toString());
+
+
+  const allowedTxType = await txPermission.allowedTxTypes(from, keyGenHistory.address, '0x0' /* value */, '0x0' /* gas price */, asEncoded);
+
+  //console.log(allowedTxType.typesMask.toString());
+  // don't ask to cache this result.
+  allowedTxType.cache.should.be.equal(false);
+
+  /// 0x01 - basic transaction (e.g. ether transferring to user wallet);
+  /// 0x02 - contract call;
+  /// 0x04 - contract creation;
+  /// 0x08 - private transaction.
+
+  allowedTxType.typesMask.should.be.bignumber.equal(new BN('2'), 'Transaction should be allowed according to TxPermission Contract.');
+  
+  // we know now, that this call is allowed. 
+  // so we can execute it.
+  await call.send({ from, gas: '7000000' });
+}
 
 async function callReward(isEpochEndBlock) {
   // console.log('getting validators...');

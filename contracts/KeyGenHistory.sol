@@ -93,8 +93,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         }
     }
 
-    function writePart(uint _upcommingEpoch, bytes calldata _part)
-    external
+    function writePart(uint256 _upcommingEpoch, bytes memory _part)
+    public
     onlyUpcommingEpoch(_upcommingEpoch) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
@@ -104,7 +104,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         numberOfPartsWritten++;
     }
 
-    function writeAcks(uint _upcommingEpoch, bytes[] memory _acks)
+    function writeAcks(uint256 _upcommingEpoch, bytes[] memory _acks)
     public
     onlyUpcommingEpoch(_upcommingEpoch) {
         // It can only be called by a new validator which is elected but not yet finalized...

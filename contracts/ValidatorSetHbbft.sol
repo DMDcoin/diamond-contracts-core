@@ -203,6 +203,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             validatorCounter[miningAddress]++;
             _setStakingAddress(miningAddress, _initialStakingAddresses[i]);
         }
+
+
     }
 
       /// @dev Called by the system when a pending validator set is ready to be activated.
@@ -262,6 +264,10 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         }
     }
 
+    /// @dev called by blockreward contract when a the reward when the block reward contract 
+    /// came to the conclusion that the validators could not manage to create a new shared key together.
+    /// this starts the process to find replacements for the failing candites,
+    /// as well as marking them unavailable.
     function handleFailedKeyGeneration()
     external
     onlyBlockRewardContract {
@@ -271,6 +277,13 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
         require(this.getCurrentTimestamp() >= stakingContract.stakingFixedEpochEndTime(),
             "failed key generation can only be processed after the staking epoch is over.");
+
+        if (stakingContract.getPoolsToBeElected().length == 0) {
+            // if there is currently noone able to be elected, we just wait.
+            // probably this happens, until there is someone manages to make 
+            // his pool available for staking again.
+            return;
+        }
 
         // check if the current epoch should have been ended already
         // but some of the validators failed to write his PARTS / ACKS.
@@ -513,46 +526,42 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             return KeyGenMode.NotAPendingValidator;
         }
 
-        //TODO: Do we have to check for banned validator here ?
-        if (isPendingValidator(_miningAddress)) {
+        // since we got a part, maybe to validator is about to write his ack ?
+        // he is allowed to write his ack, if all nodes have written their part.
 
-            // since we got a part, maybe to validator is about to write his ack ?
-            // he is allowed to write his ack, if all nodes have written their part.
+        (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) 
+            = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
 
-            (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) 
-                = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
+        if (numberOfPartsWritten < _pendingValidators.length) {
 
-            if (numberOfPartsWritten < _pendingValidators.length) {
-
-                bytes memory part = keyGenHistoryContract.getPart(_miningAddress);
-                if (part.length == 0) {
-                    // we know here that the validator is pending, 
-                    // but dit not have written the part yet.
-                    // so he is allowed to write it's part.
-                    return KeyGenMode.WritePart;
-                }
-                else {
-                    // this mining address has written their part.
-                    return KeyGenMode.WaitForOtherParts;
-                }
-
-            } else if (numberOfAcksWritten < _pendingValidators.length) {
-
-                // not all Acks Written, so the key is not complete.
-                // we know know that all Nodes have written their PART.
-                // but not all have written their ACK.
-                // are we the one who has written his ACK.
-
-                if (keyGenHistoryContract.getAcksLength(_miningAddress) == 0) {
-                    return KeyGenMode.WriteAck;
-                }
-                else {
-                    return KeyGenMode.WaitForOtherAcks;
-                }
-
-            } else {
-                return KeyGenMode.AllKeysDone;
+            bytes memory part = keyGenHistoryContract.getPart(_miningAddress);
+            if (part.length == 0) {
+                // we know here that the validator is pending, 
+                // but dit not have written the part yet.
+                // so he is allowed to write it's part.
+                return KeyGenMode.WritePart;
             }
+            else {
+                // this mining address has written their part.
+                return KeyGenMode.WaitForOtherParts;
+            }
+
+        } else if (numberOfAcksWritten < _pendingValidators.length) {
+
+            // not all Acks Written, so the key is not complete.
+            // we know know that all Nodes have written their PART.
+            // but not all have written their ACK.
+            // are we the one who has written his ACK.
+
+            if (keyGenHistoryContract.getAcksLength(_miningAddress) == 0) {
+                return KeyGenMode.WriteAck;
+            }
+            else {
+                return KeyGenMode.WaitForOtherAcks;
+            }
+
+        } else {
+            return KeyGenMode.AllKeysDone;
         }
     }
 

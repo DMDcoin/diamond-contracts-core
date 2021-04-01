@@ -22,20 +22,18 @@
  *
  */
 
-// const HDWallet = require('truffle-hdwallet-provider');
-// const infuraKey = "fj4jll3k.....";
-//
+const HDWalletProvider = require("@truffle/hdwallet-provider");
 
 const fs = require('fs');
 
-let pk; 
+let mnemonic; 
 let network;
 
 try {
-  pk = fs.readFileSync(".pk").toString().trim();
+  mnemonic = fs.readFileSync(".mnemonic").toString().trim();
 
 } catch (e) {
-  console.warn("file .pk not found. Required for updating the testNet.");
+  console.warn("file .mnemonic not found. Required for updating the testNet.");
 }
 
 try {
@@ -89,26 +87,30 @@ module.exports = {
     },
 
     testNet: {
-      provider: () => new PrivateKeyProvider(pk, network),
-      gas: 8000000,
-      network_id: "*" // Match any network id
+      provider: function() {
+        return new HDWalletProvider(
+          { mnemonic: mnemonic,
+            providerOrUrl: network,
+            numberOfAddresses: 100}
+          );
+      },
+      network_id: '*',
+      networkCheckTimeout: 1000000,
+      timeoutBlocks: 200
     },
   },
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
-    reporter: 'eth-gas-reporter',
-    reporterOptions : { 
-      showTimeSpent: true,
-      showMethodSig: true
-    },
-    enableTimeouts: false
+    enableTimeouts: false,
+    before_timeout: 12000000,
+    timeout: 12000000
   },
 
   // Configure your compilers
   compilers: {
     solc: {
-      version: "0.5.16",      // Fetch exact version from solc-bin (default: truffle's version)
+      version: "0.5.17",      // Fetch exact version from solc-bin (default: truffle's version)
       // docker: true,       // Use "0.5.1" you've installed locally with docker (default: false)
       settings: {            // See the solidity docs for advice about optimization and evmVersion
         optimizer: {

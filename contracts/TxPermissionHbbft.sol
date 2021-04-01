@@ -43,13 +43,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     // ============================================== Constants =======================================================
 
-    /// @dev A constant that defines a regular block gas limit.
-    /// Used by the `blockGasLimit` public getter.
-    uint256 public constant BLOCK_GAS_LIMIT = 10000000;
-
-    /// @dev A constant that defines a reduced block gas limit.
-    /// Used by the `blockGasLimit` public getter.
-    uint256 public constant BLOCK_GAS_LIMIT_REDUCED = 2000000;
+    /// @dev defines the block gas limit, respected by the hbbft validators.
+    uint256 public blockGasLimit;
 
     // ============================================== Modifiers =======================================================
 
@@ -140,6 +135,22 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         minimumGasPrice = _value;
     }
 
+
+    /// @dev set's the block gas limit.
+    /// IN HBBFT, there must be consens about the block gas limit.
+    function setBlockGasLimit(uint256 _value)
+    public
+    onlyOwner
+    onlyInitialized {
+
+        // we make some check that the block gas limit can not be set to low, 
+        // to prevent the chain to be completly inoperatable.
+        // this value is chosen arbitrarily
+        require(_value >= 1000000, "Block Gas limit gas price must be at minimum 1,000,000");
+        blockGasLimit = _value;
+    }
+
+
     // =============================================== Getters ========================================================
 
     /// @dev Returns the contract's name recognizable by node's engine.
@@ -208,7 +219,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
         // Get the called function's signature
         bytes4 signature = bytes4(0);
-        bytes memory abiParams;
+        
         uint256 i;
         for (i = 0; _data.length >= 4 && i < 4; i++) {
             signature |= bytes4(_data[i]) >> i*8;
@@ -218,6 +229,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         if (_to == address(validatorSetContract)) {
             // The rules for the ValidatorSet contract
             if (signature == REPORT_MALICIOUS_SIGNATURE) {
+                bytes memory abiParams;
                 abiParams = new bytes(_data.length - 4 > 64 ? 64 : _data.length - 4);
 
                 for (i = 0; i < abiParams.length; i++) {
@@ -245,6 +257,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
             }
         } else if (_to == address(keyGenHistoryContract)) {
+
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
@@ -255,12 +268,13 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                     == IValidatorSetHbbft.KeyGenMode.WritePart) {
                     //is the epoch parameter correct ?
 
-                    (
-                        uint256 epochNumber
-                    ) = abi.decode(
-                        abiParams,
-                        (uint256)
-                    );
+                    // return if the data length is not big enough to pass a upcommingEpoch parameter.
+                    // we could add an addition size check, that include the minimal size of the part as well.
+                    if (_data.length < 36) {
+                        return (NONE, false);
+                    }
+
+                    uint256 epochNumber = _getSliceUInt256(4, _data);
 
                     if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
                         return (CALL, false);
@@ -278,13 +292,16 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
                 if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
                     == IValidatorSetHbbft.KeyGenMode.WriteAck) {
+
+                    // return if the data length is not big enough to pass a upcommingEpoch parameter.
+                    // we could add an addition size check, that include the minimal size of the part as well.
+                    if (_data.length < 36) {
+                        return (NONE, false);
+                    }
+
                     //is the correct epoch parameter passed ?
-                    (
-                        uint256 epochNumber
-                    ) = abi.decode(
-                        abiParams,
-                        (uint256)
-                    );
+
+                    uint256 epochNumber = _getSliceUInt256(4, _data);
 
                     if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
                         return (CALL, false);
@@ -323,17 +340,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         return (_gasPrice >= minimumGasPrice ? ALL : NONE, false);
     }
 
-    /// @dev Returns the current block gas limit which depends on the stage of the current
-    // /// staking epoch: the block gas limit is temporarily reduced for the latest block of the epoch.
-    // function blockGasLimit() public view returns(uint256) {
-    //     address stakingContract = validatorSetContract.stakingContract();
-    //     uint256 stakingEpochEndTime = IStakingHbbft(stakingContract).stakingFixedEpochEndTime();
-    //     if (block.timestamp == stakingEpochEndBlock - 1 || block.number == stakingEpochEndBlock) {
-    //         return BLOCK_GAS_LIMIT_REDUCED;
-    //     }
-    //     return BLOCK_GAS_LIMIT;
-    // }
-
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
     function isInitialized()
     public
@@ -363,7 +369,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // bytes4(keccak256("writeAcks(uint256,bytes[])"))
     bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
     
-    
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
     function _addAllowedSender(address _sender)
@@ -373,4 +378,34 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         _allowedSenders.push(_sender);
         isSenderAllowed[_sender] = true;
     }
+
+
+    function _getSliceUInt256(uint256 begin, bytes memory data) 
+    internal
+    pure
+    returns (uint256) {
+        
+        uint256 a = 0;
+        for(uint256 i=0;i<32;i++) {
+            a = a + (((uint256)((uint8)(data[begin + i]))) * ((uint256)(2 ** ((31 - i) * 8))));
+        }
+        return a;
+    }
+
+    //alternative to _getSliceUInt256.
+    // function _decodeUInt256Param(uint256 begin, bytes memory data) public pure returns (uint256) {
+    //     bytes memory a = new bytes(32);
+    //     for(uint256 i=0;i<32;i++) {
+    //         a[i] = data[i+begin];
+    //     }
+
+    //     (
+    //         uint256 result
+    //     ) = abi.decode(
+    //         a,
+    //         (uint256)
+    //     );
+        
+    //     return result;
+    // }
 }
