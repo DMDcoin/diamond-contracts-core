@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "compile": "node_modules/.bin/truffle compile",
-    "coverage": "SOLIDITY_COVERAGE=true bash scripts/test.sh",
+    "coverage": "node_modules/.bin/truffle run coverage",
     "docs-publish": "npm run solidity-docgen && cd docs/website && npm i && npm run publish-gh-pages",
     "docs-start": "npm run solidity-docgen && cd docs/website && npm i && npm start",
     "make_spec_test": "bash scripts/make_spec_hbbft_test.sh",
