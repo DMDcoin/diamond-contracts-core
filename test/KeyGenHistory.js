@@ -246,9 +246,11 @@ contract('InitializerHbbft', async accounts => {
       // they are gone :-o
       //(await validatorSetHbbft.getPendingValidators.call()).should.be.deep.equal([]);
 
+      
       // announcing availability.
       // this should place us back on the list of active and available pools.
-      (await validatorSetHbbft.announceAvailability({ from: newPoolMiningAddress }));
+      await announceAvailability(newPoolMiningAddress);
+      
 
       await printValidatorState('after announceAvailability:');
 
@@ -455,6 +457,38 @@ async function call2ParaFunction(functionName, from, upcommingEpochNumber, parts
   // so we can execute it.
   await call.send({ from, gas: '7000000' });
 }
+
+async function announceAvailability( pool ) {
+
+  const call = validatorSetHbbft.contract.methods.announceAvailability();
+
+  const asEncoded = call.encodeABI();
+
+  if (logOutput) {
+    console.log('calling: announceAvailability');
+    console.log('pool: ', pool)
+    console.log('ecodedCall: ', asEncoded);
+  }
+
+  const allowedTxType = await txPermission.allowedTxTypes(pool, validatorSetHbbft.address, '0x0' /* value */, '0x0' /* gas price */, asEncoded);
+
+  //console.log(allowedTxType.typesMask.toString());
+  // don't ask to cache this result.
+  allowedTxType.cache.should.be.equal(false);
+
+  /// 0x01 - basic transaction (e.g. ether transferring to user wallet);
+  /// 0x02 - contract call;
+  /// 0x04 - contract creation;
+  /// 0x08 - private transaction.
+
+  allowedTxType.typesMask.should.be.bignumber.equal(new BN('2'), 'Transaction should be allowed according to TxPermission Contract.');
+
+  // we know now, that this call is allowed. 
+  // so we can execute it.
+  await call.send({ from: pool, gas: '7000000' });
+
+}
+
 
 async function callReward(isEpochEndBlock) {
   // console.log('getting validators...');
