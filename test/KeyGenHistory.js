@@ -489,7 +489,6 @@ async function announceAvailability( pool ) {
 
 }
 
-
 async function callReward(isEpochEndBlock) {
   // console.log('getting validators...');
   // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
@@ -499,6 +498,7 @@ async function callReward(isEpochEndBlock) {
   await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
 
 }
+
 //time travels forward to the beginning of the next transition,
 //and simulate a block mining (calling reward())
 async function timeTravelToTransition() {
@@ -531,12 +531,4 @@ async function timeTravelToEndEpoch() {
   const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime.call();
   await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
   await callReward(callRewardParameter);
-}
-
-// time travels just 1 second.
-async function timeTravel() {
-
-  const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
-  await validatorSetHbbft.setCurrentTimestamp(new BN(currentTS).add(new BN('1')));
-  await callReward(false);
 }
