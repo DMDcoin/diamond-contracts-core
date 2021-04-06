@@ -624,7 +624,6 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
         if (stakingByMiningAddress[_miningAddress] == address(0)) {
             // not a validator node.
-            // revert('this address is not a validator');
             return false;
         }
 
@@ -718,13 +717,16 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
 
     //     if (stakingByMiningAddress[_miningAddress] == address(0)) {
     //         // not a validator node.
+    //         // revert('this address is not a validator');
     //         return false;
     //     }
 
-    //     if (validatorAvailableSince[_miningAddress] == 0) {
+    //     if (validatorAvailableSince[_miningAddress] != 0) {
     //          // "Validator was not marked as unavailable."
     //         return false;
     //     }
+
+    //     return true;
     // }
 
     /// @dev Updates the total reporting counter (see the `reportingCounterTotal` public mapping) for the current

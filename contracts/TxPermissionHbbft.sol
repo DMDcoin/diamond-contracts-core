@@ -249,9 +249,11 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 (bool callable,) = validatorSetContract.reportMaliciousCallable(
                     _sender, maliciousMiningAddress, blockNumber
                 );
-
                 return (callable ? CALL : NONE, false);
-            } else if (_gasPrice > 0) {
+            } else if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
+                return (validatorSetContract.canCallAnnounceAvailability(_sender) ? CALL : NONE, false);
+            }
+            else if (_gasPrice > 0) {
                 // The other functions of ValidatorSet contract can be called
                 // by anyone except validators' mining addresses if gasPrice is not zero
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
@@ -368,7 +370,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     // bytes4(keccak256("writeAcks(uint256,bytes[])"))
     bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
-    
+
+    // bytes4(keccak256("announceAvailability()"))
+    bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x292525af;
+
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
     function _addAllowedSender(address _sender)

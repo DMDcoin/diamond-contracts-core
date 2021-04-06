@@ -21,7 +21,7 @@ interface IValidatorSetHbbft {
     function handleFailedKeyGeneration() external;
     function areDelegatorsBanned(address) external view returns(bool);
     function blockRewardContract() external view returns(address);
-    //function canCallAnnounceAvailability() external view returns(bool);
+    function canCallAnnounceAvailability(address _miningAddress) external view returns(bool);
     function getPendingValidators() external view returns(address[] memory);
     function getPreviousValidators() external view returns(address[] memory);
     function getValidators() external view returns(address[] memory);
