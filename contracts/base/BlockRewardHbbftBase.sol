@@ -136,12 +136,19 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         governancePotShareDenominator = 10;
     }
 
+    /// @dev adds the transfered value to the delta pot.
+    /// everyone is allowed to pile up the delta pot.
+    /// however, circulating coins should be added to the reinsert pot,
+    /// that is designed for circulating coins
     function addToDeltaPot()
     external
     payable {
         deltaPot += msg.value;
     }
 
+    /// @dev adds the transfered value to the reinsert pot.
+    /// everyone is allowed to pile up the resinsert pot.
+    /// the reinsert pot is designed to 
     function addToReinsertPot()
     external
     payable {
