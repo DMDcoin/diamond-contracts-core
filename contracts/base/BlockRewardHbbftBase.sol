@@ -139,7 +139,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev adds the transfered value to the delta pot.
     /// everyone is allowed to pile up the delta pot.
     /// however, circulating coins should be added to the reinsert pot,
-    /// that is designed for circulating coins
+    /// since the reinsert pot is designed for circulating coins.
     function addToDeltaPot()
     external
     payable {
@@ -147,14 +147,23 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     }
 
     /// @dev adds the transfered value to the reinsert pot.
-    /// everyone is allowed to pile up the resinsert pot.
-    /// the reinsert pot is designed to 
+    /// everyone is allowed to pile up the resinsert pot,
+    /// the reinsert pot reinserts coins back into the payout cycle.
+        /// this is used by smart contracts of the ecosystem,
+    /// DAO decisions to fund the reinsert pot from the DAO Pool
+    /// and manual by hand.
+    /// There is no permission check, 
+    /// everyone is welcomed to pile up the reinsert pot.
     function addToReinsertPot()
     external
     payable {
         reinsertPot += msg.value;
     }
 
+    /// @dev set the delta pot payout fraction.
+    /// every epoch,
+    /// a fraction of the delta pot is payed out.
+    /// Only theOwner, the DAO is allowed to set the delta pot payout fraction.
     function setdeltaPotPayoutFraction(uint256 _value)
     external 
     onlyOwner {
@@ -162,6 +171,11 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         deltaPotPayoutFraction = _value;
     }
 
+    /// @dev set the reinsert pot payout fraction.
+    /// every epoch,
+    /// a fraction of the reinsert pot is payed out.
+    /// (same logic than in the reinsert pot.)
+    /// Only theOwner, the DAO is allowed to set the reinsert pot payout fraction.
     function setReinsertPotPayoutFraction(uint256 _value)
     external     
     onlyOwner {
