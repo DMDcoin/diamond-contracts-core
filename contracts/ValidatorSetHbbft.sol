@@ -617,6 +617,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     }
 
 
+    /// @dev Returns if the specified _miningAddress is able to announce availability.
+    /// @param _miningAddress mining address that is allowed/disallowed.
     function canCallAnnounceAvailability(address _miningAddress)
     public
     view
