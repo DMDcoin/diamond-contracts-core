@@ -26,6 +26,15 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     }
     // =============================================== Setters ========================================================
 
+    /// @dev The cooperative consens mechanism in HBBFT achieves to 
+    /// generate a seed, that cannot be predicted by the nodes,
+    /// but can get used within smart contracts without having to wait for
+    /// an additional block.
+    /// this is one of the biggest benefits of HBBFT.
+    /// When the nodes are able to decrypt the transaction,
+    /// they know the seed, that can be used as random base for smart contract interactions.
+    /// setCurrentSeed is always the first transaction within a block,
+    /// and currentSeed is a public available value that can get used by all smart contracts.
     function setCurrentSeed(uint256 _currentSeed)
     external
     onlySystem {
