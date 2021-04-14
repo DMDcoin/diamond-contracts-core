@@ -68,11 +68,15 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
 
-    /// @dev parts of the epoch reward get forwarded to a governance fund
-    /// just a dummy function for now.
+    /// @dev parts of the epoch reward get forwarded to a governance fund.
     address payable public governancePotAddress;
 
+    /// @dev nominator of the epoch reward that get's forwarded to the
+    /// `governancePotAddress`. See also `governancePotShareDenominator`
     uint256 public governancePotShareNominator;
+
+    /// @dev denominator of the epoch reward that get's forwarded to the
+    /// `governancePotAddress`. See also `governancePotShareNominator`
     uint256 public governancePotShareDenominator;
 
     uint256 public constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
