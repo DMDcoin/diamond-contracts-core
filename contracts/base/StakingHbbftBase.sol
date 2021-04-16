@@ -641,7 +641,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return poolInfo[_poolAddress].publicKey;
     }
 
-    /// @dev Returns the wald
+    /// @dev Returns the registered IPv4 Address for the node.
+    /// @param _poolAddress The Pool Address to query the IPv4Address for.
+    /// @return IPv4 Address for the given pool address. 
     function getPoolInternetAddress(address _poolAddress)
     external
     view
