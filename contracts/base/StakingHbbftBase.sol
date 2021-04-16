@@ -629,6 +629,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return _pools;
     }
 
+    /// @dev Return the Public Key used by a Node to send targeted HBBFT Consensus Messages.
+    /// @param _poolAddress The Pool Address to query the public key for.
+    /// @return the public key for the given pool address. 
+    /// Note that the public key does not convert to the ethereum address of the pool address.
+    /// The pool address is used for stacking, and not for signing HBBFT messages.
     function getPoolPublicKey(address _poolAddress)
     external
     view
@@ -636,6 +641,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return poolInfo[_poolAddress].publicKey;
     }
 
+    /// @dev Returns the wald
     function getPoolInternetAddress(address _poolAddress)
     external
     view
