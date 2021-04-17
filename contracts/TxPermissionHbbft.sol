@@ -27,6 +27,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev The address of the `Certifier` contract.
     ICertifier public certifierContract;
 
+    /// @dev 
     IKeyGenHistory public keyGenHistoryContract;
 
     /// @dev A boolean flag indicating whether the specified address is allowed
@@ -385,32 +386,19 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     }
 
 
-    function _getSliceUInt256(uint256 begin, bytes memory data) 
+    /// @dev retrieves a UInt256 slice of a bytes array on a specific location 
+    /// @param _begin offset to start reading the 32 bytes.
+    /// @param _data byte[] to read the data from.
+    /// @return uint256 value found on offset _begin in _data.
+    function _getSliceUInt256(uint256 _begin, bytes memory _data) 
     internal
     pure
     returns (uint256) {
         
         uint256 a = 0;
         for(uint256 i=0;i<32;i++) {
-            a = a + (((uint256)((uint8)(data[begin + i]))) * ((uint256)(2 ** ((31 - i) * 8))));
+            a = a + (((uint256)((uint8)(_data[_begin + i]))) * ((uint256)(2 ** ((31 - i) * 8))));
         }
         return a;
     }
-
-    //alternative to _getSliceUInt256.
-    // function _decodeUInt256Param(uint256 begin, bytes memory data) public pure returns (uint256) {
-    //     bytes memory a = new bytes(32);
-    //     for(uint256 i=0;i<32;i++) {
-    //         a[i] = data[i+begin];
-    //     }
-
-    //     (
-    //         uint256 result
-    //     ) = abi.decode(
-    //         a,
-    //         (uint256)
-    //     );
-        
-    //     return result;
-    // }
 }
