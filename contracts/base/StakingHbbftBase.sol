@@ -287,6 +287,14 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         poolInfo[stakingAddress].internetAddress = _ip;
     }
 
+    /// @dev set's the pool info for a specific ethereum address.
+    /// @param _publicKey public key of the (future) signing address.
+    /// @param _ip (optional) IPV4 address of a running Node Software or Proxy.
+    /// Stores the supplied data for a staking (pool) address.
+    /// This function is external available without security checks,
+    /// since no array operations are used in the implementation,
+    /// this allows the flexibility to set the pool information before
+    /// adding the stake to the pool.
     function setPoolInfo(bytes calldata _publicKey, bytes16 _ip)
     external {
         poolInfo[msg.sender].publicKey = _publicKey;
@@ -629,6 +637,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return _pools;
     }
 
+    /// @dev Return the Public Key used by a Node to send targeted HBBFT Consensus Messages.
+    /// @param _poolAddress The Pool Address to query the public key for.
+    /// @return the public key for the given pool address. 
+    /// Note that the public key does not convert to the ethereum address of the pool address.
+    /// The pool address is used for stacking, and not for signing HBBFT messages.
     function getPoolPublicKey(address _poolAddress)
     external
     view
@@ -636,6 +649,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         return poolInfo[_poolAddress].publicKey;
     }
 
+    /// @dev Returns the registered IPv4 Address for the node.
+    /// @param _poolAddress The Pool Address to query the IPv4Address for.
+    /// @return IPv4 Address for the given pool address. 
     function getPoolInternetAddress(address _poolAddress)
     external
     view

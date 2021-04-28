@@ -617,6 +617,8 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     }
 
 
+    /// @dev Returns if the specified _miningAddress is able to announce availability.
+    /// @param _miningAddress mining address that is allowed/disallowed.
     function canCallAnnounceAvailability(address _miningAddress)
     public
     view
@@ -699,35 +701,21 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
         return (true, false);
     }
 
-    function publicKeyByStakingAddress(address stakingAddress) external view returns(bytes memory) {
-        return stakingContract.getPoolPublicKey(stakingAddress);
+    /// @dev Returns the public key for the given stakingAddress
+    /// @param _stakingAddress staking address of the wanted public key.
+    /// @return public key of the _stakingAddress
+    function publicKeyByStakingAddress(address _stakingAddress) external view returns(bytes memory) {
+        return stakingContract.getPoolPublicKey(_stakingAddress);
     }
 
-    function getPublicKey(address miningAddress) external view returns(bytes memory) {
-        return stakingContract.getPoolPublicKey(stakingByMiningAddress[miningAddress]);
+    /// @dev Returns the public key for the given miningAddress
+    /// @param _miningAddress mining address of the wanted public key.
+    /// @return public key of the _miningAddress
+    function getPublicKey(address _miningAddress) external view returns(bytes memory) {
+        return stakingContract.getPoolPublicKey(stakingByMiningAddress[_miningAddress]);
     }
 
     // ============================================== Internal ========================================================
-
-
-    // function _canCallAnnounceAvailability(address _miningAddress)
-    // internal
-    // view
-    // returns(bool) {
-
-    //     if (stakingByMiningAddress[_miningAddress] == address(0)) {
-    //         // not a validator node.
-    //         // revert('this address is not a validator');
-    //         return false;
-    //     }
-
-    //     if (validatorAvailableSince[_miningAddress] != 0) {
-    //          // "Validator was not marked as unavailable."
-    //         return false;
-    //     }
-
-    //     return true;
-    // }
 
     /// @dev Updates the total reporting counter (see the `reportingCounterTotal` public mapping) for the current
     /// staking epoch after the specified validator is removed as malicious. The `reportMaliciousCallable` getter

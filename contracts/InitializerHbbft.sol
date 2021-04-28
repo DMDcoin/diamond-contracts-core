@@ -16,8 +16,6 @@ import "./interfaces/IValidatorSetHbbft.sol";
 /// upgradeable contracts can't have constructors.
 contract InitializerHbbft {
 
-    string public data;
-
     /// @param _contracts An array of the contracts:
     ///   0 is ValidatorSetHbbft,
     ///   1 is BlockRewardHbbft,
@@ -90,11 +88,5 @@ contract InitializerHbbft {
     function destruct()
     external {
         selfdestruct(msg.sender);
-    }
-
-    function
-    setData(string memory _data)
-    public {
-        data = _data;
     }
 }

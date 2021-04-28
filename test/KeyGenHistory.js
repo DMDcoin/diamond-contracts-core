@@ -417,14 +417,8 @@ async function writeAcks(upcommingEpochNumber, parts, from) {
 }
 
 async function call2ParaFunction(functionName, from, upcommingEpochNumber, parts) {
-  //
+
   const call = keyGenHistory.contract.methods[functionName](upcommingEpochNumber, parts);
-
-  
-  
-  //(await txPermission._getSliceUInt256(5, keyGenHistory.contract.methods[functionName](upcommingEpochNumber.sub(new BN('1')), parts).encodeABI());
-
-
   const asEncoded = call.encodeABI();
 
   if (logOutput) {
