@@ -356,7 +356,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     }
 
     /// @dev Removes a specified pool from the `pools` array (a list of active pools which can be retrieved by the
-    /// `getPools` getter). Called by the `ValidatorSetHbbft._removeMaliciousValidator` internal function
+    /// `getPools` getter). Called by the `ValidatorSetHbbft._removeMaliciousValidator` internal function, 
+    /// and the `ValidatorSetHbbft.handleFailedKeyGeneration` function
     /// when a pool must be removed by the algorithm.
     /// @param _stakingAddress The staking address of the pool to be removed.
     function removePool(address _stakingAddress)

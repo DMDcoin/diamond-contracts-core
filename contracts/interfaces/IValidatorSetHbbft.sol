@@ -14,6 +14,7 @@ interface IValidatorSetHbbft {
         address[] calldata,
         address[] calldata
     ) external;
+    function announceAvailability() external;
     function finalizeChange() external;
     function newValidatorSet() external;
     function removeMaliciousValidators(address[] calldata) external;
@@ -40,4 +41,5 @@ interface IValidatorSetHbbft {
     function getPublicKey(address) external view returns(bytes memory);
     function stakingContract() external view returns(address);
     function getCurrentTimestamp() external view returns(uint256);
+    function validatorAvailableSince(address) external view returns(uint256);
 }
