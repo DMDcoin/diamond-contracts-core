@@ -212,20 +212,7 @@ async function main() {
       constructor: '0x' + contractsCompiled['CertifierHbbft'].bytecode
     };
 
-    // Build Registry contract
-    contract = new web3.eth.Contract(contractsCompiled['Registry'].abi);
-    deploy = await contract.deploy({data: '0x' + contractsCompiled['Registry'].bytecode, arguments: [
-      CERTIFIER_CONTRACT,
-        owner
-      ]});
-    spec.accounts['0x6000000000000000000000000000000000000000'] = {
-      balance: '0',
-      constructor: await deploy.encodeABI()
-    };
-    spec.params.registrar = '0x6000000000000000000000000000000000000000';
-
     // Build KeyGenHistory contract
-    contract = new web3.eth.Contract(contractsCompiled['KeyGenHistory'].abi);
     deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
         '0x7000000000000000000000000000000000000000', // implementation address
         owner,
@@ -242,6 +229,19 @@ async function main() {
       balance: '0',
       constructor: '0x' + contractsCompiled['KeyGenHistory'].bytecode
     };
+
+    // Build Registry contract
+    contract = new web3.eth.Contract(contractsCompiled['Registry'].abi);
+    deploy = await contract.deploy({data: '0x' + contractsCompiled['Registry'].bytecode, arguments: [
+      CERTIFIER_CONTRACT,
+        owner
+      ]});
+    spec.accounts['0x6000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+    spec.params.registrar = '0x6000000000000000000000000000000000000000';
+
 
   }
   else { // not useUpgradeProxy
