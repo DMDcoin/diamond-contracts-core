@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Web3 = require('web3');
-const web3 = new Web3(new Web3.providers.HttpProvider("https://dai.poa.network"));
+const web3 = new Web3();
 const utils = require('./utils/utils');
 const fp = require('lodash/fp');
 const assert = require('assert');
@@ -14,13 +14,21 @@ const PERMISSION_CONTRACT = '0x4000000000000000000000000000000000000001';
 const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
 const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
-let useUpgradeProxy = false;
+
 
 main();
 
 async function main() {
+  let useUpgradeProxy = true;
+
   const init_data_file = process.argv[2];
   assert(init_data_file, "Path to contract initialization file required as first argument!");
+  console.log(`Using init_data_file: ${init_data_file}`);
+
+  if (process.argv[3] !== undefined) {
+    useUpgradeProxy =  process.argv[3] == 'true';
+    console.log(`parsed ${process.argv[3]} as ${useUpgradeProxy}`);
+  }
 
   const rawdata = fs.readFileSync(init_data_file);
   const init_data = JSON.parse(rawdata);  
