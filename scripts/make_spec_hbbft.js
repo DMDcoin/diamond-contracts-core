@@ -47,9 +47,20 @@ async function main() {
   const stakingEpochDuration = process.env.STAKING_EPOCH_DURATION;
   const stakeWithdrawDisallowPeriod = process.env.STAKE_WITHDRAW_DISALLOW_PERIOD;
   const stakingTransitionWindowLength = process.env.STAKING_TRANSITION_WINDOW_LENGTH;
-  const ethToWei = web3.utils.toWei('1', 'ether');
+  const stakingMinStakeForValidatorString = process.env.STAKING_MIN_STAKE_FOR_VALIDATOR;
+  const stakingMinStakeForDelegatorString = process.env.STAKING_MIN_STAKE_FOR_DELEGATOR;
 
-  let stakingParams = [ethToWei, ethToWei, stakingEpochDuration, stakingTransitionWindowLength, stakeWithdrawDisallowPeriod];
+  let stakingMinStakeForValidator = web3.utils.toWei('1', 'ether');
+  if (stakingMinStakeForValidatorString) {
+    stakingMinStakeForValidator  = web3.utils.toWei(stakingMinStakeForValidatorString, 'ether');
+  }
+
+  let stakingMinStakeForDelegator = web3.utils.toWei('1', 'ether');
+  if (stakingMinStakeForDelegatorString) {
+    stakingMinStakeForDelegator  = web3.utils.toWei(stakingMinStakeForDelegatorString, 'ether');
+  }
+
+  let stakingParams = [stakingMinStakeForDelegator, stakingMinStakeForValidator, stakingEpochDuration, stakingTransitionWindowLength, stakeWithdrawDisallowPeriod];
 
   let publicKeys = init_data.public_keys;
   for (let i = 0; i < publicKeys.length; i++) {
