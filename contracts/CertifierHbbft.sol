@@ -1,6 +1,7 @@
 pragma solidity ^0.5.16;
 
 import "./interfaces/ICertifier.sol";
+import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
 
@@ -89,19 +90,20 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         if (_certified[_who]) {
             return true;
         }
-        if (validatorSetContract.isReportValidatorValid(_who)) {
-            return true;
-        }
-        IValidatorSetHbbft.KeyGenMode currentGenGenMode = 
-            validatorSetContract.getPendingValidatorKeyGenerationMode(_who);
 
-        if (currentGenGenMode == IValidatorSetHbbft.KeyGenMode.WritePart || 
-            currentGenGenMode == IValidatorSetHbbft.KeyGenMode.WriteAck ) {
-            return true;
+        address stakingAddress = validatorSetContract.stakingByMiningAddress(_who);
+        if (stakingAddress == address(0)) {
+            //if there is no staking address registered to this pool
+            return false;
         }
 
-        return false;
-        
+        // we generally certify every active node, 
+        // since the node cache the list of certifiers
+        // and the permission contracts checks anyway, 
+        // if the specific 0 gas transaction is allowed or not.
+
+        IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
+        return stakingContract.isPoolActive(stakingAddress);
     }
 
     /// @dev Returns a boolean flag indicating whether the specified address is allowed to use zero gas price

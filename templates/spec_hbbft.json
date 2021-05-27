@@ -3,7 +3,7 @@
   "engine": {
     "hbbft": {
       "params": {
-        "minimumBlockTime": 1,
+        "minimumBlockTime": 10,
         "transactionQueueSizeTrigger": 1,
         "blockRewardContractAddress": "0x2000000000000000000000000000000000000001"
       }
@@ -13,7 +13,7 @@
     "gasLimitBoundDivisor": "0x400",
     "maximumExtraDataSize": "0x20",
     "minGasLimit": "0x1388",
-    "networkID": "777702",
+    "networkID": "777004",
     "eip140Transition": "0x0",
     "eip211Transition": "0x0",
     "eip214Transition": "0x0",
@@ -90,7 +90,7 @@
         }
       }
     },
-    "0x0102ac5315c1bd986a1da4f1fe1b4bca36fa4667": { 
+    "0x32c5f14302d4Dd973e0040a5d7Eda97222A928D1": { 
       "balance": "4380000000000000000000000"
     }
   }

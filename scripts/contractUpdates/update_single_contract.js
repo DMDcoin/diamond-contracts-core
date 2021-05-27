@@ -5,7 +5,7 @@
 
 
 
-const Certifier = artifacts.require('CertifierHbbft');
+
 const AdminUpgradeabilityProxy = artifacts.require('AdminUpgradeabilityProxy');
 
 
@@ -18,11 +18,38 @@ async function doDeployContracts() {
 
 
   //const certifierProxyAddress = "0x5000000000000000000000000000000000000001";
-  const certifierProxyAddress = "0x5000000000000000000000000000000000000001";
-  const currentProxy = await AdminUpgradeabilityProxy.at(certifierProxyAddress);
+  //const certifierProxyAddress = "0x5000000000000000000000000000000000000001";
+  
+
+
+// const VALIDATOR_SET_CONTRACT = '0x1000000000000000000000000000000000000001';
+// const BLOCK_REWARD_CONTRACT = '0x2000000000000000000000000000000000000001';
+// const RANDOM_CONTRACT = '0x3000000000000000000000000000000000000001';
+// const STAKING_CONTRACT = '0x1100000000000000000000000000000000000001';
+// const PERMISSION_CONTRACT = '0x4000000000000000000000000000000000000001';
+// const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
+// const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
+
+
+  const contractToUpdate = 'TxPermissionHbbft';
+
+
+  const contractAddresses = {
+    TxPermissionHbbft: '0x4000000000000000000000000000000000000001'
+  }
+
+  const address = contractAddresses[contractToUpdate];
+
+  console.log(`Updating ${contractToUpdate} on address ${address}`);
+
+  const currentProxy = await AdminUpgradeabilityProxy.at(address);
+
+  let currentImplementationAddress = await currentProxy.implementation.call();
+
+  console.log(`current implementation: `, currentImplementationAddress);
 
   //console.log('proxyMethods: ',await currentProxy.methods);
-  const currentAdmin = await currentProxy.admin.call();
+  let currentAdmin = await currentProxy.admin.call();
   
   console.log('currentAdmin: ', currentAdmin);
 
@@ -32,13 +59,20 @@ async function doDeployContracts() {
     throw Error(errorMessage);
   }
 
-  const certifier = await Certifier.new();
-  console.log('deployed to ', certifier.address);
+  const contractArtifact = artifacts.require(contractToUpdate);
+
+  console.log('deploying new contract...');
+  const newContract = await contractArtifact.new();
+  console.log('deployed to ', newContract.address);
   console.log('upgrading...');
-
-  const txResult = await currentProxy.upgradeTo.call(certifier.address);
-
+  const txResult = await currentProxy.upgradeTo(newContract.address);
   console.log('upgrade result: ', txResult);
+
+  console.log('verifying upgrade...');
+
+  currentImplementationAddress = await currentProxy.implementation.call();
+
+  console.log(`new implementation address: `, currentImplementationAddress);
 }
 
 module.exports = async function deployContracts(callback) {
@@ -46,15 +80,12 @@ module.exports = async function deployContracts(callback) {
   console.log('deploying contracts.');
 
   doDeployContracts().then(()=>{
-
     console.log('upgrade finished.');
     callback();
   }).catch((e) => {
     console.error('An Error occured while upgrading contracts');
     callback(e);
   })
-
-
 }
 
 // console.log('starting update process');

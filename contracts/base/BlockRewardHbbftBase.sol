@@ -53,7 +53,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev each epoch reward, one Fraction of the delta pool gets payed out.
     /// the number is the divisor of the fraction. 60 means 1/60 of the delta pool gets payed out.
-    uint256 public deltaPotPayoutFraction = 60;
+    uint256 public deltaPotPayoutFraction;
 
 
     /// @dev the reinsertPot holds all coins that are designed for getting reinserted into the coin circulation.
@@ -259,7 +259,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
             } else if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
-                validatorSetContract.handleFailedKeyGeneration();
+                // removed, because availability handling is not implemented yet in the client implementation.
+                // validatorSetContract.handleFailedKeyGeneration();
             }
         }
     }
