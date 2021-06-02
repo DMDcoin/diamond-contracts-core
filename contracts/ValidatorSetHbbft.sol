@@ -5,13 +5,13 @@ import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IRandomHbbft.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
-import "./upgradeability/UpgradeabilityAdmin.sol";
+import "./upgradeability/UpgradeableOwned.sol";
 import "./libs/SafeMath.sol";
 
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
 /// before each staking epoch. The logic uses a random seed generated and stored by the `RandomHbbft` contract.
-contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
+contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     using SafeMath for uint256;
 
     // =============================================== Storage ========================================================
@@ -91,10 +91,9 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     /// the value is of type timestamp
     mapping(address => uint256) public validatorAvailableSince;
 
-    // ============================================== Constants =======================================================
 
     /// @dev The max number of validators.
-    uint256 public constant MAX_VALIDATORS = 25;
+    uint256 public maxValidators;
 
     // ================================================ Events ========================================================
 
@@ -204,6 +203,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
             _setStakingAddress(miningAddress, _initialStakingAddresses[i]);
         }
 
+        maxValidators = 7;
 
     }
 
@@ -230,7 +230,7 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     }
 
     /// @dev Implements the logic which forms a new validator set. If the number of active pools
-    /// is greater than MAX_VALIDATORS, the logic chooses the validators randomly using a random seed generated and
+    /// is greater than maxValidators, the logic chooses the validators randomly using a random seed generated and
     /// stored by the `RandomHbbft` contract.
     /// Automatically called by the `BlockRewardHbbft.reward` function at the latest block of the staking epoch.
     function newValidatorSet()
@@ -442,6 +442,12 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     external
     onlyStakingContract {
         _setStakingAddress(_miningAddress, _stakingAddress);
+    }
+
+    function setMaxValidators(uint256 _maxValidators)
+    external
+    onlyOwner {
+        maxValidators = _maxValidators;
     }
 
     // =============================================== Getters ========================================================
@@ -742,11 +748,11 @@ contract ValidatorSetHbbft is UpgradeabilityAdmin, IValidatorSetHbbft {
     {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
         // Choose new validators
-        if (poolsToBeElected.length > MAX_VALIDATORS) {
+        if (poolsToBeElected.length > maxValidators) {
 
             uint256 poolsToBeElectedLength = poolsToBeElected.length;
             (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
-            address[] memory newValidators = new address[](MAX_VALIDATORS);
+            address[] memory newValidators = new address[](maxValidators);
 
             uint256 indexNewValidator = 0;
             for(uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {

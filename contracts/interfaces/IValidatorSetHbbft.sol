@@ -32,7 +32,7 @@ interface IValidatorSetHbbft {
     function isValidatorOrPending(address) external view returns(bool);
     function isPendingValidator(address) external view returns(bool);
     function getPendingValidatorKeyGenerationMode(address) external view returns(KeyGenMode);
-    function MAX_VALIDATORS() external view returns(uint256); // solhint-disable-line func-name-mixedcase
+    function maxValidators() external view returns(uint256);
     function miningByStakingAddress(address) external view returns(address);
     function randomContract() external view returns(address);
     function reportMaliciousCallable(address, address, uint256) external view returns(bool, bool);
