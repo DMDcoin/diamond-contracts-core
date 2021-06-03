@@ -437,7 +437,7 @@ contract('ValidatorSetHbbft', async accounts => {
 
       const newValidators = await validatorSetHbbft.getPendingValidators.call();
 
-      newValidators.length.should.be.equal((await validatorSetHbbft.MAX_VALIDATORS.call()).toNumber());
+      newValidators.length.should.be.equal((await validatorSetHbbft.maxValidators.call()).toNumber());
 
       for (let i = 0; i < newValidators.length; i++) {
         miningAddresses.indexOf(newValidators[i].toLowerCase()).should.be.gte(0);
