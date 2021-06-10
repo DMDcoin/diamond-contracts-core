@@ -260,7 +260,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 validatorSetContract.newValidatorSet();
             } else if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
                 // removed, because availability handling is not implemented yet in the client implementation.
-                // validatorSetContract.handleFailedKeyGeneration();
+                validatorSetContract.handleFailedKeyGeneration();
             }
         }
     }
