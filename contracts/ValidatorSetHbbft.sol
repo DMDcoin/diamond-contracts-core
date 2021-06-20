@@ -285,6 +285,13 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             return;
         }
 
+        if (_pendingValidators.length == 0) {
+            // if there are no "pending validators" that 
+            // should write their keys, then there is
+            // nothing to do here.
+            return;
+        }
+
         // check if the current epoch should have been ended already
         // but some of the validators failed to write his PARTS / ACKS.
 
@@ -364,8 +371,21 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             forcedPools[i] = goodValidators[i];
         }
 
+        // this tells the staking contract that the key generation failed
+        // so the staking conract is able to prolong this staking period.
         stakingContract.notifyKeyGenFailed();
-        _newValidatorSet(forcedPools);
+
+        // is there anyone left that can get elected ??
+        // if not, we just continue with the validator set we have now,
+        // for another round, 
+        // hopefully that on or the other node operators get his pool fixed.
+        // the Deadline just stays a full time window.
+        // therefore the Node Operators might get a chance that
+        // many manage to fix the problem, 
+        // and we can get a big takeover. 
+        if (stakingContract.getPoolsToBeElected().length == 0) {
+            _newValidatorSet(forcedPools);
+        }
     }
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.
