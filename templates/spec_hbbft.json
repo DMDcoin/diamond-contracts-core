@@ -3,7 +3,7 @@
   "engine": {
     "hbbft": {
       "params": {
-        "minimumBlockTime": 10,
+        "minimumBlockTime": 15,
         "transactionQueueSizeTrigger": 1,
         "blockRewardContractAddress": "0x2000000000000000000000000000000000000001"
       }
@@ -32,7 +32,7 @@
     "seal": {
       "generic": "0x0"
     },
-    "difficulty": "0x20000",
+    "difficulty": "0x1",
     "author": "0x0000000000000000000000000000000000000000",
     "timestamp": "0x00",
     "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
