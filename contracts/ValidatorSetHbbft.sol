@@ -383,7 +383,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         // therefore the Node Operators might get a chance that
         // many manage to fix the problem, 
         // and we can get a big takeover. 
-        if (stakingContract.getPoolsToBeElected().length == 0) {
+        if (stakingContract.getPoolsToBeElected().length > 0) {
             _newValidatorSet(forcedPools);
         }
     }
