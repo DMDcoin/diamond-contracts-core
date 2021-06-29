@@ -91,6 +91,11 @@ async function main() {
   spec.name = networkName;
   spec.params.networkID = networkID;
 
+  const minimumBlockTime = Number.parseInt(process.env.MINIMUM_BLOCK_TIME);
+  if (minimumBlockTime > 0) {
+    spec.engine.hbbft.params.minimumBlockTime = minimumBlockTime;
+  }
+
   let contractsCompiled = {};
   for (let i = 0; i < contracts.length; i++) {
     const contractName = contracts[i];
