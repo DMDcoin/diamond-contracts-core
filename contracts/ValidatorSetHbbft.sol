@@ -741,6 +741,18 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         return stakingContract.getPoolPublicKey(stakingByMiningAddress[_miningAddress]);
     }
 
+    /// @dev in Hbbft there exist sweet spots for the choice of validator counts
+    /// those are FLOOR((n - 1)/3) * 3 + 1
+    /// values: 4 - 7 - 10 - 13 - 16 - 19 - 22 - 25
+    /// @return a sweet spot n for a given number n
+    function getValidatorCountSweetSpot(uint256 _possibleValidatorCount)
+    external
+    view
+    returns(uint256) {
+        require(_possibleValidatorCount > 0, "_possibleValidatorCount must not be 0");
+        return ((_possibleValidatorCount - 1) / 3) * 3 + 1;
+    }
+
     // ============================================== Internal ========================================================
 
     /// @dev Updates the total reporting counter (see the `reportingCounterTotal` public mapping) for the current
@@ -762,17 +774,20 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             reportingCounterTotal[currentStakingEpoch] = 0;
         }
     }
-
+    
     function _newValidatorSet(address[] memory _forcedPools)
     internal
     {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
-        // Choose new validators
-        if (poolsToBeElected.length > maxValidators) {
+
+        uint256 numOfValidatorsToBeElected = poolsToBeElected.length; // todo: sweet spot targeting here. 
+
+        // Choose new validators > )
+        if (poolsToBeElected.length > numOfValidatorsToBeElected) {
 
             uint256 poolsToBeElectedLength = poolsToBeElected.length;
             (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
-            address[] memory newValidators = new address[](maxValidators);
+            address[] memory newValidators = new address[](numOfValidatorsToBeElected);
 
             uint256 indexNewValidator = 0;
             for(uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {

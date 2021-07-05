@@ -648,6 +648,29 @@ contract('ValidatorSetHbbft', async accounts => {
         }
       });
     });
+
+    it('hbbft sweet spots are calculated correct.', async() => {
+
+      const expectedResults = 
+        [ 1,1,1,
+          4,4,4,
+          7,7,7,
+          10,10,10,
+          13,13,13,
+          16,16,16,
+          19,19,19,
+          22,22,22,
+          25
+        ]
+
+      for (let i = 0; i < expectedResults.length; i++) {
+        const expected = expectedResults[i];
+        const result = await validatorSetHbbft.getValidatorCountSweetSpot.call(i + 1);
+        // console.log(`i: ${i}, expected: ${expected}, result: ${result}`);
+        new BN(result).should.be.bignumber.equal(new BN(expected));
+      }
+      
+    });
   });
 
   // TODO: ...add other tests...
