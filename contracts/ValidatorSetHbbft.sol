@@ -741,9 +741,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         return stakingContract.getPoolPublicKey(stakingByMiningAddress[_miningAddress]);
     }
 
-    /// @dev in Hbbft there exist sweet spots for the choice of validator counts
+    /// @dev in Hbbft there are sweet spots for the choice of validator counts
     /// those are FLOOR((n - 1)/3) * 3 + 1
-    /// values: 4 - 7 - 10 - 13 - 16 - 19 - 22 - 25
+    /// values: 1 - 4 - 7 - 10 - 13 - 16 - 19 - 22 - 25
+    /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/84
     /// @return a sweet spot n for a given number n
     function getValidatorCountSweetSpot(uint256 _possibleValidatorCount)
     external
