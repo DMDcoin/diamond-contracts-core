@@ -267,7 +267,9 @@ contract('InitializerHbbft', async accounts => {
 
       const pendingValidators = await validatorSetHbbft.getPendingValidators.call();
 
-      pendingValidators.should.be.deep.equal([initializingMiningAddresses[0]]);
+      // since there was never  another electable candidate, the system should still
+      // tread the one and only pending validator still as pending validator.
+      pendingValidators.should.be.deep.equal([newPoolMiningAddress]);
 
       await writePart('1', parts[0], pendingValidators[0]);
 
@@ -311,7 +313,7 @@ contract('InitializerHbbft', async accounts => {
     });
 
     it('1/2 KeyGeneration - PART Failure', async () => {
-      //tests  a 2 validators setup.
+      //tests a 2 validators setup.
       // 1 manages to write it's part.
       // 1 does not manage to write it's part.
       // expected behavior:
@@ -497,9 +499,15 @@ async function callReward(isEpochEndBlock) {
 //and simulate a block mining (calling reward())
 async function timeTravelToTransition() {
 
+  let currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
   let startTimeOfNextPhaseTransition = await stakingHbbft.startTimeOfNextPhaseTransition.call();
+  if (logOutput) {
+    console.log(`timetraveling from ${currentTS} to ${startTimeOfNextPhaseTransition }`);
+  }
+  
   await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextPhaseTransition);
-  const currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+  currentTS = await validatorSetHbbft.getCurrentTimestamp.call();
+  
   currentTS.should.be.bignumber.equal(startTimeOfNextPhaseTransition);
   await callReward(false);
 }
