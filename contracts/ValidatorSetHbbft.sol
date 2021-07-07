@@ -781,7 +781,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
 
-        uint256 numOfValidatorsToBeElected = poolsToBeElected.length; // todo: sweet spot targeting here. 
+        uint256 numOfValidatorsToBeElected = maxValidators; // todo: sweet spot targeting here. 
 
         // Choose new validators > )
         if (poolsToBeElected.length > numOfValidatorsToBeElected) {
