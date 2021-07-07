@@ -649,10 +649,12 @@ contract('ValidatorSetHbbft', async accounts => {
       });
     });
 
-    it('hbbft sweet spots are calculated correct.', async() => {
+    it('hbbft sweet spots are calculated correct. getValidatorCountSweetSpot', async() => {
+
+      
 
       const expectedResults = 
-        [ 1,1,1,
+        [ 1,2,3,
           4,4,4,
           7,7,7,
           10,10,10,
@@ -661,7 +663,7 @@ contract('ValidatorSetHbbft', async accounts => {
           19,19,19,
           22,22,22,
           25
-        ]
+        ];
 
       for (let i = 0; i < expectedResults.length; i++) {
         const expected = expectedResults[i];

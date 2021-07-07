@@ -747,10 +747,13 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/84
     /// @return a sweet spot n for a given number n
     function getValidatorCountSweetSpot(uint256 _possibleValidatorCount)
-    external
+    public
     view
     returns(uint256) {
         require(_possibleValidatorCount > 0, "_possibleValidatorCount must not be 0");
+        if (_possibleValidatorCount < 4) {
+            return _possibleValidatorCount;
+        }
         return ((_possibleValidatorCount - 1) / 3) * 3 + 1;
     }
 
@@ -781,7 +784,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
 
-        uint256 numOfValidatorsToBeElected = maxValidators; // todo: sweet spot targeting here. 
+        uint256 numOfValidatorsToBeElected = 
+            poolsToBeElected.length >= maxValidators || poolsToBeElected.length == 0 ? maxValidators : 
+            getValidatorCountSweetSpot(poolsToBeElected.length); 
 
         // Choose new validators > )
         if (poolsToBeElected.length > numOfValidatorsToBeElected) {
