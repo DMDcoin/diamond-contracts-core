@@ -437,7 +437,7 @@ contract('ValidatorSetHbbft', async accounts => {
 
       const newValidators = await validatorSetHbbft.getPendingValidators.call();
 
-      newValidators.length.should.be.equal((await validatorSetHbbft.MAX_VALIDATORS.call()).toNumber());
+      newValidators.length.should.be.equal((await validatorSetHbbft.maxValidators.call()).toNumber());
 
       for (let i = 0; i < newValidators.length; i++) {
         miningAddresses.indexOf(newValidators[i].toLowerCase()).should.be.gte(0);
@@ -647,6 +647,31 @@ contract('ValidatorSetHbbft', async accounts => {
           Math.abs(stakeAmountsExpectedShares[index] - value).should.be.most(maxFluctuation);
         }
       });
+    });
+
+    it('hbbft sweet spots are calculated correct. getValidatorCountSweetSpot', async() => {
+
+      
+
+      const expectedResults = 
+        [ 1,2,3,
+          4,4,4,
+          7,7,7,
+          10,10,10,
+          13,13,13,
+          16,16,16,
+          19,19,19,
+          22,22,22,
+          25
+        ];
+
+      for (let i = 0; i < expectedResults.length; i++) {
+        const expected = expectedResults[i];
+        const result = await validatorSetHbbft.getValidatorCountSweetSpot.call(i + 1);
+        // console.log(`i: ${i}, expected: ${expected}, result: ${result}`);
+        new BN(result).should.be.bignumber.equal(new BN(expected));
+      }
+      
     });
   });
 

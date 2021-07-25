@@ -81,6 +81,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
         minimumGasPrice = 1000000000; // (1 gwei)
+        blockGasLimit = 1000000000; // 1 giga gas block
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.

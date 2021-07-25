@@ -31,11 +31,12 @@ async function doDeployContracts() {
 // const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
 
-  const contractToUpdate = 'TxPermissionHbbft';
+  const contractToUpdate = 'ValidatorSetHbbft';
 
 
   const contractAddresses = {
-    TxPermissionHbbft: '0x4000000000000000000000000000000000000001'
+    TxPermissionHbbft: '0x4000000000000000000000000000000000000001',
+    ValidatorSetHbbft: '0x1000000000000000000000000000000000000001'
   }
 
   const address = contractAddresses[contractToUpdate];

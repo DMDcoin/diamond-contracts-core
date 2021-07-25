@@ -87,6 +87,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     external
     view
     returns(bool) {
+
         if (_certified[_who]) {
             return true;
         }
@@ -101,9 +102,8 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         // since the node cache the list of certifiers
         // and the permission contracts checks anyway, 
         // if the specific 0 gas transaction is allowed or not.
-
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
-        return stakingContract.isPoolActive(stakingAddress);
+        return stakingAddress != address(0);
     }
 
     /// @dev Returns a boolean flag indicating whether the specified address is allowed to use zero gas price
