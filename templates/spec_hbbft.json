@@ -4,15 +4,16 @@
     "hbbft": {
       "params": {
         "minimumBlockTime": 1,
+        "maximumBlockTime": 30,
         "transactionQueueSizeTrigger": 1,
         "blockRewardContractAddress": "0x2000000000000000000000000000000000000001"
       }
     }
   },
   "params": {
-    "gasLimitBoundDivisor": "0x400",
+    "gasLimitBoundDivisor": "0x4",
     "maximumExtraDataSize": "0x20",
-    "minGasLimit": "0x1388",
+    "minGasLimit": "0x138800",
     "networkID": "777004",
     "eip140Transition": "0x0",
     "eip211Transition": "0x0",
