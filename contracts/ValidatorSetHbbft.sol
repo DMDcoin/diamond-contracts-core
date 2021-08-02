@@ -203,8 +203,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             _setStakingAddress(miningAddress, _initialStakingAddresses[i]);
         }
 
-        maxValidators = 7;
-
+        maxValidators = 25;
     }
 
       /// @dev Called by the system when a pending validator set is ready to be activated.
@@ -321,6 +320,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
         
 
+        //address[] memory badValidators = new address[];
+
         for(uint i = 0; i < _pendingValidators.length; i++) {
             
             // get mining address for this pool.
@@ -364,6 +365,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             }
         }
 
+        keyGenHistoryContract.clearPrevKeyGenState(_pendingValidators);
         // we might only set a subset to the newValidatorSet function,
         // since the last indexes of the array are holding unused slots.
         address[] memory forcedPools = new address[](goodValidatorsCount);
