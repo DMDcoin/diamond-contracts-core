@@ -247,7 +247,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
             uint256 phaseTransitionTime = stakingContract.startTimeOfNextPhaseTransition();
             uint256 currentTimestamp = validatorSetContract.getCurrentTimestamp();
-
+            // TODO: Problem occurs here if there are not regular blocks: 
+            // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
             
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
@@ -258,7 +259,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             if (isPhaseTransition) {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
-            } else if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime() ) {
+            } else if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime()) {
                 validatorSetContract.handleFailedKeyGeneration();
             }
         }
