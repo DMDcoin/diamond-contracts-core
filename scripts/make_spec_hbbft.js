@@ -96,6 +96,11 @@ async function main() {
     spec.engine.hbbft.params.minimumBlockTime = minimumBlockTime;
   }
 
+  const maximumBlockTime = Number.parseInt(process.env.MAXIMUM_BLOCK_TIME);
+  if (maximumBlockTime > 0) {
+    spec.engine.hbbft.params.maximumBlockTime = maximumBlockTime;
+  }
+
   let contractsCompiled = {};
   for (let i = 0; i < contracts.length; i++) {
     const contractName = contracts[i];
