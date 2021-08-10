@@ -844,6 +844,29 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             // Remove pools marked as `to be removed`
             stakingContract.removePools();
         }
+
+        // a new validator set can get choosen already outside the timeframe for phase 2.
+        // this can happen if the network got stuck and get's repaired.
+        // and the repair takes longer than a single epoch.
+        // we detect this case here and grant an extra time window
+        // so the selected nodes also get their chance to write their keys.
+        // more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
+
+        // timescale:
+        // epoch start time ..... phase 2 transition .... current end of phase 2 ..... now ..... new end of phase 2.
+        
+        // new extra window size has to cover the difference between phase2 transition and now.
+        // to reach the new end of phase 2.
+
+        // current end of phase 2 : stakingContract.stakingFixedEpochEndTime()
+
+        // now: validatorSetContract.getCurrentTimestamp();
+
+        if (this.getCurrentTimestamp() > stakingContract.stakingFixedEpochEndTime()) {
+            stakingContract.notifyNetworkOfftimeDetected(this.getCurrentTimestamp()
+                - stakingContract.stakingFixedEpochEndTime());
+        }
+
     }
 
     /// @dev Sets a new validator set stored in `_pendingValidators` array.
