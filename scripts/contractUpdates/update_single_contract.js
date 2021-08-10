@@ -16,6 +16,9 @@ async function doDeployContracts() {
   const account = accounts[0];
   console.log('using account: ', account);
 
+  const blockNumber = await web3.eth.getBlockNumber();
+  const blockHash = (await web3.eth.getBlock(blockNumber)).hash;
+  console.log(`Current Block ${blockNumber}:  ${blockHash}`);
 
   //const certifierProxyAddress = "0x5000000000000000000000000000000000000001";
   //const certifierProxyAddress = "0x5000000000000000000000000000000000000001";
@@ -31,12 +34,14 @@ async function doDeployContracts() {
 // const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
 
-  const contractToUpdate = 'ValidatorSetHbbft';
+  const contractToUpdate = 'BlockRewardHbbft';
 
 
   const contractAddresses = {
     TxPermissionHbbft: '0x4000000000000000000000000000000000000001',
-    ValidatorSetHbbft: '0x1000000000000000000000000000000000000001'
+    ValidatorSetHbbft: '0x1000000000000000000000000000000000000001',
+    StakingHbbft:      '0x1100000000000000000000000000000000000001',
+    BlockRewardHbbft:   '0x2000000000000000000000000000000000000001'
   }
 
   const address = contractAddresses[contractToUpdate];
