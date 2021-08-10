@@ -262,22 +262,23 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 validatorSetContract.newValidatorSet();
             } else if (currentTimestamp >= stakingContract.stakingFixedEpochEndTime()) {
                 validatorSetContract.handleFailedKeyGeneration();
-            } else {
-                
-                // check for faster validator set upscaling
-                // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/90
-                
-                address[] memory miningAddresses = validatorSetContract.getValidators();
-
-                // if there is a miningset that is smaller than the 2/3 of the maxValidators,
-                // then we choose the next epoch set.
-                if (miningAddresses.length < (validatorSetContract.maxValidators() / 3) * 2) {
-                    address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
-                    if (poolsToBeElected.length > miningAddresses.length) {
-                        validatorSetContract.newValidatorSet();
-                    }
-                }
             }
+            // } else {
+                
+            //     // check for faster validator set upscaling
+            //     // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/90
+                
+            //     address[] memory miningAddresses = validatorSetContract.getValidators();
+
+            //     // if there is a miningset that is smaller than the 2/3 of the maxValidators,
+            //     // then we choose the next epoch set.
+            //     if (miningAddresses.length < (validatorSetContract.maxValidators() / 3) * 2) {
+            //         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
+            //         if (poolsToBeElected.length > miningAddresses.length) {
+            //             validatorSetContract.newValidatorSet();
+            //         }
+            //     }
+            // }
         }
     }
 
