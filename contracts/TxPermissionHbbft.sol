@@ -373,8 +373,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // bytes4(keccak256("writeAcks(uint256,bytes[])"))
     bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
 
-    // bytes4(keccak256("announceAvailability()"))
-    bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x292525af;
+    bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.

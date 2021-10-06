@@ -14,7 +14,7 @@ interface IValidatorSetHbbft {
         address[] calldata,
         address[] calldata
     ) external;
-    function announceAvailability() external;
+    function announceAvailability(uint256, bytes32) external;
     function finalizeChange() external;
     function newValidatorSet() external;
     function removeMaliciousValidators(address[] calldata) external;

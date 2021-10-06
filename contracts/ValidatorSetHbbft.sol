@@ -249,9 +249,17 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
     /// @dev called by validators when a validator comes online after
     /// getting marked as unavailable caused by a failed key generation.
-    function announceAvailability()
+    function announceAvailability(uint256 _blockNumber, bytes32 _blockhash)
     external {
-        require(canCallAnnounceAvailability(msg.sender), 'Announcing availability not possible');
+
+        require(canCallAnnounceAvailability(msg.sender), 'Announcing availability not possible.');
+        require(_blockNumber < block.number, '_blockNumber argument must be in the past.');
+        // 255 is a technical limitation of EVM ability to look into the past.
+        // however, we query just for 16 blocks here.
+        // this provides a time window big enough for valid nodes.
+        require(_blockNumber + 16 > block.number, '_blockNumber argument must be in the past within the last 255 blocks.');
+        // we have ensured now that we technicaly able to query the blockhash for that block
+        require(blockhash(_blockNumber) == _blockhash, 'provided blockhash must match blockchains blockhash');
 
         uint timestamp = this.getCurrentTimestamp();
         validatorAvailableSince[msg.sender] = timestamp;

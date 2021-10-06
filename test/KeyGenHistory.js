@@ -456,7 +456,10 @@ async function call2ParaFunction(functionName, from, upcommingEpochNumber, parts
 
 async function announceAvailability( pool ) {
 
-  const call = validatorSetHbbft.contract.methods.announceAvailability();
+  const blockNumber = await this.web3.eth.getBlockNumber()
+  const block = await this.web3.eth.getBlock(blockNumber);
+
+  const call = validatorSetHbbft.contract.methods.announceAvailability(blockNumber, block.hash);
 
   const asEncoded = call.encodeABI();
 
