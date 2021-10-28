@@ -13,8 +13,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     // WARNING: since this contract is upgradeable, do not remove
     // existing storage variables and do not change their types!
 
-    // the current validator addresses
-    address[] public validatorSet;
     mapping(address => bytes) public parts;
     mapping(address => bytes[]) public acks;
 
@@ -85,7 +83,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         require(_validatorSetContract != address(0), "Validator contract address cannot be 0.");
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
-        validatorSet = _validators;
 
         for (uint256 i = 0; i < _validators.length; i++) {
             parts[_validators[i]] = _parts[i];
