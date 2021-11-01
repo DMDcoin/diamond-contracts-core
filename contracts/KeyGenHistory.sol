@@ -25,6 +25,16 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
 
+    /// @dev round counter for key generation rounds.
+    /// in an ideal world, every key generation only requires one try,
+    /// and all validators manage to write their acks and parts,
+    /// so it is possible to achieve this goal in round 0.
+    /// in the real world, there are failures, 
+    /// this mechanics helps covering that,
+    /// by revoking transactions, that were targeted for an earlier key gen round.
+    /// more infos: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/106
+    uint256 public currentKeyGenRound;
+
     event NewValidatorsSet(address[] newValidatorSet);
 
     /// @dev Ensures the `initialize` function was called before.
@@ -90,7 +100,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         }
     }
 
-    function writePart(uint256 _upcommingEpoch, bytes memory _part)
+    function writePart(uint32 _upcommingEpoch, uint32 _roundCounter, bytes memory _part)
     public
     onlyUpcommingEpoch(_upcommingEpoch) {
         // It can only be called by a new validator which is elected but not yet finalized...
@@ -101,7 +111,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         numberOfPartsWritten++;
     }
 
-    function writeAcks(uint256 _upcommingEpoch, bytes[] memory _acks)
+    function writeAcks(uint32 _upcommingEpoch, uint32 _roundCounter, bytes[] memory _acks)
     public
     onlyUpcommingEpoch(_upcommingEpoch) {
         // It can only be called by a new validator which is elected but not yet finalized...
