@@ -38,20 +38,16 @@ async function doPrintSignatures() {
   // uint256 _blockNumber
 
   const reportMalicious = await valSet.reportMalicious.request('0xabcdef0000000000000000000000000000000001', '0x01', '0x02');
-  console.log('reportMaliciousLog:', reportMalicious.data);
+  console.log('reportMaliciousLog:', reportMalicious.data); 
 
-  //const writePart = await keyGenHistory.writePart.request('', ''):
-
-  
-
-  const requestPart = await keyGenHistory.writePart.request('0x1234', '0xabcd');
+  const requestPart = await keyGenHistory.writePart.request('0x1234', '0x0', '0xabcd');
 
   console.log('writing Part');
   console.log(requestPart.data);
   
 
   console.log('writing Ack');
-  const requestAck = await keyGenHistory.writeAcks.request('0x1234', ['0x0101', '0x0202']);
+  const requestAck = await keyGenHistory.writeAcks.request('0x1234', '0x0', ['0x0101', '0x0202']);
   console.log(requestAck.data);
 
 }

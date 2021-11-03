@@ -367,11 +367,11 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
     bytes4 public constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
 
-    // bytes4(keccak256("writePart(uint256,bytes)"))
-    bytes4 public constant WRITE_PART_SIGNATURE = 0x0334657d;
+    // bytes4(keccak256("writePart(uint256,uint256,bytes)"))
+    bytes4 public constant WRITE_PART_SIGNATURE = 0x2d4de124;
 
-    // bytes4(keccak256("writeAcks(uint256,bytes[])"))
-    bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
+    // bytes4(keccak256("writeAcks(uint256,uint256,bytes[])"))
+    bytes4 public constant WRITE_ACKS_SIGNATURE = 0x5623208e;
 
     bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 
