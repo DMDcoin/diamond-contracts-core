@@ -33,8 +33,14 @@ async function doDeployContracts() {
 // const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
 // const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
+// TODO: 
+// compare current code with deployed code, 
+// detect different contracts to update.
+// make create call for all contracts.
+// execute a transaction that executes the switch to new contract address
 
-  const contractToUpdate = 'BlockRewardHbbft';
+
+  const contractToUpdate = 'TxPermissionHbbft';
 
 
   const contractAddresses = {
@@ -72,7 +78,7 @@ async function doDeployContracts() {
   console.log('deployed to ', newContract.address);
   console.log('upgrading...');
   const txResult = await currentProxy.upgradeTo(newContract.address);
-  console.log('upgrade result: ', txResult);
+  console.log(`upgrade result: ${txResult.tx} ${txResult.receipt.status}`, );
 
   console.log('verifying upgrade...');
 
