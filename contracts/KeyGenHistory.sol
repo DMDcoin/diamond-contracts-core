@@ -77,6 +77,19 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         numberOfAcksWritten = 0;
     }
 
+    function notifyKeyGenFailed()
+    external
+    onlyValidatorSet {
+        currentKeyGenRound = currentKeyGenRound + 1;
+    }
+
+    function notifyNewEpoch()
+    external
+    onlyValidatorSet {
+        currentKeyGenRound = 0;
+    }
+
+
     function initialize(
         address _validatorSetContract,
         address[] memory _validators,

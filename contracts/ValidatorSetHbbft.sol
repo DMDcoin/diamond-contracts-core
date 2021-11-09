@@ -223,6 +223,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
         // new epoch starts
         stakingContract.incrementStakingEpoch();
+        keyGenHistoryContract.notifyNewEpoch();
         delete _pendingValidators;
         stakingContract.setStakingEpochStartTime(this.getCurrentTimestamp());
 
@@ -374,6 +375,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         }
 
         keyGenHistoryContract.clearPrevKeyGenState(_pendingValidators);
+        keyGenHistoryContract.notifyKeyGenFailed();
+
         // we might only set a subset to the newValidatorSet function,
         // since the last indexes of the array are holding unused slots.
         address[] memory forcedPools = new address[](goodValidatorsCount);

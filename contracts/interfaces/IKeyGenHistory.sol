@@ -12,4 +12,7 @@ interface IKeyGenHistory {
     function getAcksLength(address val) external view returns(uint256);
     function getPart(address val) external view returns (bytes memory);
     function getNumberOfKeyFragmentsWritten() external view returns(uint128, uint128);
+    function notifyNewEpoch() external;
+    function notifyKeyGenFailed() external;
+
 }
