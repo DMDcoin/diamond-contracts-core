@@ -63,6 +63,14 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         _;
     }
 
+    /// @dev ensures that Key Generation functions are called with wrong _epoch 
+    /// parameter to prevent old and wrong transactions get picked up.
+    modifier onlyCorrectRound(uint _roundCounter) {
+        require(currentKeyGenRound == _roundCounter, 
+            "Key Generation function called with wrong _roundCounter parameter.");
+        _;
+    }
+
     /// @dev Clears the state (acks and parts of previous validators.
     /// @param _prevValidators The list of previous validators.
     function clearPrevKeyGenState(address[] calldata _prevValidators)
@@ -86,7 +94,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     function notifyNewEpoch()
     external
     onlyValidatorSet {
-        currentKeyGenRound = 0;
+        currentKeyGenRound = 1;
     }
 
 
@@ -111,11 +119,14 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
             parts[_validators[i]] = _parts[i];
             acks[_validators[i]] = _acks[i];
         }
+
+        currentKeyGenRound = 1;
     }
 
     function writePart(uint256 _upcommingEpoch, uint256 _roundCounter, bytes memory _part)
     public
-    onlyUpcommingEpoch(_upcommingEpoch) {
+    onlyUpcommingEpoch(_upcommingEpoch)
+    onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -126,7 +137,8 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
     function writeAcks(uint256 _upcommingEpoch, uint256 _roundCounter, bytes[] memory _acks)
     public
-    onlyUpcommingEpoch(_upcommingEpoch) {
+    onlyUpcommingEpoch(_upcommingEpoch)
+    onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");

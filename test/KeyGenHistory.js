@@ -30,7 +30,7 @@ let delegatorMinStake = new BN(web3.utils.toWei('1', 'ether'));
 
 //const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 const useUpgradeProxy = false;
-const logOutput = false;
+const logOutput = true;
 
 contract('KeyGenHistory', async accounts => {
 
@@ -218,8 +218,6 @@ contract('KeyGenHistory', async accounts => {
       //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
       //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
 
-
-
       await printValidatorState('after staking on new Pool:');
       await timeTravelToTransition();
       await printValidatorState('after travel to transition:');
@@ -233,7 +231,6 @@ contract('KeyGenHistory', async accounts => {
       await timeTravelToEndEpoch();
 
       // the pools did not manage to write it's part and acks.
-      // 
 
       await printValidatorState('after failure:');
 
@@ -271,13 +268,18 @@ contract('KeyGenHistory', async accounts => {
       // tread the one and only pending validator still as pending validator.
       pendingValidators.should.be.deep.equal([newPoolMiningAddress]);
 
-      await writePart('1', '1337', parts[0], pendingValidators[0]);
+
+
+      // since the initial round was failed, we are in the second round.
+      const currentRoundCounter = '2';
+
+      await writePart('1', currentRoundCounter, parts[0], pendingValidators[0]);
 
       //confirm that part was written.
       const partFromBc = await keyGenHistory.getPart.call(pendingValidators[0]);
       partFromBc.should.be.equal('0x' + parts[0].toString('hex'), partFromBc, 'parts read from the blockchain require to be equal to the written data.');
 
-      await writeAcks('1', '0', acks[0], pendingValidators[0]);
+      await writeAcks('1', currentRoundCounter, acks[0], pendingValidators[0]);
 
       await timeTravelToEndEpoch();
 
@@ -293,8 +295,8 @@ contract('KeyGenHistory', async accounts => {
       await printValidatorState('epoch1 phase2:');
 
       // // now write the ACK and the PART:
-      await writePart('2', '0', parts[0], newPoolMiningAddress);
-      await writeAcks('2', '0', acks[0], newPoolMiningAddress);
+      await writePart('2', '1', parts[0], newPoolMiningAddress);
+      await writeAcks('2', '1', acks[0], newPoolMiningAddress);
 
       // it's now job of the current validators to verify the correct write of the PARTS and ACKS
       // (this is simulated by the next call)
@@ -344,10 +346,10 @@ contract('KeyGenHistory', async accounts => {
       // now let pending validator 2 write it's Part,
       // but pending validator 1 misses out to write it's part.
 
-      await writePart('3', '0', parts[0], poolMiningAddress2);
+      await writePart('3', '1', parts[0], poolMiningAddress2);
 
 
-      await writeAcks('3', '0', acks[0], poolMiningAddress2).should.be.rejected;
+      await writeAcks('3', '1', acks[0], poolMiningAddress2).should.be.rejected;
 
       if (logOutput) {
         console.log('numberOfPartsWritten: ',  await keyGenHistory.numberOfPartsWritten.call());
@@ -420,6 +422,9 @@ async function writeAcks(upcommingEpochNumber, round, parts, from) {
 
 async function call3ParaFunction(functionName, from, upcommingEpochNumber, round, parts) {
 
+  const currentKeyGenRound = await keyGenHistory.currentKeyGenRound.call();
+  console.log('currentKeyGenRound', currentKeyGenRound.toString());
+  
   const call = keyGenHistory.contract.methods[functionName](upcommingEpochNumber, round, parts);
   const asEncoded = call.encodeABI();
 
