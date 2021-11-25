@@ -423,7 +423,9 @@ async function writeAcks(upcommingEpochNumber, round, parts, from) {
 async function call3ParaFunction(functionName, from, upcommingEpochNumber, round, parts) {
 
   const currentKeyGenRound = await keyGenHistory.currentKeyGenRound.call();
-  console.log('currentKeyGenRound', currentKeyGenRound.toString());
+  if (logOutput) {
+    console.log('currentKeyGenRound', currentKeyGenRound.toString());
+  }
   
   const call = keyGenHistory.contract.methods[functionName](upcommingEpochNumber, round, parts);
   const asEncoded = call.encodeABI();
