@@ -161,6 +161,13 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         return acks[val].length;
     }
 
+    function getCurrentKeyGenRound()
+    external
+    view
+    returns(uint256) {
+        return currentKeyGenRound;
+    }
+
     function getNumberOfKeyFragmentsWritten()
     external
     view 
