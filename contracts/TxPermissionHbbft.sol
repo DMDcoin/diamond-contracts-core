@@ -312,6 +312,15 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                     } else {
                         return (NONE, false);
                     }
+
+                    uint256 roundCounter = _getSliceUInt256(36, _data);
+
+                    if (roundCounter == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                        return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+
                 } else {
                     // we want to write the Acks, but it's not time for write the Acks.
                     // so this transaction is not allowed.
