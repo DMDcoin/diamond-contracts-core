@@ -42,12 +42,12 @@ async function doDeployContracts() {
 
   const contractToUpdate = 'TxPermissionHbbft';
 
-
   const contractAddresses = {
     TxPermissionHbbft: '0x4000000000000000000000000000000000000001',
     ValidatorSetHbbft: '0x1000000000000000000000000000000000000001',
     StakingHbbft:      '0x1100000000000000000000000000000000000001',
-    BlockRewardHbbft:   '0x2000000000000000000000000000000000000001'
+    BlockRewardHbbft:  '0x2000000000000000000000000000000000000001',
+    KeyGenHistory:     '0x7000000000000000000000000000000000000001',
   }
 
   const address = contractAddresses[contractToUpdate];
