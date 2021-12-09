@@ -30,9 +30,9 @@ let delegatorMinStake = new BN(web3.utils.toWei('1', 'ether'));
 
 //const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 const useUpgradeProxy = false;
-const logOutput = false;
+const logOutput = true;
 
-contract('InitializerHbbft', async accounts => {
+contract('KeyGenHistory', async accounts => {
 
 
   owner = accounts[0];
@@ -218,8 +218,6 @@ contract('InitializerHbbft', async accounts => {
       //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake}).should.be.fulfilled;
       //await stakingHbbft.stake(stakingAddresses[2], {from: stakingAddresses[2], value: candidateMinStake}).should.be.fulfilled;
 
-
-
       await printValidatorState('after staking on new Pool:');
       await timeTravelToTransition();
       await printValidatorState('after travel to transition:');
@@ -233,7 +231,6 @@ contract('InitializerHbbft', async accounts => {
       await timeTravelToEndEpoch();
 
       // the pools did not manage to write it's part and acks.
-      // 
 
       await printValidatorState('after failure:');
 
@@ -271,13 +268,18 @@ contract('InitializerHbbft', async accounts => {
       // tread the one and only pending validator still as pending validator.
       pendingValidators.should.be.deep.equal([newPoolMiningAddress]);
 
-      await writePart('1', parts[0], pendingValidators[0]);
+
+
+      // since the initial round was failed, we are in the second round.
+      const currentRoundCounter = '2';
+
+      await writePart('1', currentRoundCounter, parts[0], pendingValidators[0]);
 
       //confirm that part was written.
       const partFromBc = await keyGenHistory.getPart.call(pendingValidators[0]);
       partFromBc.should.be.equal('0x' + parts[0].toString('hex'), partFromBc, 'parts read from the blockchain require to be equal to the written data.');
 
-      await writeAcks('1', acks[0], pendingValidators[0]);
+      await writeAcks('1', currentRoundCounter, acks[0], pendingValidators[0]);
 
       await timeTravelToEndEpoch();
 
@@ -293,8 +295,8 @@ contract('InitializerHbbft', async accounts => {
       await printValidatorState('epoch1 phase2:');
 
       // // now write the ACK and the PART:
-      await writePart('2', parts[0], newPoolMiningAddress);
-      await writeAcks('2', acks[0], newPoolMiningAddress );
+      await writePart('2', '1', parts[0], newPoolMiningAddress);
+      await writeAcks('2', '1', acks[0], newPoolMiningAddress);
 
       // it's now job of the current validators to verify the correct write of the PARTS and ACKS
       // (this is simulated by the next call)
@@ -344,10 +346,10 @@ contract('InitializerHbbft', async accounts => {
       // now let pending validator 2 write it's Part,
       // but pending validator 1 misses out to write it's part.
 
-      await writePart('3', parts[0], poolMiningAddress2);
+      await writePart('3', '1', parts[0], poolMiningAddress2);
 
 
-      await writeAcks('3', acks[0], poolMiningAddress2).should.be.rejected;
+      await writeAcks('3', '1', acks[0], poolMiningAddress2).should.be.rejected;
 
       if (logOutput) {
         console.log('numberOfPartsWritten: ',  await keyGenHistory.numberOfPartsWritten.call());
@@ -409,25 +411,31 @@ async function printValidatorState(info) {
 // NOTE: It does not really send the transaction with 0 gas price, 
 // because that would only work if the network nodes would already 
 // run on the test contracts deployed here.
-async function writePart(upcommingEpochNumber, parts, from) {
+async function writePart(upcommingEpochNumber, round, parts, from) {
 
-  await call2ParaFunction('writePart', from, upcommingEpochNumber, parts);
+  await call3ParaFunction('writePart', from, upcommingEpochNumber, round, parts);
 }
 
-async function writeAcks(upcommingEpochNumber, parts, from) {
-  await call2ParaFunction('writeAcks', from, upcommingEpochNumber, parts);
+async function writeAcks(upcommingEpochNumber, round, parts, from) {
+  await call3ParaFunction('writeAcks', from, upcommingEpochNumber, round, parts);
 }
 
-async function call2ParaFunction(functionName, from, upcommingEpochNumber, parts) {
+async function call3ParaFunction(functionName, from, upcommingEpochNumber, round, parts) {
 
-  const call = keyGenHistory.contract.methods[functionName](upcommingEpochNumber, parts);
+  const currentKeyGenRound = await keyGenHistory.currentKeyGenRound.call();
+  if (logOutput) {
+    console.log('currentKeyGenRound', currentKeyGenRound.toString());
+  }
+  
+  const call = keyGenHistory.contract.methods[functionName](upcommingEpochNumber, round, parts);
   const asEncoded = call.encodeABI();
 
   if (logOutput) {
     console.log('calling: ', functionName);
     console.log('from: ', from)
     console.log('epoch: ', upcommingEpochNumber.toString());
-    console.log('ecodedCall: ', asEncoded);
+    console.log('round: ', round);
+    console.log('encodedCall: ', asEncoded);
   }
     
   //const numberFromContract = await txPermission._getSliceUInt256(4, asEncoded);
@@ -456,7 +464,10 @@ async function call2ParaFunction(functionName, from, upcommingEpochNumber, parts
 
 async function announceAvailability( pool ) {
 
-  const call = validatorSetHbbft.contract.methods.announceAvailability();
+  const blockNumber = await this.web3.eth.getBlockNumber()
+  const block = await this.web3.eth.getBlock(blockNumber);
+
+  const call = validatorSetHbbft.contract.methods.announceAvailability(blockNumber, block.hash);
 
   const asEncoded = call.encodeABI();
 

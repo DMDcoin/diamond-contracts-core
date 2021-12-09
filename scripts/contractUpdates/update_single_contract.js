@@ -16,6 +16,9 @@ async function doDeployContracts() {
   const account = accounts[0];
   console.log('using account: ', account);
 
+  const blockNumber = await web3.eth.getBlockNumber();
+  const blockHash = (await web3.eth.getBlock(blockNumber)).hash;
+  console.log(`Current Block ${blockNumber}:  ${blockHash}`);
 
   //const certifierProxyAddress = "0x5000000000000000000000000000000000000001";
   //const certifierProxyAddress = "0x5000000000000000000000000000000000000001";
@@ -30,44 +33,61 @@ async function doDeployContracts() {
 // const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
 // const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
-
-  const contractToUpdate = 'ValidatorSetHbbft';
-
+// TODO: 
+// compare current code with deployed code, 
+// detect different contracts to update.
+// make create call for all contracts.
+// execute a transaction that executes the switch to new contract address
 
   const contractAddresses = {
     TxPermissionHbbft: '0x4000000000000000000000000000000000000001',
-    ValidatorSetHbbft: '0x1000000000000000000000000000000000000001'
+    ValidatorSetHbbft: '0x1000000000000000000000000000000000000001',
+    StakingHbbft:      '0x1100000000000000000000000000000000000001',
+    BlockRewardHbbft:  '0x2000000000000000000000000000000000000001',
+    KeyGenHistory:     '0x7000000000000000000000000000000000000001',
   }
 
-  const address = contractAddresses[contractToUpdate];
+  for (const contractToUpdate in contractAddresses) {
 
-  console.log(`Updating ${contractToUpdate} on address ${address}`);
+    const address = contractAddresses[contractToUpdate];
+    console.log(`Updating ${contractToUpdate} on address ${address}`);
+    const currentProxy = await AdminUpgradeabilityProxy.at(address);
+    let currentImplementationAddress = await currentProxy.implementation.call();
+    console.log(`current implementation: `, currentImplementationAddress);
 
-  const currentProxy = await AdminUpgradeabilityProxy.at(address);
+    //console.log('proxyMethods: ',await currentProxy.methods);
+    let currentAdmin = await currentProxy.admin.call();
+    console.log('currentAdmin: ', currentAdmin);
 
-  let currentImplementationAddress = await currentProxy.implementation.call();
+    if (currentAdmin !== account) {
+      const errorMessage = `The Account ${account} is not allowed to upgrade. Admin is: ${currentAdmin}`;
+      // console.error(errorMessage);
+      throw Error(errorMessage);
+    }
 
-  console.log(`current implementation: `, currentImplementationAddress);
+    const contractArtifact = artifacts.require(contractToUpdate);
+    const code = await web3.eth.getCode(currentImplementationAddress);
+    const isEqual = contractArtifact.bytecode === code;
+    
+    console.log('isEqual ? ', isEqual);
 
-  //console.log('proxyMethods: ',await currentProxy.methods);
-  let currentAdmin = await currentProxy.admin.call();
+    if (!isEqual) {
+      console.log(`${contractToUpdate} is not up to date!.`);
+      //console.log(contractArtifact.bytecode);
+      //console.log(code);
+
+    }
+  }
+
+  return;
   
-  console.log('currentAdmin: ', currentAdmin);
-
-  if (currentAdmin !== account) {
-    const errorMessage = `The Account ${account} is not allowed to upgrade. Admin is: ${currentAdmin}`;
-    // console.error(errorMessage);
-    throw Error(errorMessage);
-  }
-
-  const contractArtifact = artifacts.require(contractToUpdate);
 
   console.log('deploying new contract...');
   const newContract = await contractArtifact.new();
   console.log('deployed to ', newContract.address);
   console.log('upgrading...');
   const txResult = await currentProxy.upgradeTo(newContract.address);
-  console.log('upgrade result: ', txResult);
+  console.log(`upgrade result: ${txResult.tx} ${txResult.receipt.status}`, );
 
   console.log('verifying upgrade...');
 

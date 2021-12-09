@@ -611,6 +611,21 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         currentKeyGenExtraTimeWindow += stakingTransitionTimeframeLength;
     }
 
+    /// @dev Notifies hbbft staking contract about a detected
+    /// network offline time.
+    /// if there is no handling for this,
+    /// validators got chosen outside the transition timewindow
+    /// and get banned immediatly, since they never got their chance
+    /// to write their keys.
+    /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
+    function notifyNetworkOfftimeDetected(uint256 detectedOfflineTime)
+    public
+    onlyValidatorSetContract {
+        currentKeyGenExtraTimeWindow = currentKeyGenExtraTimeWindow 
+                                       + detectedOfflineTime
+                                       + stakingTransitionTimeframeLength; 
+    }
+
     /// @dev Notifies hbbft staking contract that a validator
     /// asociated with the given `_stakingAddress` became
     /// available again and can be put on to the list 
@@ -621,6 +636,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     {
         if (stakeAmount[_stakingAddress][_stakingAddress] >= candidateMinStake) {
             _addPoolActive(_stakingAddress, true);
+            _setLikelihood(_stakingAddress);
         }
     }
 

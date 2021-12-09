@@ -18,6 +18,7 @@ interface IStakingHbbft {
     function setStakingEpochStartTime(uint256) external;
     function notifyKeyGenFailed() external;
     function notifyAvailability(address _stakingAddress) external;
+    function notifyNetworkOfftimeDetected(uint256) external;
     function getPoolPublicKey(address _poolAddress) external view returns (bytes memory);
     function getPoolsLikelihood() external view returns(uint256[] memory, uint256);
     function getPoolsToBeElected() external view returns(address[] memory);

@@ -203,8 +203,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             _setStakingAddress(miningAddress, _initialStakingAddresses[i]);
         }
 
-        maxValidators = 7;
-
+        maxValidators = 25;
     }
 
       /// @dev Called by the system when a pending validator set is ready to be activated.
@@ -224,6 +223,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
         // new epoch starts
         stakingContract.incrementStakingEpoch();
+        keyGenHistoryContract.notifyNewEpoch();
         delete _pendingValidators;
         stakingContract.setStakingEpochStartTime(this.getCurrentTimestamp());
 
@@ -250,9 +250,17 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
     /// @dev called by validators when a validator comes online after
     /// getting marked as unavailable caused by a failed key generation.
-    function announceAvailability()
+    function announceAvailability(uint256 _blockNumber, bytes32 _blockhash)
     external {
-        require(canCallAnnounceAvailability(msg.sender), 'Announcing availability not possible');
+
+        require(canCallAnnounceAvailability(msg.sender), 'Announcing availability not possible.');
+        require(_blockNumber < block.number, '_blockNumber argument must be in the past.');
+        // 255 is a technical limitation of EVM ability to look into the past.
+        // however, we query just for 16 blocks here.
+        // this provides a time window big enough for valid nodes.
+        require(_blockNumber + 16 > block.number, '_blockNumber argument must be in the past within the last 255 blocks.');
+        // we have ensured now that we technicaly able to query the blockhash for that block
+        require(blockhash(_blockNumber) == _blockhash, 'provided blockhash must match blockchains blockhash');
 
         uint timestamp = this.getCurrentTimestamp();
         validatorAvailableSince[msg.sender] = timestamp;
@@ -321,6 +329,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
         
 
+        //address[] memory badValidators = new address[];
+
         for(uint i = 0; i < _pendingValidators.length; i++) {
             
             // get mining address for this pool.
@@ -363,6 +373,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
                 emit ValidatorUnavailable(miningAddress, this.getCurrentTimestamp());
             }
         }
+
+        keyGenHistoryContract.clearPrevKeyGenState(_pendingValidators);
+        keyGenHistoryContract.notifyKeyGenFailed();
 
         // we might only set a subset to the newValidatorSet function,
         // since the last indexes of the array are holding unused slots.
@@ -842,6 +855,29 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             // Remove pools marked as `to be removed`
             stakingContract.removePools();
         }
+
+        // a new validator set can get choosen already outside the timeframe for phase 2.
+        // this can happen if the network got stuck and get's repaired.
+        // and the repair takes longer than a single epoch.
+        // we detect this case here and grant an extra time window
+        // so the selected nodes also get their chance to write their keys.
+        // more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
+
+        // timescale:
+        // epoch start time ..... phase 2 transition .... current end of phase 2 ..... now ..... new end of phase 2.
+        
+        // new extra window size has to cover the difference between phase2 transition and now.
+        // to reach the new end of phase 2.
+
+        // current end of phase 2 : stakingContract.stakingFixedEpochEndTime()
+
+        // now: validatorSetContract.getCurrentTimestamp();
+
+        if (this.getCurrentTimestamp() > stakingContract.stakingFixedEpochEndTime()) {
+            stakingContract.notifyNetworkOfftimeDetected(this.getCurrentTimestamp()
+                - stakingContract.stakingFixedEpochEndTime());
+        }
+
     }
 
     /// @dev Sets a new validator set stored in `_pendingValidators` array.

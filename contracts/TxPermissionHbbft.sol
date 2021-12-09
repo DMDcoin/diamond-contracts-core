@@ -312,6 +312,15 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                     } else {
                         return (NONE, false);
                     }
+
+                    uint256 roundCounter = _getSliceUInt256(36, _data);
+
+                    if (roundCounter == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                        return (CALL, false);
+                    } else {
+                        return (NONE, false);
+                    }
+
                 } else {
                     // we want to write the Acks, but it's not time for write the Acks.
                     // so this transaction is not allowed.
@@ -367,14 +376,13 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
     bytes4 public constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
 
-    // bytes4(keccak256("writePart(uint256,bytes)"))
-    bytes4 public constant WRITE_PART_SIGNATURE = 0x0334657d;
+    // bytes4(keccak256("writePart(uint256,uint256,bytes)"))
+    bytes4 public constant WRITE_PART_SIGNATURE = 0x2d4de124;
 
-    // bytes4(keccak256("writeAcks(uint256,bytes[])"))
-    bytes4 public constant WRITE_ACKS_SIGNATURE = 0xc56aef48;
+    // bytes4(keccak256("writeAcks(uint256,uint256,bytes[])"))
+    bytes4 public constant WRITE_ACKS_SIGNATURE = 0x5623208e;
 
-    // bytes4(keccak256("announceAvailability()"))
-    bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x292525af;
+    bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.

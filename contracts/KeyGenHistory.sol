@@ -13,8 +13,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     // WARNING: since this contract is upgradeable, do not remove
     // existing storage variables and do not change their types!
 
-    // the current validator addresses
-    address[] public validatorSet;
     mapping(address => bytes) public parts;
     mapping(address => bytes[]) public acks;
 
@@ -26,6 +24,16 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
+
+    /// @dev round counter for key generation rounds.
+    /// in an ideal world, every key generation only requires one try,
+    /// and all validators manage to write their acks and parts,
+    /// so it is possible to achieve this goal in round 0.
+    /// in the real world, there are failures, 
+    /// this mechanics helps covering that,
+    /// by revoking transactions, that were targeted for an earlier key gen round.
+    /// more infos: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/106
+    uint256 public currentKeyGenRound;
 
     event NewValidatorsSet(address[] newValidatorSet);
 
@@ -55,6 +63,14 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         _;
     }
 
+    /// @dev ensures that Key Generation functions are called with wrong _epoch 
+    /// parameter to prevent old and wrong transactions get picked up.
+    modifier onlyCorrectRound(uint _roundCounter) {
+        require(currentKeyGenRound == _roundCounter, 
+            "Key Generation function called with wrong _roundCounter parameter.");
+        _;
+    }
+
     /// @dev Clears the state (acks and parts of previous validators.
     /// @param _prevValidators The list of previous validators.
     function clearPrevKeyGenState(address[] calldata _prevValidators)
@@ -68,6 +84,19 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         numberOfPartsWritten = 0;
         numberOfAcksWritten = 0;
     }
+
+    function notifyKeyGenFailed()
+    external
+    onlyValidatorSet {
+        currentKeyGenRound = currentKeyGenRound + 1;
+    }
+
+    function notifyNewEpoch()
+    external
+    onlyValidatorSet {
+        currentKeyGenRound = 1;
+    }
+
 
     function initialize(
         address _validatorSetContract,
@@ -85,17 +114,19 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         require(_validatorSetContract != address(0), "Validator contract address cannot be 0.");
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
-        validatorSet = _validators;
 
         for (uint256 i = 0; i < _validators.length; i++) {
             parts[_validators[i]] = _parts[i];
             acks[_validators[i]] = _acks[i];
         }
+
+        currentKeyGenRound = 1;
     }
 
-    function writePart(uint256 _upcommingEpoch, bytes memory _part)
+    function writePart(uint256 _upcommingEpoch, uint256 _roundCounter, bytes memory _part)
     public
-    onlyUpcommingEpoch(_upcommingEpoch) {
+    onlyUpcommingEpoch(_upcommingEpoch)
+    onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -104,9 +135,10 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         numberOfPartsWritten++;
     }
 
-    function writeAcks(uint256 _upcommingEpoch, bytes[] memory _acks)
+    function writeAcks(uint256 _upcommingEpoch, uint256 _roundCounter, bytes[] memory _acks)
     public
-    onlyUpcommingEpoch(_upcommingEpoch) {
+    onlyUpcommingEpoch(_upcommingEpoch)
+    onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         require(validatorSetContract.isPendingValidator(msg.sender), "Sender is not a pending validator");
@@ -127,6 +159,13 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     view
     returns(uint256) {
         return acks[val].length;
+    }
+
+    function getCurrentKeyGenRound()
+    external
+    view
+    returns(uint256) {
+        return currentKeyGenRound;
     }
 
     function getNumberOfKeyFragmentsWritten()
