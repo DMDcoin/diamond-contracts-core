@@ -12,6 +12,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
     // WARNING: since this contract is upgradeable, do not remove
     // existing storage variables and do not change their types!
+    address[] public validatorSet;
 
     mapping(address => bytes) public parts;
     mapping(address => bytes[]) public acks;
