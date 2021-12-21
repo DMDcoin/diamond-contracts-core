@@ -66,11 +66,12 @@ module.exports = {
 
     development: {
       host: "localhost",
-      port: 8545,
+      port: 8540,
       gas: 8000000,
       network_id: "*" // Match any network id
     },
-
+    
+    
     test: {
       host: "localhost",
       port: 8545,
@@ -84,6 +85,19 @@ module.exports = {
       gas: 0xfffffffffff,
       gasPrice: 0x01,
       network_id: "*"
+    },
+
+    localnet: {
+      provider: function() {
+        return new HDWalletProvider(
+          { mnemonic: mnemonic,
+            providerOrUrl: 'http://127.0.0.1:8540',
+            numberOfAddresses: 100}
+          );
+      },
+      network_id: '*',
+      networkCheckTimeout: 1000000,
+      timeoutBlocks: 200
     },
 
     testNet: {

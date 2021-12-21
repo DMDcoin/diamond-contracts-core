@@ -76,24 +76,22 @@ async function doDeployContracts() {
       //console.log(contractArtifact.bytecode);
       //console.log(code);
 
+      console.log(`deploying new contract ${contractToUpdate}...`);
+      const newContract = await contractArtifact.new();
+      console.log('deployed to ', newContract.address);
+      console.log('upgrading...');
+      const txResult = await currentProxy.upgradeTo(newContract.address);
+      console.log(`upgrade result: ${txResult.tx} ${txResult.receipt.status}`, );
+    
+      console.log('verifying upgrade...');
+      currentImplementationAddress = await currentProxy.implementation.call();
+      console.log(`new implementation address: `, currentImplementationAddress);
+
     }
   }
 
-  return;
+  //return;
   
-
-  console.log('deploying new contract...');
-  const newContract = await contractArtifact.new();
-  console.log('deployed to ', newContract.address);
-  console.log('upgrading...');
-  const txResult = await currentProxy.upgradeTo(newContract.address);
-  console.log(`upgrade result: ${txResult.tx} ${txResult.receipt.status}`, );
-
-  console.log('verifying upgrade...');
-
-  currentImplementationAddress = await currentProxy.implementation.call();
-
-  console.log(`new implementation address: `, currentImplementationAddress);
 }
 
 module.exports = async function deployContracts(callback) {
