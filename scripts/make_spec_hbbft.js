@@ -60,7 +60,9 @@ async function main() {
     stakingMinStakeForDelegator  = web3.utils.toWei(stakingMinStakeForDelegatorString, 'ether');
   }
 
-  let stakingParams = [stakingMinStakeForDelegator, stakingMinStakeForValidator, stakingEpochDuration, stakingTransitionWindowLength, stakeWithdrawDisallowPeriod];
+  let stakingMaxStakeForValidator = web3.utils.toWei('50000', 'ether');
+
+  let stakingParams = [stakingMinStakeForDelegator, stakingMinStakeForValidator, stakingMaxStakeForValidator, stakingEpochDuration, stakingTransitionWindowLength, stakeWithdrawDisallowPeriod];
 
   let publicKeys = init_data.public_keys;
   for (let i = 0; i < publicKeys.length; i++) {
