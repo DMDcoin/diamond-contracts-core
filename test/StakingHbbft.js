@@ -41,7 +41,7 @@ contract('StakingHbbft', async accounts => {
 
   currentAccounts = accounts;
   const minStake = new BN(web3.utils.toWei('1', 'ether'));
-
+  const maxStake = new BN(web3.utils.toWei('100000', 'ether'));
   // one epoch in 1 day.
   const stakingFixedEpochDuration = new BN(86400);
 
@@ -148,6 +148,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake,
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -318,6 +319,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -363,6 +365,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1636,6 +1639,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1679,6 +1683,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1692,6 +1697,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         0, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1705,6 +1711,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         0, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1718,6 +1725,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1729,6 +1737,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1742,6 +1751,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         0, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1755,6 +1765,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         0, // _stakingWithdrawDisallowPeriod
@@ -1768,6 +1779,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         120954, // _stakingWithdrawDisallowPeriod
@@ -1782,6 +1794,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1797,6 +1810,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         0, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1812,6 +1826,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingFixedEpochDuration, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1836,6 +1851,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1913,6 +1929,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -2038,6 +2055,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -2114,6 +2132,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -2164,6 +2183,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod

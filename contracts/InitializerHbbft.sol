@@ -45,7 +45,7 @@ contract InitializerHbbft {
         address _owner,
         address[] memory _miningAddresses,
         address[] memory _stakingAddresses,
-        uint256[5] memory _stakingParams,
+        uint256[6] memory _stakingParams,
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses,
         bytes[] memory _parts,
@@ -64,9 +64,10 @@ contract InitializerHbbft {
             _stakingAddresses,
             _stakingParams[0], // _delegatorMinStake
             _stakingParams[1], // _candidateMinStake
-            _stakingParams[2], // _stakingEpochDuration
-            _stakingParams[3], // _stakingTransitionTimeframeLength
-            _stakingParams[4], // _stakingWithdrawDisallowPeriod
+            _stakingParams[2], // _maxStake
+            _stakingParams[3], // _stakingEpochDuration
+            _stakingParams[4], // _stakingTransitionTimeframeLength
+            _stakingParams[5], // _stakingWithdrawDisallowPeriod
             _publicKeys,
             _internetAddresses
         );

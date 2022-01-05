@@ -160,6 +160,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     mapping (address => PoolInfo) public poolInfo;
 
+    /// @dev current limit of how many funds can 
+    /// be staked on a single validator.
+    uint256 public maxStakeAmount;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
@@ -326,6 +330,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address[] calldata _initialStakingAddresses,
         uint256 _delegatorMinStake,
         uint256 _candidateMinStake,
+        uint256 _maxStake,
         uint256 _stakingFixedEpochDuration,
         uint256 _stakingTransitionTimeframeLength,
         uint256 _stakingWithdrawDisallowPeriod,
@@ -345,6 +350,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             _initialStakingAddresses,
             _delegatorMinStake,
             _candidateMinStake,
+            _maxStake,
             _publicKeys,
             _internetAddresses
         );
@@ -1035,6 +1041,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address[] memory _initialStakingAddresses,
         uint256 _delegatorMinStake,
         uint256 _candidateMinStake,
+        uint256 _maxStake,
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses
     )
@@ -1051,6 +1058,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             "Must provide correct number of IP adresses");
         require(_delegatorMinStake != 0, "DelegatorMinStake is 0");
         require(_candidateMinStake != 0, "CandidateMinStake is 0");
+        require(_maxStake > _candidateMinStake, "maximum stake must be greater then minimum stake.");
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
 
@@ -1064,6 +1072,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         delegatorMinStake = _delegatorMinStake;
         candidateMinStake = _candidateMinStake;
+
+        maxStakeAmount = _maxStake;
     }
 
     /// @dev Adds the specified address to the array of the current active delegators of the specified pool.
@@ -1193,8 +1203,10 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         require(_amount != 0, "Stake: stakingAmount is 0");
         require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");
         //require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
-
+        
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker].add(_amount);
+
+        require(newStakeAmount < maxStakeAmount, "stake limit has been exceeded");
 
         if (_staker == _poolStakingAddress) {
             // The staked amount must be at least CANDIDATE_MIN_STAKE
