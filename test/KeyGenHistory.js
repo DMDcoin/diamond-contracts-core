@@ -30,7 +30,7 @@ let delegatorMinStake = new BN(web3.utils.toWei('1', 'ether'));
 let maxStake = new BN(web3.utils.toWei('100000', 'ether'));
 //const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 const useUpgradeProxy = false;
-const logOutput = true;
+const logOutput = false;
 
 contract('KeyGenHistory', async accounts => {
 
