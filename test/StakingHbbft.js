@@ -1920,15 +1920,11 @@ contract('StakingHbbft', async accounts => {
       const targetPool = initialStakingAddresses[1];
       let currentSourceStake = new BN(await stakingHbbft.stakeAmountTotal.call(sourcePool));
       const totalStakeableSource = maxStake.sub(currentSourceStake);
-      console.log('staking: ', totalStakeableSource.toString());
       await stakingHbbft.stake(sourcePool, { from: delegatorAddress, value: totalStakeableSource}).should.be.fulfilled;
       let currentTargetStake = new BN(await stakingHbbft.stakeAmountTotal.call(targetPool));
-      console.log('currentTargetStake: ', currentTargetStake.toString());
       const totalStakeableTarget = maxStake.sub(currentTargetStake);
-      console.log('totalStakeableTarget: ', totalStakeableTarget.toString());
       await stakingHbbft.stake(targetPool, { from: delegatorAddress, value: totalStakeableTarget}).should.be.fulfilled;
-      console.log('stake after target: ', (await stakingHbbft.stakeAmountTotal.call(targetPool)).toString());
-      // source is at max stake now.
+      // source is at max stake now, now tip it over.
       await stakingHbbft.moveStake(sourcePool, targetPool, new BN(1), { from: delegatorAddress }).should.be.rejectedWith("stake limit has been exceeded");
     });
   });
