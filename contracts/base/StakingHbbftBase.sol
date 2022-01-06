@@ -1206,8 +1206,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker].add(_amount);
 
-        require(newStakeAmount < maxStakeAmount, "stake limit has been exceeded");
-
         if (_staker == _poolStakingAddress) {
             // The staked amount must be at least CANDIDATE_MIN_STAKE
             require(newStakeAmount >= candidateMinStake, "Stake: candidateStake less than candidateMinStake");
@@ -1220,6 +1218,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             require(stakeAmount[_poolStakingAddress][_poolStakingAddress] != 0, "Stake: can't delegate in empty pool");
         }
 
+        require(stakeAmountTotal[_poolStakingAddress].add(_amount) <= maxStakeAmount, "stake limit has been exceeded");
         stakeAmount[_poolStakingAddress][_staker] = newStakeAmount;
         _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch] =
             stakeAmountByCurrentEpoch(_poolStakingAddress, _staker).add(_amount);

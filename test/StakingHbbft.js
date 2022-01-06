@@ -173,6 +173,11 @@ contract('StakingHbbft', async accounts => {
       const poolIsActiveNow = await stakingHbbft.isPoolActive.call(candidateStakingAddress);
       true.should.be.equal(poolIsActiveNow);
     });
+    it('should fail if created with overstaked pool', async () => {
+      false.should.be.equal(await stakingHbbft.isPoolActive.call(candidateStakingAddress));
+      await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      '0x00000000000000000000000000000000', { from: candidateStakingAddress, value: maxStake + minStake}).should.be.rejectedWith('stake limit has been exceeded');
+    });
     it('should fail if mining address is 0', async () => {
       await stakingHbbft.addPool('0x0000000000000000000000000000000000000000', '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
         '0x00000000000000000000000000000000', { from: candidateStakingAddress, value: minStake }).should.be.rejectedWith("Mining address can't be 0");
@@ -995,6 +1000,7 @@ contract('StakingHbbft', async accounts => {
         [6, 8, 10]
       );
     });
+    
 
     it('random withdrawal 1', async () => {
       await testClaimRewardRandom(
@@ -1907,6 +1913,24 @@ contract('StakingHbbft', async accounts => {
     it('should fail if the staker tries to move more than they have', async () => {
       await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount.mul(new BN(2)), { from: delegatorAddress }).should.be.rejectedWith("Withdraw: maxWithdrawAllowed exceeded.");
     });
+    it('should fail if the staker tries to overstake by moving stake.', async () => {
+      // stake source pool and target pool to the max.
+      // then move 1 from source to target - that should be the drop on the hot stone.
+      const sourcePool = initialStakingAddresses[0];
+      const targetPool = initialStakingAddresses[1];
+      let currentSourceStake = new BN(await stakingHbbft.stakeAmountTotal.call(sourcePool));
+      const totalStakeableSource = maxStake.sub(currentSourceStake);
+      console.log('staking: ', totalStakeableSource.toString());
+      await stakingHbbft.stake(sourcePool, { from: delegatorAddress, value: totalStakeableSource}).should.be.fulfilled;
+      let currentTargetStake = new BN(await stakingHbbft.stakeAmountTotal.call(targetPool));
+      console.log('currentTargetStake: ', currentTargetStake.toString());
+      const totalStakeableTarget = maxStake.sub(currentTargetStake);
+      console.log('totalStakeableTarget: ', totalStakeableTarget.toString());
+      await stakingHbbft.stake(targetPool, { from: delegatorAddress, value: totalStakeableTarget}).should.be.fulfilled;
+      console.log('stake after target: ', (await stakingHbbft.stakeAmountTotal.call(targetPool)).toString());
+      // source is at max stake now.
+      await stakingHbbft.moveStake(sourcePool, targetPool, new BN(1), { from: delegatorAddress }).should.be.rejectedWith("stake limit has been exceeded");
+    });
   });
 
   describe('stake()', async () => {
@@ -1985,6 +2009,10 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[1], { from: initialStakingAddresses[1], value: candidateMinStake }).should.be.fulfilled;
       const halfOfDelegatorMinStake = delegatorMinStake.div(new BN(2));
       await stakingHbbft.stake(initialStakingAddresses[1], { from: delegatorAddress, value: halfOfDelegatorMinStake }).should.be.rejectedWith("Stake: delegatorStake is less than delegatorMinStake");
+    });
+    it('should fail if a delegator stakes more than maxStake', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], { from: initialStakingAddresses[1], value: candidateMinStake }).should.be.fulfilled;
+      await stakingHbbft.stake(initialStakingAddresses[1], { from: delegatorAddress, value: maxStake.add(new BN(1)) }).should.be.rejectedWith("stake limit has been exceeded");
     });
     it('should fail if a delegator stakes into an empty pool', async () => {
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
