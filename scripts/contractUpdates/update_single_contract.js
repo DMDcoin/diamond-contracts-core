@@ -133,6 +133,17 @@ async function doDeployContracts() {
     }
   }
 
+  console.log('list of all contracts to update');
+  for(contract of contractsToUpdate) {
+    const contractArtifact = artifacts.require(contract);
+    
+    for (abiItem of contractArtifact.abi) {
+      if (abiItem.name === 'upgrade' && abiItem.inputs.length === 0) {
+        console.log('Upgrade call found for ' + contract, abiItem);
+      }
+    }
+  }
+
   console.log('all contracts for update: ', contractsToUpdate);
 
   //return;
