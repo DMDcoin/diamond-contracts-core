@@ -20,18 +20,4 @@ contract UpgradeabilityAdmin {
             adm := sload(slot)
         }
     }
-
-    // function getAdminAddress() 
-    // public
-    // view
-    // returns (address adm) {
-    //     return _admin();
-    // }
-
-    // function senderAddress() 
-    // public
-    // view
-    // returns (address adm) {
-    //     return tx.origin;
-    // }
 }
