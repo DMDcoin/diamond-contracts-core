@@ -27,10 +27,10 @@ let keyGenHistory;
 
 let candidateMinStake = new BN(web3.utils.toWei('2', 'ether'));
 let delegatorMinStake = new BN(web3.utils.toWei('1', 'ether'));
-
+let maxStake = new BN(web3.utils.toWei('100000', 'ether'));
 //const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 const useUpgradeProxy = false;
-const logOutput = true;
+const logOutput = false;
 
 contract('KeyGenHistory', async accounts => {
 
@@ -152,6 +152,7 @@ contract('KeyGenHistory', async accounts => {
       const stakingParams = [
         delegatorMinStake, //_delegatorMinStake
         candidateMinStake, //_candidateMinStake
+        maxStake, // _candidateMaxStake
         stakingEpochDuration, //_stakingEpochDuration
         stakingTransitionwindowLength, //_stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, //_stakingWithdrawDisallowPeriod

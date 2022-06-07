@@ -41,7 +41,7 @@ contract('StakingHbbft', async accounts => {
 
   currentAccounts = accounts;
   const minStake = new BN(web3.utils.toWei('1', 'ether'));
-
+  const maxStake = new BN(web3.utils.toWei('100000', 'ether'));
   // one epoch in 1 day.
   const stakingFixedEpochDuration = new BN(86400);
 
@@ -148,6 +148,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake,
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -171,6 +172,11 @@ contract('StakingHbbft', async accounts => {
         '0x00000000000000000000000000000000', { from: candidateStakingAddress, value: minStake }).should.be.fulfilled;
       const poolIsActiveNow = await stakingHbbft.isPoolActive.call(candidateStakingAddress);
       true.should.be.equal(poolIsActiveNow);
+    });
+    it('should fail if created with overstaked pool', async () => {
+      false.should.be.equal(await stakingHbbft.isPoolActive.call(candidateStakingAddress));
+      await stakingHbbft.addPool(candidateMiningAddress, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      '0x00000000000000000000000000000000', { from: candidateStakingAddress, value: maxStake + minStake}).should.be.rejectedWith('stake limit has been exceeded');
     });
     it('should fail if mining address is 0', async () => {
       await stakingHbbft.addPool('0x0000000000000000000000000000000000000000', '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
@@ -318,6 +324,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -363,6 +370,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -992,6 +1000,7 @@ contract('StakingHbbft', async accounts => {
         [6, 8, 10]
       );
     });
+    
 
     it('random withdrawal 1', async () => {
       await testClaimRewardRandom(
@@ -1636,6 +1645,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1679,6 +1689,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1692,6 +1703,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         0, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1705,6 +1717,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         0, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1718,6 +1731,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1729,6 +1743,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1742,6 +1757,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         0, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1755,6 +1771,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         0, // _stakingWithdrawDisallowPeriod
@@ -1768,6 +1785,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         120954, // _stakingWithdrawDisallowPeriod
@@ -1782,6 +1800,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1797,6 +1816,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         0, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1812,6 +1832,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingFixedEpochDuration, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1836,6 +1857,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1891,6 +1913,20 @@ contract('StakingHbbft', async accounts => {
     it('should fail if the staker tries to move more than they have', async () => {
       await stakingHbbft.moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount.mul(new BN(2)), { from: delegatorAddress }).should.be.rejectedWith("Withdraw: maxWithdrawAllowed exceeded.");
     });
+    it('should fail if the staker tries to overstake by moving stake.', async () => {
+      // stake source pool and target pool to the max.
+      // then move 1 from source to target - that should be the drop on the hot stone.
+      const sourcePool = initialStakingAddresses[0];
+      const targetPool = initialStakingAddresses[1];
+      let currentSourceStake = new BN(await stakingHbbft.stakeAmountTotal.call(sourcePool));
+      const totalStakeableSource = maxStake.sub(currentSourceStake);
+      await stakingHbbft.stake(sourcePool, { from: delegatorAddress, value: totalStakeableSource}).should.be.fulfilled;
+      let currentTargetStake = new BN(await stakingHbbft.stakeAmountTotal.call(targetPool));
+      const totalStakeableTarget = maxStake.sub(currentTargetStake);
+      await stakingHbbft.stake(targetPool, { from: delegatorAddress, value: totalStakeableTarget}).should.be.fulfilled;
+      // source is at max stake now, now tip it over.
+      await stakingHbbft.moveStake(sourcePool, targetPool, new BN(1), { from: delegatorAddress }).should.be.rejectedWith("stake limit has been exceeded");
+    });
   });
 
   describe('stake()', async () => {
@@ -1913,6 +1949,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -1968,6 +2005,10 @@ contract('StakingHbbft', async accounts => {
       await stakingHbbft.stake(initialStakingAddresses[1], { from: initialStakingAddresses[1], value: candidateMinStake }).should.be.fulfilled;
       const halfOfDelegatorMinStake = delegatorMinStake.div(new BN(2));
       await stakingHbbft.stake(initialStakingAddresses[1], { from: delegatorAddress, value: halfOfDelegatorMinStake }).should.be.rejectedWith("Stake: delegatorStake is less than delegatorMinStake");
+    });
+    it('should fail if a delegator stakes more than maxStake', async () => {
+      await stakingHbbft.stake(initialStakingAddresses[1], { from: initialStakingAddresses[1], value: candidateMinStake }).should.be.fulfilled;
+      await stakingHbbft.stake(initialStakingAddresses[1], { from: delegatorAddress, value: maxStake.add(new BN(1)) }).should.be.rejectedWith("stake limit has been exceeded");
     });
     it('should fail if a delegator stakes into an empty pool', async () => {
       (await stakingHbbft.stakeAmount.call(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.bignumber.equal(new BN(0));
@@ -2038,6 +2079,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -2114,6 +2156,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
@@ -2164,6 +2207,7 @@ contract('StakingHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         minStake, // _delegatorMinStake
         minStake, // _candidateMinStake
+        maxStake, // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod

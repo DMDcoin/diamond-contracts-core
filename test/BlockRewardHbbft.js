@@ -45,7 +45,7 @@ contract('BlockRewardHbbft', async accounts => {
   const KEY_GEN_DURATION = new BN(2); // we assume that there is a fixed duration in blocks, in reality it varies.
   const STAKE_WITHDRAW_DISALLOW_PERIOD = 2; // one less than EPOCH DURATION, therefore it meets the conditions.
   const MIN_STAKE = new BN(web3.utils.toWei('1', 'ether'));
-
+  const MAX_STAKE = new BN(web3.utils.toWei('100000', 'ether'));
 
   describe('reward()', async () => {
 
@@ -127,6 +127,7 @@ contract('BlockRewardHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         MIN_STAKE, // _delegatorMinStake
         MIN_STAKE, // _candidateMinStake
+        MAX_STAKE, // _maxStake
         STAKING_FIXED_EPOCH_DURATION, // _stakingFixedEpochDuration,
         STAKING_TRANSITION_WINDOW_LENGTH, // _stakingTransitionTimeframeLength
         STAKE_WITHDRAW_DISALLOW_PERIOD, // _stakeWithdrawDisallowPeriod

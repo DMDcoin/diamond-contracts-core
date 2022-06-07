@@ -20,7 +20,7 @@
     "getFunctionSignatures": "node scripts/getFunctionSignatures.js",
     "getTestnetState": "truffle exec --network testNet scripts/getCurrentState.js",
     "feedTestAccountsOnTestnet": "./node_modules/.bin/truffle exec scripts/feedTestAccounts.js --network testNet",
-    "testDev": "bash scripts/test.sh test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol",
+    "testDev": "bash scripts/test.sh test/StakingHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol",
     "updateContract": "truffle exec --network testNet scripts/contractUpdates/update_single_contract.js"
   },
   "repository": {

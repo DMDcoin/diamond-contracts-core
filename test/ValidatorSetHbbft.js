@@ -337,7 +337,7 @@ contract('ValidatorSetHbbft', async accounts => {
         initialStakingAddresses, // _initialStakingAddresses
         web3.utils.toWei('1', 'ether'), // _delegatorMinStake
         web3.utils.toWei('1', 'ether'), // _candidateMinStake
-
+        web3.utils.toWei('100000', 'ether'), // _maxStake
         stakingFixedEpochDuration, // _stakingFixedEpochDuration
         stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
         stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
