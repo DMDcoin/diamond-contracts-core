@@ -301,8 +301,20 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// adding the stake to the pool.
     function setPoolInfo(bytes calldata _publicKey, bytes16 _ip)
     external {
+
+
         poolInfo[msg.sender].publicKey = _publicKey;
         poolInfo[msg.sender].internetAddress = _ip;
+    }
+
+    /// @dev set's the validators ip address.
+    /// this function can only be called by the validator Set contract.
+    /// @param _validatorAddress address if the validator. (mining address)
+    /// @param _ip IPV4 address of a running Node Software or Proxy.
+    function setValidatorIP(address _validatorAddress, bytes16 _ip)
+    onlyValidatorSetContract
+    external {
+        poolInfo[_validatorAddress].internetAddress = _ip;
     }
 
     /// @dev Increments the serial number of the current staking epoch.

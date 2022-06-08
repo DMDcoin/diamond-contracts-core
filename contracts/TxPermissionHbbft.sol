@@ -254,8 +254,9 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                 return (callable ? CALL : NONE, false);
             } else if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
                 return (validatorSetContract.canCallAnnounceAvailability(_sender) ? CALL : NONE, false);
-            }
-            else if (_gasPrice > 0) {
+            } else if (signature == SET_VALIDATOR_IP) {
+                return (CALL, false);
+            } else if (_gasPrice > 0) {
                 // The other functions of ValidatorSet contract can be called
                 // by anyone except validators' mining addresses if gasPrice is not zero
                 return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
@@ -305,21 +306,19 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
                     //is the correct epoch parameter passed ?
 
-                    uint256 epochNumber = _getSliceUInt256(4, _data);
-
-                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                    if (_getSliceUInt256(4, _data) 
+                        == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
                         return (CALL, false);
-                    } else {
-                        return (NONE, false);
                     }
 
-                    uint256 roundCounter = _getSliceUInt256(36, _data);
+                    // is the correct round passed ? (filters out messages from earlier key gen rounds.)
 
-                    if (roundCounter == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                    if (_getSliceUInt256(36, _data) 
+                        == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
                         return (CALL, false);
-                    } else {
-                        return (NONE, false);
                     }
+
+                    return (NONE, false);
 
                 } else {
                     // we want to write the Acks, but it's not time for write the Acks.
@@ -381,6 +380,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     // bytes4(keccak256("writeAcks(uint256,uint256,bytes[])"))
     bytes4 public constant WRITE_ACKS_SIGNATURE = 0x5623208e;
+
+    bytes4 public constant SET_VALIDATOR_IP = 0x03ce87a3;
 
     bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 
