@@ -658,14 +658,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         }
     }
 
-     /// @dev save function that can be called by anyone that fixes uninitialzed values.
-    function upgrade()
-    public {
-        if (maxStakeAmount == 0) {
-            maxStakeAmount = 50000 ether; 
-        }
-    }
-
     // =============================================== Getters ========================================================
 
     /// @dev Returns an array of the current active pools (the staking addresses of candidates and validators).
