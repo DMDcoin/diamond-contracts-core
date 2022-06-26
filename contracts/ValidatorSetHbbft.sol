@@ -483,6 +483,18 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         maxValidators = _maxValidators;
     }
 
+    /// @dev set's the validators ip address.
+    /// this function can only be called by validators.
+    /// @param _ip IPV4 address of a running Node Software or Proxy.
+    function setValidatorIP(bytes16 _ip)
+    external {
+
+        // get stacking address of sender. (required)
+        address validatorAddress = stakingByMiningAddress[msg.sender];
+        require(validatorAddress != address(0), "No Pool defined for this validator.");
+        // optional: we could verify public key to signer (public key) integrity, but it is costly.
+        stakingContract.setValidatorIP(validatorAddress, _ip);
+    }
     // =============================================== Getters ========================================================
 
     /// @dev Returns a boolean flag indicating whether delegators of the specified pool are currently banned.
