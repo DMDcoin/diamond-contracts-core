@@ -29,7 +29,7 @@ interface IStakingHbbft {
     function orderedWithdrawAmount(address, address) external view returns(uint256);
     function poolDelegators(address) external view returns(address[] memory);
     function rewardWasTaken(address, address, uint256) external view returns(bool);
-    function setValidatorIP(address, bytes16, bytes2) external;
+    function setValidatorInternetAddress(address, bytes16, bytes2) external;
     function stakeAmount(address, address) external view returns(uint256);
     function stakeAmountTotal(address) external view returns(uint256);
     function stakeFirstEpoch(address, address) external view returns(uint256);

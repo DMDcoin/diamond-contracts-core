@@ -487,14 +487,14 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// this function can only be called by validators.
     /// @param _ip IPV4 address of a running Node Software or Proxy.
     /// @param _port port for IPv4 address of a running Node Software or Proxy.
-    function setValidatorIP(bytes16 _ip, bytes2 _port)
+    function setValidatorInternetAddress(bytes16 _ip, bytes2 _port)
     external {
 
         // get stacking address of sender. (required)
         address validatorAddress = stakingByMiningAddress[msg.sender];
         require(validatorAddress != address(0), "No Pool defined for this validator.");
         // optional: we could verify public key to signer (public key) integrity, but it is costly.
-        stakingContract.setValidatorIP(validatorAddress, _ip, _port);
+        stakingContract.setValidatorInternetAddress(validatorAddress, _ip, _port);
     }
     // =============================================== Getters ========================================================
 

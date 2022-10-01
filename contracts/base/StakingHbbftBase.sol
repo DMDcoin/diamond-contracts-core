@@ -312,7 +312,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// this function can only be called by the validator Set contract.
     /// @param _validatorAddress address if the validator. (mining address)
     /// @param _ip IPV4 address of a running Node Software or Proxy.
-    function setValidatorIP(address _validatorAddress, bytes16 _ip, bytes2 _port)
+    function setValidatorInternetAddress(address _validatorAddress, bytes16 _ip, bytes2 _port)
     onlyValidatorSetContract
     external {
         poolInfo[_validatorAddress].internetAddress = _ip;
