@@ -691,8 +691,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function getPoolInternetAddress(address _poolAddress)
     external
     view
-    returns (bytes16) {
-        return poolInfo[_poolAddress].internetAddress;
+    returns (bytes16, bytes2) {
+        return (poolInfo[_poolAddress].internetAddress, poolInfo[_poolAddress].port);
     }
 
     /// @dev Returns an array of the current inactive pools (the staking addresses of former candidates).
