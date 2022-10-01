@@ -163,7 +163,8 @@ contract('StakingHbbft', async accounts => {
     });
     it('should set the corresponding IP addresses', async () => {
       for (let i = 0; i < initialStakingAddresses.length; i++) {
-        (await stakingHbbft.getPoolInternetAddress.call(initialStakingAddresses[i])).should.be.deep.equal(initialValidatorsIpAddresses[i]);
+        let ip_result = (await stakingHbbft.getPoolInternetAddress.call(initialStakingAddresses[i]));
+        ip_result[0].should.be.deep.equal(initialValidatorsIpAddresses[i]);
       }
     });
     it('should create a new pool', async () => {
