@@ -3,7 +3,7 @@ const web3 = require('web3');
 const Web3EthAbi = require('web3-eth-abi');
 const fs = require('fs');
 
-const files = ['KeyGenHistory', 'ValidatorSetHbbft'];
+const files = ['KeyGenHistory', 'ValidatorSetHbbft', 'StakingHbbft'];
 
 for(let i = 0; i < files.length; i++) {
   const file = files[i];

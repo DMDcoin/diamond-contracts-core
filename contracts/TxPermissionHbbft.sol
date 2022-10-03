@@ -8,14 +8,10 @@ import "./interfaces/ITxPermission.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
 
-
-
-
 /// @dev Controls the use of zero gas price by validators in service transactions,
 /// protecting the network against "transaction spamming" by malicious validators.
 /// The protection logic is declared in the `allowedTxTypes` function.
 contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
-
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -27,7 +23,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev The address of the `Certifier` contract.
     ICertifier public certifierContract;
 
-    /// @dev 
+    /// @dev
     IKeyGenHistory public keyGenHistoryContract;
 
     /// @dev A boolean flag indicating whether the specified address is allowed
@@ -38,7 +34,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
 
-     /// @dev this is a constant for testing purposes to not cause upgrade issues with an existing network 
+    /// @dev this is a constant for testing purposes to not cause upgrade issues with an existing network
     /// because of storage modifictions.
     uint256 public minimumGasPrice;
 
@@ -50,7 +46,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized {
+    modifier onlyInitialized() {
         require(isInitialized());
         _;
     }
@@ -70,7 +66,12 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         address _validatorSet,
         address _keyGenHistoryContract
     ) external {
-        require(msg.sender == _admin() || tx.origin ==  _admin() || address(0) == _admin() || block.number == 0);
+        require(
+            msg.sender == _admin() ||
+                tx.origin == _admin() ||
+                address(0) == _admin() ||
+                block.number == 0
+        );
         require(!isInitialized(), "initialization can only be done once");
         require(_certifier != address(0));
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
@@ -88,9 +89,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// Can only be called by the `owner`. See also the `allowedTxTypes` getter.
     /// @param _sender The address for which transactions of any type must be allowed.
     function addAllowedSender(address _sender)
-    public
-    onlyOwner
-    onlyInitialized {
+        public
+        onlyOwner
+        onlyInitialized
+    {
         _addAllowedSender(_sender);
     }
 
@@ -99,9 +101,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// See also the `addAllowedSender` function and `allowedSenders` getter.
     /// @param _sender The removed address.
     function removeAllowedSender(address _sender)
-    public
-    onlyOwner
-    onlyInitialized {
+        public
+        onlyOwner
+        onlyInitialized
+    {
         require(isSenderAllowed[_sender]);
 
         uint256 allowedSendersLength = _allowedSenders.length;
@@ -118,7 +121,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     }
 
     /// @dev set's the minimum gas price that is allowed by non-service transactions.
-    /// IN HBBFT, there must be consens about the validator nodes about wich transaction is legal, 
+    /// IN HBBFT, there must be consens about the validator nodes about wich transaction is legal,
     /// and wich is not.
     /// therefore the contract (could be the DAO) has to check the minimum gas price.
     /// HBBFT Node implementations can also check if a transaction surpases the minimumGasPrice,
@@ -126,66 +129,51 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// The limit can be changed by the owner (typical the DAO)
     /// @param _value The new minimum gas price.
     function setMinimumGasPrice(uint256 _value)
-    public
-    onlyOwner
-    onlyInitialized {
-
+        public
+        onlyOwner
+        onlyInitialized
+    {
         // currently, we do not allow to set the minimum gas price to 0,
-        // that would open pandoras box, and the consequences of doing that, 
+        // that would open pandoras box, and the consequences of doing that,
         // requires deeper research.
-        require(_value > 0, "Minimum gas price must not be zero"); 
+        require(_value > 0, "Minimum gas price must not be zero");
         minimumGasPrice = _value;
     }
 
-
     /// @dev set's the block gas limit.
     /// IN HBBFT, there must be consens about the block gas limit.
-    function setBlockGasLimit(uint256 _value)
-    public
-    onlyOwner
-    onlyInitialized {
-
-        // we make some check that the block gas limit can not be set to low, 
+    function setBlockGasLimit(uint256 _value) public onlyOwner onlyInitialized {
+        // we make some check that the block gas limit can not be set to low,
         // to prevent the chain to be completly inoperatable.
         // this value is chosen arbitrarily
-        require(_value >= 1000000, "Block Gas limit gas price must be at minimum 1,000,000");
+        require(
+            _value >= 1000000,
+            "Block Gas limit gas price must be at minimum 1,000,000"
+        );
         blockGasLimit = _value;
     }
-
 
     // =============================================== Getters ========================================================
 
     /// @dev Returns the contract's name recognizable by node's engine.
-    function contractName()
-    public
-    pure
-    returns(string memory) {
+    function contractName() public pure returns (string memory) {
         return "TX_PERMISSION_CONTRACT";
     }
 
     /// @dev Returns the contract name hash needed for node's engine.
-    function contractNameHash()
-    public
-    pure
-    returns(bytes32) {
+    function contractNameHash() public pure returns (bytes32) {
         return keccak256(abi.encodePacked(contractName()));
     }
 
     /// @dev Returns the contract's version number needed for node's engine.
-    function contractVersion()
-    public
-    pure
-    returns(uint256) {
+    function contractVersion() public pure returns (uint256) {
         return 3;
     }
 
     /// @dev Returns the list of addresses allowed to initiate transactions of any type.
     /// For these addresses the `allowedTxTypes` getter always returns the `ALL` bit mask
     /// (see https://wiki.parity.io/Permissioning.html#how-it-works-1).
-    function allowedSenders()
-    public
-    view
-    returns(address[] memory) {
+    function allowedSenders() public view returns (address[] memory) {
         return _allowedSenders;
     }
 
@@ -207,13 +195,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     function allowedTxTypes(
         address _sender,
         address _to,
-        uint256 /*_value */,
+        uint256, /*_value */
         uint256 _gasPrice,
         bytes memory _data
-    )
-    public
-    view
-    returns(uint32 typesMask, bool cache) {
+    ) public view returns (uint32 typesMask, bool cache) {
         if (isSenderAllowed[_sender]) {
             // Let the `_sender` initiate any transaction if the `_sender` is in the `allowedSenders` list
             return (ALL, false);
@@ -221,56 +206,76 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
         // Get the called function's signature
         bytes4 signature = bytes4(0);
-        
+
         uint256 i;
         for (i = 0; _data.length >= 4 && i < 4; i++) {
-            signature |= bytes4(_data[i]) >> i*8;
+            signature |= bytes4(_data[i]) >> (i * 8);
         }
-
 
         if (_to == address(validatorSetContract)) {
             // The rules for the ValidatorSet contract
             if (signature == REPORT_MALICIOUS_SIGNATURE) {
                 bytes memory abiParams;
-                abiParams = new bytes(_data.length - 4 > 64 ? 64 : _data.length - 4);
+                abiParams = new bytes(
+                    _data.length - 4 > 64 ? 64 : _data.length - 4
+                );
 
                 for (i = 0; i < abiParams.length; i++) {
                     abiParams[i] = _data[i + 4];
                 }
 
-                (
-                    address maliciousMiningAddress,
-                    uint256 blockNumber
-                ) = abi.decode(
-                    abiParams,
-                    (address, uint256)
-                );
+                (address maliciousMiningAddress, uint256 blockNumber) = abi
+                    .decode(abiParams, (address, uint256));
 
                 // The `reportMalicious()` can only be called by the validator's mining address
                 // when the calling is allowed
-                (bool callable,) = validatorSetContract.reportMaliciousCallable(
-                    _sender, maliciousMiningAddress, blockNumber
-                );
+                (bool callable, ) = validatorSetContract
+                    .reportMaliciousCallable(
+                        _sender,
+                        maliciousMiningAddress,
+                        blockNumber
+                    );
                 return (callable ? CALL : NONE, false);
             } else if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
-                return (validatorSetContract.canCallAnnounceAvailability(_sender) ? CALL : NONE, false);
+                return (
+                    validatorSetContract.canCallAnnounceAvailability(_sender)
+                        ? CALL
+                        : NONE,
+                    false
+                );
             } else if (signature == SET_VALIDATOR_IP) {
-                return (CALL, false);
+                address pool = validatorSetContract.stakingByMiningAddress(
+                    _sender
+                );
+                if (pool != address(0)) {
+                    return (
+                        IStakingHbbft(validatorSetContract.stakingContract())
+                            .isPoolActive(pool)
+                            ? CALL
+                            : NONE,
+                        false
+                    );
+                }
+                return (NONE, false);
             } else if (_gasPrice > 0) {
                 // The other functions of ValidatorSet contract can be called
                 // by anyone except validators' mining addresses if gasPrice is not zero
-                return (validatorSetContract.isValidator(_sender) ? NONE : CALL, false);
+                return (
+                    validatorSetContract.isValidator(_sender) ? NONE : CALL,
+                    false
+                );
             }
         } else if (_to == address(keyGenHistoryContract)) {
-
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
 
             if (signature == WRITE_PART_SIGNATURE) {
-
-                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
-                    == IValidatorSetHbbft.KeyGenMode.WritePart) {
+                if (
+                    validatorSetContract.getPendingValidatorKeyGenerationMode(
+                        _sender
+                    ) == IValidatorSetHbbft.KeyGenMode.WritePart
+                ) {
                     //is the epoch parameter correct ?
 
                     // return if the data length is not big enough to pass a upcommingEpoch parameter.
@@ -281,23 +286,27 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
                     uint256 epochNumber = _getSliceUInt256(4, _data);
 
-                    if (epochNumber == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                    if (
+                        epochNumber ==
+                        IStakingHbbft(validatorSetContract.stakingContract())
+                            .stakingEpoch() +
+                            1
+                    ) {
                         return (CALL, false);
                     } else {
                         return (NONE, false);
                     }
-
                 } else {
                     // we want to write the Part, but it's not time for write the part.
                     // so this transaction is not allowed.
                     return (NONE, false);
                 }
-
             } else if (signature == WRITE_ACKS_SIGNATURE) {
-
-                if (validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
-                    == IValidatorSetHbbft.KeyGenMode.WriteAck) {
-
+                if (
+                    validatorSetContract.getPendingValidatorKeyGenerationMode(
+                        _sender
+                    ) == IValidatorSetHbbft.KeyGenMode.WriteAck
+                ) {
                     // return if the data length is not big enough to pass a upcommingEpoch parameter.
                     // we could add an addition size check, that include the minimal size of the part as well.
                     if (_data.length < 36) {
@@ -306,20 +315,27 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
                     //is the correct epoch parameter passed ?
 
-                    if (_getSliceUInt256(4, _data) 
-                        == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                    if (
+                        _getSliceUInt256(4, _data) ==
+                        IStakingHbbft(validatorSetContract.stakingContract())
+                            .stakingEpoch() +
+                            1
+                    ) {
                         return (CALL, false);
                     }
 
                     // is the correct round passed ? (filters out messages from earlier key gen rounds.)
 
-                    if (_getSliceUInt256(36, _data) 
-                        == IStakingHbbft(validatorSetContract.stakingContract()).stakingEpoch() + 1) {
+                    if (
+                        _getSliceUInt256(36, _data) ==
+                        IStakingHbbft(validatorSetContract.stakingContract())
+                            .stakingEpoch() +
+                            1
+                    ) {
                         return (CALL, false);
                     }
 
                     return (NONE, false);
-
                 } else {
                     // we want to write the Acks, but it's not time for write the Acks.
                     // so this transaction is not allowed.
@@ -344,7 +360,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
         // Don't let the `_sender` use a zero gas price, if it is not explicitly allowed by the `Certifier` contract
         if (_gasPrice == 0) {
-            return (certifierContract.certifiedExplicitly(_sender) ? ALL : NONE, false);
+            return (
+                certifierContract.certifiedExplicitly(_sender) ? ALL : NONE,
+                false
+            );
         }
 
         // In other cases let the `_sender` create any transaction with non-zero gas price,
@@ -353,10 +372,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized()
-    public
-    view
-    returns(bool) {
+    function isInitialized() public view returns (bool) {
         return validatorSetContract != IValidatorSetHbbft(0);
     }
 
@@ -381,33 +397,34 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // bytes4(keccak256("writeAcks(uint256,uint256,bytes[])"))
     bytes4 public constant WRITE_ACKS_SIGNATURE = 0x5623208e;
 
-    bytes4 public constant SET_VALIDATOR_IP = 0x03ce87a3;
+    bytes4 public constant SET_VALIDATOR_IP = 0x5554aba1;
 
     bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
-    function _addAllowedSender(address _sender)
-    internal {
+    function _addAllowedSender(address _sender) internal {
         require(!isSenderAllowed[_sender]);
         require(_sender != address(0));
         _allowedSenders.push(_sender);
         isSenderAllowed[_sender] = true;
     }
 
-
-    /// @dev retrieves a UInt256 slice of a bytes array on a specific location 
+    /// @dev retrieves a UInt256 slice of a bytes array on a specific location
     /// @param _begin offset to start reading the 32 bytes.
     /// @param _data byte[] to read the data from.
     /// @return uint256 value found on offset _begin in _data.
-    function _getSliceUInt256(uint256 _begin, bytes memory _data) 
-    internal
-    pure
-    returns (uint256) {
-        
+    function _getSliceUInt256(uint256 _begin, bytes memory _data)
+        internal
+        pure
+        returns (uint256)
+    {
         uint256 a = 0;
-        for(uint256 i=0;i<32;i++) {
-            a = a + (((uint256)((uint8)(_data[_begin + i]))) * ((uint256)(2 ** ((31 - i) * 8))));
+        for (uint256 i = 0; i < 32; i++) {
+            a =
+                a +
+                (((uint256)((uint8)(_data[_begin + i]))) *
+                    ((uint256)(2**((31 - i) * 8))));
         }
         return a;
     }

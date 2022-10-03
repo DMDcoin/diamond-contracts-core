@@ -156,6 +156,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     struct PoolInfo {
         bytes publicKey;
         bytes16 internetAddress;
+        bytes2 port;
     }
 
     mapping (address => PoolInfo) public poolInfo;
@@ -294,27 +295,28 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev set's the pool info for a specific ethereum address.
     /// @param _publicKey public key of the (future) signing address.
     /// @param _ip (optional) IPV4 address of a running Node Software or Proxy.
+    /// @param _port (optional) port of IPv4 address of a running Node Software or Proxy.
     /// Stores the supplied data for a staking (pool) address.
     /// This function is external available without security checks,
     /// since no array operations are used in the implementation,
     /// this allows the flexibility to set the pool information before
     /// adding the stake to the pool.
-    function setPoolInfo(bytes calldata _publicKey, bytes16 _ip)
+    function setPoolInfo(bytes calldata _publicKey, bytes16 _ip, bytes2 _port)
     external {
-
-
         poolInfo[msg.sender].publicKey = _publicKey;
         poolInfo[msg.sender].internetAddress = _ip;
+        poolInfo[msg.sender].port = _port;
     }
 
     /// @dev set's the validators ip address.
     /// this function can only be called by the validator Set contract.
     /// @param _validatorAddress address if the validator. (mining address)
     /// @param _ip IPV4 address of a running Node Software or Proxy.
-    function setValidatorIP(address _validatorAddress, bytes16 _ip)
+    function setValidatorInternetAddress(address _validatorAddress, bytes16 _ip, bytes2 _port)
     onlyValidatorSetContract
     external {
         poolInfo[_validatorAddress].internetAddress = _ip;
+        poolInfo[_validatorAddress].port = _port;
     }
 
     /// @dev Increments the serial number of the current staking epoch.
@@ -689,8 +691,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function getPoolInternetAddress(address _poolAddress)
     external
     view
-    returns (bytes16) {
-        return poolInfo[_poolAddress].internetAddress;
+    returns (bytes16, bytes2) {
+        return (poolInfo[_poolAddress].internetAddress, poolInfo[_poolAddress].port);
     }
 
     /// @dev Returns an array of the current inactive pools (the staking addresses of former candidates).
