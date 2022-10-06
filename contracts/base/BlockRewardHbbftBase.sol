@@ -30,8 +30,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
     mapping(uint256 => mapping(address => uint256)) public epochPoolNativeReward;
 
-    /// @dev The total reward amount in native coins which is not yet distributed among pools.
-    uint256 public nativeRewardUndistributed;
+    /// @dev Field that was initially used to store the total reward amount in native coins which is not yet 
+    /// distributed among pools.
+    uint256 public reserved_field;
 
     /// @dev The total amount staked into the specified pool (mining address)
     /// before the specified staking epoch. Filled by the `_snapshotPoolStakeAmounts` function.
@@ -486,7 +487,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 reinsertPotShare = reinsertPot / reinsertPotPayoutFraction;
         reinsertPot -= reinsertPotShare;
 
-        uint256 totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
+        uint256 totalReward = deltaPotShare + reinsertPotShare;
 
         if (totalReward == 0) {
             return 0;
@@ -539,7 +540,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             }
         }
 
-        nativeRewardUndistributed = totalReward - distributedAmount;
+        reinsertPot += (totalReward - distributedAmount);
 
         return distributedAmount;
         

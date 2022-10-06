@@ -30,7 +30,6 @@ contract('BlockRewardHbbft', async accounts => {
   let validatorSetHbbft;
   let candidateMinStake;
   let delegatorMinStake;
-  let nativeRewardUndistributed = new BN(0);
   let initialValidatorsPubKeys;
   let initialValidatorsIpAddresses;
 
@@ -171,8 +170,6 @@ contract('BlockRewardHbbft', async accounts => {
       // since noone stacked after all, pending validators should still be 0
       pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.length.should.be.equal(0);
-
-      (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
     });
 
     it('staking epoch #1 started', async () => {
@@ -240,7 +237,6 @@ contract('BlockRewardHbbft', async accounts => {
 
       // since we are now  in phase 2 of the same epoch.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal('1');
-      (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
 
       await timeTravelToEndEpoch();
 
@@ -306,7 +302,7 @@ contract('BlockRewardHbbft', async accounts => {
 
       const totalReward = addToDeltaPotValue.div(new BN('6000'));
       const expectedDAOShare = totalReward.div(new BN('10'));
-
+      
       governancePotIncrease.should.to.be.bignumber.equal(expectedDAOShare);
 
       //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
@@ -314,7 +310,7 @@ contract('BlockRewardHbbft', async accounts => {
 
       const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(maximumValidators)).mul(minValidatorSharePercent).div(new BN('100'));
       const actualValidatorReward = await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
-
+      (await blockRewardHbbft.reinsertPot.call()).should.be.bignumber.equal(totalReward.sub(governancePotIncrease).sub((new BN(currentValidators.length)).mul(totalReward.sub(expectedDAOShare).div(new BN(maximumValidators)))));
       actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
 
     });
@@ -331,15 +327,14 @@ contract('BlockRewardHbbft', async accounts => {
       (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(addToDeltaPotValue);
 
       const addedToReinsertPot = new BN(web3.utils.toWei('60'));
-
+      const reinsertPotBeforeAdd = await blockRewardHbbft.reinsertPot.call();
       await blockRewardHbbft.addToReinsertPot({ value: addedToReinsertPot }).should.be.fulfilled;
       const reinsertPotAfterAdd = await blockRewardHbbft.reinsertPot.call();
-      reinsertPotAfterAdd.should.be.bignumber.equal(addedToReinsertPot);
+      reinsertPotAfterAdd.should.be.bignumber.equal(reinsertPotBeforeAdd.add(addedToReinsertPot));
 
       stakingEpoch = await stakingHbbft.stakingEpoch.call();
 
       const initialGovernancePotBalance = await getCurrentGovernancePotValue();
-      const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed.call()
 
       await timeTravelToTransition();
       await timeTravelToEndEpoch();
@@ -347,7 +342,7 @@ contract('BlockRewardHbbft', async accounts => {
       const currentGovernancePotBalance = await getCurrentGovernancePotValue();
       const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
       
-      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000'))).add(nativeRewardUndistributed);
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000'))).add(reinsertPotBeforeAdd.div(new BN('6000')));
       
       const expectedDAOShare = totalReward.div(new BN('10'));
 
