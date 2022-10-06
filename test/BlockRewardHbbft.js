@@ -293,6 +293,7 @@ contract('BlockRewardHbbft', async accounts => {
     it('DMD Pots: governance and validators got correct share.', async () => {
 
       const currentValidators = await validatorSetHbbft.getValidators.call();
+      const maximumValidators = await validatorSetHbbft.maxValidators.call();
       currentValidators.length.should.be.equal(3);
       const initialGovernancePotBalance = await getCurrentGovernancePotValue();
       stakingEpoch = await stakingHbbft.stakingEpoch.call();
@@ -311,7 +312,7 @@ contract('BlockRewardHbbft', async accounts => {
       //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
       const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
 
-      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(maximumValidators)).mul(minValidatorSharePercent).div(new BN('100'));
       const actualValidatorReward = await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
 
       actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
@@ -338,15 +339,16 @@ contract('BlockRewardHbbft', async accounts => {
       stakingEpoch = await stakingHbbft.stakingEpoch.call();
 
       const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+      const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed.call()
 
       await timeTravelToTransition();
       await timeTravelToEndEpoch();
 
       const currentGovernancePotBalance = await getCurrentGovernancePotValue();
       const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
-
-      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000')));
-
+      
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000'))).add(nativeRewardUndistributed);
+      
       const expectedDAOShare = totalReward.div(new BN('10'));
 
       // we expect 1 wei difference, since the reward combination from 2 pots results in that.
@@ -356,10 +358,11 @@ contract('BlockRewardHbbft', async accounts => {
       //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
       const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
       const currentValidators = await validatorSetHbbft.getValidators.call();
-      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
+      const maximumValidators = await validatorSetHbbft.maxValidators.call();
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(maximumValidators)).mul(minValidatorSharePercent).div(new BN('100'));
       const actualValidatorReward = await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
-
       actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
+      
     });
 
     it('transfers to reward contract works with 100k gas and fills reinsert pot', async () => {

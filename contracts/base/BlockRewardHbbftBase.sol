@@ -521,9 +521,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (numRewardedValidators == 0){
             return 0;
         }
-
         // Share the reward equally among the validators.
-        uint256 poolReward = rewardToDistribute / numRewardedValidators;
+        uint256 poolReward = rewardToDistribute / validatorSetContract.maxValidators();
 
         if (poolReward != 0) {
             for (uint256 i = 0; i < numValidators; i++) {
