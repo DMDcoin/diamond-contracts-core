@@ -15,7 +15,7 @@ require('chai')
 
 // delegatecall are a problem for truffle debugger
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-// and to not use it if specific transactions needs to get debugged, 
+// and to not use it if specific transactions needs to get debugged,
 // like truffle `debug 0xabc`.
 const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 
@@ -30,6 +30,7 @@ contract('BlockRewardHbbft', async accounts => {
   let validatorSetHbbft;
   let candidateMinStake;
   let delegatorMinStake;
+  let nativeRewardUndistributed = new BN(0);
   let initialValidatorsPubKeys;
   let initialValidatorsIpAddresses;
 
@@ -170,6 +171,8 @@ contract('BlockRewardHbbft', async accounts => {
       // since noone stacked after all, pending validators should still be 0
       pendingValidators = await validatorSetHbbft.getPendingValidators.call();
       pendingValidators.length.should.be.equal(0);
+
+      (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
     });
 
     it('staking epoch #1 started', async () => {
@@ -237,6 +240,7 @@ contract('BlockRewardHbbft', async accounts => {
 
       // since we are now  in phase 2 of the same epoch.
       (await stakingHbbft.stakingEpoch.call()).should.be.bignumber.equal('1');
+      (await blockRewardHbbft.nativeRewardUndistributed.call()).should.be.bignumber.equal(nativeRewardUndistributed);
 
       await timeTravelToEndEpoch();
 
@@ -288,8 +292,8 @@ contract('BlockRewardHbbft', async accounts => {
 
     it('DMD Pots: governance and validators got correct share.', async () => {
 
+      const maxValidators = await validatorSetHbbft.maxValidators.call();
       const currentValidators = await validatorSetHbbft.getValidators.call();
-      const maximumValidators = await validatorSetHbbft.maxValidators.call();
       currentValidators.length.should.be.equal(3);
       const initialGovernancePotBalance = await getCurrentGovernancePotValue();
       stakingEpoch = await stakingHbbft.stakingEpoch.call();
@@ -300,17 +304,17 @@ contract('BlockRewardHbbft', async accounts => {
       const currentGovernancePotBalance = await getCurrentGovernancePotValue();
       const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
 
-      const totalReward = addToDeltaPotValue.div(new BN('6000'));
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).mul(new BN(currentValidators.length)).div(maxValidators);
       const expectedDAOShare = totalReward.div(new BN('10'));
-      
+
       governancePotIncrease.should.to.be.bignumber.equal(expectedDAOShare);
 
       //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
       const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
 
-      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(maximumValidators)).mul(minValidatorSharePercent).div(new BN('100'));
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
       const actualValidatorReward = await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
-      (await blockRewardHbbft.reinsertPot.call()).should.be.bignumber.equal(totalReward.sub(governancePotIncrease).sub((new BN(currentValidators.length)).mul(totalReward.sub(expectedDAOShare).div(new BN(maximumValidators)))));
+
       actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
 
     });
@@ -318,7 +322,8 @@ contract('BlockRewardHbbft', async accounts => {
 
 
     it('DMD Pots: reinsert pot works as expected.', async () => {
-
+      const maxValidators = await validatorSetHbbft.maxValidators.call();
+      const currentValidators = await validatorSetHbbft.getValidators.call();
       //refilling the delta pot.
       const deltaPotCurrentValue = await blockRewardHbbft.deltaPot.call()
       const fillUpMissing = addToDeltaPotValue.sub(deltaPotCurrentValue);
@@ -327,10 +332,10 @@ contract('BlockRewardHbbft', async accounts => {
       (await blockRewardHbbft.deltaPot.call()).should.be.bignumber.equal(addToDeltaPotValue);
 
       const addedToReinsertPot = new BN(web3.utils.toWei('60'));
-      const reinsertPotBeforeAdd = await blockRewardHbbft.reinsertPot.call();
+
       await blockRewardHbbft.addToReinsertPot({ value: addedToReinsertPot }).should.be.fulfilled;
       const reinsertPotAfterAdd = await blockRewardHbbft.reinsertPot.call();
-      reinsertPotAfterAdd.should.be.bignumber.equal(reinsertPotBeforeAdd.add(addedToReinsertPot));
+      reinsertPotAfterAdd.should.be.bignumber.equal(addedToReinsertPot);
 
       stakingEpoch = await stakingHbbft.stakingEpoch.call();
 
@@ -341,9 +346,9 @@ contract('BlockRewardHbbft', async accounts => {
 
       const currentGovernancePotBalance = await getCurrentGovernancePotValue();
       const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
-      
-      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000'))).add(reinsertPotBeforeAdd.div(new BN('6000')));
-      
+
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000'))).mul(new BN(currentValidators.length)).div(maxValidators);;
+
       const expectedDAOShare = totalReward.div(new BN('10'));
 
       // we expect 1 wei difference, since the reward combination from 2 pots results in that.
@@ -352,12 +357,10 @@ contract('BlockRewardHbbft', async accounts => {
 
       //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
       const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
-      const currentValidators = await validatorSetHbbft.getValidators.call();
-      const maximumValidators = await validatorSetHbbft.maxValidators.call();
-      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(maximumValidators)).mul(minValidatorSharePercent).div(new BN('100'));
+      const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
       const actualValidatorReward = await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
+
       actualValidatorReward.should.be.bignumber.equal(expectedValidatorReward);
-      
     });
 
     it('transfers to reward contract works with 100k gas and fills reinsert pot', async () => {
@@ -367,7 +370,7 @@ contract('BlockRewardHbbft', async accounts => {
       const balanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       const reinsertPotBefore = new BN(await blockRewardHbbft.reinsertPot.call());
 
-      
+
       let fillUpTx = {
         from: accounts[0],
         to: blockRewardHbbft.address,
@@ -409,7 +412,7 @@ contract('BlockRewardHbbft', async accounts => {
 
   async function callReward(isEpochEndBlock) {
     // console.log('getting validators...');
-    // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
+    // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13
     const validators = await validatorSetHbbft.getValidators.call();
     // console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;
