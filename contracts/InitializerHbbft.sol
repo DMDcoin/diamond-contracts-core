@@ -9,13 +9,10 @@ import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/ITxPermission.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 
-
-
 /// @dev Used once on network startup and then destroyed.
 /// Needed for initializing upgradeable contracts since
 /// upgradeable contracts can't have constructors.
 contract InitializerHbbft {
-
     /// @param _contracts An array of the contracts:
     ///   0 is ValidatorSetHbbft,
     ///   1 is BlockRewardHbbft,
@@ -80,14 +77,17 @@ contract InitializerHbbft {
         IBlockRewardHbbft(_contracts[1]).initialize(_contracts[0]);
         address[] memory permittedAddresses = new address[](1);
         permittedAddresses[0] = _owner;
-        
+
         ICertifier(_contracts[5]).initialize(permittedAddresses, _contracts[0]);
-        ITxPermission(_contracts[4]).initialize(permittedAddresses, _contracts[5], _contracts[0], _contracts[6]);
+        ITxPermission(_contracts[4]).initialize(
+            permittedAddresses,
+            _contracts[5],
+            _contracts[0],
+            _contracts[6]
+        );
     }
 
-
-    function destruct()
-    external {
+    function destruct() external {
         selfdestruct(msg.sender);
     }
 }

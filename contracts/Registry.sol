@@ -4,31 +4,32 @@ import "./interfaces/IMetadataRegistry.sol";
 import "./interfaces/IOwnerRegistry.sol";
 import "./interfaces/IReverseRegistry.sol";
 
-
 contract Owned {
     event NewOwner(address indexed old, address indexed current);
 
     address public owner = msg.sender;
 
-    modifier onlyOwner {
+    modifier onlyOwner() {
         require(msg.sender == owner, "Only owner is allowed to execute");
         _;
     }
 
-    function setOwner(address _new)
-    external
-    onlyOwner {
+    function setOwner(address _new) external onlyOwner {
         require(_new != address(0), "New owner must not be 0x0");
         emit NewOwner(owner, _new);
         owner = _new;
     }
 }
 
-
 /// @dev Stores human-readable keys associated with addresses, like DNS information
 /// (see https://wiki.parity.io/Parity-name-registry.html). Needed primarily to store the address
 /// of the `TxPermission` contract (see https://wiki.parity.io/Permissioning.html#transaction-type for details).
-contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry {
+contract Registry is
+    Owned,
+    IMetadataRegistry,
+    IOwnerRegistry,
+    IReverseRegistry
+{
     struct Entry {
         address owner;
         address reverse;
@@ -36,8 +37,8 @@ contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry 
         mapping(string => bytes32) data;
     }
 
-    event Drained(uint amount);
-    event FeeChanged(uint amount);
+    event Drained(uint256 amount);
+    event FeeChanged(uint256 amount);
     event ReverseProposed(string name, address indexed reverse);
 
     mapping(bytes32 => Entry) internal entries;
@@ -63,34 +64,35 @@ contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry 
     modifier whenEntry(string memory _name) {
         require(
             !entries[keccak256(bytes(_name))].deleted &&
-            entries[keccak256(bytes(_name))].owner != address(0)
+                entries[keccak256(bytes(_name))].owner != address(0)
         );
         _;
     }
 
     modifier whenEntryRaw(bytes32 _name) {
-        require(
-            !entries[_name].deleted &&
-            entries[_name].owner != address(0)
-        );
+        require(!entries[_name].deleted && entries[_name].owner != address(0));
         _;
     }
 
-    modifier whenFeePaid {
+    modifier whenFeePaid() {
         require(msg.value >= fee);
         _;
     }
 
     constructor(address _certifierContract, address _owner) public {
         require(_certifierContract != address(0));
-        bytes32 serviceTransactionChecker = keccak256("service_transaction_checker");
+        bytes32 serviceTransactionChecker = keccak256(
+            "service_transaction_checker"
+        );
         address entryOwner = msg.sender;
         if (_owner != address(0)) {
             owner = _owner;
             entryOwner = _owner;
         }
         entries[serviceTransactionChecker].owner = entryOwner;
-        entries[serviceTransactionChecker].data["A"] = bytes20(_certifierContract);
+        entries[serviceTransactionChecker].data["A"] = bytes20(
+            _certifierContract
+        );
         emit Reserved(serviceTransactionChecker, entryOwner);
         emit DataChanged(serviceTransactionChecker, "A", "A");
     }
@@ -126,7 +128,10 @@ contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry 
         returns (bool success)
     {
         if (keccak256(bytes(reverses[entries[_name].reverse])) == _name) {
-            emit ReverseRemoved(reverses[entries[_name].reverse], entries[_name].reverse);
+            emit ReverseRemoved(
+                reverses[entries[_name].reverse],
+                entries[_name].reverse
+            );
             delete reverses[entries[_name].reverse];
         }
         entries[_name].deleted = true;
@@ -135,34 +140,31 @@ contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry 
     }
 
     // Data admin functions
-    function setData(bytes32 _name, string calldata _key, bytes32 _value)
-        external
-        whenEntryRaw(_name)
-        onlyOwnerOf(_name)
-        returns (bool success)
-    {
+    function setData(
+        bytes32 _name,
+        string calldata _key,
+        bytes32 _value
+    ) external whenEntryRaw(_name) onlyOwnerOf(_name) returns (bool success) {
         entries[_name].data[_key] = _value;
         emit DataChanged(_name, _key, _key);
         return true;
     }
 
-    function setAddress(bytes32 _name, string calldata _key, address _value)
-        external
-        whenEntryRaw(_name)
-        onlyOwnerOf(_name)
-        returns (bool success)
-    {
+    function setAddress(
+        bytes32 _name,
+        string calldata _key,
+        address _value
+    ) external whenEntryRaw(_name) onlyOwnerOf(_name) returns (bool success) {
         entries[_name].data[_key] = bytes20(_value);
         emit DataChanged(_name, _key, _key);
         return true;
     }
 
-    function setUint(bytes32 _name, string calldata _key, uint _value)
-        external
-        whenEntryRaw(_name)
-        onlyOwnerOf(_name)
-        returns (bool success)
-    {
+    function setUint(
+        bytes32 _name,
+        string calldata _key,
+        uint256 _value
+    ) external whenEntryRaw(_name) onlyOwnerOf(_name) returns (bool success) {
         entries[_name].data[_key] = bytes32(_value);
         emit DataChanged(_name, _key, _key);
         return true;
@@ -210,31 +212,20 @@ contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry 
         return true;
     }
 
-    function removeReverse()
-        external
-        whenEntry(reverses[msg.sender])
-    {
+    function removeReverse() external whenEntry(reverses[msg.sender]) {
         emit ReverseRemoved(reverses[msg.sender], msg.sender);
         delete entries[keccak256(bytes(reverses[msg.sender]))].reverse;
         delete reverses[msg.sender];
     }
 
     // Admin functions for the owner
-    function setFee(uint _amount)
-        external
-        onlyOwner
-        returns (bool)
-    {
+    function setFee(uint256 _amount) external onlyOwner returns (bool) {
         fee = _amount;
         emit FeeChanged(_amount);
         return true;
     }
 
-    function drain()
-        external
-        onlyOwner
-        returns (bool)
-    {
+    function drain() external onlyOwner returns (bool) {
         emit Drained(address(this).balance);
         msg.sender.transfer(address(this).balance);
         return true;
@@ -263,9 +254,9 @@ contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry 
         external
         view
         whenEntryRaw(_name)
-        returns (uint)
+        returns (uint256)
     {
-        return uint(entries[_name].data[_key]);
+        return uint256(entries[_name].data[_key]);
     }
 
     // OwnerRegistry views
@@ -297,19 +288,11 @@ contract Registry is Owned, IMetadataRegistry, IOwnerRegistry, IReverseRegistry 
         return entries[_name].reverse;
     }
 
-    function canReverse(address _data)
-        external
-        view
-        returns (bool)
-    {
+    function canReverse(address _data) external view returns (bool) {
         return bytes(reverses[_data]).length != 0;
     }
 
-    function reverse(address _data)
-        external
-        view
-        returns (string memory)
-    {
+    function reverse(address _data) external view returns (string memory) {
         return reverses[_data];
     }
 

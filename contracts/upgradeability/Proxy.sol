@@ -1,6 +1,5 @@
 pragma solidity ^0.5.0;
 
-
 /**
  * @title Proxy
  * @dev Implements delegation of calls to other contracts, with proper
@@ -13,7 +12,7 @@ contract Proxy {
      * @dev Fallback function.
      * Implemented entirely in `_fallback`.
      */
-    function () payable external {
+    function() external payable {
         _fallback();
     }
 
@@ -28,8 +27,7 @@ contract Proxy {
      * It will return to the external caller whatever the implementation returns.
      * @param implementation Address to delegate.
      */
-    function _delegate(address implementation)
-    internal {
+    function _delegate(address implementation) internal {
         assembly {
             // Copy msg.data. We take full control of memory in this inline assembly
             // block because it will not return to Solidity code. We overwrite the
@@ -38,15 +36,26 @@ contract Proxy {
 
             // Call the implementation.
             // out and outsize are 0 because we don't know the size yet.
-            let result := delegatecall(gas, implementation, 0, calldatasize, 0, 0)
+            let result := delegatecall(
+                gas,
+                implementation,
+                0,
+                calldatasize,
+                0,
+                0
+            )
 
             // Copy the returned data.
             returndatacopy(0, 0, returndatasize)
 
             switch result
             // delegatecall returns 0 on error.
-            case 0 { revert(0, returndatasize) }
-            default { return(0, returndatasize) }
+            case 0 {
+                revert(0, returndatasize)
+            }
+            default {
+                return(0, returndatasize)
+            }
         }
     }
 
@@ -55,16 +64,13 @@ contract Proxy {
      * Can be redefined in derived contracts to add functionality.
      * Redefinitions must call super._willFallback().
      */
-    function _willFallback()
-    internal {
-    }
+    function _willFallback() internal {}
 
     /**
      * @dev fallback implementation.
      * Extracted to enable manual triggering.
      */
-    function _fallback()
-    internal {
+    function _fallback() internal {
         _willFallback();
         _delegate(_implementation());
     }

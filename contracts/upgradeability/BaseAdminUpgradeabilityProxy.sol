@@ -3,13 +3,15 @@ pragma solidity ^0.5.0;
 import "./UpgradeabilityAdmin.sol";
 import "./UpgradeabilityProxy.sol";
 
-
 /**
  * @title BaseAdminUpgradeabilityProxy
  * @dev This contract combines an upgradeability proxy with an authorization
  * mechanism for administrative tasks.
  */
-contract BaseAdminUpgradeabilityProxy is UpgradeabilityAdmin, BaseUpgradeabilityProxy {
+contract BaseAdminUpgradeabilityProxy is
+    UpgradeabilityAdmin,
+    BaseUpgradeabilityProxy
+{
     /**
      * @dev Emitted when the administration has been transferred.
      * @param previousAdmin Address of the previous admin.
@@ -28,20 +30,14 @@ contract BaseAdminUpgradeabilityProxy is UpgradeabilityAdmin, BaseUpgradeability
     /**
      * @return The address of the proxy admin.
      */
-    function admin()
-    external
-    view
-    returns (address) {
+    function admin() external view returns (address) {
         return _admin();
     }
 
     /**
      * @return The address of the implementation.
      */
-    function implementation()
-    external
-    view
-    returns (address) {
+    function implementation() external view returns (address) {
         return _implementation();
     }
 
@@ -50,10 +46,11 @@ contract BaseAdminUpgradeabilityProxy is UpgradeabilityAdmin, BaseUpgradeability
      * Only the current admin can call this function.
      * @param newAdmin Address to transfer proxy administration to.
      */
-    function changeAdmin(address newAdmin)
-    external
-    ifAdmin {
-        require(newAdmin != address(0), "Cannot change the admin of a proxy to the zero address");
+    function changeAdmin(address newAdmin) external ifAdmin {
+        require(
+            newAdmin != address(0),
+            "Cannot change the admin of a proxy to the zero address"
+        );
         emit AdminChanged(_admin(), newAdmin);
         _setAdmin(newAdmin);
     }
@@ -63,9 +60,7 @@ contract BaseAdminUpgradeabilityProxy is UpgradeabilityAdmin, BaseUpgradeability
      * Only the admin can call this function.
      * @param newImplementation Address of the new implementation.
      */
-    function upgradeTo(address newImplementation)
-    external
-    ifAdmin {
+    function upgradeTo(address newImplementation) external ifAdmin {
         _upgradeTo(newImplementation);
     }
 
@@ -79,11 +74,12 @@ contract BaseAdminUpgradeabilityProxy is UpgradeabilityAdmin, BaseUpgradeability
      * https://solidity.readthedocs.io/en/v0.4.24/abi-spec.html#function-selector-and-argument-encoding.
      */
     function upgradeToAndCall(address newImplementation, bytes calldata data)
-    payable
-    external
-    ifAdmin {
+        external
+        payable
+        ifAdmin
+    {
         _upgradeTo(newImplementation);
-        (bool success,) = newImplementation.delegatecall(data);
+        (bool success, ) = newImplementation.delegatecall(data);
         require(success);
     }
 
@@ -91,8 +87,7 @@ contract BaseAdminUpgradeabilityProxy is UpgradeabilityAdmin, BaseUpgradeability
      * @dev Sets the address of the proxy admin.
      * @param newAdmin Address of the new proxy admin.
      */
-    function _setAdmin(address newAdmin)
-    internal {
+    function _setAdmin(address newAdmin) internal {
         bytes32 slot = ADMIN_SLOT;
 
         assembly {

@@ -1,10 +1,8 @@
 pragma solidity ^0.5.16;
 
-import '../../contracts/RandomHbbft.sol';
-
+import "../../contracts/RandomHbbft.sol";
 
 contract RandomHbbftMock is RandomHbbft {
-
     address internal _coinbase;
     address internal _systemAddress;
 
@@ -27,7 +25,7 @@ contract RandomHbbftMock is RandomHbbft {
 
     // =============================================== Private ========================================================
 
-    function _getSystemAddress() internal view returns(address) {
+    function _getSystemAddress() internal view returns (address) {
         return _systemAddress;
     }
 }
