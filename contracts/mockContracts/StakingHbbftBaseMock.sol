@@ -1,16 +1,11 @@
 pragma solidity ^0.5.16;
 
-import '../../contracts/base/StakingHbbftBase.sol';
-
+import "../../contracts/base/StakingHbbftBase.sol";
 
 contract StakingHbbftBaseMock is StakingHbbftBase {
-
-
-
     // =============================================== Setters ========================================================
 
-    function addPoolActiveMock(address _stakingAddress)
-    public {
+    function addPoolActiveMock(address _stakingAddress) public {
         _addPoolActive(_stakingAddress, true);
     }
 
@@ -18,38 +13,53 @@ contract StakingHbbftBaseMock is StakingHbbftBase {
         _addPoolInactive(_stakingAddress);
     }
 
-    function clearDelegatorStakeSnapshot(address _poolStakingAddress, address _delegator, uint256 _stakingEpoch)
-    public {
-        delegatorStakeSnapshot[_poolStakingAddress][_delegator][_stakingEpoch] = 0;
+    function clearDelegatorStakeSnapshot(
+        address _poolStakingAddress,
+        address _delegator,
+        uint256 _stakingEpoch
+    ) public {
+        delegatorStakeSnapshot[_poolStakingAddress][_delegator][
+            _stakingEpoch
+        ] = 0;
     }
 
-    function clearRewardWasTaken(address _poolStakingAddress, address _staker, uint256 _epoch)
-    public {
+    function clearRewardWasTaken(
+        address _poolStakingAddress,
+        address _staker,
+        uint256 _epoch
+    ) public {
         rewardWasTaken[_poolStakingAddress][_staker][_epoch] = false;
     }
 
     function setStakeAmountTotal(address _poolStakingAddress, uint256 _amount)
-    public {
+        public
+    {
         stakeAmountTotal[_poolStakingAddress] = _amount;
     }
 
-    function setStakeFirstEpoch(address _poolStakingAddress, address _delegator, uint256 _value)
-    public {
+    function setStakeFirstEpoch(
+        address _poolStakingAddress,
+        address _delegator,
+        uint256 _value
+    ) public {
         stakeFirstEpoch[_poolStakingAddress][_delegator] = _value;
     }
 
-    function setStakeLastEpoch(address _poolStakingAddress, address _delegator, uint256 _value)
-    public {
+    function setStakeLastEpoch(
+        address _poolStakingAddress,
+        address _delegator,
+        uint256 _value
+    ) public {
         stakeLastEpoch[_poolStakingAddress][_delegator] = _value;
     }
 
-    function setStakingEpoch(uint256 _stakingEpoch)
-    public {
+    function setStakingEpoch(uint256 _stakingEpoch) public {
         stakingEpoch = _stakingEpoch;
     }
 
     function setValidatorSetAddress(IValidatorSetHbbft _validatorSetAddress)
-    public {
+        public
+    {
         validatorSetContract = _validatorSetAddress;
     }
 
@@ -57,8 +67,7 @@ contract StakingHbbftBaseMock is StakingHbbftBase {
 
     // =============================================== Private ========================================================
 
-    function _getMaxCandidates() internal pure returns(uint256) {
+    function _getMaxCandidates() internal pure returns (uint256) {
         return 100;
     }
-
 }

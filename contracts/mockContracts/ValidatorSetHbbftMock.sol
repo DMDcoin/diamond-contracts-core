@@ -1,10 +1,8 @@
 pragma solidity ^0.5.16;
 
-import '../../contracts/ValidatorSetHbbft.sol';
-
+import "../../contracts/ValidatorSetHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
-
     uint256 internal _currentTimeStamp;
     address internal _systemAddress;
 
@@ -17,11 +15,13 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     // =============================================== Setters ========================================================
 
-    function setBannedUntil(address _miningAddress, uint256 _bannedUntil) public {
+    function setBannedUntil(address _miningAddress, uint256 _bannedUntil)
+        public
+    {
         bannedUntil[_miningAddress] = _bannedUntil;
         bannedDelegatorsUntil[_miningAddress] = _bannedUntil;
     }
-    
+
     function setBlockRewardContract(address _address) public {
         blockRewardContract = _address;
     }
@@ -38,18 +38,17 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _systemAddress = _address;
     }
 
-
-    function setCurrentTimestamp(uint256 _timeStamp)
-    public {
-
+    function setCurrentTimestamp(uint256 _timeStamp) public {
         // it makes sense to only allow to travel forward in time.
         // this assumption makes tests more consistent,
         // avoiding the usual time travel paradoxons.
-        require(_timeStamp > _currentTimeStamp, "setCurrentTimestamp: Can't timetravel back to the past!");
-        
+        require(
+            _timeStamp > _currentTimeStamp,
+            "setCurrentTimestamp: Can't timetravel back to the past!"
+        );
+
         _currentTimeStamp = _timeStamp;
     }
-
 
     // =============================================== Getters ========================================================
 
@@ -57,24 +56,25 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         uint256[] memory _likelihood,
         uint256 _likelihoodSum,
         uint256 _randomNumber
-    ) public pure returns(uint256) {
-        return _getRandomIndex(
-            _likelihood,
-            _likelihoodSum,
-            uint256(keccak256(abi.encode(_randomNumber)))
-        );
+    ) public pure returns (uint256) {
+        return
+            _getRandomIndex(
+                _likelihood,
+                _likelihoodSum,
+                uint256(keccak256(abi.encode(_randomNumber)))
+            );
     }
-    
+
     /// @dev overrides the calculation of the current timestamp
     /// to use the internal stored "fake" timestamp for testing purposes.
-    function getCurrentTimestamp() external view returns(uint256) {
+    function getCurrentTimestamp() external view returns (uint256) {
         //require(_currentTimeStamp != 0, 'Timestamp is never expected to be 0');
         return _currentTimeStamp;
     }
 
     // =============================================== Private ========================================================
 
-    function _getSystemAddress() internal view returns(address) {
+    function _getSystemAddress() internal view returns (address) {
         return _systemAddress;
     }
 }
