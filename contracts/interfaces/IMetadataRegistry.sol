@@ -1,6 +1,5 @@
 pragma solidity ^0.5.10;
 
-
 interface IMetadataRegistry {
     event DataChanged(bytes32 indexed name, string key, string plainKey);
 
@@ -17,5 +16,5 @@ interface IMetadataRegistry {
     function getUint(bytes32 _name, string calldata _key)
         external
         view
-        returns (uint);
+        returns (uint256);
 }

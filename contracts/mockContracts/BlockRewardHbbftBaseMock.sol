@@ -1,10 +1,8 @@
 pragma solidity ^0.5.16;
 
-import '../../contracts/base/BlockRewardHbbftBase.sol';
-
+import "../../contracts/base/BlockRewardHbbftBase.sol";
 
 contract BlockRewardHbbftBaseMock is BlockRewardHbbftBase {
-
     address internal _systemAddress;
 
     // ============================================== Modifiers =======================================================
@@ -16,18 +14,16 @@ contract BlockRewardHbbftBaseMock is BlockRewardHbbftBase {
 
     // =============================================== Setters ========================================================
 
-    function sendCoins()
-    public
-    payable {
-    }
+    function sendCoins() public payable {}
 
-    function setSystemAddress(address _address)
-    public {
+    function setSystemAddress(address _address) public {
         _systemAddress = _address;
     }
 
-    function setValidatorMinRewardPercent(uint256 _stakingEpoch, uint256 _percent)
-    public {
+    function setValidatorMinRewardPercent(
+        uint256 _stakingEpoch,
+        uint256 _percent
+    ) public {
         validatorMinRewardPercent[_stakingEpoch] = _percent;
     }
 
@@ -36,21 +32,26 @@ contract BlockRewardHbbftBaseMock is BlockRewardHbbftBase {
         uint256 _stakingEpoch,
         address _miningAddress
     ) public {
-        _snapshotPoolStakeAmounts(_stakingContract, _stakingEpoch, _miningAddress);
+        _snapshotPoolStakeAmounts(
+            _stakingContract,
+            _stakingEpoch,
+            _miningAddress
+        );
     }
 
-    function setSnapshotPoolValidatorStakeAmount(uint256 _stakingEpoch, address _poolMiningAddress, uint256 _amount)
-    public {
-        snapshotPoolValidatorStakeAmount[_stakingEpoch][_poolMiningAddress] = _amount;
+    function setSnapshotPoolValidatorStakeAmount(
+        uint256 _stakingEpoch,
+        address _poolMiningAddress,
+        uint256 _amount
+    ) public {
+        snapshotPoolValidatorStakeAmount[_stakingEpoch][
+            _poolMiningAddress
+        ] = _amount;
     }
 
     // =============================================== Private ========================================================
 
-    function _getSystemAddress()
-    internal
-    view
-    returns(address) {
+    function _getSystemAddress() internal view returns (address) {
         return _systemAddress;
     }
-
 }
