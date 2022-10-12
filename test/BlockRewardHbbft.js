@@ -15,7 +15,7 @@ require('chai')
 
 // delegatecall are a problem for truffle debugger
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-// and to not use it if specific transactions needs to get debugged, 
+// and to not use it if specific transactions needs to get debugged,
 // like truffle `debug 0xabc`.
 const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 
@@ -292,6 +292,7 @@ contract('BlockRewardHbbft', async accounts => {
 
     it('DMD Pots: governance and validators got correct share.', async () => {
 
+      const maxValidators = await validatorSetHbbft.maxValidators.call();
       const currentValidators = await validatorSetHbbft.getValidators.call();
       currentValidators.length.should.be.equal(3);
       const initialGovernancePotBalance = await getCurrentGovernancePotValue();
@@ -303,7 +304,7 @@ contract('BlockRewardHbbft', async accounts => {
       const currentGovernancePotBalance = await getCurrentGovernancePotValue();
       const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
 
-      const totalReward = addToDeltaPotValue.div(new BN('6000'));
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).mul(new BN(currentValidators.length)).div(maxValidators);
       const expectedDAOShare = totalReward.div(new BN('10'));
 
       governancePotIncrease.should.to.be.bignumber.equal(expectedDAOShare);
@@ -321,7 +322,8 @@ contract('BlockRewardHbbft', async accounts => {
 
 
     it('DMD Pots: reinsert pot works as expected.', async () => {
-
+      const maxValidators = await validatorSetHbbft.maxValidators.call();
+      const currentValidators = await validatorSetHbbft.getValidators.call();
       //refilling the delta pot.
       const deltaPotCurrentValue = await blockRewardHbbft.deltaPot.call()
       const fillUpMissing = addToDeltaPotValue.sub(deltaPotCurrentValue);
@@ -345,7 +347,7 @@ contract('BlockRewardHbbft', async accounts => {
       const currentGovernancePotBalance = await getCurrentGovernancePotValue();
       const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
 
-      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000')));
+      const totalReward = addToDeltaPotValue.div(new BN('6000')).add(addedToReinsertPot.div(new BN('6000'))).mul(new BN(currentValidators.length)).div(maxValidators);;
 
       const expectedDAOShare = totalReward.div(new BN('10'));
 
@@ -355,7 +357,6 @@ contract('BlockRewardHbbft', async accounts => {
 
       //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
       const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT.call();
-      const currentValidators = await validatorSetHbbft.getValidators.call();
       const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(new BN(currentValidators.length)).mul(minValidatorSharePercent).div(new BN('100'));
       const actualValidatorReward = await blockRewardHbbft.getValidatorReward.call(stakingEpoch, currentValidators[1]);
 
@@ -369,7 +370,7 @@ contract('BlockRewardHbbft', async accounts => {
       const balanceBefore = new BN(await web3.eth.getBalance(blockRewardHbbft.address));
       const reinsertPotBefore = new BN(await blockRewardHbbft.reinsertPot.call());
 
-      
+
       let fillUpTx = {
         from: accounts[0],
         to: blockRewardHbbft.address,
@@ -411,7 +412,7 @@ contract('BlockRewardHbbft', async accounts => {
 
   async function callReward(isEpochEndBlock) {
     // console.log('getting validators...');
-    // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13 
+    // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13
     const validators = await validatorSetHbbft.getValidators.call();
     // console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner).should.be.fulfilled;

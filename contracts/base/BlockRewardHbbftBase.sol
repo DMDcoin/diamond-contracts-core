@@ -512,17 +512,27 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-        uint256 deltaPotShare = deltaPot / deltaPotPayoutFraction;
-        deltaPot -= deltaPotShare;
+        uint256 totalReward;
 
-        // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
-        uint256 reinsertPotShare = reinsertPot / reinsertPotPayoutFraction;
-        reinsertPot -= reinsertPotShare;
+        {
+            uint256 maxValidators = validatorSetContract.maxValidators();
 
-        uint256 totalReward = deltaPotShare +
-            reinsertPotShare +
-            nativeRewardUndistributed;
+            uint256 deltaPotShare = (deltaPot * numValidators) /
+                deltaPotPayoutFraction /
+                maxValidators;
+            deltaPot -= deltaPotShare;
 
+            // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
+            uint256 reinsertPotShare = (reinsertPot * numValidators) /
+                reinsertPotPayoutFraction /
+                maxValidators;
+            reinsertPot -= reinsertPotShare;
+
+            totalReward =
+                deltaPotShare +
+                reinsertPotShare +
+                nativeRewardUndistributed;
+        }
         if (totalReward == 0) {
             return 0;
         }
