@@ -99,9 +99,11 @@ const config: {} = {
     networks: {
         hardhat: {
             accounts: {
+                count: 30,
                 mnemonic,
             },
             chainId: chainIds.hardhat,
+            allowUnlimitedContractSize: true,
         },
         arbitrum: getChainConfig("arbitrum-mainnet"),
         avalanche: getChainConfig("avalanche"),
@@ -122,11 +124,11 @@ const config: {} = {
         version: "0.5.16",
         settings: {
             //   viaIR: true,
-            metadata: {
-                // Not including the metadata hash
-                // https://github.com/paulrberg/hardhat-template/issues/31
-                bytecodeHash: "none",
-            },
+            // metadata: {
+            //     // Not including the metadata hash
+            //     // https://github.com/paulrberg/hardhat-template/issues/31
+            //     bytecodeHash: "none",
+            // },
             // Disable the optimizer when debugging
             // https://hardhat.org/hardhat-network/#solidity-optimizer-support
             optimizer: {
