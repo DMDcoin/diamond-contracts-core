@@ -9,6 +9,7 @@ import {
     KeyGenHistory
 } from "../src/types";
 
+import fp from 'lodash/fp';
 import { BigNumber, ContractFactory } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
@@ -19,7 +20,6 @@ let validatorSetHbbft: ValidatorSetHbbftMock;
 let stakingHbbft: StakingHbbftCoinsMock;
 let keyGenHistory: KeyGenHistory;
 
-const fp = require('lodash/fp');
 require('chai')
     .use(require('chai-as-promised'))
     .use(require('chai-bn')(BigNumber))
