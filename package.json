@@ -1,55 +1,61 @@
 {
-  "name": "posdao-contracts",
-  "version": "0.1.4",
-  "description": "Smart contracts for DPoS",
-  "main": "index.js",
-  "scripts": {
-    "compile": "node_modules/.bin/truffle compile",
-    "coverage": "node_modules/.bin/truffle run coverage",
-    "docs-publish": "npm run solidity-docgen && cd docs/website && npm i && npm run publish-gh-pages",
-    "docs-start": "npm run solidity-docgen && cd docs/website && npm i && npm start",
-    "make_spec_test": "bash scripts/make_spec_hbbft_test.sh",
-    "flat": "bash scripts/make_flat.sh",
-    "solhint": "node_modules/.bin/solhint \"contracts/**/*.sol\"",
-    "solidity-docgen": "rm -rf docs/docs/api* && npm i && solidity-docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol,Migrations.sol . contracts docs && node docs/website/sidebars-fix.js",
-    "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
-    "runGanache": "node_modules/.bin/ganache-cli  --allowUnlimitedContractSize --gasLimit 0xfffffffffff --port \"8545\" --accounts 200 --defaultBalanceEther 1000000 --mnemonic \"vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit\"",
-    "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
-    "testNoUpgradeProxy": "export CONTRACTS_NO_UPGRADE_PROXY=true && node scripts/check_for_clashing.js && bash scripts/test.sh",
-    "testOnTestnet": "export CONTRACTS_NO_UPGRADE_PROXY=true && ./node_modules/.bin/truffle test  --network testNet test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol",
-    "getFunctionSignatures": "node scripts/getFunctionSignatures.js",
-    "getTestnetState": "truffle exec --network testNet scripts/getCurrentState.js",
-    "feedTestAccountsOnTestnet": "./node_modules/.bin/truffle exec scripts/feedTestAccounts.js --network testNet",
-    "testDev": "bash scripts/test.sh test/StakingHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/poanetwork/posdao-contracts.git"
-  },
-  "author": "thomashaller@gmx.at",
-  "bugs": {
-    "url": "https://github.com/poanetwork/posdao-contracts/issues"
-  },
-  "homepage": "https://github.com/poanetwork/posdao-contracts#readme",
-  "dependencies": {
-    "@truffle/hdwallet-provider": "^1.2.2",
-    "ethers-multisend": "^2.1.1",
-    "lodash": "^4.17.20",
-    "solidity-docgen": "^0.4.1",
-    "solidity-flattener": "github:poanetwork/solidity-flattener#master",
-    "truffle-privatekey-provider": "^1.5.0"
-  },
-  "devDependencies": {
-    "chai": "^4.2.0",
-    "chai-as-promised": "^7.1.1",
-    "chai-bn": "^0.1.1",
-    "eth-gas-reporter": "^0.2.17",
-    "ganache-cli": "^6.12.2",
-    "mochawesome": "^6.1.1",
-    "node-fetch": "^2.6.0",
-    "solc": "^0.5.16",
-    "solhint": "^3.3.4",
-    "solidity-coverage": "^0.7.15",
-    "truffle": "^5.1.49"
-  }
+    "name": "posdao-contracts",
+    "version": "0.1.4",
+    "description": "Smart contracts for DPoS",
+    "main": "index.js",
+    "scripts": {
+        "compile": "node_modules/.bin/truffle compile",
+        "coverage": "node_modules/.bin/truffle run coverage",
+        "docs-publish": "npm run solidity-docgen && cd docs/website && npm i && npm run publish-gh-pages",
+        "docs-start": "npm run solidity-docgen && cd docs/website && npm i && npm start",
+        "make_spec_test": "bash scripts/make_spec_hbbft_test.sh",
+        "flat": "bash scripts/make_flat.sh",
+        "solhint": "node_modules/.bin/solhint \"contracts/**/*.sol\"",
+        "solidity-docgen": "rm -rf docs/docs/api* && npm i && solidity-docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol,Migrations.sol . contracts docs && node docs/website/sidebars-fix.js",
+        "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
+        "runGanache": "node_modules/.bin/ganache-cli  --allowUnlimitedContractSize --gasLimit 0xfffffffffff --port \"8545\" --accounts 200 --defaultBalanceEther 1000000 --mnemonic \"vanish project fall sister ceiling extend repeat stool promote magnet century engine trouble blanket fruit\"",
+        "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
+        "testNoUpgradeProxy": "export CONTRACTS_NO_UPGRADE_PROXY=true && node scripts/check_for_clashing.js && bash scripts/test.sh",
+        "testOnTestnet": "export CONTRACTS_NO_UPGRADE_PROXY=true && ./node_modules/.bin/truffle test  --network testNet test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol",
+        "getFunctionSignatures": "node scripts/getFunctionSignatures.js",
+        "getTestnetState": "truffle exec --network testNet scripts/getCurrentState.js",
+        "feedTestAccountsOnTestnet": "./node_modules/.bin/truffle exec scripts/feedTestAccounts.js --network testNet",
+        "testDev": "bash scripts/test.sh test/StakingHbbft.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poanetwork/posdao-contracts.git"
+    },
+    "author": "thomashaller@gmx.at",
+    "bugs": {
+        "url": "https://github.com/poanetwork/posdao-contracts/issues"
+    },
+    "homepage": "https://github.com/poanetwork/posdao-contracts#readme",
+    "devDependencies": {
+        "@nomicfoundation/hardhat-chai-matchers": "^1.0.2",
+        "@nomicfoundation/hardhat-network-helpers": "^1.0.3",
+        "@nomicfoundation/hardhat-toolbox": "^1.0.2",
+        "@nomiclabs/hardhat-ethers": "^2.0.2",
+        "@nomiclabs/hardhat-etherscan": "^3.1.0",
+        "@openzeppelin/contracts-upgradeable": "^4.7.3",
+        "@openzeppelin/hardhat-upgrades": "^1.16.0",
+        "@typechain/ethers-v5": "^10.1.0",
+        "@typechain/hardhat": "^6.1.3",
+        "@types/chai": "^4.3.3",
+        "@types/fs-extra": "^9.0.13",
+        "@types/lodash": "^4.14.186",
+        "@types/mocha": "^9.1.1",
+        "@types/node": "^18.6.5",
+        "dotenv": "^16.0.2",
+        "ethers": "^5.6.9",
+        "hardhat": "^2.11.2",
+        "hardhat-gas-reporter": "^1.0.8",
+        "lodash": "^4.17.21",
+        "solidity-coverage": "^0.7.21",
+        "typechain": "^8.1.0"
+    },
+    "dependencies": {
+        "chai-bn": "^0.3.1",
+        "hardhat-contract-sizer": "^2.6.1"
+    }
 }
