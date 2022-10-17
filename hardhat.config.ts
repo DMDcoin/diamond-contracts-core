@@ -101,9 +101,12 @@ const config: {} = {
             accounts: {
                 count: 30,
                 mnemonic,
+                accountsBalance: "1000000000000000000000000000"
             },
             chainId: chainIds.hardhat,
             allowUnlimitedContractSize: true,
+            hardfork: "istanbul",
+            minGasPrice: 0
         },
         arbitrum: getChainConfig("arbitrum-mainnet"),
         avalanche: getChainConfig("avalanche"),
