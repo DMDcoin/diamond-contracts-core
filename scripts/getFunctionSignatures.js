@@ -5,10 +5,10 @@ const fs = require('fs');
 
 const files = ['KeyGenHistory', 'ValidatorSetHbbft', 'StakingHbbft'];
 
-for(let i = 0; i < files.length; i++) {
+for (let i = 0; i < files.length; i++) {
   const file = files[i];
   console.log(` === ${file} === `);
-  fullFile = fs.readFileSync(`build/contracts/${file}.json`).toString().trim();
+  fullFile = fs.readFileSync(`artifacts/contracts/${file}.sol/${file}.json`).toString().trim();
 
   const contractObj = JSON.parse(fullFile);
   const ABI = contractObj.abi;
