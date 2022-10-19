@@ -10,40 +10,35 @@ import {
 } from "../src/types";
 
 import fp from 'lodash/fp';
-import { BigNumber, BytesLike, ContractFactory } from "ethers";
+import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { PromiseOrValue } from "../src/types/common";
-import { EtherscanProvider } from "@ethersproject/providers";
-
-import BN from "web3-utils";
-
-let blockRewardHbbft: BlockRewardHbbftCoinsMock;
-let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
-let randomHbbft: RandomHbbftMock;
-let validatorSetHbbft: ValidatorSetHbbftMock;
-let stakingHbbft: StakingHbbftCoinsMock;
-let keyGenHistory: KeyGenHistory;
 
 require('chai')
     .use(require('chai-as-promised'))
     .use(require('chai-bn')(BigNumber))
     .should();
 
-
 // delegatecall are a problem for truffle debugger
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
 // and to not use it if specific transactions needs to get debugged,
 // like truffle `debug 0xabc`.
 const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-
-const governanceFundAddress = '0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0';
 console.log('useUpgradeProxy:', useUpgradeProxy);
 
+//smart contracts
+let blockRewardHbbft: BlockRewardHbbftCoinsMock;
+let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
+let validatorSetHbbft: ValidatorSetHbbftMock;
+let stakingHbbft: StakingHbbftCoinsMock;
+let keyGenHistory: KeyGenHistory;
+
+//addresses
 let owner: SignerWithAddress;
 let accounts: SignerWithAddress[];
 let initialValidatorsPubKeys: string[];
 let initialValidatorsIpAddresses: string[];
 
+//consts
 // one epoch in 1 day.
 const stakingFixedEpochDuration = BigNumber.from(86400);
 // the transition time window is 1 hour.
@@ -61,24 +56,24 @@ describe('ValidatorSetHbbft', () => {
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
         validatorSetHbbft = await ValidatorSetFactory.deploy() as ValidatorSetHbbftMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
-            validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
+            validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
         }
 
         // Deploy BlockRewardHbbft contract
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
         blockRewardHbbft = await BlockRewardHbbftFactory.deploy() as BlockRewardHbbftCoinsMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
-            blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
+            blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", adminUpgradeabilityProxy.address);
         }
 
         // Deploy BlockRewardHbbft contract
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
         stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-            stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
+            stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
         }
 
         await increaseTime(1);
@@ -341,15 +336,15 @@ describe('ValidatorSetHbbft', () => {
             const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
             randomHbbft = await RandomHbbftFactory.deploy() as RandomHbbftMock;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
-                randomHbbft = await ethers.getContractAt("RandomHbbftMock", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
+                randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
             }
 
             const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
             keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
-                keyGenHistory = await ethers.getContractAt("KeyGenHistory", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
+                keyGenHistory = await ethers.getContractAt("KeyGenHistory", adminUpgradeabilityProxy.address);
             }
 
             await validatorSetHbbft.initialize(

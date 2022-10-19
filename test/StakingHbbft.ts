@@ -16,12 +16,6 @@ import { BigNumber, BigNumberish, ContractFactory } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { PromiseOrValue } from "../src/types/common";
 
-let blockRewardHbbft: BlockRewardHbbftCoinsMock;
-let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
-let randomHbbft: RandomHbbftMock;
-let validatorSetHbbft: ValidatorSetHbbftMock;
-let stakingHbbft: StakingHbbftCoinsMock;
-let keyGenHistory: KeyGenHistory;
 
 require('chai')
     .use(require('chai-as-promised'))
@@ -34,21 +28,23 @@ require('chai')
 // and to not use it if specific transactions needs to get debugged,
 // like truffle `debug 0xabc`.
 const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-
-const governanceFundAddress = '0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0';
 console.log('useUpgradeProxy:', useUpgradeProxy);
 
+//smart contracts
+let blockRewardHbbft: BlockRewardHbbftCoinsMock;
+let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
+let randomHbbft: RandomHbbftMock;
+let validatorSetHbbft: ValidatorSetHbbftMock;
+let stakingHbbft: StakingHbbftCoinsMock;
+let keyGenHistory: KeyGenHistory;
+
+//addresses
 let owner: SignerWithAddress;
 let candidateMiningAddress: SignerWithAddress;
 let candidateStakingAddress: SignerWithAddress;
 let accounts: SignerWithAddress[];
-let candidateMinStake: BigNumber;
-let delegatorMinStake: BigNumber;
-let nativeRewardUndistributed = BigNumber.from(0);
-let initialValidatorsPubKeys;
-let initialValidatorsIpAddresses;
-let stakingEpoch;
-let validators;
+
+//consts
 const ERROR_MSG = 'VM Exception while processing transaction: revert';
 
 describe('StakingHbbft', () => {
@@ -94,31 +90,31 @@ describe('StakingHbbft', () => {
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
         validatorSetHbbft = await ValidatorSetFactory.deploy() as ValidatorSetHbbftMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
-            validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
+            validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
         }
 
         // Deploy BlockRewardHbbft contract
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
         blockRewardHbbft = await BlockRewardHbbftFactory.deploy() as BlockRewardHbbftCoinsMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
-            blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
+            blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", adminUpgradeabilityProxy.address);
         }
 
         // Deploy BlockRewardHbbft contract
         const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
         randomHbbft = await RandomHbbftFactory.deploy() as RandomHbbftMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
-            randomHbbft = await ethers.getContractAt("RandomHbbftMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
+            randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
         }
         // Deploy BlockRewardHbbft contract
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
         stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-            stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
+            stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
         }
 
         //without that, the Time is 0,
@@ -128,8 +124,8 @@ describe('StakingHbbft', () => {
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
         keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
-            keyGenHistory = await ethers.getContractAt("KeyGenHistory", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
+            keyGenHistory = await ethers.getContractAt("KeyGenHistory", adminUpgradeabilityProxy.address);
         }
 
         await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41]],
@@ -755,7 +751,6 @@ describe('StakingHbbft', () => {
                     const result = await stakingHbbft.connect(delegator).claimReward([], stakingAddress);
                     const receipt = await result.wait();
                     receipt.events?.length.should.be.equal(1);
-                    console.log(receipt.events?.[0].event);
                     receipt.events?.[0].args?.nativeCoinsAmount.should.be.equal(BigNumber.from(0));
                     await blockRewardHbbft.setSnapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress, validatorStakeAmount);
                     await stakingHbbft.clearRewardWasTaken(stakingAddress, delegator.address, epochsPoolRewarded[0]);
@@ -1981,8 +1976,8 @@ describe('StakingHbbft', () => {
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
             stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-                stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
+                stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
             }
             await validatorSetHbbft.setStakingContract(stakingHbbft.address);
 

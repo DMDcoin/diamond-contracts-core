@@ -12,10 +12,8 @@ import {
     InitializerHbbft
 } from "../src/types";
 
-import fp from 'lodash/fp';
-import { BigNumber, ContractFactory } from "ethers";
+import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { PromiseOrValue } from "../src/types/common";
 
 const testdata = require('./testhelpers/data');
 
@@ -24,6 +22,15 @@ require('chai')
     .use(require('chai-bn')(BigNumber))
     .should();
 
+// delegatecall are a problem for truffle debugger
+// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
+// and to not use it if specific transactions needs to get debugged,
+// like truffle `debug 0xabc`.
+const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+console.log('useUpgradeProxy:', useUpgradeProxy);
+const logOutput = false;
+
+//smart contracts
 let blockRewardHbbft: BlockRewardHbbftCoinsMock;
 let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
 let randomHbbft: RandomHbbftMock;
@@ -34,6 +41,7 @@ let txPermission: TxPermissionHbbft;
 let certifier: CertifierHbbft;
 let initializer: InitializerHbbft;
 
+//addresses
 let owner: SignerWithAddress;
 let accounts: SignerWithAddress[];
 let accountAddresses: string[];
@@ -41,12 +49,11 @@ let miningAddresses: string[];
 let stakingAddresses: string[];
 let initializingMiningAddresses: string[];
 let initializingStakingAddresses: string[];
+
+//consts
 let candidateMinStake = BigNumber.from(ethers.utils.parseEther('2'));
 let delegatorMinStake = BigNumber.from(ethers.utils.parseEther('1'));
 let maxStake = BigNumber.from(ethers.utils.parseEther('100000'));
-//const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-const useUpgradeProxy = false;
-const logOutput = false;
 
 describe('KeyGenHistory', () => {
 
@@ -100,53 +107,53 @@ describe('KeyGenHistory', () => {
             const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
             validatorSetHbbft = await ValidatorSetFactory.deploy() as ValidatorSetHbbftMock;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
-                validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
+                validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
             }
 
             // Deploy BlockRewardHbbft contract
             const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
             blockRewardHbbft = await BlockRewardHbbftFactory.deploy() as BlockRewardHbbftCoinsMock;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
-                blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
+                blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", adminUpgradeabilityProxy.address);
             }
 
             // Deploy BlockRewardHbbft contract
             const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
             randomHbbft = await RandomHbbftFactory.deploy() as RandomHbbftMock;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
-                randomHbbft = await ethers.getContractAt("RandomHbbftMock", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
+                randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
             }
             // Deploy BlockRewardHbbft contract
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
             stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-                stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
+                stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
             }
 
             const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
             keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
-                keyGenHistory = await ethers.getContractAt("KeyGenHistory", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
+                keyGenHistory = await ethers.getContractAt("KeyGenHistory", adminUpgradeabilityProxy.address);
             }
 
             // Deploy TxPermission contract
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
             txPermission = await TxPermissionFactory.deploy();
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(txPermission.address, owner.address, []);
-                txPermission = await ethers.getContractAt("TxPermissionHbbft", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(txPermission.address, owner.address, []);
+                txPermission = await ethers.getContractAt("TxPermissionHbbft", adminUpgradeabilityProxy.address);
             }
             // Deploy Certifier contract
             const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
             certifier = await CertifierFactory.deploy();
             if (useUpgradeProxy) {
-                let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(certifier.address, owner.address, []);
-                certifier = await ethers.getContractAt("CertifierHbbft", upgradableAdmin.address);
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(certifier.address, owner.address, []);
+                certifier = await ethers.getContractAt("CertifierHbbft", adminUpgradeabilityProxy.address);
             }
 
             // analysis of admin addresses.

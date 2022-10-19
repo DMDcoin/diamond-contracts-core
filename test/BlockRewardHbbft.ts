@@ -10,15 +10,9 @@ import {
 } from "../src/types";
 
 import fp from 'lodash/fp';
-import { BigNumber, ContractFactory } from "ethers";
+import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
-let blockRewardHbbft: BlockRewardHbbftCoinsMock;
-let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
-let randomHbbft: RandomHbbftMock;
-let validatorSetHbbft: ValidatorSetHbbftMock;
-let stakingHbbft: StakingHbbftCoinsMock;
-let keyGenHistory: KeyGenHistory;
 
 require('chai')
     .use(require('chai-as-promised'))
@@ -31,20 +25,30 @@ require('chai')
 // and to not use it if specific transactions needs to get debugged,
 // like truffle `debug 0xabc`.
 const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-
-const governanceFundAddress = '0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0';
 console.log('useUpgradeProxy:', useUpgradeProxy);
 
+//smart contracts
+let blockRewardHbbft: BlockRewardHbbftCoinsMock;
+let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
+let randomHbbft: RandomHbbftMock;
+let validatorSetHbbft: ValidatorSetHbbftMock;
+let stakingHbbft: StakingHbbftCoinsMock;
+let keyGenHistory: KeyGenHistory;
+
+//addresses
 let owner: SignerWithAddress;
 let accounts: SignerWithAddress[];
-let candidateMinStake: BigNumber;
-let delegatorMinStake: BigNumber;
-let nativeRewardUndistributed = BigNumber.from(0);
 let initialValidatorsPubKeys;
 let initialValidatorsIpAddresses;
-let stakingEpoch;
 let validators;
 
+//vars
+let candidateMinStake: BigNumber;
+let delegatorMinStake: BigNumber;
+let stakingEpoch;
+let nativeRewardUndistributed = BigNumber.from(0);
+
+//consts
 // one epoch in 1 day.
 const STAKING_FIXED_EPOCH_DURATION = BigNumber.from(86400);
 
@@ -78,31 +82,31 @@ describe('BlockRewardHbbft', () => {
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
         validatorSetHbbft = await ValidatorSetFactory.deploy() as ValidatorSetHbbftMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
-            validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
+            validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
         }
 
         // Deploy BlockRewardHbbft contract
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
         blockRewardHbbft = await BlockRewardHbbftFactory.deploy() as BlockRewardHbbftCoinsMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
-            blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
+            blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", adminUpgradeabilityProxy.address);
         }
 
         // Deploy BlockRewardHbbft contract
         const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
         randomHbbft = await RandomHbbftFactory.deploy() as RandomHbbftMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
-            randomHbbft = await ethers.getContractAt("RandomHbbftMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
+            randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
         }
         // Deploy BlockRewardHbbft contract
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
         stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-            stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
+            stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
         }
         //await increaseTime(1);
 
@@ -111,10 +115,10 @@ describe('BlockRewardHbbft', () => {
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
         keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
         if (useUpgradeProxy) {
-            let upgradableAdmin = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
-            keyGenHistory = await ethers.getContractAt("KeyGenHistory", upgradableAdmin.address);
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
+            keyGenHistory = await ethers.getContractAt("KeyGenHistory", adminUpgradeabilityProxy.address);
         }
-        
+
         // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
         // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
         // Public keys corresponding to the three private keys above.
@@ -171,8 +175,6 @@ describe('BlockRewardHbbft', () => {
             [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]]]
         )
     });
-
-
 
     it('staking epoch #0 finished', async () => {
 
