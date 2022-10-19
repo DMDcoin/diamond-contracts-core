@@ -1259,7 +1259,6 @@ describe('StakingHbbft', () => {
             const claimedCoinsAmount = receipt.events?.[0].args?.nativeCoinsAmount;
             expectedClaimRewardAmounts.should.be.equal(claimedCoinsAmount);
 
-            receipt = await result.wait();
             const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
 
             if (!!process.env.SOLIDITY_COVERAGE !== true) {

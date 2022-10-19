@@ -1,11 +1,9 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./BlockRewardHbbftBase.sol";
 import "../interfaces/IBlockRewardHbbftCoins.sol";
 
-
 contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
-
     // =============================================== Setters ========================================================
 
     /// @dev Called by the `StakingHbbft.claimReward` function to transfer native coins
@@ -13,8 +11,9 @@ contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
     /// @param _nativeCoins The amount of native coins to transfer as a reward.
     /// @param _to The target address to transfer the amounts to.
     function transferReward(uint256 _nativeCoins, address payable _to)
-    external
-    onlyStakingContract {
+        external
+        onlyStakingContract
+    {
         _transferNativeReward(_nativeCoins, _to);
     }
 
@@ -26,17 +25,18 @@ contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
     /// @param _delegatorStake The stake amount placed by some delegator into the `_poolMiningAddress` pool.
     /// @param _stakingEpoch The serial number of staking epoch.
     /// @param _poolMiningAddress The pool mining address.
-    /// @return `uint256 nativeReward` - the reward amount in native coins.
+    /// @return nativeReward `uint256 nativeReward` - the reward amount in native coins.
     function getDelegatorReward(
         uint256 _delegatorStake,
         uint256 _stakingEpoch,
         address _poolMiningAddress
-    )
-    external
-    view
-    returns(uint256 nativeReward) {
-        uint256 validatorStake = snapshotPoolValidatorStakeAmount[_stakingEpoch][_poolMiningAddress];
-        uint256 totalStake = snapshotPoolTotalStakeAmount[_stakingEpoch][_poolMiningAddress];
+    ) external view returns (uint256 nativeReward) {
+        uint256 validatorStake = snapshotPoolValidatorStakeAmount[
+            _stakingEpoch
+        ][_poolMiningAddress];
+        uint256 totalStake = snapshotPoolTotalStakeAmount[_stakingEpoch][
+            _poolMiningAddress
+        ];
 
         nativeReward = delegatorShare(
             _stakingEpoch,
@@ -52,16 +52,17 @@ contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
     /// Used by the `StakingHbbft.claimReward` function.
     /// @param _stakingEpoch The serial number of staking epoch.
     /// @param _poolMiningAddress The pool mining address.
-    /// @return `uint256 nativeReward` - the reward amount in native coins.
+    /// @return nativeReward `uint256 nativeReward` - the reward amount in native coins.
     function getValidatorReward(
         uint256 _stakingEpoch,
         address _poolMiningAddress
-    )
-    external
-    view
-    returns(uint256 nativeReward) {
-        uint256 validatorStake = snapshotPoolValidatorStakeAmount[_stakingEpoch][_poolMiningAddress];
-        uint256 totalStake = snapshotPoolTotalStakeAmount[_stakingEpoch][_poolMiningAddress];
+    ) external view returns (uint256 nativeReward) {
+        uint256 validatorStake = snapshotPoolValidatorStakeAmount[
+            _stakingEpoch
+        ][_poolMiningAddress];
+        uint256 totalStake = snapshotPoolTotalStakeAmount[_stakingEpoch][
+            _poolMiningAddress
+        ];
 
         nativeReward = validatorShare(
             _stakingEpoch,
@@ -70,5 +71,4 @@ contract BlockRewardHbbftCoins is BlockRewardHbbftBase, IBlockRewardHbbftCoins {
             epochPoolNativeReward[_stakingEpoch][_poolMiningAddress]
         );
     }
-
 }

@@ -118,7 +118,7 @@ describe('ValidatorSetHbbft', () => {
                 await validatorSetHbbft.randomContract()
             );
             stakingHbbft.address.should.be.equal(
-                await validatorSetHbbft.stakingContract()
+                await validatorSetHbbft.getStakingContract()
             );
             '0x8000000000000000000000000000000000000001'.should.be.equal(
                 await validatorSetHbbft.keyGenHistoryContract()

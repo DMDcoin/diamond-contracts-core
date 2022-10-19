@@ -125,9 +125,9 @@ const config: {} = {
         tests: "./test",
     },
     solidity: {
-        version: "0.5.16",
+        version: "0.8.17",
         settings: {
-            //   viaIR: true,
+            viaIR: true,
             // metadata: {
             //     // Not including the metadata hash
             //     // https://github.com/paulrberg/hardhat-template/issues/31
@@ -137,13 +137,16 @@ const config: {} = {
             // https://hardhat.org/hardhat-network/#solidity-optimizer-support
             optimizer: {
                 enabled: true,
-                runs: 0,
+                runs: 800,
             },
         },
     },
     typechain: {
         outDir: "src/types",
         target: "ethers-v5",
+    },
+    mocha: {
+        timeout: 100000000
     },
 };
 

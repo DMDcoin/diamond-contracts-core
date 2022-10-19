@@ -1,6 +1,5 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./base/StakingHbbftCoins.sol";
-
 
 contract StakingHbbft is StakingHbbftCoins {}
