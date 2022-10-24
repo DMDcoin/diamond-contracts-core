@@ -356,7 +356,7 @@ describe('ValidatorSetHbbft', () => {
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.fulfilled;
 
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: ethers.utils.parseEther('1'),

@@ -167,7 +167,7 @@ describe('StakingHbbft', () => {
             candidateMiningAddress = accounts[7];
             candidateStakingAddress = accounts[8];
 
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -347,7 +347,7 @@ describe('StakingHbbft', () => {
             candidateMiningAddress = accounts[7];
             candidateStakingAddress = accounts[8];
 
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -398,7 +398,7 @@ describe('StakingHbbft', () => {
             );
 
             // Initialize StakingHbbft
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1686,7 +1686,7 @@ describe('StakingHbbft', () => {
     describe('initialize()', async () => {
 
         it('should initialize successfully', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1735,7 +1735,7 @@ describe('StakingHbbft', () => {
             );
         });
         it('should fail if ValidatorSet contract address is zero', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: '0x0000000000000000000000000000000000000000',
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1752,7 +1752,7 @@ describe('StakingHbbft', () => {
             ).should.be.rejectedWith("ValidatorSet can't be 0");
         });
         it('should fail if delegatorMinStake is zero', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: 0,
@@ -1769,7 +1769,7 @@ describe('StakingHbbft', () => {
             ).should.be.rejectedWith("DelegatorMinStake is 0");
         });
         it('should fail if candidateMinStake is zero', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1786,7 +1786,7 @@ describe('StakingHbbft', () => {
             ).should.be.rejectedWith("CandidateMinStake is 0");
         });
         it('should fail if already initialized', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1810,7 +1810,7 @@ describe('StakingHbbft', () => {
             ).should.be.rejectedWith("Already initialized");
         });
         it('should fail if stakingEpochDuration is 0', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1827,7 +1827,7 @@ describe('StakingHbbft', () => {
             ).should.be.rejectedWith("FixedEpochDuration is 0");
         });
         it('should fail if stakingstakingEpochStartBlockWithdrawDisallowPeriod is 0', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1844,7 +1844,7 @@ describe('StakingHbbft', () => {
             ).should.be.rejectedWith("WithdrawDisallowPeriod is 0");
         });
         it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async () => {
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1862,7 +1862,7 @@ describe('StakingHbbft', () => {
         });
         it('should fail if some staking address is 0', async () => {
             initialStakingAddresses[0] = '0x0000000000000000000000000000000000000000';
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1882,7 +1882,7 @@ describe('StakingHbbft', () => {
 
         it('should fail if timewindow is 0', async () => {
 
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1902,7 +1902,7 @@ describe('StakingHbbft', () => {
 
         it('should fail if transition timewindow is smaller than the staking time window', async () => {
 
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -1931,7 +1931,7 @@ describe('StakingHbbft', () => {
             delegatorAddress = accounts[7];
 
             // Initialize StakingHbbft
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -2032,7 +2032,7 @@ describe('StakingHbbft', () => {
             await validatorSetHbbft.setStakingContract(stakingHbbft.address);
 
             // Initialize StakingHbbft
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -2168,7 +2168,7 @@ describe('StakingHbbft', () => {
     describe('removePool()', async () => {
         beforeEach(async () => {
             // Initialize StakingHbbft
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -2250,7 +2250,7 @@ describe('StakingHbbft', () => {
     describe('removeMyPool()', async () => {
         beforeEach(async () => {
             // Initialize StakingHbbft
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -2306,7 +2306,7 @@ describe('StakingHbbft', () => {
             delegatorAddress = accounts[7];
 
             // Initialize StakingHbbft
-            let structure: IStakingHbbft.InitializerStruct = {
+            let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,

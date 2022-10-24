@@ -142,7 +142,7 @@ describe('BlockRewardHbbft', () => {
             initialStakingAddresses, // _initialStakingAddresses
         );
 
-        let structure: IStakingHbbft.InitializerStruct = {
+        let structure: IStakingHbbft.StakingParamsStruct = {
             _validatorSetContract: validatorSetHbbft.address,
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: MIN_STAKE,
