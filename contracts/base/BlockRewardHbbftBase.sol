@@ -517,17 +517,39 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 totalReward;
 
         {
+            IStakingHbbft stakingContract = IStakingHbbft(
+                validatorSetContract.getStakingContract()
+            );
+            // not yet tested and probably overengineered, should work fine though
+            // I guess we have to move to hardhat and use evm_increaseTime
+            // for testing time-dependent logic instead of this weird view function
+            uint256 expectedEpochDuration = stakingContract
+                .startTimeOfNextPhaseTransition() -
+                stakingContract.stakingEpochStartTime();
+
+            uint256 realEpochDuration = validatorSetContract
+                .getCurrentTimestamp() >
+                stakingContract.startTimeOfNextPhaseTransition()
+                ? expectedEpochDuration
+                : validatorSetContract.getCurrentTimestamp() -
+                    stakingContract.stakingEpochStartTime();
             uint256 maxValidators = validatorSetContract.maxValidators();
 
-            uint256 deltaPotShare = (deltaPot * numValidators) /
+            uint256 deltaPotShare = (deltaPot *
+                numValidators *
+                realEpochDuration) /
                 deltaPotPayoutFraction /
-                maxValidators;
+                maxValidators /
+                expectedEpochDuration;
             deltaPot -= deltaPotShare;
 
             // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
-            uint256 reinsertPotShare = (reinsertPot * numValidators) /
+            uint256 reinsertPotShare = (reinsertPot *
+                numValidators *
+                realEpochDuration) /
                 reinsertPotPayoutFraction /
-                maxValidators;
+                maxValidators /
+                expectedEpochDuration;
             reinsertPot -= reinsertPotShare;
 
             totalReward =
