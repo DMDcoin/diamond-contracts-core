@@ -265,7 +265,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     }
 
     /// @dev Ensures the caller is the ValidatorSetHbbft contract address.
-    modifier onlyValidatorSetContract() {
+    modifier onlyValidatorSetContract() virtual {
         require(
             msg.sender == address(validatorSetContract),
             "Only ValidatorSet"

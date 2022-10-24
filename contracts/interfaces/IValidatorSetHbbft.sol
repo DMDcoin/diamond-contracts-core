@@ -68,6 +68,8 @@ interface IValidatorSetHbbft {
 
     function randomContract() external view returns (address);
 
+    function notifyUnavailability(address) external;
+
     function reportMaliciousCallable(
         address,
         address,

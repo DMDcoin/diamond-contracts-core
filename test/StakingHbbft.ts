@@ -479,9 +479,9 @@ describe('StakingHbbft', () => {
                 if (stakingEpoch == epoch) {
                     const startBlock = BigNumber.from(120954 * stakingEpoch + 1);
                     await stakingHbbft.setStakingEpoch(stakingEpoch);
-                    await stakingHbbft.setValidatorSetAddress(owner.address);
+                    await stakingHbbft.setValidatorMockSetAddress(owner.address);
                     //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-                    await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+                    await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
 
 
                     // Emulate delegator's stake increasing
@@ -731,9 +731,9 @@ describe('StakingHbbft', () => {
                 // Emulate delegator's stake movement
                 const startBlock = BigNumber.from(120954 * stakingEpoch + 1);
                 await stakingHbbft.setStakingEpoch(stakingEpoch);
-                await stakingHbbft.setValidatorSetAddress(owner.address);
+                await stakingHbbft.setValidatorMockSetAddress(owner.address);
                 //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-                await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+                await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
                 await stakingHbbft.connect(delegator).orderWithdraw(stakingAddress, delegatorMinStake);
                 await stakingHbbft.connect(delegator).orderWithdraw(stakingAddress, BigNumber.from(0).sub(delegatorMinStake));
             }
@@ -823,9 +823,9 @@ describe('StakingHbbft', () => {
             stakingEpoch = 10;
 
             await stakingHbbft.setStakingEpoch(stakingEpoch);
-            await stakingHbbft.setValidatorSetAddress(owner.address);
+            await stakingHbbft.setValidatorMockSetAddress(owner.address);
             //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-            await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
 
             await stakingHbbft.connect(delegator).stake(stakingAddress, { value: delegatorMinStake });
             await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
@@ -897,9 +897,9 @@ describe('StakingHbbft', () => {
             stakingEpoch = 10;
             const startBlock = BigNumber.from(120954 * stakingEpoch + 1);
             await stakingHbbft.setStakingEpoch(stakingEpoch);
-            await stakingHbbft.setValidatorSetAddress(owner.address);
+            await stakingHbbft.setValidatorMockSetAddress(owner.address);
             //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-            await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
 
             await stakingHbbft.connect(delegator).stake(stakingAddress, { value: delegatorMinStake });
             await stakingHbbft.connect(delegator).withdraw(stakingAddress, delegatorMinStake);
@@ -1105,9 +1105,9 @@ describe('StakingHbbft', () => {
             stakingEpoch = 10;
             //const stakingEpochStartBlock = BigNumber.from(120954 * stakingEpoch + 1);
             await stakingHbbft.setStakingEpoch(stakingEpoch);
-            await stakingHbbft.setValidatorSetAddress(owner.address);
+            await stakingHbbft.setValidatorMockSetAddress(owner.address);
             //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock);
-            await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
 
             await stakingHbbft.connect(delegator).orderWithdraw(stakingAddress, delegatorMinStake);
             await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
@@ -1172,9 +1172,9 @@ describe('StakingHbbft', () => {
             stakingEpoch = 10;
             //const stakingEpochStartBlock = BigNumber.from(120954 * stakingEpoch + 1);
             await stakingHbbft.setStakingEpoch(stakingEpoch);
-            await stakingHbbft.setValidatorSetAddress(owner.address);
+            await stakingHbbft.setValidatorMockSetAddress(owner.address);
             //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock);
-            await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
 
             await stakingHbbft.connect(delegator).orderWithdraw(stakingAddress, delegatorMinStake);
             await blockRewardHbbft.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
@@ -1214,9 +1214,9 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.setStakingEpoch(stakingEpoch - 1);
 
-            await stakingHbbft.setValidatorSetAddress(owner.address);
+            await stakingHbbft.setValidatorMockSetAddress(owner.address);
             //await stakingHbbft.setStakingEpochStartBlock(epochStartBlock);
-            await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
             // new validatorSet at the end of fixed epoch duration
 
             await timeTravelToTransition();
@@ -1298,9 +1298,9 @@ describe('StakingHbbft', () => {
                 if (stakingEpoch == 1) {
                     await stakingHbbft.setStakingEpoch(1);
 
-                    await stakingHbbft.setValidatorSetAddress(owner.address);
+                    await stakingHbbft.setValidatorMockSetAddress(owner.address);
                     //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-                    await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+                    await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
                 }
 
                 (await validatorSetHbbft.getValidators()).should.be.deep.equal(initialValidators);
@@ -1439,9 +1439,9 @@ describe('StakingHbbft', () => {
                     await stakingHbbft.setStakingEpoch(1);
                     //const startBlock = BigNumber.from(120954 + 2 + 1);
 
-                    await stakingHbbft.setValidatorSetAddress(owner.address);
+                    await stakingHbbft.setValidatorMockSetAddress(owner.address);
                     //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-                    await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+                    await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
                 }
 
                 (await validatorSetHbbft.getValidators()).should.be.deep.equal(initialValidators);
@@ -1551,8 +1551,8 @@ describe('StakingHbbft', () => {
             for (let s = 0; s < maxStakingEpochs; s++) {
                 if (s == 0) {
                     await stakingHbbft.setStakingEpoch(1);
-                    await stakingHbbft.setValidatorSetAddress(owner.address);
-                    await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+                    await stakingHbbft.setValidatorMockSetAddress(owner.address);
+                    await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
                 }
 
                 const stakingEpoch = (await stakingHbbft.stakingEpoch()).toNumber();
@@ -1579,9 +1579,9 @@ describe('StakingHbbft', () => {
 
                 const nextStakingEpoch = stakingEpoch + gapSize; // jump through a few epochs
                 await stakingHbbft.setStakingEpoch(nextStakingEpoch);
-                await stakingHbbft.setValidatorSetAddress(owner.address);
+                await stakingHbbft.setValidatorMockSetAddress(owner.address);
                 //await stakingHbbft.setStakingEpochStartBlock((120954 + 2) * nextStakingEpoch + 1);
-                await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+                await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
                 for (let i = 0; i < initialValidators.length; i++) {
                     await blockRewardHbbft.snapshotPoolStakeAmounts(stakingHbbft.address, nextStakingEpoch, initialValidators[i]);
                 }
@@ -1671,7 +1671,7 @@ describe('StakingHbbft', () => {
         const validatorSetContract = accounts[7];
         beforeEach(async () => {
             // set ValidatorSetContract in stakingContract
-            await stakingHbbft.setValidatorSetAddress(validatorSetContract.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetContract.address);
         });
         it('should increment if called by the ValidatorSet', async () => {
             (await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(0));
@@ -2189,7 +2189,7 @@ describe('StakingHbbft', () => {
 
         it('should remove a pool', async () => {
             (await stakingHbbft.getPools()).should.be.deep.equal(initialStakingAddresses);
-            await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
             (await stakingHbbft.getPools()).should.be.deep.equal([
                 initialStakingAddresses[2],
@@ -2198,18 +2198,19 @@ describe('StakingHbbft', () => {
             (await stakingHbbft.getPoolsInactive()).length.should.be.equal(0);
         });
         it('can only be called by the ValidatorSetHbbft contract', async () => {
-            await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            // await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[8]).removePool(initialStakingAddresses[0]).should.be.rejectedWith("Only ValidatorSet");
         });
         it('shouldn\'t fail when removing a nonexistent pool', async () => {
             (await stakingHbbft.getPools()).should.be.deep.equal(initialStakingAddresses);
-            await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).removePool(accounts[10].address);
             (await stakingHbbft.getPools()).should.be.deep.equal(initialStakingAddresses);
         });
         it('should reset pool index', async () => {
             (await stakingHbbft.poolIndex(initialStakingAddresses[1])).should.be.equal(BigNumber.from(1));
-            await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[1]);
             (await stakingHbbft.poolIndex(initialStakingAddresses[1])).should.be.equal(BigNumber.from(0));
         });
@@ -2229,7 +2230,7 @@ describe('StakingHbbft', () => {
             ]);
 
             // Remove the pool
-            await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             (await stakingHbbft.poolInactiveIndex(initialStakingAddresses[0])).should.be.equal(BigNumber.from(0));
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
             (await stakingHbbft.getPoolsInactive()).should.be.deep.equal([initialStakingAddresses[0]]);
@@ -2270,9 +2271,9 @@ describe('StakingHbbft', () => {
         });
 
         it('should fail for zero gas price', async () => {
-            await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
-            await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({ gasPrice: 0 }).should.be.rejectedWith("GasPrice is 0");
         });
         it('should fail if Staking contract is not initialized', async () => {
@@ -2288,9 +2289,9 @@ describe('StakingHbbft', () => {
             (await validatorSetHbbft.isValidator(initialValidators[0])).should.be.equal(true);
             (await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[0])).should.be.equal(initialValidators[0]);
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({}).should.be.rejectedWith("Can't remove pool during 1st staking epoch");
-            await stakingHbbft.setValidatorSetAddress(accounts[7].address);
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
-            await stakingHbbft.setValidatorSetAddress(validatorSetHbbft.address);
+            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({}).should.be.fulfilled
         });
     });

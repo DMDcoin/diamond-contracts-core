@@ -4,6 +4,17 @@ import "./StakingHbbftBaseMock.sol";
 import "../../contracts/base/StakingHbbftCoins.sol";
 
 contract StakingHbbftCoinsMock is StakingHbbftCoins, StakingHbbftBaseMock {
+    modifier onlyValidatorSetContract()
+        virtual
+        override(StakingHbbftBase, StakingHbbftBaseMock) {
+        require(
+            msg.sender == address(validatorSetContract) ||
+                msg.sender == address(validatorSetContractMock),
+            "Only ValidatorSet"
+        );
+        _;
+    }
+
     function _getMaxCandidates()
         internal
         pure

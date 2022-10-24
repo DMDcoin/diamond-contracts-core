@@ -444,6 +444,17 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         }
     }
 
+    /// @dev Notifies hbbft validator set contract that a validator
+    /// asociated with the given `_stakingAddress` became
+    /// unavailable and must be flagged as unavailable.
+    /// @param _stakingAddress The address of the validator which became unavailable.
+    function notifyUnavailability(address _stakingAddress)
+        external
+        onlyStakingContract
+    {
+        validatorAvailableSince[miningByStakingAddress[_stakingAddress]] = 0;
+    }
+
     /// @dev Reports that the malicious validator misbehaved at the specified block.
     /// Called by the node of each honest validator after the specified validator misbehaved.
     /// See https://openethereum.github.io/Validator-Set.html#reporting-contract

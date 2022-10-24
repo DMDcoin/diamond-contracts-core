@@ -3,6 +3,12 @@ pragma solidity =0.8.17;
 import "../../contracts/base/StakingHbbftBase.sol";
 
 contract StakingHbbftBaseMock is StakingHbbftBase {
+    IValidatorSetHbbft validatorSetContractMock;
+
+    modifier onlyValidatorSetContract() virtual override {
+        _;
+    }
+
     // =============================================== Setters ========================================================
 
     function addPoolActiveMock(address _stakingAddress) public {
@@ -55,6 +61,12 @@ contract StakingHbbftBaseMock is StakingHbbftBase {
 
     function setStakingEpoch(uint256 _stakingEpoch) public {
         stakingEpoch = _stakingEpoch;
+    }
+
+    function setValidatorMockSetAddress(IValidatorSetHbbft _validatorSetAddress)
+        public
+    {
+        validatorSetContractMock = _validatorSetAddress;
     }
 
     function setValidatorSetAddress(IValidatorSetHbbft _validatorSetAddress)
