@@ -127,7 +127,6 @@ const config: {} = {
     solidity: {
         version: "0.8.17",
         settings: {
-            viaIR: true,
             // metadata: {
             //     // Not including the metadata hash
             //     // https://github.com/paulrberg/hardhat-template/issues/31
@@ -138,7 +137,11 @@ const config: {} = {
             optimizer: {
                 enabled: true,
                 runs: 800,
+                details: {
+                    yul: true,
+                },
             },
+            evmVersion: "istanbul"
         },
     },
     typechain: {

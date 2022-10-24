@@ -1,5 +1,4 @@
 pragma solidity =0.8.17;
-pragma experimental ABIEncoderV2;
 
 import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IValidatorSetHbbft.sol";

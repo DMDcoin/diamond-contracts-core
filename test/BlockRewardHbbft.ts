@@ -6,7 +6,8 @@ import {
     RandomHbbftMock,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
-    KeyGenHistory
+    KeyGenHistory,
+    IStakingHbbft
 } from "../src/types";
 
 import fp from 'lodash/fp';
@@ -141,16 +142,20 @@ describe('BlockRewardHbbft', () => {
             initialStakingAddresses, // _initialStakingAddresses
         );
 
+        let structure: IStakingHbbft.InitializerStruct = {
+            _validatorSetContract: validatorSetHbbft.address,
+            _initialStakingAddresses: initialStakingAddresses,
+            _delegatorMinStake: MIN_STAKE,
+            _candidateMinStake: MIN_STAKE,
+            _maxStake: MAX_STAKE,
+            _stakingFixedEpochDuration: STAKING_FIXED_EPOCH_DURATION,
+            _stakingTransitionTimeframeLength: STAKING_TRANSITION_WINDOW_LENGTH,
+            _stakingWithdrawDisallowPeriod: STAKE_WITHDRAW_DISALLOW_PERIOD
+        };
+
         // Initialize StakingHbbft
         await stakingHbbft.initialize(
-            validatorSetHbbft.address, // _validatorSetContract
-            initialStakingAddresses, // _initialStakingAddresses
-            MIN_STAKE, // _delegatorMinStake
-            MIN_STAKE, // _candidateMinStake
-            MAX_STAKE, // _maxStake
-            STAKING_FIXED_EPOCH_DURATION, // _stakingFixedEpochDuration,
-            STAKING_TRANSITION_WINDOW_LENGTH, // _stakingTransitionTimeframeLength
-            STAKE_WITHDRAW_DISALLOW_PERIOD, // _stakeWithdrawDisallowPeriod
+            structure, // initializer structure
             initialValidatorsPubKeys, // _publicKeys
             initialValidatorsIpAddresses // _internetAddresses
         );

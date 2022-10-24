@@ -356,15 +356,19 @@ describe('ValidatorSetHbbft', () => {
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.fulfilled;
 
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: ethers.utils.parseEther('1'),
+                _candidateMinStake: ethers.utils.parseEther('1'),
+                _maxStake: ethers.utils.parseEther('100000'),
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                ethers.utils.parseEther('1'), // _delegatorMinStake
-                ethers.utils.parseEther('1'), // _candidateMinStake
-                ethers.utils.parseEther('100000'), // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeys, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.fulfilled;

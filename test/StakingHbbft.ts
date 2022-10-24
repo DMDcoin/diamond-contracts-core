@@ -8,7 +8,8 @@ import {
     RandomHbbftMock,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
-    KeyGenHistory
+    KeyGenHistory,
+    IStakingHbbft
 } from "../src/types";
 
 import fp from 'lodash/fp';
@@ -166,16 +167,19 @@ describe('StakingHbbft', () => {
             candidateMiningAddress = accounts[7];
             candidateStakingAddress = accounts[8];
 
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
             // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake,
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -343,16 +347,20 @@ describe('StakingHbbft', () => {
             candidateMiningAddress = accounts[7];
             candidateStakingAddress = accounts[8];
 
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
             // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -390,15 +398,20 @@ describe('StakingHbbft', () => {
             );
 
             // Initialize StakingHbbft
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -1673,15 +1686,20 @@ describe('StakingHbbft', () => {
     describe('initialize()', async () => {
 
         it('should initialize successfully', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -1717,126 +1735,146 @@ describe('StakingHbbft', () => {
             );
         });
         it('should fail if ValidatorSet contract address is zero', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: '0x0000000000000000000000000000000000000000',
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
             await stakingHbbft.initialize(
-                '0x0000000000000000000000000000000000000000', // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("ValidatorSet can't be 0");
         });
         it('should fail if delegatorMinStake is zero', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: 0,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                0, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("DelegatorMinStake is 0");
         });
         it('should fail if candidateMinStake is zero', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: 0,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                0, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("CandidateMinStake is 0");
         });
         it('should fail if already initialized', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("Already initialized");
         });
         it('should fail if stakingEpochDuration is 0', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: 0,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                0, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("FixedEpochDuration is 0");
         });
         it('should fail if stakingstakingEpochStartBlockWithdrawDisallowPeriod is 0', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: 0
+            };
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                0, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("WithdrawDisallowPeriod is 0");
         });
         it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async () => {
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: 120954
+            };
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                120954, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("FixedEpochDuration must be longer than withdrawDisallowPeriod");
         });
         it('should fail if some staking address is 0', async () => {
             initialStakingAddresses[0] = '0x0000000000000000000000000000000000000000';
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("InitialStakingAddresses can't be 0");
@@ -1844,15 +1882,19 @@ describe('StakingHbbft', () => {
 
         it('should fail if timewindow is 0', async () => {
 
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: 0,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                0, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("The transition timeframe must be longer than 0");
@@ -1860,15 +1902,19 @@ describe('StakingHbbft', () => {
 
         it('should fail if transition timewindow is smaller than the staking time window', async () => {
 
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingFixedEpochDuration,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingFixedEpochDuration, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ).should.be.rejectedWith("The transition timeframe must be shorter then the epoch duration");
@@ -1885,15 +1931,20 @@ describe('StakingHbbft', () => {
             delegatorAddress = accounts[7];
 
             // Initialize StakingHbbft
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -1981,15 +2032,20 @@ describe('StakingHbbft', () => {
             await validatorSetHbbft.setStakingContract(stakingHbbft.address);
 
             // Initialize StakingHbbft
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -2112,15 +2168,20 @@ describe('StakingHbbft', () => {
     describe('removePool()', async () => {
         beforeEach(async () => {
             // Initialize StakingHbbft
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -2189,15 +2250,20 @@ describe('StakingHbbft', () => {
     describe('removeMyPool()', async () => {
         beforeEach(async () => {
             // Initialize StakingHbbft
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );
@@ -2240,15 +2306,20 @@ describe('StakingHbbft', () => {
             delegatorAddress = accounts[7];
 
             // Initialize StakingHbbft
+            let structure: IStakingHbbft.InitializerStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
             await stakingHbbft.initialize(
-                validatorSetHbbft.address, // _validatorSetContract
-                initialStakingAddresses, // _initialStakingAddresses
-                minStake, // _delegatorMinStake
-                minStake, // _candidateMinStake
-                maxStake, // _maxStake
-                stakingFixedEpochDuration, // _stakingFixedEpochDuration
-                stakingTransitionTimeframeLength, // _stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, // _stakingWithdrawDisallowPeriod
+                structure,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             );

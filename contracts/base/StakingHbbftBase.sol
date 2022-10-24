@@ -341,59 +341,60 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Initializes the network parameters.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
-    /// @param _validatorSetContract The address of the `ValidatorSetHbbft` contract.
-    /// @param _initialStakingAddresses The array of initial validators' staking addresses.
-    /// @param _delegatorMinStake The minimum allowed amount of delegator stake in Wei.
-    /// @param _candidateMinStake The minimum allowed amount of candidate/validator stake in Wei.
-    /// @param _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts.
-    /// @param _stakingTransitionTimeframeLength Length of the timeframe in seconds for the transition
+    /// @param stakingParams stores other parameters due to stack too deep issue
+    ///  _validatorSetContract The address of the `ValidatorSetHbbft` contract.
+    ///  _initialStakingAddresses The array of initial validators' staking addresses.
+    ///  _delegatorMinStake The minimum allowed amount of delegator stake in Wei.
+    ///  _candidateMinStake The minimum allowed amount of candidate/validator stake in Wei.
+    ///  _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts.
+    ///  _stakingTransitionTimeframeLength Length of the timeframe in seconds for the transition
     /// to the new validator set.
-    /// @param _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
+    ///  _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
-        address _validatorSetContract,
-        address[] calldata _initialStakingAddresses,
-        uint256 _delegatorMinStake,
-        uint256 _candidateMinStake,
-        uint256 _maxStake,
-        uint256 _stakingFixedEpochDuration,
-        uint256 _stakingTransitionTimeframeLength,
-        uint256 _stakingWithdrawDisallowPeriod,
+        StakingParams calldata stakingParams,
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external {
-        require(_stakingFixedEpochDuration != 0, "FixedEpochDuration is 0");
         require(
-            _stakingFixedEpochDuration > _stakingWithdrawDisallowPeriod,
+            stakingParams._stakingFixedEpochDuration != 0,
+            "FixedEpochDuration is 0"
+        );
+        require(
+            stakingParams._stakingFixedEpochDuration >
+                stakingParams._stakingWithdrawDisallowPeriod,
             "FixedEpochDuration must be longer than withdrawDisallowPeriod"
         );
         require(
-            _stakingWithdrawDisallowPeriod != 0,
+            stakingParams._stakingWithdrawDisallowPeriod != 0,
             "WithdrawDisallowPeriod is 0"
         );
         require(
-            _stakingTransitionTimeframeLength != 0,
+            stakingParams._stakingTransitionTimeframeLength != 0,
             "The transition timeframe must be longer than 0"
         );
         require(
-            _stakingTransitionTimeframeLength < _stakingFixedEpochDuration,
+            stakingParams._stakingTransitionTimeframeLength <
+                stakingParams._stakingFixedEpochDuration,
             "The transition timeframe must be shorter then the epoch duration"
         );
 
         _initialize(
-            _validatorSetContract,
-            _initialStakingAddresses,
-            _delegatorMinStake,
-            _candidateMinStake,
-            _maxStake,
+            stakingParams._validatorSetContract,
+            stakingParams._initialStakingAddresses,
+            stakingParams._delegatorMinStake,
+            stakingParams._candidateMinStake,
+            stakingParams._maxStake,
             _publicKeys,
             _internetAddresses
         );
-        stakingFixedEpochDuration = _stakingFixedEpochDuration;
-        stakingWithdrawDisallowPeriod = _stakingWithdrawDisallowPeriod;
+        stakingFixedEpochDuration = stakingParams._stakingFixedEpochDuration;
+        stakingWithdrawDisallowPeriod = stakingParams
+            ._stakingWithdrawDisallowPeriod;
         //note: this might be still 0 when created in the genesis block.
         stakingEpochStartTime = validatorSetContract.getCurrentTimestamp();
-        stakingTransitionTimeframeLength = _stakingTransitionTimeframeLength;
+        stakingTransitionTimeframeLength = stakingParams
+            ._stakingTransitionTimeframeLength;
     }
 
     /// @dev Removes a specified pool from the `pools` array (a list of active pools which can be retrieved by the
