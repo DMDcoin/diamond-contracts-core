@@ -327,7 +327,7 @@ describe('BlockRewardHbbft', () => {
 
 
     it('DMD Pots: governance and validators got correct share.', async () => {
-
+        const maxValidators = await validatorSetHbbft.maxValidators();
         const currentValidators = await validatorSetHbbft.getValidators();
         currentValidators.length.should.be.equal(3);
         const initialGovernancePotBalance = await getCurrentGovernancePotValue();
@@ -339,7 +339,7 @@ describe('BlockRewardHbbft', () => {
         const currentGovernancePotBalance = await getCurrentGovernancePotValue();
         const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
 
-        const totalReward = addToDeltaPotValue.div(BigNumber.from('6000'));
+        const totalReward = addToDeltaPotValue.div(BigNumber.from('6000')).mul(BigNumber.from(currentValidators.length)).div(maxValidators);
         const expectedDAOShare = totalReward.div(BigNumber.from('10'));
 
         governancePotIncrease.should.to.be.equal(expectedDAOShare);
@@ -354,10 +354,9 @@ describe('BlockRewardHbbft', () => {
 
     });
 
-
-
     it('DMD Pots: reinsert pot works as expected.', async () => {
-
+        const maxValidators = await validatorSetHbbft.maxValidators();
+        const currentValidators = await validatorSetHbbft.getValidators();
         //refilling the delta pot.
         const deltaPotCurrentValue = await blockRewardHbbft.deltaPot()
         const fillUpMissing = addToDeltaPotValue.sub(deltaPotCurrentValue);
@@ -381,7 +380,7 @@ describe('BlockRewardHbbft', () => {
         const currentGovernancePotBalance = await getCurrentGovernancePotValue();
         const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
 
-        const totalReward = addToDeltaPotValue.div(BigNumber.from('6000')).add(addedToReinsertPot.div(BigNumber.from('6000')));
+        const totalReward = addToDeltaPotValue.div(BigNumber.from('6000')).add(addedToReinsertPot.div(BigNumber.from('6000'))).mul(BigNumber.from(currentValidators.length)).div(maxValidators);
 
         const expectedDAOShare = totalReward.div(BigNumber.from('10'));
 
@@ -391,7 +390,6 @@ describe('BlockRewardHbbft', () => {
 
         //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
         const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT();
-        const currentValidators = await validatorSetHbbft.getValidators();
         const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(BigNumber.from(currentValidators.length)).mul(minValidatorSharePercent).div(BigNumber.from('100'));
         const actualValidatorReward = await blockRewardHbbft.getValidatorReward(stakingEpoch, currentValidators[1]);
 
