@@ -421,7 +421,39 @@ describe('BlockRewardHbbft', () => {
         reinsertPotAfter.should.be.equal(reinsertPotBefore.add(fillUpValue));
     });
 
+    it('reduces the reward if the epoch was shorter than expected', async () => {
+        const currentValidators = await validatorSetHbbft.getValidators();
+        const maxValidators = await validatorSetHbbft.maxValidators();
+        stakingEpoch = await stakingHbbft.stakingEpoch();
 
+        const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+        let _epochPercentage = BigNumber.from(30);
+        await finishEpochPrelim(_epochPercentage);
+
+        const currentGovernancePotBalance = await getCurrentGovernancePotValue();
+        const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
+
+        let deltaPotValue = await blockRewardHbbft.deltaPot();
+        let reinsertPotValue = await blockRewardHbbft.reinsertPot();
+
+        const deltaPotShare = deltaPotValue.mul(BigNumber.from(currentValidators.length)).mul(_epochPercentage).div(BigNumber.from('6000')).div(maxValidators).div(100);
+        const reinsertPotShare = reinsertPotValue.mul(BigNumber.from(currentValidators.length)).mul(_epochPercentage).div(BigNumber.from('6000')).div(maxValidators).div(100);
+        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
+
+        const totalReward = deltaPotShare.add(reinsertPotShare).add(nativeRewardUndistributed);
+        const expectedDAOShare = totalReward.div(BigNumber.from('10'));
+
+        // we expect 1 wei difference, since the reward combination from 2 pots results in that.
+        //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
+        governancePotIncrease.should.to.be.closeTo(expectedDAOShare, expectedDAOShare.div(100000));
+
+        //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
+        const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT();
+        const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(BigNumber.from(currentValidators.length)).mul(minValidatorSharePercent).div(BigNumber.from('100'));
+        const actualValidatorReward = await blockRewardHbbft.getValidatorReward(stakingEpoch, currentValidators[1]);
+
+        actualValidatorReward.should.be.closeTo(expectedValidatorReward, expectedValidatorReward.div(100000));
+    })
 });
 
 function sortedEqual<T>(arr1: T[], arr2: T[]): void {
@@ -479,5 +511,13 @@ async function timeTravelToEndEpoch() {
 
     const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime();
     await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+    await callReward(true);
+}
+
+async function finishEpochPrelim(_percentage: BigNumber) {
+    const epochDuration = (await stakingHbbft.stakingFixedEpochEndTime()).sub((await stakingHbbft.stakingEpochStartTime())).mul(_percentage).div(100).add(1);
+    const endTimeOfCurrentEpoch = (await stakingHbbft.stakingEpochStartTime()).add(epochDuration);
+    await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+    _percentage = await blockRewardHbbft.epochPercentage();
     await callReward(true);
 }
