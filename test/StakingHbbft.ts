@@ -1276,7 +1276,7 @@ describe('StakingHbbft', () => {
 
             if (!!process.env.SOLIDITY_COVERAGE !== true) {
                 // receipt.gasUsed.should.be.below(1700000);
-                receipt.gasUsed.should.be.below(3020000); // for Istanbul
+                receipt.gasUsed.should.be.below(3120000); // for Istanbul
             }
 
             const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
@@ -1376,13 +1376,13 @@ describe('StakingHbbft', () => {
             if (!!process.env.SOLIDITY_COVERAGE !== true) {
                 const perEpochGasConsumption = endGasConsumption.sub(startGasConsumption).div(BigNumber.from(maxStakingEpoch - 2));
                 // perEpochGasConsumption.should.be.equal(BigNumber.from(509));
-                perEpochGasConsumption.should.be.equal(BigNumber.from(1109)); // for Istanbul
+                perEpochGasConsumption.should.be.equal(BigNumber.from(1159)); // for Istanbul
 
                 // Check gas consumption for the case when the delegator didn't touch their
                 // stake for 50 years (2600 staking epochs)
                 const maxGasConsumption = initialGasConsumption.sub(perEpochGasConsumption).add(perEpochGasConsumption.mul(BigNumber.from(2600)));
                 // maxGasConsumption.should.be.below(BigNumber.from(1700000));
-                maxGasConsumption.should.be.below(BigNumber.from(3020000)); // for Istanbul
+                maxGasConsumption.should.be.below(BigNumber.from(3120000)); // for Istanbul
             }
 
             let blockRewardCoinsBalanceTotalAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardHbbft.address));
