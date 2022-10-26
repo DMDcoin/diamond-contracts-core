@@ -13,6 +13,7 @@ import type { NetworkUserConfig } from "hardhat/types";
 // ToDo::check why config excluding gas reporter and typechain
 import type { HardhatUserConfig } from "hardhat/config";
 import { resolve } from "path";
+import { utils } from "ethers";
 
 const dotenvConfigPath: string = process.env.DOTENV_CONFIG_PATH || "./.env";
 dotenvConfig({ path: resolve(__dirname, dotenvConfigPath) });
@@ -21,7 +22,7 @@ dotenvConfig({ path: resolve(__dirname, dotenvConfigPath) });
 require('./tasks');
 
 // Ensure that we have all the environment variables we need.
-const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : "";
+const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : utils.entropyToMnemonic(utils.randomBytes(32));
 if (!mnemonic) {
     console.log("Please set your MNEMONIC in a .env file");
 }
