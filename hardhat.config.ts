@@ -21,12 +21,12 @@ dotenvConfig({ path: resolve(__dirname, dotenvConfigPath) });
 require('./tasks');
 
 // Ensure that we have all the environment variables we need.
-const mnemonic: string | undefined = process.env.MNEMONIC;
+const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : "";
 if (!mnemonic) {
     console.log("Please set your MNEMONIC in a .env file");
 }
 
-const infuraApiKey: string | undefined = process.env.INFURA_API_KEY;
+const infuraApiKey: string = process.env.INFURA_API_KEY ? process.env.INFURA_API_KEY : "";
 if (!infuraApiKey) {
     console.log("Please set your INFURA_API_KEY in a .env file");
 }
