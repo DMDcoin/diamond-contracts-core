@@ -498,6 +498,23 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         return share;
     }
 
+    ///@dev Calculates and returns the percentage of the current epoch.
+    function epochPercentage() public view returns (uint256) {
+        IStakingHbbft stakingContract = IStakingHbbft(
+            validatorSetContract.getStakingContract()
+        );
+        uint256 expectedEpochDuration = stakingContract
+            .stakingFixedEpochEndTime() -
+            stakingContract.stakingEpochStartTime();
+        return
+            validatorSetContract.getCurrentTimestamp() >
+                stakingContract.stakingFixedEpochEndTime()
+                ? 1000
+                : ((validatorSetContract.getCurrentTimestamp() -
+                    stakingContract.stakingEpochStartTime()) * 100) /
+                    expectedEpochDuration;
+    }
+
     // ============================================== Internal ========================================================
 
     /// @dev Distributes rewards among pools at the latest block of a staking epoch.
@@ -517,39 +534,22 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         uint256 totalReward;
 
         {
-            IStakingHbbft stakingContract = IStakingHbbft(
-                validatorSetContract.getStakingContract()
-            );
-            // not yet tested and probably overengineered, should work fine though
-            // I guess we have to move to hardhat and use evm_increaseTime
-            // for testing time-dependent logic instead of this weird view function
-            uint256 expectedEpochDuration = stakingContract
-                .startTimeOfNextPhaseTransition() -
-                stakingContract.stakingEpochStartTime();
-
-            uint256 realEpochDuration = validatorSetContract
-                .getCurrentTimestamp() >
-                stakingContract.startTimeOfNextPhaseTransition()
-                ? expectedEpochDuration
-                : validatorSetContract.getCurrentTimestamp() -
-                    stakingContract.stakingEpochStartTime();
             uint256 maxValidators = validatorSetContract.maxValidators();
-
             uint256 deltaPotShare = (deltaPot *
                 numValidators *
-                realEpochDuration) /
+                (epochPercentage())) /
                 deltaPotPayoutFraction /
                 maxValidators /
-                expectedEpochDuration;
+                100;
             deltaPot -= deltaPotShare;
 
             // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
             uint256 reinsertPotShare = (reinsertPot *
                 numValidators *
-                realEpochDuration) /
+                epochPercentage()) /
                 reinsertPotPayoutFraction /
                 maxValidators /
-                expectedEpochDuration;
+                100;
             reinsertPot -= reinsertPotShare;
 
             totalReward =
