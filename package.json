@@ -11,7 +11,7 @@
         "flat": "bash scripts/make_flat.sh",
         "solidity-docgen": "rm -rf docs/docs/api* && npm i && npx hardhat docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol,Migrations.sol . contracts docs && node docs/website/sidebars-fix.js",
         "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
-        "test": "node scripts/check_for_clashing.js && bash scripts/test.sh",
+        "test": "npx hardhat test",
         "testNoUpgradeProxy": "export CONTRACTS_NO_UPGRADE_PROXY=true && node scripts/check_for_clashing.js && bash scripts/test.sh",
         "testOnTestnet": "export CONTRACTS_NO_UPGRADE_PROXY=true && ./node_modules/.bin/truffle test  --network testNet test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol",
         "getFunctionSignatures": "node scripts/getFunctionSignatures.js"
