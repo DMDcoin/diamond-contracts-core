@@ -2,7 +2,6 @@ pragma solidity =0.8.17;
 
 import "./interfaces/IRandomHbbft.sol";
 import "./upgradeability/UpgradeabilityAdmin.sol";
-import "hardhat/console.sol";
 
 /// @dev Stores and uppdates a random seed that is used to form a new validator set by the
 /// `ValidatorSetHbbft.newValidatorSet` function.
