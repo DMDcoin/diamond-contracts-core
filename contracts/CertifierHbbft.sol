@@ -1,15 +1,13 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./interfaces/ICertifier.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
 
-
 /// @dev Allows validators to use a zero gas price for their service transactions
 /// (see https://wiki.parity.io/Permissioning.html#gas-price for more info).
 contract CertifierHbbft is UpgradeableOwned, ICertifier {
-
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -36,7 +34,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized {
+    modifier onlyInitialized() {
         require(isInitialized(), "Contract requires to be initialized()");
         _;
     }
@@ -51,8 +49,13 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         address[] calldata _certifiedAddresses,
         address _validatorSet
     ) external {
-        require(msg.sender == _admin() || tx.origin == _admin() || address(0) == _admin() || block.number == 0, 
-            "Sender must be admin");
+        require(
+            msg.sender == _admin() ||
+                tx.origin == _admin() ||
+                address(0) == _admin() ||
+                block.number == 0,
+            "Sender must be admin"
+        );
         require(!isInitialized(), "Contract is already initialized");
         require(_validatorSet != address(0), "Validatorset must not be 0");
         for (uint256 i = 0; i < _certifiedAddresses.length; i++) {
@@ -83,26 +86,26 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     /// `ValidatorSet.isReportValidatorValid` returns `true` for the specified address,
     /// or the address is a pending validator who has to write it's key shares (ACK and PART).
     /// @param _who The address for which the boolean flag must be determined.
-    function certified(address _who)
-    external
-    view
-    returns(bool) {
-
+    function certified(address _who) external view returns (bool) {
         if (_certified[_who]) {
             return true;
         }
 
-        address stakingAddress = validatorSetContract.stakingByMiningAddress(_who);
+        address stakingAddress = validatorSetContract.stakingByMiningAddress(
+            _who
+        );
         if (stakingAddress == address(0)) {
             //if there is no staking address registered to this pool
             return false;
         }
 
-        // we generally certify every active node, 
+        // we generally certify every active node,
         // since the node cache the list of certifiers
-        // and the permission contracts checks anyway, 
+        // and the permission contracts checks anyway,
         // if the specific 0 gas transaction is allowed or not.
-        IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.stakingContract());
+        IStakingHbbft stakingContract = IStakingHbbft(
+            validatorSetContract.getStakingContract()
+        );
         return stakingAddress != address(0);
     }
 
@@ -111,27 +114,20 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     /// This function differs from the `certified`: it doesn't take into account the returned value of
     /// `ValidatorSetHbbft.isReportValidatorValid` function.
     /// @param _who The address for which the boolean flag must be determined.
-    function certifiedExplicitly(address _who)
-    external
-    view
-    returns(bool) {
+    function certifiedExplicitly(address _who) external view returns (bool) {
         return _certified[_who];
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized()
-    public
-    view
-    returns(bool) {
-        return validatorSetContract != IValidatorSetHbbft(0);
+    function isInitialized() public view returns (bool) {
+        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     // ============================================== Internal ========================================================
 
     /// @dev An internal function for the `certify` and `initialize` functions.
     /// @param _who The address for which transactions with a zero gas price must be allowed.
-    function _certify(address _who)
-    internal {
+    function _certify(address _who) internal {
         require(_who != address(0), "certifier must not be address 0");
         _certified[_who] = true;
         emit Confirmed(_who);
