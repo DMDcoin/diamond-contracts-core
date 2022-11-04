@@ -134,30 +134,49 @@ describe('RandomHbbft', () => {
             );
         });
 
+        describe("currentSeed()", async () => {
+            it('last 10 seeds must be equal to last 10 elements in the array', async () => {
+                for (let i = 0; i < 100; i++) {
+                    let randomSeed = BigNumber.from(random(0, Number.MAX_SAFE_INTEGER));
+                    seedsArray.push(randomSeed);
+                    await randomHbbft.connect(owner).setCurrentSeed(randomSeed);
+                }
+                let currentBlock = Number(await ethers.provider.getBlockNumber());
+                (await randomHbbft.currentSeed()).should.be.equal(seedsArray[seedsArray.length - 1]);
+                (await randomHbbft.getSeedsHistoric(range(currentBlock - 9, currentBlock + 1))).should.be.deep.equal(seedsArray.slice(-10));
+            })
 
-        it('last 10 seeds must be equal to last 10 elements in the array', async () => {
-            for (let i = 0; i < 100; i++) {
+            it('setCurrentSeed must revert if called by non-owner', async () => {
+                await randomHbbft.connect(accounts[7]).setCurrentSeed(100).should.be.rejected;
+            })
+        })
+
+        describe("FullHealth()", async function () {
+            it('should display health correctly', async () => {
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(17);
+                (await randomHbbft.isFullHealth()).should.be.equal(true);
+                await validatorSetHbbft.connect(owner).removeMaliciousValidators([accounts[15].address]);
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(16);
+                (await randomHbbft.isFullHealth()).should.be.equal(false);
+            })
+
+            it('should set historical FullHealth() value as true when the block is healthy', async () => {
                 let randomSeed = BigNumber.from(random(0, Number.MAX_SAFE_INTEGER));
-                seedsArray.push(randomSeed);
+                // storing current seed and the health state of the network, network is healthy with 17 validators
                 await randomHbbft.connect(owner).setCurrentSeed(randomSeed);
-            }
-            let currentBlock = Number(await ethers.provider.getBlockNumber());
-            (await randomHbbft.currentSeed()).should.be.equal(seedsArray[seedsArray.length - 1]);
-            (await randomHbbft.getSeedsHistoric(range(currentBlock - 9, currentBlock + 1))).should.be.deep.equal(seedsArray.slice(-10));
-        })
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(17);
 
-        it('setCurrentSeed must revert if called by non-owner', async () => {
-            await randomHbbft.connect(accounts[7]).setCurrentSeed(100).should.be.rejected;
-        })
+                // removing a validator so the network is not healthy
+                await validatorSetHbbft.connect(owner).removeMaliciousValidators([accounts[15].address]);
 
-        it('should display health correctly', async () => {
-            let randomSeed = BigNumber.from(random(0, Number.MAX_SAFE_INTEGER));
-            await randomHbbft.connect(owner).setCurrentSeed(randomSeed); //current validator count is 17
-            ((await validatorSetHbbft.getValidators()).length).should.be.equal(17);
-            (await randomHbbft.isFullHealth()).should.be.equal(true);
-            await validatorSetHbbft.connect(owner).removeMaliciousValidators([accounts[15].address]);
-            ((await validatorSetHbbft.getValidators()).length).should.be.equal(16);
-            (await randomHbbft.isFullHealth()).should.be.equal(false);
+                randomSeed = BigNumber.from(random(0, Number.MAX_SAFE_INTEGER));
+                // storing current seed and the health state of the network, network is NOT healthy with 16 validators
+                await randomHbbft.connect(owner).setCurrentSeed(randomSeed);
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(16);
+                // getting historical health values for both previous and current block
+                let blockNumber = await ethers.provider.getBlockNumber();
+                (await randomHbbft.isFullHealthHistoric([blockNumber, blockNumber - 1])).should.be.deep.equal([false, true]);
+            })
         })
     }); // describe
 
