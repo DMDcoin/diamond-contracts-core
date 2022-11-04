@@ -143,6 +143,11 @@ describe('StakingHbbft', () => {
             initialStakingAddresses, // _initialStakingAddresses
         );
 
+        // Initialize RandomHbbft
+        await randomHbbft.initialize(
+            validatorSetHbbft.address
+        );
+
         // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
         // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
         // Public keys corresponding to the three private keys above.

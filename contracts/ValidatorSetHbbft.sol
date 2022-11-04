@@ -157,6 +157,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         return address(stakingContract);
     }
 
+    function isFullHealth() external view returns (bool) {
+        return !(_currentValidators.length <= (maxValidators / 3) * 2);
+    }
+
     // function getInfo()
     // public
     // view
