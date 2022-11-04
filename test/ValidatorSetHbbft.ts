@@ -6,7 +6,8 @@ import {
     RandomHbbftMock,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
-    KeyGenHistory
+    KeyGenHistory,
+    IStakingHbbft
 } from "../src/types";
 
 import fp from 'lodash/fp';
