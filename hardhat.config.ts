@@ -23,14 +23,8 @@ require('./tasks');
 
 // Ensure that we have all the environment variables we need.
 const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : utils.entropyToMnemonic(utils.randomBytes(32));
-if (!mnemonic) {
-    console.log("Please set your MNEMONIC in a .env file");
-}
 
 const infuraApiKey: string = process.env.INFURA_API_KEY ? process.env.INFURA_API_KEY : "";
-if (!infuraApiKey) {
-    console.log("Please set your INFURA_API_KEY in a .env file");
-}
 
 const chainIds = {
     "arbitrum-mainnet": 42161,
@@ -101,7 +95,7 @@ const config: {} = {
     networks: {
         hardhat: {
             accounts: {
-                count: 30,
+                count: 60,
                 mnemonic,
                 accountsBalance: "1000000000000000000000000000"
             },

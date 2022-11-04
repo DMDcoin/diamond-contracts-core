@@ -16,7 +16,7 @@ iterate_sources() {
     done
 }
 
+mkdir -p $FLAT$UPGRADEABILITY;
 iterate_sources $ROOT $FLAT
 
-mkdir -p $FLAT$UPGRADEABILITY;
 iterate_sources $UPGRADEABILITY_FULL $FLAT$UPGRADEABILITY
