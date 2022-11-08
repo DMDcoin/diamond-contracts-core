@@ -11,6 +11,9 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     // WARNING: since this contract is upgradeable, do not remove
     // existing storage variables and do not change their types!
 
+    /// @dev deprecated slot, was used for randomSeed
+    uint256 private deprecated1;
+
     /// @dev The mapping of random seeds accumulated during RANDAO or another process
     /// (depending on implementation).
     /// blocknumber => random seed
