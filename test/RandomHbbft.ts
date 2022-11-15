@@ -61,9 +61,10 @@ describe('RandomHbbft', () => {
             [owner, ...accounts] = await ethers.getSigners();
             const accountAddresses = accounts.map(item => item.address);
 
-            initialValidators = accountAddresses.slice(1, 17 + 1); // accounts[1...3]
-            initialStakingAddresses = accountAddresses.slice(18, 35); // accounts[4...6]
-            initialValidators.length.should.be.equal(17);
+            initialValidators = accountAddresses.slice(1, 25 + 1); // accounts[1...3]
+            initialStakingAddresses = accountAddresses.slice(26, 51); // accounts[4...6]
+            initialValidators.length.should.be.equal(25);
+            initialStakingAddresses.length.should.be.equal(25);
             initialValidators[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
             initialValidators[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
             initialValidators[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
@@ -153,26 +154,26 @@ describe('RandomHbbft', () => {
 
         describe("FullHealth()", async function () {
             it('should display health correctly', async () => {
-                ((await validatorSetHbbft.getValidators()).length).should.be.equal(17);
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(25);
                 (await randomHbbft.isFullHealth()).should.be.equal(true);
                 await validatorSetHbbft.connect(owner).removeMaliciousValidators([accounts[15].address]);
-                ((await validatorSetHbbft.getValidators()).length).should.be.equal(16);
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(24);
                 (await randomHbbft.isFullHealth()).should.be.equal(false);
             })
 
             it('should set historical FullHealth() value as true when the block is healthy', async () => {
                 let randomSeed = BigNumber.from(random(0, Number.MAX_SAFE_INTEGER));
-                // storing current seed and the health state of the network, network is healthy with 17 validators
+                // storing current seed and the health state of the network, network is healthy with 25 validators
                 await randomHbbft.connect(owner).setCurrentSeed(randomSeed);
-                ((await validatorSetHbbft.getValidators()).length).should.be.equal(17);
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(25);
 
                 // removing a validator so the network is not healthy
                 await validatorSetHbbft.connect(owner).removeMaliciousValidators([accounts[15].address]);
 
                 randomSeed = BigNumber.from(random(0, Number.MAX_SAFE_INTEGER));
-                // storing current seed and the health state of the network, network is NOT healthy with 16 validators
+                // storing current seed and the health state of the network, network is NOT healthy with 24 validators
                 await randomHbbft.connect(owner).setCurrentSeed(randomSeed);
-                ((await validatorSetHbbft.getValidators()).length).should.be.equal(16);
+                ((await validatorSetHbbft.getValidators()).length).should.be.equal(24);
                 // getting historical health values for both previous and current block
                 let blockNumber = await ethers.provider.getBlockNumber();
                 (await randomHbbft.isFullHealthHistoric([blockNumber, blockNumber - 1])).should.be.deep.equal([false, true]);

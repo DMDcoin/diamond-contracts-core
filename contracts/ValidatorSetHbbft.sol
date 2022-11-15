@@ -158,7 +158,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     }
 
     function isFullHealth() external view returns (bool) {
-        return !(_currentValidators.length <= (maxValidators / 3) * 2);
+        return maxValidators == _currentValidators.length;
     }
 
     // function getInfo()
