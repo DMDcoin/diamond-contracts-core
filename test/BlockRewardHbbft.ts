@@ -460,11 +460,11 @@ describe('BlockRewardHbbft', () => {
     describe("Upscaling tests", async () => {
         it("Add multiple validator pools and upscale if needed.", async () => {
             const accountAddresses = accounts.map(item => item.address);
-            const additionalValidators = accountAddresses.slice(7, 32 + 1); // accounts[7...32]
-            const additionalStakingAddresses = accountAddresses.slice(33, 59 + 1); // accounts[33...59]
+            const additionalValidators = accountAddresses.slice(7, 52 + 1); // accounts[7...32]
+            const additionalStakingAddresses = accountAddresses.slice(53, 99 + 1); // accounts[33...59]
 
-            additionalValidators.length.should.be.equal(26);
-            additionalStakingAddresses.length.should.be.equal(26);
+            additionalValidators.length.should.be.equal(46);
+            additionalStakingAddresses.length.should.be.equal(46);
 
             await network.provider.send("evm_setIntervalMining", [8]);
 
@@ -483,29 +483,33 @@ describe('BlockRewardHbbft', () => {
                     (await validatorSetHbbft.getValidatorCountSweetSpot((await stakingHbbft.getPoolsToBeElected()).length)).should.be.equal((await validatorSetHbbft.getValidators()).length);
                 }
             }
-            //right now 19 validators are active and 26 are ready to be elected
-            (await validatorSetHbbft.getValidators()).length.should.be.eq(19);
-            (await stakingHbbft.getPoolsToBeElected()).length.should.be.eq(29);
 
             await timeTravelToTransition();
             await timeTravelToEndEpoch();
             // after epoch was finalized successfully, validator set length is healthy
             (await validatorSetHbbft.getValidators()).length.should.be.eq(25);
-            (await stakingHbbft.getPoolsToBeElected()).length.should.be.eq(29);
+            (await stakingHbbft.getPoolsToBeElected()).length.should.be.eq(49);
         })
 
         it("banning validator up to 16", async () => {
             await validatorSetHbbft.setSystemAddress(owner.address);
             while ((await validatorSetHbbft.getValidators()).length > 16) {
-                await validatorSetHbbft.connect(owner).removeMaliciousValidators([(await validatorSetHbbft.getValidators())[16]]);
                 await mine();
+                await validatorSetHbbft.connect(owner).removeMaliciousValidators([(await validatorSetHbbft.getValidators())[13]]);
             }
             (await validatorSetHbbft.getValidators()).length.should.be.eq(16);
-            await mine();
         })
-        it("set is scaled to 19", async () => {
+        it("mining twice shouldn't change pending validator set", async () => {
+            await callReward(false);
+            (await validatorSetHbbft.getPendingValidators()).length.should.be.eq(25);
+            let pendingValidators = await validatorSetHbbft.getPendingValidators();
+            await callReward(false);
+            sortedEqual(pendingValidators, await validatorSetHbbft.getPendingValidators());
+        })
+        it("set is scaled to 25", async () => {
             await mine();
-            (await validatorSetHbbft.getValidators()).length.should.be.eq(19);
+            (await validatorSetHbbft.getValidators()).length.should.be.eq(25);
+            (await validatorSetHbbft.getPendingValidators()).length.should.be.eq(0);
             await network.provider.send("evm_setIntervalMining", [0]);
         })
     })
@@ -582,7 +586,7 @@ async function finishEpochPrelim(_percentage: BigNumber) {
     await network.provider.send("evm_setNextBlockTimestamp", [endTimeOfCurrentEpoch.toNumber()]);
     await network.provider.send("evm_mine");
     await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
-    _percentage = await blockRewardHbbft.epochPercentage();
+    // _percentage = await blockRewardHbbft.epochPercentage();
     await callReward(true);
 }
 
@@ -597,12 +601,50 @@ async function announceAvailability(pool: string) {
 }
 
 async function mine() {
-    let blocktime = 8; //seconds
+    let expectedEpochDuration = (await stakingHbbft
+        .stakingFixedEpochEndTime()).sub(await stakingHbbft.stakingEpochStartTime());
+    let blocktime = expectedEpochDuration.mul(5).div(100).add(1); //5% of the epoch
     // let blocksPerEpoch = 60 * 60 * 12 / blocktime;
-    await network.provider.send("evm_increaseTime", [blocktime]);
+    await network.provider.send("evm_increaseTime", [blocktime.toNumber()]);
     await validatorSetHbbft.setCurrentTimestamp((await validatorSetHbbft.getCurrentTimestamp()).add(blocktime));
     if ((await validatorSetHbbft.getPendingValidators()).length > 0) {
+        const currentValidators = await validatorSetHbbft.getValidators();
+        const maxValidators = await validatorSetHbbft.maxValidators();
+        stakingEpoch = await stakingHbbft.stakingEpoch();
+
+        const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+        let deltaPotValue = await blockRewardHbbft.deltaPot();
+        let reinsertPotValue = await blockRewardHbbft.reinsertPot();
+        let _epochPercentage = await blockRewardHbbft.epochPercentage();
+
         await callReward(true);
+
+        const currentGovernancePotBalance = await getCurrentGovernancePotValue();
+        const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
+
+
+        const deltaPotShare = deltaPotValue.mul(BigNumber.from(currentValidators.length)).mul(_epochPercentage).div(BigNumber.from('6000')).div(maxValidators).div(100);
+        const reinsertPotShare = reinsertPotValue.mul(BigNumber.from(currentValidators.length)).mul(_epochPercentage).div(BigNumber.from('6000')).div(maxValidators).div(100);
+        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
+
+        const totalReward = deltaPotShare.add(reinsertPotShare).add(nativeRewardUndistributed);
+        const expectedDAOShare = totalReward.div(BigNumber.from('10'));
+
+        // we expect 1 wei difference, since the reward combination from 2 pots results in that.
+        //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
+        governancePotIncrease.should.to.be.closeTo(expectedDAOShare, expectedDAOShare.div(10000));
+
+        //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
+        let minValidatorSharePercent = 100;
+        ///first 4 validators have delegators so they receive less DMD
+        if (currentValidators.length < 4) {
+            minValidatorSharePercent = 30;
+        }
+
+        const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(BigNumber.from(currentValidators.length)).mul(minValidatorSharePercent).div(BigNumber.from('100'));
+        const actualValidatorReward = await blockRewardHbbft.getValidatorReward(stakingEpoch, currentValidators[currentValidators.length - 1]);
+
+        actualValidatorReward.should.be.closeTo(expectedValidatorReward, expectedValidatorReward.div(10000));
     } else {
         await callReward(false);
     }

@@ -255,45 +255,44 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             uint256 currentTimestamp = validatorSetContract
                 .getCurrentTimestamp();
 
+            address[] memory miningAddresses = validatorSetContract
+                .getValidators();
+
             // TODO: Problem occurs here if there are not regular blocks:
             // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
 
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
-            bool isPhaseTransition = currentTimestamp >= phaseTransitionTime &&
-                validatorSetContract.getPendingValidators().length == 0;
+            bool isPhaseTransition = currentTimestamp >= phaseTransitionTime;
+            bool toBeUpscaled;
+            if (
+                miningAddresses.length <=
+                (validatorSetContract.maxValidators() / 3) * 2
+            ) {
+                uint256 amountToBeElected = stakingContract
+                    .getPoolsToBeElected()
+                    .length;
+                if (
+                    (amountToBeElected > 0) &&
+                    validatorSetContract.getValidatorCountSweetSpot(
+                        amountToBeElected
+                    ) >
+                    miningAddresses.length
+                ) {
+                    toBeUpscaled = true;
+                }
+            }
 
-            if (isPhaseTransition) {
+            if (
+                (isPhaseTransition || toBeUpscaled) &&
+                validatorSetContract.getPendingValidators().length == 0
+            ) {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
             } else if (
                 currentTimestamp >= stakingContract.stakingFixedEpochEndTime()
             ) {
                 validatorSetContract.handleFailedKeyGeneration();
-            } else {
-                // check for faster validator set upscaling
-                // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/90
-                address[] memory miningAddresses = validatorSetContract
-                    .getValidators();
-                if (
-                    miningAddresses.length <=
-                    (validatorSetContract.maxValidators() / 3) * 2
-                ) {
-                    uint256 amountToBeElected = stakingContract
-                        .getPoolsToBeElected()
-                        .length;
-                    // if there is a miningset that is smaller than the 2/3 of the maxValidators,
-                    // then we choose the next epoch set.
-                    if (
-                        amountToBeElected > 0 &&
-                        validatorSetContract.getValidatorCountSweetSpot(
-                            amountToBeElected
-                        ) >
-                        miningAddresses.length
-                    ) {
-                        validatorSetContract.newValidatorSet();
-                    }
-                }
             }
         }
     }
@@ -507,6 +506,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     }
 
     ///@dev Calculates and returns the percentage of the current epoch.
+    /// 100% MAX
     function epochPercentage() public view returns (uint256) {
         IStakingHbbft stakingContract = IStakingHbbft(
             validatorSetContract.getStakingContract()
@@ -517,7 +517,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         return
             validatorSetContract.getCurrentTimestamp() >
                 stakingContract.stakingFixedEpochEndTime()
-                ? 1000
+                ? 100
                 : ((validatorSetContract.getCurrentTimestamp() -
                     stakingContract.stakingEpochStartTime()) * 100) /
                     expectedEpochDuration;
