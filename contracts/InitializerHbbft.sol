@@ -86,6 +86,10 @@ contract InitializerHbbft {
             _contracts[0],
             _contracts[6]
         );
+
+        if (block.number > 0) {
+            selfdestruct(payable(msg.sender));
+        }
     }
 
     function destruct() external {
