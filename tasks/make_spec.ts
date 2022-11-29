@@ -137,20 +137,13 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
 
     const storageProxyCompiled = contractsCompiled['AdminUpgradeabilityProxy'];
     let contract = await hre.ethers.getContractFactory('AdminUpgradeabilityProxy');
-    let deploy: Contract;
 
     if (useUpgradeProxy) {
 
         // Build ValidatorSetHbbft contract
-        deploy = await contract.deploy(
-            '0x1000000000000000000000000000000000000000', // implementation address
-            owner,
-            []
-        );
-
         spec.accounts[VALIDATOR_SET_CONTRACT] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy(['0x1000000000000000000000000000000000000000', // implementation address
+            constructor: contract.interface.encodeDeploy(['0x1000000000000000000000000000000000000000', // implementation address
                 owner,
                 []])
         };
@@ -161,15 +154,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
         };
 
         // Build StakingHbbft contract
-        deploy = await contract.deploy(
-            '0x1100000000000000000000000000000000000000', // implementation address
-            owner,
-            []
-        );
-
         spec.accounts[STAKING_CONTRACT] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy(['0x1100000000000000000000000000000000000000', // implementation address
+            constructor: contract.interface.encodeDeploy(['0x1100000000000000000000000000000000000000', // implementation address
                 owner,
                 []])
         };
@@ -179,14 +166,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
         };
 
         // Build BlockRewardHbbft contract
-        deploy = await contract.deploy(
-            '0x2000000000000000000000000000000000000000', // implementation address
-            owner,
-            []
-        );
         spec.accounts[BLOCK_REWARD_CONTRACT] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy(['0x2000000000000000000000000000000000000000', // implementation address
+            constructor: contract.interface.encodeDeploy(['0x2000000000000000000000000000000000000000', // implementation address
                 owner,
                 []])
         };
@@ -200,14 +182,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
         };
 
         // Build RandomHbbft contract
-        deploy = await contract.deploy(
-            '0x3000000000000000000000000000000000000000', // implementation address
-            owner,
-            []
-        );
         spec.accounts[RANDOM_CONTRACT] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy(['0x3000000000000000000000000000000000000000', // implementation address
+            constructor: contract.interface.encodeDeploy(['0x3000000000000000000000000000000000000000', // implementation address
                 owner,
                 []])
         };
@@ -218,15 +195,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
         //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
 
         // Build TxPermission contract
-        deploy = await contract.deploy(
-            '0x4000000000000000000000000000000000000000', // implementation address
-            owner,
-            []
-
-        );
         spec.accounts[PERMISSION_CONTRACT] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy(['0x4000000000000000000000000000000000000000', // implementation address
+            constructor: contract.interface.encodeDeploy(['0x4000000000000000000000000000000000000000', // implementation address
                 owner,
                 []])
         };
@@ -239,14 +210,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
         };
 
         // Build Certifier contract
-        deploy = await contract.deploy(
-            '0x5000000000000000000000000000000000000000', // implementation address
-            owner,
-            []
-        );
         spec.accounts[CERTIFIER_CONTRACT] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy(['0x5000000000000000000000000000000000000000', // implementation address
+            constructor: contract.interface.encodeDeploy(['0x5000000000000000000000000000000000000000', // implementation address
                 owner,
                 []])
         };
@@ -256,16 +222,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
         };
 
         // Build KeyGenHistory contract
-        deploy = await contract.deploy(
-            '0x7000000000000000000000000000000000000000', // implementation address
-            owner,
-            []
-
-        );
-
         spec.accounts[KEY_GEN_HISTORY_CONTRACT] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy(['0x7000000000000000000000000000000000000000', // implementation address
+            constructor: contract.interface.encodeDeploy(['0x7000000000000000000000000000000000000000', // implementation address
                 owner,
                 []])
         };
@@ -278,13 +237,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
 
         // Build Registry contract
         contract = await hre.ethers.getContractFactory('Registry');
-        deploy = await contract.deploy(
-            CERTIFIER_CONTRACT,
-            owner
-        );
         spec.accounts['0x6000000000000000000000000000000000000000'] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy([CERTIFIER_CONTRACT,
+            constructor: contract.interface.encodeDeploy([CERTIFIER_CONTRACT,
                 owner])
         };
         spec.params.registrar = '0x6000000000000000000000000000000000000000';
@@ -331,14 +286,9 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
         // Build Registry contract
         contract = await hre.ethers.getContractFactory('Registry');
 
-        deploy = await contract.deploy(
-            CERTIFIER_CONTRACT,
-            owner
-        );
-
         spec.accounts['0x6000000000000000000000000000000000000000'] = {
             balance: '0',
-            constructor: deploy.interface.encodeDeploy([CERTIFIER_CONTRACT,
+            constructor: contract.interface.encodeDeploy([CERTIFIER_CONTRACT,
                 owner])
         };
         spec.params.registrar = '0x6000000000000000000000000000000000000000';
@@ -387,26 +337,6 @@ task("make_spec_hbbft", "used to make a spec file").addPositionalParam("initData
 
     // Build InitializerHbbft contract
     contract = await hre.ethers.getContractFactory('InitializerHbbft');
-    deploy = await contract.deploy(
-        [ // _contracts
-            VALIDATOR_SET_CONTRACT,
-            BLOCK_REWARD_CONTRACT,
-            RANDOM_CONTRACT,
-            STAKING_CONTRACT,
-            PERMISSION_CONTRACT,
-            CERTIFIER_CONTRACT,
-            KEY_GEN_HISTORY_CONTRACT
-        ],
-        owner, // _owner
-        initialValidators, // _miningAddresses
-        stakingAddresses, // _stakingAddresses
-        stakingParams,
-        publicKeysSplit,
-        internetAddresses,
-        init_data.parts,
-        init_data.acks
-    );
-
     spec.accounts['0xFF00000000000000000000000000000000000000'] = {
         balance: '0',
         constructor: contract.interface.encodeDeploy([[ // _contracts
