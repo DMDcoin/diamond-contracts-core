@@ -1,1 +1,1 @@
-// import './filename'
+import './make_spec.ts'
