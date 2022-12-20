@@ -47,16 +47,20 @@ jobs:
         run: |
           echo "Running slither"
           slither . --print contract-summary
-        with: slither-config
+        with: |
+            slither-config: slither.config.json
       - name: Function summary
         run: |
           slither . --print function-summary
-        with: slither-config
+        with: |
+            slither-config: slither.config.json
       - name: Data dependency
         run: |
           slither . --print data-dependency
-        with: slither-config
+        with: |
+            slither-config: slither.config.json
       - name: Inheritance
         run: |
           slither . --print inheritance
-        with: slither-config
+        with: |
+            slither-config: slither.config.json
