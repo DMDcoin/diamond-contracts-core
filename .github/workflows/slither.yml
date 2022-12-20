@@ -2,7 +2,7 @@ name: Static Analysis
 on:
   push:
     paths:
-      - 'contracts/**'
+    #   - 'contracts/**'
       - '.github/workflows/slither.yaml'
   pull_request:
     paths:
