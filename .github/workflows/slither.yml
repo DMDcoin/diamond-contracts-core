@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8, 3.9]
+        python-version: [3.9]
         node-version: [16.x]
 
     steps:
@@ -42,17 +42,17 @@ jobs:
       - name: Summary of static ananlysis
         run: |
           echo "Running slither"
-          slither . --print human-summary
+          slither . --print human-summary --config-file slither.config.json
       - name: Contract summary of static ananlysis
         run: |
           echo "Running slither"
-          slither . --print contract-summary
+          slither . --print contract-summary --config-file slither.config.json
       - name: Function summary
         run: |
-          slither . --print function-summary
+          slither . --print function-summary --config-file slither.config.json
       - name: Data dependency
         run: |
-          slither . --print data-dependency
+          slither . --print data-dependency --config-file slither.config.json
       - name: Inheritance
         run: |
-          slither . --print inheritance
+          slither . --print inheritance --config-file slither.config.json
