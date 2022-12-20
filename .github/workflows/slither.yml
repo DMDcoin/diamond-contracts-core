@@ -69,7 +69,8 @@ jobs:
       - name: Prepare output
         run: |
           mkdir -p .github/slither-output
-        - name: Run Slither w/ Sarif
+
+      - name: Run Slither w/ Sarif
         uses: crytic/slither-action@v0.2.0
         id: slither
         with:
