@@ -3,11 +3,11 @@ on:
   push:
     paths:
     #   - 'contracts/**'
-      - '.github/workflows/slither.yaml'
+      - '.github/workflows/slither.yml'
   pull_request:
     paths:
       - 'contracts/**'
-      - '.github/workflows/slither.yaml'
+      - '.github/workflows/slither.yml'
 
   workflow_dispatch:
 
