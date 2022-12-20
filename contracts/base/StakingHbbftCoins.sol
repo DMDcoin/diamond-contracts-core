@@ -4,7 +4,7 @@ import "./StakingHbbftBase.sol";
 import "../interfaces/IBlockRewardHbbftCoins.sol";
 
 contract Sacrifice2 {
-    constructor(address payable _recipient) public payable {
+    constructor(address payable _recipient) payable {
         selfdestruct(_recipient);
     }
 }
