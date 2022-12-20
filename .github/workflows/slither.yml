@@ -6,9 +6,9 @@ name: slither
 
 on:
   push:
-    paths:
-      - "**.sol"
-      - ".github/workflows/slither.yml"
+    # paths:
+    #   - "**.sol"
+    #   - ".github/workflows/slither.yml"
 
   pull_request_target:
     branches:
