@@ -216,9 +216,11 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             // The rules for the ValidatorSet contract
             if (signature == REPORT_MALICIOUS_SIGNATURE) {
                 bytes memory abiParams;
-                abiParams = new bytes(
-                    _data.length - 4 > 64 ? 64 : _data.length - 4
-                );
+                if (_data.length - 4 > 64) {
+                    abiParams = new bytes(64);
+                } else {
+                    abiParams = new bytes(_data.length - 4);
+                }
 
                 for (i = 0; i < abiParams.length; i++) {
                     abiParams[i] = _data[i + 4];
