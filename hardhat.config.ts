@@ -95,7 +95,7 @@ const config: {} = {
     networks: {
         hardhat: {
             accounts: {
-                count: 60,
+                count: 100,
                 mnemonic,
                 accountsBalance: "1000000000000000000000000000"
             },
