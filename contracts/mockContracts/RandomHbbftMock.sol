@@ -1,16 +1,14 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
-import '../../contracts/RandomHbbft.sol';
-
+import "../../contracts/RandomHbbft.sol";
 
 contract RandomHbbftMock is RandomHbbft {
-
     address internal _coinbase;
     address internal _systemAddress;
 
     // ============================================== Modifiers =======================================================
 
-    modifier onlySystem() {
+    modifier onlySystem() override {
         require(msg.sender == _getSystemAddress());
         _;
     }
@@ -27,7 +25,7 @@ contract RandomHbbftMock is RandomHbbft {
 
     // =============================================== Private ========================================================
 
-    function _getSystemAddress() internal view returns(address) {
+    function _getSystemAddress() internal view returns (address) {
         return _systemAddress;
     }
 }

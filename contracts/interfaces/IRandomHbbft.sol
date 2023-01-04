@@ -1,6 +1,19 @@
-pragma solidity ^0.5.16;
-
+pragma solidity =0.8.17;
 
 interface IRandomHbbft {
-    function currentSeed() external view returns(uint256);
+    function initialize(address) external;
+
+    function currentSeed() external view returns (uint256);
+
+    function getSeedsHistoric(uint256[] calldata)
+        external
+        view
+        returns (uint256[] memory);
+
+    function isFullHealth() external view returns (bool);
+
+    function isFullHealthHistoric(uint256[] calldata)
+        external
+        view
+        returns (bool[] memory);
 }

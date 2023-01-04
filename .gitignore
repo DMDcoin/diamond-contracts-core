@@ -13,6 +13,11 @@ node_modules
 /spec_hbbft.json
 /spec_validatorset.json
 
+#hardhat specific files
+artifacts
+cache
+src
+
 # Emacs backups
 \#*#
 .#*
@@ -25,3 +30,4 @@ node_modules
 .network
 .pk
 .mnemonic*
+.env*

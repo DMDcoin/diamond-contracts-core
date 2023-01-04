@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./interfaces/IBlockRewardHbbft.sol";
 import "./interfaces/IKeyGenHistory.sol";
@@ -6,14 +6,10 @@ import "./interfaces/IRandomHbbft.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
-import "./libs/SafeMath.sol";
-
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
 /// before each staking epoch. The logic uses a random seed generated and stored by the `RandomHbbft` contract.
 contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
-    using SafeMath for uint256;
-
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -23,7 +19,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     address[] internal _previousValidators;
 
     /// @dev Stores the validators that have reported the specific validator as malicious for the specified epoch.
-    mapping(address => mapping(uint256 => address[])) internal _maliceReportedForBlock;
+    mapping(address => mapping(uint256 => address[]))
+        internal _maliceReportedForBlock;
 
     /// @dev How many times a given mining address was banned.
     mapping(address => uint256) public banCounter;
@@ -80,7 +77,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @dev How many times the given mining address has become a validator.
     mapping(address => uint256) public validatorCounter;
 
-    /// @dev Block Timestamp when a validator was successfully part of 
+    /// @dev Block Timestamp when a validator was successfully part of
     mapping(address => uint256) public validatorLastSuccess;
 
     /// @dev holds Availability information for each specific mining address
@@ -90,7 +87,6 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// in order to become available for voting again.
     /// the value is of type timestamp
     mapping(address => uint256) public validatorAvailableSince;
-
 
     /// @dev The max number of validators.
     uint256 public maxValidators;
@@ -102,9 +98,12 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param reportingValidator The mining address of the reporting validator.
     /// @param maliciousValidator The mining address of the malicious validator.
     /// @param blockNumber The block number at which the `maliciousValidator` misbehaved.
-    event ReportedMalicious(address reportingValidator, address maliciousValidator, uint256 blockNumber);
+    event ReportedMalicious(
+        address reportingValidator,
+        address maliciousValidator,
+        uint256 blockNumber
+    );
 
-    
     event ValidatorAvailable(address validator, uint256 timestamp);
 
     /// @dev Emitted by the `handleFailedKeyGeneration` function to signal that a specific validator was
@@ -114,7 +113,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized {
+    modifier onlyInitialized() {
         require(isInitialized(), "ValidatorSet: not initialized");
         _;
     }
@@ -127,33 +126,44 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
     /// @dev Ensures the caller is the RandomHbbft contract address.
     modifier onlyRandomContract() {
-        require(msg.sender == randomContract,"Only Random Contract");
+        require(msg.sender == randomContract, "Only Random Contract");
         _;
     }
 
     /// @dev Ensures the caller is the StakingHbbft contract address.
     modifier onlyStakingContract() {
-        require(msg.sender == address(stakingContract),"Only Staking Contract");
+        require(
+            msg.sender == address(stakingContract),
+            "Only Staking Contract"
+        );
         _;
     }
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
-    modifier onlySystem() {
-        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE, "Only System");
+    modifier onlySystem() virtual {
+        require(
+            msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE,
+            "Only System"
+        );
         _;
     }
 
     /// @dev Returns the current timestamp.
-    function getCurrentTimestamp()
-    external
-    view
-    returns(uint256) {
+    function getCurrentTimestamp() external view virtual returns (uint256) {
         return block.timestamp;
+    }
+
+    function getStakingContract() external view returns (address) {
+        return address(stakingContract);
+    }
+
+    function isFullHealth() external view returns (bool) {
+        return maxValidators == _currentValidators.length;
     }
 
     // function getInfo()
     // public
-    // view 
+    // view
     // returns (address sender, address admin) {
     //     return (msg.sender, _admin());
     // }
@@ -176,17 +186,41 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external {
-        require(msg.sender == _admin() || tx.origin ==  _admin() 
-            || address(0) ==  _admin() || block.number == 0, 
-            "ValidatorSet: Initialization only on genesis block or by admin");
-        require(!isInitialized(), "ValidatorSet contract is already initialized");
-        require(_blockRewardContract != address(0), "BlockReward contract address can't be 0x0");
-        require(_randomContract != address(0), "Random contract address can't be 0x0");
-        require(_stakingContract != address(0), "Staking contract address can't be 0x0");
-        require(_keyGenHistoryContract != address(0), "KeyGenHistory contract address can't be 0x0");
-        require(_initialMiningAddresses.length > 0, "Must provide initial mining addresses");
-        require(_initialMiningAddresses.length == _initialStakingAddresses.length,
-            "Must provide the same amount of mining/staking addresses");
+        require(
+            msg.sender == _admin() ||
+                tx.origin == _admin() ||
+                address(0) == _admin() ||
+                block.number == 0,
+            "ValidatorSet: Initialization only on genesis block or by admin"
+        );
+        require(
+            !isInitialized(),
+            "ValidatorSet contract is already initialized"
+        );
+        require(
+            _blockRewardContract != address(0),
+            "BlockReward contract address can't be 0x0"
+        );
+        require(
+            _randomContract != address(0),
+            "Random contract address can't be 0x0"
+        );
+        require(
+            _stakingContract != address(0),
+            "Staking contract address can't be 0x0"
+        );
+        require(
+            _keyGenHistoryContract != address(0),
+            "KeyGenHistory contract address can't be 0x0"
+        );
+        require(
+            _initialMiningAddresses.length > 0,
+            "Must provide initial mining addresses"
+        );
+        require(
+            _initialMiningAddresses.length == _initialStakingAddresses.length,
+            "Must provide the same amount of mining/staking addresses"
+        );
 
         blockRewardContract = _blockRewardContract;
         randomContract = _randomContract;
@@ -206,15 +240,12 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         maxValidators = 25;
     }
 
-      /// @dev Called by the system when a pending validator set is ready to be activated.
+    /// @dev Called by the system when a pending validator set is ready to be activated.
     /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
     /// After this function is called, the `getValidators` getter returns the new validator set.
     /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
     /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
-    function finalizeChange()
-    external
-    onlyBlockRewardContract {
-
+    function finalizeChange() external onlyBlockRewardContract {
         if (_pendingValidators.length != 0) {
             // Apply a new validator set formed by the `newValidatorSet` function
             _savePreviousValidators();
@@ -226,16 +257,13 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         keyGenHistoryContract.notifyNewEpoch();
         delete _pendingValidators;
         stakingContract.setStakingEpochStartTime(this.getCurrentTimestamp());
-
     }
 
     /// @dev Implements the logic which forms a new validator set. If the number of active pools
     /// is greater than maxValidators, the logic chooses the validators randomly using a random seed generated and
     /// stored by the `RandomHbbft` contract.
     /// Automatically called by the `BlockRewardHbbft.reward` function at the latest block of the staking epoch.
-    function newValidatorSet()
-    external
-    onlyBlockRewardContract {
+    function newValidatorSet() external onlyBlockRewardContract {
         _newValidatorSet(new address[](0));
     }
 
@@ -243,58 +271,72 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// Called by the the Hbbft engine when a validator has been inactive for a long period.
     /// @param _miningAddresses The mining addresses of the malicious validators.
     function removeMaliciousValidators(address[] calldata _miningAddresses)
-    external
-    onlySystem {
+        external
+        onlySystem
+    {
         _removeMaliciousValidators(_miningAddresses, "inactive");
     }
 
     /// @dev called by validators when a validator comes online after
     /// getting marked as unavailable caused by a failed key generation.
     function announceAvailability(uint256 _blockNumber, bytes32 _blockhash)
-    external {
-
-        require(canCallAnnounceAvailability(msg.sender), 'Announcing availability not possible.');
-        require(_blockNumber < block.number, '_blockNumber argument must be in the past.');
+        external
+    {
+        require(
+            canCallAnnounceAvailability(msg.sender),
+            "Announcing availability not possible."
+        );
+        require(
+            _blockNumber < block.number,
+            "_blockNumber argument must be in the past."
+        );
         // 255 is a technical limitation of EVM ability to look into the past.
         // however, we query just for 16 blocks here.
         // this provides a time window big enough for valid nodes.
-        require(_blockNumber + 16 > block.number, '_blockNumber argument must be in the past within the last 255 blocks.');
+        require(
+            _blockNumber + 16 > block.number,
+            "_blockNumber argument must be in the past within the last 255 blocks."
+        );
         // we have ensured now that we technicaly able to query the blockhash for that block
-        require(blockhash(_blockNumber) == _blockhash, 'provided blockhash must match blockchains blockhash');
+        require(
+            blockhash(_blockNumber) == _blockhash,
+            "provided blockhash must match blockchains blockhash"
+        );
 
-        uint timestamp = this.getCurrentTimestamp();
+        uint256 timestamp = this.getCurrentTimestamp();
         validatorAvailableSince[msg.sender] = timestamp;
         emit ValidatorAvailable(msg.sender, timestamp);
         // as long the mining node is not banned as well,
         // it can be picked up as regular active node again.
         if (!isValidatorBanned(msg.sender)) {
-            stakingContract.notifyAvailability(stakingByMiningAddress[msg.sender]);
+            stakingContract.notifyAvailability(
+                stakingByMiningAddress[msg.sender]
+            );
         }
     }
 
-    /// @dev called by blockreward contract when a the reward when the block reward contract 
+    /// @dev called by blockreward contract when a the reward when the block reward contract
     /// came to the conclusion that the validators could not manage to create a new shared key together.
     /// this starts the process to find replacements for the failing candites,
     /// as well as marking them unavailable.
-    function handleFailedKeyGeneration()
-    external
-    onlyBlockRewardContract {
-
-
+    function handleFailedKeyGeneration() external onlyBlockRewardContract {
         // we should only kick out nodes if the nodes have been really to late.
 
-        require(this.getCurrentTimestamp() >= stakingContract.stakingFixedEpochEndTime(),
-            "failed key generation can only be processed after the staking epoch is over.");
+        require(
+            this.getCurrentTimestamp() >=
+                stakingContract.stakingFixedEpochEndTime(),
+            "failed key generation can only be processed after the staking epoch is over."
+        );
 
         if (stakingContract.getPoolsToBeElected().length == 0) {
             // if there is currently noone able to be elected, we just wait.
-            // probably this happens, until there is someone manages to make 
+            // probably this happens, until there is someone manages to make
             // his pool available for staking again.
             return;
         }
 
         if (_pendingValidators.length == 0) {
-            // if there are no "pending validators" that 
+            // if there are no "pending validators" that
             // should write their keys, then there is
             // nothing to do here.
             return;
@@ -315,24 +357,25 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         // ad missing ACK:
         // this case is more complex, since nodes did already write their acks for the parts
         // of a node that now drops out.
-        // this should be a very rare case, and to make it simple, 
+        // this should be a very rare case, and to make it simple,
         // we can just start over with the random selection of validators again.
 
         // temporary array to keep track of the good validators.
         // not all storage slots might be used.
         // we asume that there is at minimum 1 bad validator.
-        address[] memory goodValidators = new address[](_pendingValidators.length - 1);
-        uint goodValidatorsCount = 0;
+        address[] memory goodValidators = new address[](
+            _pendingValidators.length - 1
+        );
+        uint256 goodValidatorsCount = 0;
 
-
-        (uint128 numberOfPartsWritten,uint128 numberOfAcksWritten)
-            = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
-        
+        (
+            uint128 numberOfPartsWritten,
+            uint128 numberOfAcksWritten
+        ) = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
 
         //address[] memory badValidators = new address[];
 
-        for(uint i = 0; i < _pendingValidators.length; i++) {
-            
+        for (uint256 i = 0; i < _pendingValidators.length; i++) {
             // get mining address for this pool.
             // if the mining address did his job (writing PART or ACKS).
             // add it to the good pool.
@@ -346,31 +389,35 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
                 // case 1: missing part scenario.
                 // pending validator that missed out writing their part ?
                 // maybe make a more precise length check in the future here ?
-                isGood =  keyGenHistoryContract.getPart(miningAddress).length > 0;
+                isGood =
+                    keyGenHistoryContract.getPart(miningAddress).length > 0;
             } else if (_pendingValidators.length > numberOfAcksWritten) {
                 // case 2: parts were written, but did this validator also write it's ACKS ??
                 // Note: we do not really need to check if the validator has written his part,
-                // since all validators managed to write it's part. 
+                // since all validators managed to write it's part.
                 isGood = keyGenHistoryContract.getAcksLength(miningAddress) > 0;
             }
 
             if (isGood) {
                 // we track all good validators,
                 // so we can later pass the good validators
-                // to the _newValidatorSet function. 
+                // to the _newValidatorSet function.
                 goodValidators[goodValidatorsCount] = _pendingValidators[i];
                 goodValidatorsCount++;
-            }
-            else {
-
+            } else {
                 // this Pool is not available anymore.
                 // the pool does not get a Ban,
                 // but is treated as "inactive" as long it does not `announceAvailability()`
-                
-                stakingContract.removePool(stakingByMiningAddress[miningAddress]);
+
+                stakingContract.removePool(
+                    stakingByMiningAddress[miningAddress]
+                );
                 // mark the Node address as not available.
                 validatorAvailableSince[miningAddress] = 0;
-                emit ValidatorUnavailable(miningAddress, this.getCurrentTimestamp());
+                emit ValidatorUnavailable(
+                    miningAddress,
+                    this.getCurrentTimestamp()
+                );
             }
         }
 
@@ -380,7 +427,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         // we might only set a subset to the newValidatorSet function,
         // since the last indexes of the array are holding unused slots.
         address[] memory forcedPools = new address[](goodValidatorsCount);
-        for (uint i = 0; i < goodValidatorsCount; i++) {
+        for (uint256 i = 0; i < goodValidatorsCount; i++) {
             forcedPools[i] = goodValidators[i];
         }
 
@@ -390,15 +437,26 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
         // is there anyone left that can get elected ??
         // if not, we just continue with the validator set we have now,
-        // for another round, 
+        // for another round,
         // hopefully that on or the other node operators get his pool fixed.
         // the Deadline just stays a full time window.
         // therefore the Node Operators might get a chance that
-        // many manage to fix the problem, 
-        // and we can get a big takeover. 
+        // many manage to fix the problem,
+        // and we can get a big takeover.
         if (stakingContract.getPoolsToBeElected().length > 0) {
             _newValidatorSet(forcedPools);
         }
+    }
+
+    /// @dev Notifies hbbft validator set contract that a validator
+    /// asociated with the given `_stakingAddress` became
+    /// unavailable and must be flagged as unavailable.
+    /// @param _stakingAddress The address of the validator which became unavailable.
+    function notifyUnavailability(address _stakingAddress)
+        external
+        onlyStakingContract
+    {
+        validatorAvailableSince[miningByStakingAddress[_stakingAddress]] = 0;
     }
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.
@@ -411,9 +469,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         address _maliciousMiningAddress,
         uint256 _blockNumber,
         bytes calldata
-    )
-    external
-    onlyInitialized {
+    ) external onlyInitialized {
         address reportingMiningAddress = msg.sender;
 
         _incrementReportingCounter(reportingMiningAddress);
@@ -422,10 +478,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             bool callable,
             bool removeReportingValidator
         ) = reportMaliciousCallable(
-            reportingMiningAddress,
-            _maliciousMiningAddress,
-            _blockNumber
-        );
+                reportingMiningAddress,
+                _maliciousMiningAddress,
+                _blockNumber
+            );
 
         if (!callable) {
             if (removeReportingValidator) {
@@ -438,11 +494,17 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             return;
         }
 
-        address[] storage reportedValidators = _maliceReportedForBlock[_maliciousMiningAddress][_blockNumber];
+        address[] storage reportedValidators = _maliceReportedForBlock[
+            _maliciousMiningAddress
+        ][_blockNumber];
 
         reportedValidators.push(reportingMiningAddress);
 
-        emit ReportedMalicious(reportingMiningAddress, _maliciousMiningAddress, _blockNumber);
+        emit ReportedMalicious(
+            reportingMiningAddress,
+            _maliciousMiningAddress,
+            _blockNumber
+        );
 
         uint256 validatorsLength = _currentValidators.length;
         bool remove;
@@ -450,11 +512,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         if (validatorsLength > 3) {
             // If more than 2/3 of validators reported about malicious validator
             // for the same `blockNumber`
-            remove = reportedValidators.length.mul(3) > validatorsLength.mul(2);
+            remove = reportedValidators.length * 3 > validatorsLength * 2;
         } else {
             // If more than 1/2 of validators reported about malicious validator
             // for the same `blockNumber`
-            remove = reportedValidators.length.mul(2) > validatorsLength;
+            remove = reportedValidators.length * 2 > validatorsLength;
         }
 
         if (remove) {
@@ -472,14 +534,13 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _stakingAddress The staking address of the newly created pool. Cannot be equal to the `_miningAddress`
     /// and should never be used as a pool before.
     function setStakingAddress(address _miningAddress, address _stakingAddress)
-    external
-    onlyStakingContract {
+        external
+        onlyStakingContract
+    {
         _setStakingAddress(_miningAddress, _stakingAddress);
     }
 
-    function setMaxValidators(uint256 _maxValidators)
-    external
-    onlyOwner {
+    function setMaxValidators(uint256 _maxValidators) external onlyOwner {
         maxValidators = _maxValidators;
     }
 
@@ -487,58 +548,57 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// this function can only be called by validators.
     /// @param _ip IPV4 address of a running Node Software or Proxy.
     /// @param _port port for IPv4 address of a running Node Software or Proxy.
-    function setValidatorInternetAddress(bytes16 _ip, bytes2 _port)
-    external {
-
+    function setValidatorInternetAddress(bytes16 _ip, bytes2 _port) external {
         // get stacking address of sender. (required)
         address validatorAddress = stakingByMiningAddress[msg.sender];
-        require(validatorAddress != address(0), "No Pool defined for this validator.");
+        require(
+            validatorAddress != address(0),
+            "No Pool defined for this validator."
+        );
         // optional: we could verify public key to signer (public key) integrity, but it is costly.
-        stakingContract.setValidatorInternetAddress(validatorAddress, _ip, _port);
+        stakingContract.setValidatorInternetAddress(
+            validatorAddress,
+            _ip,
+            _port
+        );
     }
+
     // =============================================== Getters ========================================================
 
     /// @dev Returns a boolean flag indicating whether delegators of the specified pool are currently banned.
     /// A validator pool can be banned when they misbehave (see the `_removeMaliciousValidator` function).
     /// @param _miningAddress The mining address of the pool.
     function areDelegatorsBanned(address _miningAddress)
-    public
-    view
-    returns(bool) {
-        return this.getCurrentTimestamp() <= bannedDelegatorsUntil[_miningAddress];
+        public
+        view
+        returns (bool)
+    {
+        return
+            this.getCurrentTimestamp() <= bannedDelegatorsUntil[_miningAddress];
     }
 
     /// @dev Returns the previous validator set (validators' mining addresses array).
     /// The array is stored by the `finalizeChange` function
     /// when a new staking epoch's validator set is finalized.
-    function getPreviousValidators()
-    public
-    view
-    returns(address[] memory) {
+    function getPreviousValidators() public view returns (address[] memory) {
         return _previousValidators;
     }
 
     /// @dev Returns the current array of pending validators i.e. waiting to be activated in the new epoch
     /// The pending array is changed when a validator is removed as malicious
     /// or the validator set is updated by the `newValidatorSet` function.
-    function getPendingValidators()
-    public
-    view
-    returns(address[] memory) {
+    function getPendingValidators() public view returns (address[] memory) {
         return _pendingValidators;
     }
 
     /// @dev Returns the current validator set (an array of mining addresses)
     /// which always matches the validator set kept in validator's node.
-    function getValidators()
-    public
-    view
-    returns(address[] memory) {
+    function getValidators() public view returns (address[] memory) {
         return _currentValidators;
     }
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns(bool) {
+    function isInitialized() public view returns (bool) {
         return blockRewardContract != address(0);
     }
 
@@ -549,14 +609,22 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// validator did not have the opportunity to call the `reportMalicious` function prior to the
     /// engine calling the `finalizeChange` function.
     /// @param _miningAddress The validator's mining address.
-    function isReportValidatorValid(address _miningAddress) public view returns(bool) {
-        bool isValid = isValidator[_miningAddress] && !isValidatorBanned(_miningAddress);
+    function isReportValidatorValid(address _miningAddress)
+        public
+        view
+        returns (bool)
+    {
+        bool isValid = isValidator[_miningAddress] &&
+            !isValidatorBanned(_miningAddress);
         if (stakingContract.stakingEpoch() == 0) {
             return isValid;
         }
         // TO DO: arbitrarily chosen period stakingFixedEpochDuration/5.
-        if (this.getCurrentTimestamp() - stakingContract.stakingEpochStartTime() 
-            <= stakingContract.stakingFixedEpochDuration()/5) {
+        if (
+            this.getCurrentTimestamp() -
+                stakingContract.stakingEpochStartTime() <=
+            stakingContract.stakingFixedEpochDuration() / 5
+        ) {
             // The current validator set was finalized by the engine,
             // but we should let the previous validators finish
             // reporting malicious validator within a few blocks
@@ -567,11 +635,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     }
 
     function getPendingValidatorKeyGenerationMode(address _miningAddress)
-    public
-    view
-    returns(KeyGenMode) {
-
-        // enum KeyGenMode { NotAPendingValidator, WritePart, WaitForOtherParts, 
+        public
+        view
+        returns (KeyGenMode)
+    {
+        // enum KeyGenMode { NotAPendingValidator, WritePart, WaitForOtherParts,
         // WriteAck, WaitForOtherAcks, AllKeysDone }
 
         if (!isPendingValidator(_miningAddress)) {
@@ -581,25 +649,23 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         // since we got a part, maybe to validator is about to write his ack ?
         // he is allowed to write his ack, if all nodes have written their part.
 
-        (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) 
-            = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
+        (
+            uint128 numberOfPartsWritten,
+            uint128 numberOfAcksWritten
+        ) = keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
 
         if (numberOfPartsWritten < _pendingValidators.length) {
-
             bytes memory part = keyGenHistoryContract.getPart(_miningAddress);
             if (part.length == 0) {
-                // we know here that the validator is pending, 
+                // we know here that the validator is pending,
                 // but dit not have written the part yet.
                 // so he is allowed to write it's part.
                 return KeyGenMode.WritePart;
-            }
-            else {
+            } else {
                 // this mining address has written their part.
                 return KeyGenMode.WaitForOtherParts;
             }
-
         } else if (numberOfAcksWritten < _pendingValidators.length) {
-
             // not all Acks Written, so the key is not complete.
             // we know know that all Nodes have written their PART.
             // but not all have written their ACK.
@@ -607,21 +673,22 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
             if (keyGenHistoryContract.getAcksLength(_miningAddress) == 0) {
                 return KeyGenMode.WriteAck;
-            }
-            else {
+            } else {
                 return KeyGenMode.WaitForOtherAcks;
             }
-
         } else {
             return KeyGenMode.AllKeysDone;
         }
     }
 
-
     /// @dev Returns a boolean flag indicating whether the specified mining address is currently banned.
     /// A validator can be banned when they misbehave (see the `_removeMaliciousValidator` internal function).
     /// @param _miningAddress The mining address.
-    function isValidatorBanned(address _miningAddress) public view returns(bool) {
+    function isValidatorBanned(address _miningAddress)
+        public
+        view
+        returns (bool)
+    {
         return this.getCurrentTimestamp() <= bannedUntil[_miningAddress];
     }
 
@@ -630,9 +697,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// Used by the `StakingHbbft.maxWithdrawAllowed` and `StakingHbbft.maxWithdrawOrderAllowed` getters.
     /// @param _miningAddress The mining address.
     function isValidatorOrPending(address _miningAddress)
-    public
-    view
-    returns(bool) {
+        public
+        view
+        returns (bool)
+    {
         if (isValidator[_miningAddress]) {
             return true;
         }
@@ -644,10 +712,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// Used by the `isValidatorOrPending` and `KeyGenHistory.writeAck/Part` functions.
     /// @param _miningAddress The mining address.
     function isPendingValidator(address _miningAddress)
-    public
-    view
-    returns(bool) {
-
+        public
+        view
+        returns (bool)
+    {
         for (uint256 i = 0; i < _pendingValidators.length; i++) {
             if (_miningAddress == _pendingValidators[i]) {
                 return true;
@@ -661,34 +729,32 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// validator misbehaved at the specified block.
     /// @param _miningAddress The mining address of malicious validator.
     /// @param _blockNumber The block number.
-    function maliceReportedForBlock(address _miningAddress, uint256 _blockNumber)
-    public
-    view
-    returns(address[] memory) {
+    function maliceReportedForBlock(
+        address _miningAddress,
+        uint256 _blockNumber
+    ) public view returns (address[] memory) {
         return _maliceReportedForBlock[_miningAddress][_blockNumber];
     }
-
 
     /// @dev Returns if the specified _miningAddress is able to announce availability.
     /// @param _miningAddress mining address that is allowed/disallowed.
     function canCallAnnounceAvailability(address _miningAddress)
-    public
-    view
-    returns(bool) {
-
+        public
+        view
+        returns (bool)
+    {
         if (stakingByMiningAddress[_miningAddress] == address(0)) {
             // not a validator node.
             return false;
         }
 
         if (validatorAvailableSince[_miningAddress] != 0) {
-             // "Validator was not marked as unavailable."
+            // "Validator was not marked as unavailable."
             return false;
         }
 
         return true;
     }
-
 
     /// @dev Returns whether the `reportMalicious` function can be called by the specified validator with the
     /// given parameters. Used by the `reportMalicious` function and `TxPermission` contract. Also, returns
@@ -699,34 +765,43 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _maliciousMiningAddress The mining address of the malicious validator which is passed to
     /// the `reportMalicious` function.
     /// @param _blockNumber The block number which is passed to the `reportMalicious` function.
-    /// @return `bool callable` - The boolean flag indicating whether the `reportMalicious` function can be called at
-    /// the moment. `bool removeReportingValidator` - The boolean flag indicating whether the reporting validator
-    /// should be removed as malicious due to excessive reporting. This flag is only used by the `reportMalicious`
-    /// function.
+    /// @return callable `bool callable` - The boolean flag indicating whether the `reportMalicious` function
+    /// can be called at the moment.
+    /// @return removeReportingValidator `bool removeReportingValidator` - The boolean flag indicating whether
+    /// the reporting validator should be removed as malicious due to excessive reporting. This flag is only used
+    /// by the `reportMalicious` function.
     function reportMaliciousCallable(
         address _reportingMiningAddress,
         address _maliciousMiningAddress,
         uint256 _blockNumber
-    )
-    public
-    view
-    returns(bool callable, bool removeReportingValidator) {
-        if (!isReportValidatorValid(_reportingMiningAddress)) return (false, false);
-        if (!isReportValidatorValid(_maliciousMiningAddress)) return (false, false);
+    ) public view returns (bool callable, bool removeReportingValidator) {
+        if (!isReportValidatorValid(_reportingMiningAddress))
+            return (false, false);
+        if (!isReportValidatorValid(_maliciousMiningAddress))
+            return (false, false);
 
         uint256 validatorsNumber = _currentValidators.length;
 
         if (validatorsNumber > 1) {
             uint256 currentStakingEpoch = stakingContract.stakingEpoch();
-            uint256 reportsNumber = reportingCounter[_reportingMiningAddress][currentStakingEpoch];
-            uint256 reportsTotalNumber = reportingCounterTotal[currentStakingEpoch];
+            uint256 reportsNumber = reportingCounter[_reportingMiningAddress][
+                currentStakingEpoch
+            ];
+            uint256 reportsTotalNumber = reportingCounterTotal[
+                currentStakingEpoch
+            ];
             uint256 averageReportsNumber = 0;
 
             if (reportsTotalNumber >= reportsNumber) {
-                averageReportsNumber = (reportsTotalNumber - reportsNumber) / (validatorsNumber - 1);
+                averageReportsNumber =
+                    (reportsTotalNumber - reportsNumber) /
+                    (validatorsNumber - 1);
             }
 
-            if (reportsNumber > validatorsNumber * 50 && reportsNumber > averageReportsNumber * 10) {
+            if (
+                reportsNumber > validatorsNumber * 50 &&
+                reportsNumber > averageReportsNumber * 10
+            ) {
                 return (false, true);
             }
         }
@@ -736,11 +811,16 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         if (_blockNumber > currentBlock) return (false, false); // avoid reporting about future blocks
 
         uint256 ancientBlocksLimit = 100; //TODO: needs to be afjusted for HBBFT specifications i.e. time
-        if (currentBlock > ancientBlocksLimit && _blockNumber < currentBlock - ancientBlocksLimit) {
+        if (
+            currentBlock > ancientBlocksLimit &&
+            _blockNumber < currentBlock - ancientBlocksLimit
+        ) {
             return (false, false); // avoid reporting about ancient blocks
         }
 
-        address[] storage reportedValidators = _maliceReportedForBlock[_maliciousMiningAddress][_blockNumber];
+        address[] storage reportedValidators = _maliceReportedForBlock[
+            _maliciousMiningAddress
+        ][_blockNumber];
 
         // Don't allow reporting validator to report about the same misbehavior more than once
         uint256 length = reportedValidators.length;
@@ -756,15 +836,26 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @dev Returns the public key for the given stakingAddress
     /// @param _stakingAddress staking address of the wanted public key.
     /// @return public key of the _stakingAddress
-    function publicKeyByStakingAddress(address _stakingAddress) external view returns(bytes memory) {
+    function publicKeyByStakingAddress(address _stakingAddress)
+        external
+        view
+        returns (bytes memory)
+    {
         return stakingContract.getPoolPublicKey(_stakingAddress);
     }
 
     /// @dev Returns the public key for the given miningAddress
     /// @param _miningAddress mining address of the wanted public key.
     /// @return public key of the _miningAddress
-    function getPublicKey(address _miningAddress) external view returns(bytes memory) {
-        return stakingContract.getPoolPublicKey(stakingByMiningAddress[_miningAddress]);
+    function getPublicKey(address _miningAddress)
+        external
+        view
+        returns (bytes memory)
+    {
+        return
+            stakingContract.getPoolPublicKey(
+                stakingByMiningAddress[_miningAddress]
+            );
     }
 
     /// @dev in Hbbft there are sweet spots for the choice of validator counts
@@ -773,10 +864,14 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/84
     /// @return a sweet spot n for a given number n
     function getValidatorCountSweetSpot(uint256 _possibleValidatorCount)
-    public
-    view
-    returns(uint256) {
-        require(_possibleValidatorCount > 0, "_possibleValidatorCount must not be 0");
+        public
+        view
+        returns (uint256)
+    {
+        require(
+            _possibleValidatorCount > 0,
+            "_possibleValidatorCount must not be 0"
+        );
         if (_possibleValidatorCount < 4) {
             return _possibleValidatorCount;
         }
@@ -790,8 +885,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// uses this counter for reporting checks so it must be up-to-date. Called by the `_removeMaliciousValidators`
     /// internal function.
     /// @param _miningAddress The mining address of the removed malicious validator.
-    function _clearReportingCounter(address _miningAddress)
-    internal {
+    function _clearReportingCounter(address _miningAddress) internal {
         uint256 currentStakingEpoch = stakingContract.stakingEpoch();
         uint256 total = reportingCounterTotal[currentStakingEpoch];
         uint256 counter = reportingCounter[_miningAddress][currentStakingEpoch];
@@ -804,36 +898,58 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             reportingCounterTotal[currentStakingEpoch] = 0;
         }
     }
-    
-    function _newValidatorSet(address[] memory _forcedPools)
-    internal
-    {
-        address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
 
-        uint256 numOfValidatorsToBeElected = 
-            poolsToBeElected.length >= maxValidators || poolsToBeElected.length == 0 ? maxValidators : 
-            getValidatorCountSweetSpot(poolsToBeElected.length); 
+    function _newValidatorSet(address[] memory _forcedPools) internal {
+        address[] memory poolsToBeElected = stakingContract
+            .getPoolsToBeElected();
+
+        uint256 numOfValidatorsToBeElected = poolsToBeElected.length >=
+            maxValidators ||
+            poolsToBeElected.length == 0
+            ? maxValidators
+            : getValidatorCountSweetSpot(poolsToBeElected.length);
 
         // Choose new validators > )
         if (poolsToBeElected.length > numOfValidatorsToBeElected) {
-
             uint256 poolsToBeElectedLength = poolsToBeElected.length;
-            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
-            address[] memory newValidators = new address[](numOfValidatorsToBeElected);
+            (
+                uint256[] memory likelihood,
+                uint256 likelihoodSum
+            ) = stakingContract.getPoolsLikelihood();
+            address[] memory newValidators = new address[](
+                numOfValidatorsToBeElected
+            );
 
             uint256 indexNewValidator = 0;
-            for(uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {
-                for(uint256 iPoolToBeElected = 0; iPoolToBeElected < poolsToBeElectedLength; iPoolToBeElected++) {
-                    if (poolsToBeElected[iPoolToBeElected] == _forcedPools[iForced]) {
-                        newValidators[indexNewValidator] = _forcedPools[iForced];
+            for (
+                uint256 iForced = 0;
+                iForced < _forcedPools.length;
+                iForced++
+            ) {
+                for (
+                    uint256 iPoolToBeElected = 0;
+                    iPoolToBeElected < poolsToBeElectedLength;
+                    iPoolToBeElected++
+                ) {
+                    if (
+                        poolsToBeElected[iPoolToBeElected] ==
+                        _forcedPools[iForced]
+                    ) {
+                        newValidators[indexNewValidator] = _forcedPools[
+                            iForced
+                        ];
                         indexNewValidator++;
                         likelihoodSum -= likelihood[iPoolToBeElected];
                         // kicking out this pools from the "to be elected" list,
                         // by replacing it with the last element,
-                        // and virtually reducing it's size. 
+                        // and virtually reducing it's size.
                         poolsToBeElectedLength--;
-                        poolsToBeElected[iPoolToBeElected] = poolsToBeElected[poolsToBeElectedLength];
-                        likelihood[iPoolToBeElected] = likelihood[poolsToBeElectedLength];
+                        poolsToBeElected[iPoolToBeElected] = poolsToBeElected[
+                            poolsToBeElectedLength
+                        ];
+                        likelihood[iPoolToBeElected] = likelihood[
+                            poolsToBeElectedLength
+                        ];
                         break;
                     }
                 }
@@ -843,13 +959,23 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
             if (likelihood.length > 0 && likelihoodSum > 0) {
                 for (uint256 i = 0; i < newValidators.length; i++) {
-                    randomNumber = uint256(keccak256(abi.encode(randomNumber ^ block.timestamp)));
-                    uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
+                    randomNumber = uint256(
+                        keccak256(abi.encode(randomNumber ^ block.timestamp))
+                    );
+                    uint256 randomPoolIndex = _getRandomIndex(
+                        likelihood,
+                        likelihoodSum,
+                        randomNumber
+                    );
                     newValidators[i] = poolsToBeElected[randomPoolIndex];
                     likelihoodSum -= likelihood[randomPoolIndex];
                     poolsToBeElectedLength--;
-                    poolsToBeElected[randomPoolIndex] = poolsToBeElected[poolsToBeElectedLength];
-                    likelihood[randomPoolIndex] = likelihood[poolsToBeElectedLength];
+                    poolsToBeElected[randomPoolIndex] = poolsToBeElected[
+                        poolsToBeElectedLength
+                    ];
+                    likelihood[randomPoolIndex] = likelihood[
+                        poolsToBeElectedLength
+                    ];
                 }
 
                 _setPendingValidators(newValidators);
@@ -860,7 +986,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             // the logic needs to be that consistent.
             _setPendingValidators(poolsToBeElected);
         }
-        
+
         // clear previousValidator KeyGenHistory state
         keyGenHistoryContract.clearPrevKeyGenState(_currentValidators);
 
@@ -878,7 +1004,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
         // timescale:
         // epoch start time ..... phase 2 transition .... current end of phase 2 ..... now ..... new end of phase 2.
-        
+
         // new extra window size has to cover the difference between phase2 transition and now.
         // to reach the new end of phase 2.
 
@@ -886,17 +1012,20 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
         // now: validatorSetContract.getCurrentTimestamp();
 
-        if (this.getCurrentTimestamp() > stakingContract.stakingFixedEpochEndTime()) {
-            stakingContract.notifyNetworkOfftimeDetected(this.getCurrentTimestamp()
-                - stakingContract.stakingFixedEpochEndTime());
+        if (
+            this.getCurrentTimestamp() >
+            stakingContract.stakingFixedEpochEndTime()
+        ) {
+            stakingContract.notifyNetworkOfftimeDetected(
+                this.getCurrentTimestamp() -
+                    stakingContract.stakingFixedEpochEndTime()
+            );
         }
-
     }
 
     /// @dev Sets a new validator set stored in `_pendingValidators` array.
     /// Called by the `finalizeChange` function.
-    function _finalizeNewValidators()
-    internal {
+    function _finalizeNewValidators() internal {
         address[] memory validators;
         uint256 i;
 
@@ -920,7 +1049,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// function when the validator reports a misbehavior.
     /// @param _reportingMiningAddress The mining address of reporting validator.
     function _incrementReportingCounter(address _reportingMiningAddress)
-    internal {
+        internal
+    {
         if (!isReportValidatorValid(_reportingMiningAddress)) return;
         uint256 currentStakingEpoch = stakingContract.stakingEpoch();
         reportingCounter[_reportingMiningAddress][currentStakingEpoch]++;
@@ -936,9 +1066,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @return Returns `true` if the specified validator has been removed from the pending validator set.
     /// Otherwise returns `false` (if the specified validator has already been removed or cannot be removed).
     function _removeMaliciousValidator(address _miningAddress, bytes32 _reason)
-    internal
-    returns(bool) {
-
+        internal
+        returns (bool)
+    {
         bool isBanned = isValidatorBanned(_miningAddress);
         // Ban the malicious validator for at least the next 12 staking epochs
         uint256 banUntil = _banUntil();
@@ -968,7 +1098,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             if (_currentValidators[i] == _miningAddress) {
                 // Remove the malicious validator from `_pendingValidators`
                 _currentValidators[i] = _currentValidators[length - 1];
-                _currentValidators.length--;
+                _currentValidators.pop();
                 return true;
             }
         }
@@ -981,7 +1111,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _miningAddresses The mining addresses of the malicious validators.
     /// @param _reason A short string of the reason why the mining addresses are treated as malicious,
     /// see the `_removeMaliciousValidator` internal function description for possible values.
-    function _removeMaliciousValidators(address[] memory _miningAddresses, bytes32 _reason) internal {
+    function _removeMaliciousValidators(
+        address[] memory _miningAddresses,
+        bytes32 _reason
+    ) internal {
         for (uint256 i = 0; i < _miningAddresses.length; i++) {
             if (_removeMaliciousValidator(_miningAddresses[i], _reason)) {
                 // From this moment `getPendingValidators()` returns the new validator set
@@ -1010,10 +1143,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @dev Sets a new validator set as a pending.
     /// Called by the `newValidatorSet` function.
     /// @param _stakingAddresses The array of the new validators' staking addresses.
-    function _setPendingValidators(
-        address[] memory _stakingAddresses
-    ) internal {
-
+    function _setPendingValidators(address[] memory _stakingAddresses)
+        internal
+    {
         // clear  the pending validators list first
         delete _pendingValidators;
 
@@ -1022,23 +1154,30 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             // validators which want to exit from the validator set
             for (uint256 i = 0; i < _currentValidators.length; i++) {
                 address pvMiningAddress = _currentValidators[i];
-                address pvStakingAddress = stakingByMiningAddress[pvMiningAddress];
+                address pvStakingAddress = stakingByMiningAddress[
+                    pvMiningAddress
+                ];
                 if (
                     stakingContract.isPoolActive(pvStakingAddress) &&
-                    stakingContract.orderedWithdrawAmount(pvStakingAddress, pvStakingAddress) == 0
+                    stakingContract.orderedWithdrawAmount(
+                        pvStakingAddress,
+                        pvStakingAddress
+                    ) ==
+                    0
                 ) {
                     // The validator has an active pool and is not going to withdraw their
                     // entire stake, so this validator doesn't want to exit from the validator set
                     _pendingValidators.push(pvMiningAddress);
-                }   
+                }
             }
             if (_pendingValidators.length == 0) {
                 _pendingValidators.push(_currentValidators[0]); // add at least on validator
             }
         } else {
-            
             for (uint256 i = 0; i < _stakingAddresses.length; i++) {
-                _pendingValidators.push(miningByStakingAddress[_stakingAddresses[i]]);
+                _pendingValidators.push(
+                    miningByStakingAddress[_stakingAddresses[i]]
+                );
             }
         }
     }
@@ -1049,26 +1188,47 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// and should never be used as a pool before.
     /// @param _stakingAddress The staking address of the newly created pool. Cannot be equal to the `_miningAddress`
     /// and should never be used as a pool before.
-    function _setStakingAddress(address _miningAddress, address _stakingAddress) internal {
+    function _setStakingAddress(address _miningAddress, address _stakingAddress)
+        internal
+    {
         require(_miningAddress != address(0), "Mining address can't be 0");
         require(_stakingAddress != address(0), "Staking address can't be 0");
-        require(_miningAddress != _stakingAddress, "Mining address cannot be the same as the staking one");
-        require(miningByStakingAddress[_stakingAddress] == address(0), "Staking address already used as a staking one");
-        require(miningByStakingAddress[_miningAddress] == address(0), "Mining address already used as a staking one");
-        require(stakingByMiningAddress[_stakingAddress] == address(0), "Staking address already used as a mining one");
-        require(stakingByMiningAddress[_miningAddress] == address(0), "Mining address already used as a mining one");
+        require(
+            _miningAddress != _stakingAddress,
+            "Mining address cannot be the same as the staking one"
+        );
+        require(
+            miningByStakingAddress[_stakingAddress] == address(0),
+            "Staking address already used as a staking one"
+        );
+        require(
+            miningByStakingAddress[_miningAddress] == address(0),
+            "Mining address already used as a staking one"
+        );
+        require(
+            stakingByMiningAddress[_stakingAddress] == address(0),
+            "Staking address already used as a mining one"
+        );
+        require(
+            stakingByMiningAddress[_miningAddress] == address(0),
+            "Mining address already used as a mining one"
+        );
         miningByStakingAddress[_stakingAddress] = _miningAddress;
         stakingByMiningAddress[_miningAddress] = _stakingAddress;
     }
 
     /// @dev Returns the future timestamp until which a validator is banned.
     /// Used by the `_removeMaliciousValidator` internal function.
-    function _banUntil() internal view returns(uint256) {
+    function _banUntil() internal view returns (uint256) {
         uint256 currentTimestamp = this.getCurrentTimestamp();
-        uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime().sub(currentTimestamp);
-        // Ban for at least 12 full staking epochs: 
-        // currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration. 
-        return currentTimestamp.add(12 * stakingContract.stakingFixedEpochDuration()).add(ticksUntilEnd);
+        uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime() -
+            currentTimestamp;
+        // Ban for at least 12 full staking epochs:
+        // currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration.
+        return
+            currentTimestamp +
+            (12 * stakingContract.stakingFixedEpochDuration()) +
+            (ticksUntilEnd);
     }
 
     /// @dev Returns an index of a pool in the `poolsToBeElected` array
@@ -1078,11 +1238,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _likelihood An array of probability coefficients.
     /// @param _likelihoodSum A sum of probability coefficients.
     /// @param _randomNumber A random number.
-    function _getRandomIndex(uint256[] memory _likelihood, uint256 _likelihoodSum, uint256 _randomNumber)
-        internal
-        pure
-        returns(uint256)
-    {
+    function _getRandomIndex(
+        uint256[] memory _likelihood,
+        uint256 _likelihoodSum,
+        uint256 _randomNumber
+    ) internal pure returns (uint256) {
         uint256 random = _randomNumber % _likelihoodSum;
         uint256 sum = 0;
         uint256 index = 0;
