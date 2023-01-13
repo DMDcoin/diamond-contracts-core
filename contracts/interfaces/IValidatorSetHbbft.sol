@@ -32,6 +32,8 @@ interface IValidatorSetHbbft {
 
     function handleFailedKeyGeneration() external;
 
+    function isFullHealth() external view returns (bool);
+
     function areDelegatorsBanned(address) external view returns (bool);
 
     function blockRewardContract() external view returns (address);

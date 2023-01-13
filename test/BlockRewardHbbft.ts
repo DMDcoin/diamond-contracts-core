@@ -169,6 +169,11 @@ describe('BlockRewardHbbft', () => {
             validatorSetHbbft.address
         );
 
+        // Initialize RandomHbbft
+        await randomHbbft.initialize(
+            validatorSetHbbft.address
+        );
+
         // await keyGenHistory.initialize(
         //     validatorSetHbbft.address,
         //     accountAddresses, _parts, _acks

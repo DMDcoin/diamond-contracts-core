@@ -2,10 +2,13 @@ pragma solidity =0.8.17;
 
 import "./interfaces/IRandomHbbft.sol";
 import "./upgradeability/UpgradeabilityAdmin.sol";
+import "./interfaces/IValidatorSetHbbft.sol";
+import "./libs/BitMaps.sol";
 
 /// @dev Stores and uppdates a random seed that is used to form a new validator set by the
 /// `ValidatorSetHbbft.newValidatorSet` function.
 contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
+    using BitMaps for BitMaps.BitMap;
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -17,7 +20,12 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// @dev The mapping of random seeds accumulated during RANDAO or another process
     /// (depending on implementation).
     /// blocknumber => random seed
-    mapping(uint256 => uint256) public randomHistory;
+    mapping(uint256 => uint256) private randomHistory;
+
+    BitMaps.BitMap private unhealthiness;
+
+    /// @dev The address of the `ValidatorSet` contract.
+    IValidatorSetHbbft public validatorSetContract;
 
     // ============================================== Modifiers =======================================================
 
@@ -28,6 +36,10 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
             "Must be executed by System"
         );
         _;
+    }
+
+    function initialize(address _validatorSetContract) public {
+        validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
     }
 
     // =============================================== Setters ========================================================
@@ -43,6 +55,10 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// and currentSeed is a public available value that can get used by all smart contracts.
     function setCurrentSeed(uint256 _currentSeed) external onlySystem {
         randomHistory[block.number] = _currentSeed;
+
+        if (!validatorSetContract.isFullHealth()) {
+            unhealthiness.set(block.number);
+        }
     }
 
     ///@dev returns current random seed
@@ -51,7 +67,7 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     }
 
     ///@dev returns an array of seeds from requested blocknumbers
-    function getHistoricalSeeds(uint256[] calldata _blocknumbers)
+    function getSeedsHistoric(uint256[] calldata _blocknumbers)
         external
         view
         returns (uint256[] memory)
@@ -61,6 +77,26 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         for (uint256 i = 0; i < len; i++) {
             {
                 output[i] = randomHistory[_blocknumbers[i]];
+            }
+        }
+        return output;
+    }
+
+    function isFullHealth() external view returns (bool) {
+        return validatorSetContract.isFullHealth();
+    }
+
+    function isFullHealthHistoric(uint256[] calldata _blocknumbers)
+        external
+        view
+        returns (bool[] memory)
+    {
+        uint256 len = _blocknumbers.length;
+        bool[] memory output = new bool[](len);
+        for (uint256 i = 0; i < len; ) {
+            {
+                output[i] = !unhealthiness.get(_blocknumbers[i]);
+                ++i;
             }
         }
         return output;

@@ -55,6 +55,8 @@ contract InitializerHbbft {
             _miningAddresses,
             _stakingAddresses
         );
+
+        IRandomHbbft(_contracts[2]).initialize(_contracts[0]);
         IStakingHbbft(_contracts[3]).initialize(
             IStakingHbbft.StakingParams({
                 _validatorSetContract: _contracts[0], // _validatorSetContract
