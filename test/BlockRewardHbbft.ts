@@ -462,6 +462,40 @@ describe('BlockRewardHbbft', () => {
         actualValidatorReward.should.be.closeTo(expectedValidatorReward, expectedValidatorReward.div(100000));
     })
 
+    it('gives full reward if the epoch was longer than expected', async () => {
+        const currentValidators = await validatorSetHbbft.getValidators();
+        const maxValidators = await validatorSetHbbft.maxValidators();
+        stakingEpoch = await stakingHbbft.stakingEpoch();
+
+        const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+        let _epochPercentage = BigNumber.from(120);
+        await finishEpochPrelim(_epochPercentage);
+
+        const currentGovernancePotBalance = await getCurrentGovernancePotValue();
+        const governancePotIncrease = currentGovernancePotBalance.sub(initialGovernancePotBalance);
+
+        let deltaPotValue = await blockRewardHbbft.deltaPot();
+        let reinsertPotValue = await blockRewardHbbft.reinsertPot();
+
+        const deltaPotShare = deltaPotValue.mul(BigNumber.from(currentValidators.length)).div(BigNumber.from('6000')).div(maxValidators);
+        const reinsertPotShare = reinsertPotValue.mul(BigNumber.from(currentValidators.length)).div(BigNumber.from('6000')).div(maxValidators);
+        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
+
+        const totalReward = deltaPotShare.add(reinsertPotShare).add(nativeRewardUndistributed);
+        const expectedDAOShare = totalReward.div(BigNumber.from('10'));
+
+        // we expect 1 wei difference, since the reward combination from 2 pots results in that.
+        //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
+        governancePotIncrease.should.to.be.closeTo(expectedDAOShare, expectedDAOShare.div(10000));
+
+        //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
+        const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT();
+        const expectedValidatorReward = totalReward.sub(expectedDAOShare).div(BigNumber.from(currentValidators.length)).mul(minValidatorSharePercent).div(BigNumber.from('100'));
+        const actualValidatorReward = await blockRewardHbbft.getValidatorReward(stakingEpoch, currentValidators[1]);
+
+        actualValidatorReward.should.be.closeTo(expectedValidatorReward, expectedValidatorReward.div(10000));
+    })
+
     describe("Upscaling tests", async () => {
         it("Add multiple validator pools and upscale if needed.", async () => {
             const accountAddresses = accounts.map(item => item.address);
