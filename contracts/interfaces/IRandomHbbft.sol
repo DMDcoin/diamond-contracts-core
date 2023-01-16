@@ -5,6 +5,11 @@ interface IRandomHbbft {
 
     function currentSeed() external view returns (uint256);
 
+    function getSeedHistoric(uint256 _blocknumber)
+        external
+        view
+        returns (uint256);
+
     function getSeedsHistoric(uint256[] calldata)
         external
         view
