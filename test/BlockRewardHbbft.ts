@@ -675,8 +675,10 @@ async function mine() {
 
         //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
         let minValidatorSharePercent = 100;
+        //staking address of the validator
+        let stakingAddress = await validatorSetHbbft.stakingByMiningAddress(currentValidators[currentValidators.length - 1])
         ///first 4 validators have delegators so they receive less DMD
-        if (currentValidators.length < 4) {
+        if ((await stakingHbbft.poolDelegators(stakingAddress)).length) {
             minValidatorSharePercent = 30;
         }
 
