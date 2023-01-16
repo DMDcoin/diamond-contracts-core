@@ -91,6 +91,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @dev The max number of validators.
     uint256 public maxValidators;
 
+    /// @dev duration of ban in epochs
+    uint256 public banDuration;
+
     // ================================================ Events ========================================================
 
     /// @dev Emitted by the `reportMalicious` function to signal that a specified validator reported
@@ -238,6 +241,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         }
 
         maxValidators = 25;
+        banDuration = 12;
     }
 
     /// @dev Called by the system when a pending validator set is ready to be activated.
@@ -542,6 +546,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
     function setMaxValidators(uint256 _maxValidators) external onlyOwner {
         maxValidators = _maxValidators;
+    }
+
+    function setBanDuration(uint256 _banDuration) external onlyOwner {
+        banDuration = _banDuration;
     }
 
     /// @dev set's the validators ip address.
@@ -1227,7 +1235,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         // currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration.
         return
             currentTimestamp +
-            (12 * stakingContract.stakingFixedEpochDuration()) +
+            (banDuration * stakingContract.stakingFixedEpochDuration()) +
             (ticksUntilEnd);
     }
 

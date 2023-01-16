@@ -38,6 +38,7 @@ const chainIds = {
     "optimism-mainnet": 10,
     "polygon-mainnet": 137,
     "polygon-mumbai": 80001,
+    DMDv4: 777012
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
@@ -48,6 +49,9 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
             break;
         case "bsc":
             jsonRpcUrl = "https://bsc-dataseed1.binance.org";
+            break;
+        case "DMDv4":
+            jsonRpcUrl = "http://rpc.uniq.diamonds:8540";
             break;
         default:
             jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
@@ -60,7 +64,7 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
         },
         chainId: chainIds[chain],
         gas: 21_000_000_000,
-        gasPrice: 8000000000,
+        gasPrice: 1_000_000_000,
         allowUnlimitedContractSize: true,
         blockGasLimit: 100000000429720,
         url: jsonRpcUrl,
@@ -79,6 +83,7 @@ const config: {} = {
             optimisticEthereum: process.env.OPTIMISM_API_KEY || "",
             polygon: process.env.POLYGONSCAN_API_KEY || "",
             polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
+            DMDv4: "http://explorer.uniq.diamonds/api",
         },
     },
     contractSizer: {
@@ -112,6 +117,7 @@ const config: {} = {
         optimism: getChainConfig("optimism-mainnet"),
         "polygon-mainnet": getChainConfig("polygon-mainnet"),
         "polygon-mumbai": getChainConfig("polygon-mumbai"),
+        DMDv4: getChainConfig("DMDv4"),
     },
     paths: {
         artifacts: "./artifacts",
