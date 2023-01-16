@@ -82,6 +82,16 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         return output;
     }
 
+
+    ///@dev returns an seed from requested blocknumber
+    function getSeedHistoric(uint256 _blocknumber)
+        external
+        view
+        returns (uint256)
+    {
+        return randomHistory[_blocknumber];
+    }
+
     function isFullHealth() external view returns (bool) {
         return validatorSetContract.isFullHealth();
     }
