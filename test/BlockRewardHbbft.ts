@@ -496,6 +496,20 @@ describe('BlockRewardHbbft', () => {
         actualValidatorReward.should.be.closeTo(expectedValidatorReward, expectedValidatorReward.div(10000));
     })
 
+    it("epochsToClaimRewardFrom should return correct values", async () => {
+        const miningAddress = (await validatorSetHbbft.getValidators())[0]; //mining address
+        const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(miningAddress); //stakingaddress
+        (await blockRewardHbbft.epochsToClaimRewardFrom(stakingAddress, stakingAddress))[0].should.be.eq(2);
+        (await blockRewardHbbft.epochsToClaimRewardFrom(stakingAddress, accounts[11].address))[0].should.be.eq(2);
+    })
+
+    it("validatorRewardPercent should return correct values", async () => {
+        const miningAddress = (await validatorSetHbbft.getValidators())[2]; //mining address
+        const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(miningAddress); //stakingaddress
+        //percentage of a validator with delegators should be equal 30%
+        (await blockRewardHbbft.validatorRewardPercent(stakingAddress)).should.be.equal(300000);
+    })
+
     describe("Upscaling tests", async () => {
         it("Add multiple validator pools and upscale if needed.", async () => {
             const accountAddresses = accounts.map(item => item.address);

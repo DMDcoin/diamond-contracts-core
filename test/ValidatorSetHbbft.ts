@@ -32,12 +32,17 @@ let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
 let validatorSetHbbft: ValidatorSetHbbftMock;
 let stakingHbbft: StakingHbbftCoinsMock;
 let keyGenHistory: KeyGenHistory;
+let randomHbbft: RandomHbbftMock;
+
 
 //addresses
 let owner: SignerWithAddress;
 let accounts: SignerWithAddress[];
 let initialValidatorsPubKeys: string[];
 let initialValidatorsIpAddresses: string[];
+let initialValidators: string[];
+let initialStakingAddresses: string[];
+let accountAddresses: string[];
 
 //consts
 // one epoch in 1 day.
@@ -45,11 +50,15 @@ const stakingFixedEpochDuration = BigNumber.from(86400);
 // the transition time window is 1 hour.
 const stakingTransitionTimeframeLength = BigNumber.from(3600);
 const stakingWithdrawDisallowPeriod = BigNumber.from(1);
+const MIN_STAKE = BigNumber.from(ethers.utils.parseEther('1'));
+const MAX_STAKE = BigNumber.from(ethers.utils.parseEther('100000'));
 
 describe('ValidatorSetHbbft', () => {
 
     beforeEach(async () => {
         [owner, ...accounts] = await ethers.getSigners();
+
+        accountAddresses = accounts.map(item => item.address);
 
         const AdminUpgradeabilityProxyFactory = await ethers.getContractFactory("AdminUpgradeabilityProxy")
 
@@ -90,10 +99,8 @@ describe('ValidatorSetHbbft', () => {
         initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
     });
 
+
     describe('initialize()', async () => {
-        let initialValidators: string[];
-        let initialStakingAddresses: string[];
-        const accountAddresses = accounts.map(item => item.address);
 
         beforeEach(async () => {
             initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
@@ -111,7 +118,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.fulfilled;
+            );
             blockRewardHbbft.address.should.be.equal(
                 await validatorSetHbbft.blockRewardContract()
             );
@@ -159,7 +166,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.fulfilled;
+            );
         });
         it('should fail if BlockRewardHbbft contract address is zero', async () => {
             await validatorSetHbbft.initialize(
@@ -220,7 +227,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.fulfilled;
+            );
             await validatorSetHbbft.initialize(
                 blockRewardHbbft.address, // _blockRewardContract
                 '0x3000000000000000000000000000000000000001', // _randomContract
@@ -320,11 +327,8 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
+
     describe('newValidatorSet()', async () => {
-        let initialValidators: string[];
-        let initialStakingAddresses: string[];
-        let randomHbbft: RandomHbbftMock;
-        const accountAddresses = accounts.map(item => item.address);
 
 
 
@@ -355,7 +359,7 @@ describe('ValidatorSetHbbft', () => {
                 keyGenHistory.address, //_keyGenHistoryContract
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.fulfilled;
+            );
 
             let structure: IStakingHbbft.StakingParamsStruct = {
                 _validatorSetContract: validatorSetHbbft.address,
@@ -367,20 +371,20 @@ describe('ValidatorSetHbbft', () => {
                 _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
-
+            await randomHbbft.initialize(validatorSetHbbft.address);
             await stakingHbbft.initialize(
                 structure,
                 initialValidatorsPubKeys, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
-            ).should.be.fulfilled;
+            );
             await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41]],
                 [[[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]], [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]], [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]]]
-            ).should.be.fulfilled;
+            );
         });
         it('can only be called by BlockReward contract', async () => {
             await validatorSetHbbft.connect(owner).newValidatorSet().should.be.rejectedWith("Only BlockReward contract");
-            await validatorSetHbbft.setBlockRewardContract(accounts[4].address).should.be.fulfilled;
-            await validatorSetHbbft.connect(accounts[4]).newValidatorSet().should.be.fulfilled;
+            await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
+            await validatorSetHbbft.connect(accounts[4]).newValidatorSet();
         });
         it('should enqueue all initial validators (active pools) if there is no staking', async () => {
 
@@ -388,8 +392,8 @@ describe('ValidatorSetHbbft', () => {
             (await validatorSetHbbft.getPendingValidators()).length.should.be.equal(0);
 
             // Emulate calling `newValidatorSet()` at the last block of the fixed epoch duration
-            await validatorSetHbbft.setBlockRewardContract(accounts[4].address).should.be.fulfilled;
-            await validatorSetHbbft.connect(accounts[4]).newValidatorSet().should.be.fulfilled;
+            await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
+            await validatorSetHbbft.connect(accounts[4]).newValidatorSet();
 
             // Check the returned value of the pending validators; it should be an empty list
             (await validatorSetHbbft.getPendingValidators()).length.should.be.equal(3);
@@ -399,12 +403,12 @@ describe('ValidatorSetHbbft', () => {
 
             // Emulate staking: the first validator stakes into their own pool
             const stakeAmount = BigNumber.from(ethers.utils.parseEther('1'));
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).stake(initialStakingAddresses[0], { value: stakeAmount }).should.be.fulfilled;
+            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).stake(initialStakingAddresses[0], { value: stakeAmount });
             stakeAmount.should.be.equal(await stakingHbbft.stakeAmount(initialStakingAddresses[0], initialStakingAddresses[0]));
 
             // Emulate calling `newValidatorSet()` at the last block of the fixed epoch duration
-            await validatorSetHbbft.setBlockRewardContract(accounts[4].address).should.be.fulfilled;
-            await validatorSetHbbft.connect(accounts[4]).newValidatorSet().should.be.fulfilled;
+            await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
+            await validatorSetHbbft.connect(accounts[4]).newValidatorSet();
 
             // Check the returned value of `getPendingValidators()`
             (await validatorSetHbbft.getPendingValidators()).should.be.deep.equal([initialValidators[0]]);
@@ -436,7 +440,7 @@ describe('ValidatorSetHbbft', () => {
                     '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
                     '0x00000000000000000000000000000000',
                     { value: stakeAmount }
-                ).should.be.fulfilled;
+                );
                 stakeAmount.should.be.equal(await stakingHbbft.stakeAmount(stakingAddresses[i], stakingAddresses[i]));
             }
 
@@ -455,14 +459,14 @@ describe('ValidatorSetHbbft', () => {
             (await randomHbbft.currentSeed()).should.be.equal(BigNumber.from(0));
 
             const seed = random(1000000, 2000000);
-            await randomHbbft.setSystemAddress(owner.address).should.be.fulfilled;
-            await randomHbbft.connect(owner).setCurrentSeed(BigNumber.from(seed)).should.be.fulfilled;
-            await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+            await randomHbbft.setSystemAddress(owner.address);
+            await randomHbbft.connect(owner).setCurrentSeed(BigNumber.from(seed));
             (await randomHbbft.currentSeed()).should.be.equal(BigNumber.from(seed));
+            await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
 
             // Emulate calling `newValidatorSet()` at the last block of the staking epoch
-            await validatorSetHbbft.setBlockRewardContract(accounts[4].address).should.be.fulfilled;
-            await validatorSetHbbft.connect(accounts[4]).newValidatorSet().should.be.fulfilled;
+            await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
+            await validatorSetHbbft.connect(accounts[4]).newValidatorSet();
 
             const newValidators = await validatorSetHbbft.getPendingValidators();
 
@@ -473,6 +477,121 @@ describe('ValidatorSetHbbft', () => {
             }
         });
     });
+
+    describe("Report Malicious tests", async () => {
+        beforeEach(async () => {
+            initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
+            initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
+
+            const AdminUpgradeabilityProxyFactory = await ethers.getContractFactory("AdminUpgradeabilityProxy")
+
+            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+            randomHbbft = await RandomHbbftFactory.deploy() as RandomHbbftMock;
+            if (useUpgradeProxy) {
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
+                randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
+            }
+
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
+            if (useUpgradeProxy) {
+                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
+                keyGenHistory = await ethers.getContractAt("KeyGenHistory", adminUpgradeabilityProxy.address);
+            }
+
+            await validatorSetHbbft.initialize(
+                blockRewardHbbft.address, // _blockRewardContract
+                randomHbbft.address, // _randomContract
+                stakingHbbft.address, // _stakingContract
+                keyGenHistory.address, //_keyGenHistoryContract
+                initialValidators, // _initialMiningAddresses
+                initialStakingAddresses, // _initialStakingAddresses
+            );
+
+            let structure: IStakingHbbft.StakingParamsStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: ethers.utils.parseEther('1'),
+                _candidateMinStake: ethers.utils.parseEther('1'),
+                _maxStake: ethers.utils.parseEther('100000'),
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+            await randomHbbft.initialize(validatorSetHbbft.address);
+            await stakingHbbft.initialize(
+                structure,
+                initialValidatorsPubKeys, // _publicKeys
+                initialValidatorsIpAddresses // _internetAddresses
+            );
+            await keyGenHistory.initialize(validatorSetHbbft.address, initialValidators, [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41]],
+                [[[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]], [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]], [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]]]
+            );
+
+            // fill validators pool
+            const additionalValidators = accountAddresses.slice(7, 52 + 1); // accounts[7...32]
+            const additionalStakingAddresses = accountAddresses.slice(53, 99 + 1); // accounts[33...59]
+
+            additionalValidators.length.should.be.equal(46);
+            additionalStakingAddresses.length.should.be.equal(46);
+
+            await network.provider.send("evm_setIntervalMining", [8]);
+
+            for (let i = 0; i < additionalValidators.length; i++) {
+                let stakingAddress = await ethers.getSigner(additionalStakingAddresses[i]);
+                let miningAddress = await ethers.getSigner(additionalValidators[i]);
+
+                await stakingHbbft.connect(stakingAddress).addPool(miningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+                    '0x00000000000000000000000000000000', { value: MIN_STAKE });
+                await announceAvailability(miningAddress.address);
+
+            }
+            await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
+            await validatorSetHbbft.connect(accounts[4]).newValidatorSet();
+            await validatorSetHbbft.connect(accounts[4]).finalizeChange();
+            // after epoch was finalized successfully, validator set length is healthy
+            (await validatorSetHbbft.getValidators()).length.should.be.eq(25);
+        });
+
+        it("Should be able to report a malicious validator", async () => {
+            let reportBlock = (await ethers.provider.getBlockNumber()) - 1;
+            let maliciousMiningAddress = (await validatorSetHbbft.getValidators())[0];
+
+            let reportingMiningAddress = await ethers.getSigner((await validatorSetHbbft.getValidators())[1])
+            await validatorSetHbbft.connect(reportingMiningAddress).reportMalicious(maliciousMiningAddress, reportBlock, []);
+            (await validatorSetHbbft.maliceReportedForBlock(maliciousMiningAddress, reportBlock))[0].should.be.eq(reportingMiningAddress.address);
+        })
+
+        it("Should ban validator after 17 reports", async () => {
+            let currentValidatorSet = await validatorSetHbbft.getValidators()
+            let reportBlock = (await ethers.provider.getBlockNumber()) - 1;
+            let maliciousMiningAddress = (await validatorSetHbbft.getValidators())[0];
+
+            for (let i = 1; i < currentValidatorSet.length; i++) {
+                let reportingMiningAddress = await ethers.getSigner(currentValidatorSet[i])
+                await validatorSetHbbft.connect(reportingMiningAddress).reportMalicious(maliciousMiningAddress, reportBlock, []);
+            }
+
+            (await validatorSetHbbft.maliceReportedForBlock(maliciousMiningAddress, reportBlock)).length.should.be.eq(17);
+            (await validatorSetHbbft.isValidatorBanned(maliciousMiningAddress)).should.be.eq(true);
+        })
+
+        it("Validator should get banned if spamming reports", async () => {
+            let currentValidatorSet = await validatorSetHbbft.getValidators()
+            let reportBlock = (await ethers.provider.getBlockNumber()) - 1;
+            let reportingMiningAddress = await ethers.getSigner((await validatorSetHbbft.getValidators())[0])
+            for (let i = 1; i < 100; i++) {
+                for (let j = 1; j < currentValidatorSet.length; j++) {
+                    let maliciousMiningAddress = currentValidatorSet[j]
+                    await validatorSetHbbft.connect(reportingMiningAddress).reportMalicious(maliciousMiningAddress, reportBlock - i, []);
+
+                }
+            }
+            (await validatorSetHbbft.isValidatorBanned(reportingMiningAddress.address)).should.be.eq(true);
+        })
+
+
+    })
 
     describe('_getRandomIndex()', async () => {
         it('should return an adjusted index for defined inputs', async () => {
@@ -718,4 +837,20 @@ describe('ValidatorSetHbbft', () => {
 
 function random(low: number, high: number) {
     return Math.floor((Math.random() * (high - low) + low));
+}
+async function announceAvailability(pool: string) {
+    const blockNumber = await ethers.provider.getBlockNumber()
+    const block = await ethers.provider.getBlock(blockNumber);
+    const asEncoded = validatorSetHbbft.interface.encodeFunctionData("announceAvailability", [blockNumber, block.hash]);
+
+    // we know now, that this call is allowed.
+    // so we can execute it.
+    await (await ethers.getSigner(pool)).sendTransaction({ to: validatorSetHbbft.address, data: asEncoded });
+}
+
+async function getCurrentGovernancePotValue() {
+    const governnancePotAddress = await blockRewardHbbft.governancePotAddress();
+    (BigNumber.from(governnancePotAddress)).should.be.gt(BigNumber.from(0));
+    const result = BigNumber.from(await ethers.provider.getBalance(governnancePotAddress));
+    return result;
 }
