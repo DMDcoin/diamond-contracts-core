@@ -408,8 +408,34 @@ describe('KeyGenHistory', () => {
             pendingValidators.should.be.deep.equal([poolMiningAddress2]);
 
         });
-    }); // describe
 
+    }); // describe
+    describe('Certifier', async () => {
+        it("Owner must be able to certify any user", async () => {
+            await certifier.connect(owner).certify(accounts[35].address);
+            (await certifier.certified(accounts[35].address)).should.be.equal(true);
+            (await certifier.certifiedExplicitly(accounts[35].address)).should.be.equal(true);
+        });
+
+        it("Mining addresses with pools should be certified by default", async () => {
+            (await certifier.certified(miningAddresses[1])).should.be.equal(true);
+            (await certifier.certifiedExplicitly(miningAddresses[1])).should.be.equal(false);
+        })
+
+        it("Should be able to revoke from non-validators", async () => {
+            await certifier.connect(owner).revoke(accounts[35].address);
+            (await certifier.certified(accounts[35].address)).should.be.equal(false);
+        });
+
+        it("Shouldn't be able to revoke from working validators", async () => {
+            await certifier.connect(owner).revoke(miningAddresses[1]);
+            (await certifier.certified(miningAddresses[1])).should.be.equal(true);
+        })
+
+        it("Shouldn't be able to certify zero address", async () => {
+            await certifier.connect(owner).certify("0x0000000000000000000000000000000000000000").should.be.rejectedWith("certifier must not be address 0");
+        })
+    })
 }); // contract
 
 
