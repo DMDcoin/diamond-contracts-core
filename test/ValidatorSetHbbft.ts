@@ -553,6 +553,16 @@ describe('ValidatorSetHbbft', () => {
             (await validatorSetHbbft.getValidators()).length.should.be.eq(25);
         });
 
+        it("Should be able to increase max amount of active validators", async () => {
+            await validatorSetHbbft.setMaxValidators(30);
+
+            await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
+            await validatorSetHbbft.connect(accounts[4]).newValidatorSet();
+            await validatorSetHbbft.connect(accounts[4]).finalizeChange();
+            // after epoch was finalized successfully, validator set length is healthy
+            (await validatorSetHbbft.getValidators()).length.should.be.eq(30);
+        })
+
         it("Should be able to report a malicious validator", async () => {
             let reportBlock = (await ethers.provider.getBlockNumber()) - 1;
             let maliciousMiningAddress = (await validatorSetHbbft.getValidators())[0];
@@ -560,6 +570,15 @@ describe('ValidatorSetHbbft', () => {
             let reportingMiningAddress = await ethers.getSigner((await validatorSetHbbft.getValidators())[1])
             await validatorSetHbbft.connect(reportingMiningAddress).reportMalicious(maliciousMiningAddress, reportBlock, []);
             (await validatorSetHbbft.maliceReportedForBlock(maliciousMiningAddress, reportBlock))[0].should.be.eq(reportingMiningAddress.address);
+        })
+
+        it("Shouldn't be able to report a malicious validator in a future block", async () => {
+            let reportBlock = (await ethers.provider.getBlockNumber()) + 10;
+            let maliciousMiningAddress = (await validatorSetHbbft.getValidators())[0];
+
+            let reportingMiningAddress = await ethers.getSigner((await validatorSetHbbft.getValidators())[1])
+            await validatorSetHbbft.connect(reportingMiningAddress).reportMalicious(maliciousMiningAddress, reportBlock, []);
+            (await validatorSetHbbft.maliceReportedForBlock(maliciousMiningAddress, reportBlock)).should.be.an("array").that.is.empty;
         })
 
         it("Should ban validator after 17 reports", async () => {
@@ -576,15 +595,14 @@ describe('ValidatorSetHbbft', () => {
             (await validatorSetHbbft.isValidatorBanned(maliciousMiningAddress)).should.be.eq(true);
         })
 
-        it("Validator should get banned if spamming reports", async () => {
+        it("Validator should get banned if spamming reports (50*maxValidators)", async () => {
             let currentValidatorSet = await validatorSetHbbft.getValidators()
             let reportBlock = (await ethers.provider.getBlockNumber()) - 1;
             let reportingMiningAddress = await ethers.getSigner((await validatorSetHbbft.getValidators())[0])
-            for (let i = 1; i < 100; i++) {
+            for (let i = 1; i < 54; i++) {
                 for (let j = 1; j < currentValidatorSet.length; j++) {
                     let maliciousMiningAddress = currentValidatorSet[j]
                     await validatorSetHbbft.connect(reportingMiningAddress).reportMalicious(maliciousMiningAddress, reportBlock - i, []);
-
                 }
             }
             (await validatorSetHbbft.isValidatorBanned(reportingMiningAddress.address)).should.be.eq(true);
