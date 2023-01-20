@@ -38,8 +38,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
         address _poolStakingAddress
     ) public gasPriceIsValid onlyInitialized {
         address payable staker = payable(msg.sender);
-        uint256 firstEpoch;
-        uint256 lastEpoch;
+        uint256 firstEpoch = 0;
+        uint256 lastEpoch = 0;
 
         if (_poolStakingAddress != staker) {
             // this is a delegator
@@ -134,8 +134,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
         address _poolStakingAddress,
         address _staker
     ) public view returns (uint256) {
-        uint256 firstEpoch;
-        uint256 lastEpoch;
+        uint256 firstEpoch = 0;
+        uint256 lastEpoch = 0;
 
         if (_poolStakingAddress != _staker) {
             // this is a delegator
@@ -153,8 +153,8 @@ contract StakingHbbftCoins is StakingHbbftBase {
         address miningAddress = validatorSetContract.miningByStakingAddress(
             _poolStakingAddress
         );
-        uint256 delegatorStake;
-        uint256 rewardSum;
+        uint256 delegatorStake = 0;
+        uint256 rewardSum = 0;
 
         if (_stakingEpochs.length == 0) {
             _stakingEpochs = IBlockRewardHbbft(address(blockRewardContract))

@@ -204,7 +204,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (_isEpochEndBlock) {
             uint256 stakingEpoch = stakingContract.stakingEpoch();
 
-            uint256 nativeTotalRewardAmount;
+            uint256 nativeTotalRewardAmount = 0;
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
@@ -264,7 +264,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
             bool isPhaseTransition = currentTimestamp >= phaseTransitionTime;
-            bool toBeUpscaled;
+            bool toBeUpscaled = false;
             if (
                 miningAddresses.length <=
                 (validatorSetContract.maxValidators() / 3) * 2
@@ -328,8 +328,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             validatorSetContract.getStakingContract()
         );
         bool isDelegator = _poolStakingAddress != _staker;
-        uint256 firstEpoch;
-        uint256 lastEpoch;
+        uint256 firstEpoch = 0;
+        uint256 lastEpoch = 0;
 
         if (isDelegator) {
             firstEpoch = stakingContract.stakeFirstEpoch(
@@ -583,7 +583,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
         // Number of validators that are being rewarded.
-        uint256 numRewardedValidators;
+        uint256 numRewardedValidators = 0;
 
         for (uint256 i = 0; i < validators.length; i++) {
             if (
