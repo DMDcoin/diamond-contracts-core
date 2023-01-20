@@ -266,8 +266,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             bool isPhaseTransition = currentTimestamp >= phaseTransitionTime;
             bool toBeUpscaled = false;
             if (
-                miningAddresses.length <=
-                (validatorSetContract.maxValidators() / 3) * 2
+                miningAddresses.length * 3 <=
+                (validatorSetContract.maxValidators() * 2)
             ) {
                 uint256 amountToBeElected = stakingContract
                     .getPoolsToBeElected()
