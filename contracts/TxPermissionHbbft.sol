@@ -43,6 +43,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @dev defines the block gas limit, respected by the hbbft validators.
     uint256 public blockGasLimit;
 
+    // ============================================== Events ==========================================================
+
+    event gasPriceChanged(uint256 _value);
+
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the `initialize` function was called before.
@@ -137,6 +141,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         // that would open pandoras box, and the consequences of doing that,
         // requires deeper research.
         require(_value > 0, "Minimum gas price must not be zero");
+        emit gasPriceChanged(_value);
         minimumGasPrice = _value;
     }
 
