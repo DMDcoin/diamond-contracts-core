@@ -798,17 +798,17 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             uint256 reportsTotalNumber = reportingCounterTotal[
                 currentStakingEpoch
             ];
-            uint256 averageReportsNumber = 0;
+            uint256 averageReportsNumberX10 = 0;
 
             if (reportsTotalNumber >= reportsNumber) {
-                averageReportsNumber =
-                    (reportsTotalNumber - reportsNumber) /
+                averageReportsNumberX10 =
+                    ((reportsTotalNumber - reportsNumber) * 10) /
                     (validatorsNumber - 1);
             }
 
             if (
                 reportsNumber > validatorsNumber * 50 &&
-                reportsNumber > averageReportsNumber * 10
+                reportsNumber > averageReportsNumberX10
             ) {
                 return (false, true);
             }
