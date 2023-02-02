@@ -176,7 +176,7 @@ describe('RandomHbbft', () => {
         //         ((await validatorSetHbbft.getValidators()).length).should.be.equal(24);
         //         // getting historical health values for both previous and current block
         //         let blockNumber = await ethers.provider.getBlockNumber();
-        //         (await randomHbbft.isFullHealthHistoric([blockNumber, blockNumber - 1])).should.be.deep.equal([false, true]);
+        //         (await randomHbbft.isFullHealthsHistoric([blockNumber, blockNumber - 1])).should.be.deep.equal([false, true]);
         //     })
         // })
     }); // describe

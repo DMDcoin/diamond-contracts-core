@@ -96,7 +96,15 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         return validatorSetContract.isFullHealth();
     }
 
-    function isFullHealthHistoric(uint256[] calldata _blocknumbers)
+    function isFullHealthHistoric(uint256 _blocknumber)
+        external
+        view
+        returns (bool)
+    {
+        return !unhealthiness.get(_blocknumber);
+    }
+
+    function isFullHealthsHistoric(uint256[] calldata _blocknumbers)
         external
         view
         returns (bool[] memory)
