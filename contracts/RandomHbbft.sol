@@ -39,6 +39,7 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     }
 
     function initialize(address _validatorSetContract) public {
+        require(address(validatorSetContract) == address(0), "RandomHbbft must not be already initialized");
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
     }
 
