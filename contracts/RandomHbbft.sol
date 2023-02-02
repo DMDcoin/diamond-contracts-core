@@ -39,6 +39,7 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     }
 
     function initialize(address _validatorSetContract) public {
+        require(address(validatorSetContract) == address(0), "RandomHbbft must not be already initialized");
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
     }
 
@@ -96,7 +97,15 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         return validatorSetContract.isFullHealth();
     }
 
-    function isFullHealthHistoric(uint256[] calldata _blocknumbers)
+    function isFullHealthHistoric(uint256 _blocknumber)
+        external
+        view
+        returns (bool)
+    {
+        return !unhealthiness.get(_blocknumber);
+    }
+
+    function isFullHealthsHistoric(uint256[] calldata _blocknumbers)
         external
         view
         returns (bool[] memory)

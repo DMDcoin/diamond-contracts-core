@@ -17,7 +17,12 @@ interface IRandomHbbft {
 
     function isFullHealth() external view returns (bool);
 
-    function isFullHealthHistoric(uint256[] calldata)
+    function isFullHealthHistoric(uint256)
+        external
+        view
+        returns (bool);
+
+    function isFullHealthsHistoric(uint256[] calldata)
         external
         view
         returns (bool[] memory);
