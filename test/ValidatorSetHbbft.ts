@@ -11,8 +11,10 @@ import {
 } from "../src/types";
 
 import fp from 'lodash/fp';
-import { BigNumber } from "ethers";
+import { BigNumber} from "ethers";
+import { TransactionResponse } from '@ethersproject/providers'
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { Permission } from "./testhelpers/Permission";
 
 require('chai')
     .use(require('chai-as-promised'))
@@ -30,6 +32,7 @@ console.log('useUpgradeProxy:', useUpgradeProxy);
 let blockRewardHbbft: BlockRewardHbbftCoinsMock;
 let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
 let validatorSetHbbft: ValidatorSetHbbftMock;
+let vaidatorSetPermission: Permission<ValidatorSetHbbftMock>
 let stakingHbbft: StakingHbbftCoinsMock;
 let keyGenHistory: KeyGenHistory;
 
@@ -60,6 +63,16 @@ describe('ValidatorSetHbbft', () => {
             adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
             validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
         }
+
+        // Deploy TxPermission contract
+        const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
+        let txPermission = await TxPermissionFactory.deploy();
+        if (useUpgradeProxy) {
+            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(txPermission.address, owner.address, []);
+            txPermission = await ethers.getContractAt("TxPermissionHbbft", adminUpgradeabilityProxy.address);
+        }
+
+        vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft);
 
         // Deploy BlockRewardHbbft contract
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
@@ -677,10 +690,10 @@ describe('ValidatorSetHbbft', () => {
                 }
             });
         });
+    });
 
+    describe('getValidatorCountSweetSpot()', async() => {
         it('hbbft sweet spots are calculated correct. getValidatorCountSweetSpot', async () => {
-
-
 
             const expectedResults =
                 [1, 2, 3,
@@ -702,9 +715,90 @@ describe('ValidatorSetHbbft', () => {
             }
 
         });
+
     });
 
-    // TODO: ...add other tests...
+    describe('setValidatorInternetAddress()', async() => { 
+
+        it('Validator Candidates can write and read their IP Address', async () => {
+
+
+            
+            // 4 test pools
+            let initialValidators = accounts.slice(1,5);
+            let initialPoolAddresses = accounts.slice(5,9);
+
+            stakingHbbft.connect(initialPoolAddresses[0].address);
+            await stakingHbbft.addPool(initialValidators[0].address, [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+
+            // stakingHbbft.addPool()
+
+            const pools = await stakingHbbft.getPools();
+            pools.length.should.be.not.equal(0);
+            let ip_last = 1;
+            //const activePools = [];
+            for (let pool of pools) {
+                
+                if (await stakingHbbft.isPoolActive(pool)) {
+                    
+                    const address = [192, 168, 0, ip_last];
+                    const port =  30303;
+                    console.log(`Setting IP address for pool ${pool} to ${address}`);
+                    await setValidatorInternetAddress(pool, address, port);
+
+                    const writtenIP = await getValidatorInternetAddress(pool);
+
+                    writtenIP.ipAddress.should.be.deep.equal(address);
+                    writtenIP.port.should.be.equal(port);
+                }
+                ip_last++;
+            }
+        });
+    });
+
+    function convertToLittleEndian(number: number): number[] {
+        const byte1 = number & 0xFF;
+        const byte2 = (number >> 8) & 0xFF;
+        return [byte1, byte2];
+    }
+    
+    interface InternetAddress {
+        ipAddress: number[];
+        port: number;
+    }
+
+    async function getValidatorInternetAddress(pool: string) : Promise<InternetAddress> {
+
+        const call_result = await stakingHbbft.getPoolInternetAddress(pool);
+        const portBN = BigNumber.from(call_result[1]);
+        const ipArray = parseHexString(call_result[0]);
+
+        return {
+            ipAddress: [ipArray[12], ipArray[13], ipArray[14], ipArray[15]],
+            port: portBN.toNumber()
+        }
+    }
+
+    function parseHexString(str: string) : number[] { 
+        var result = [];
+        while (str.length >= 2) { 
+            result.push(parseInt(str.substring(0, 2), 16));
+            str = str.substring(2, str.length);
+        }
+    
+        return result;
+    }
+
+    async function setValidatorInternetAddress(pool: string, ipAddress: number[], port: number) : Promise<TransactionResponse> {
+
+        if (port > 65535) {
+            throw new Error('Port number is too big');
+        }
+
+        // transform the Port number into a 2 bytes little endian number Array.
+        let portArray = convertToLittleEndian(port);
+        return vaidatorSetPermission.callFunction("setValidatorInternetAddress", pool, [ipAddress, portArray]);
+    }
 
     async function increaseTime(time: number) {
 

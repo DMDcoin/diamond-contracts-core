@@ -1,6 +1,6 @@
-import { ethers, network, upgrades } from "hardhat";
-
+import { ethers } from "hardhat";
 import { BaseContract, BigNumber } from "ethers";
+import { TransactionResponse } from "@ethersproject/abstract-provider";
 
 import {
   TxPermissionHbbft,
@@ -14,7 +14,7 @@ export class Permission<T extends BaseContract>
   }
 
 
-  public async callFunction(functionName: string, from: string, params: any[]) {
+  public async callFunction(functionName: string, from: string, params: any[]) : Promise<TransactionResponse> {
 
     
     //keyGenHistory.interface.encodeFunctionData()
@@ -47,6 +47,6 @@ export class Permission<T extends BaseContract>
 
     // we know now, that this call is allowed.
     // so we can execute it.
-    await (await ethers.getSigner(from)).sendTransaction({ to: this.contract.address, data: asEncoded });
+    return (await ethers.getSigner(from)).sendTransaction({ to: this.contract.address, data: asEncoded });
   }
 }
