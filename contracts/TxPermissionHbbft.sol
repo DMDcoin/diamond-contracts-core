@@ -399,6 +399,8 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     bytes4 public constant SET_VALIDATOR_IP = 0x5554aba1;
 
+    //bytes4 public constant SET_VALIDATOR_IP = 0xa42bdee9;
+
     bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.

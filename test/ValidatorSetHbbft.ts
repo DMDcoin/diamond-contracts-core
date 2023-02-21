@@ -423,6 +423,7 @@ describe('ValidatorSetHbbft', () => {
             (await validatorSetHbbft.getPendingValidators()).should.be.deep.equal([initialValidators[0]]);
         });
         it('should choose validators randomly', async () => {
+;
             const stakingAddresses = accountAddresses.slice(7, 29 + 3); // accounts[7...31]
             let miningAddresses = [];
 
@@ -720,16 +721,63 @@ describe('ValidatorSetHbbft', () => {
 
     describe('setValidatorInternetAddress()', async() => { 
 
+
         it('Validator Candidates can write and read their IP Address', async () => {
 
 
+            let initialValidators: string[];
+            let initialStakingAddresses: string[];
+            const accountAddresses = accounts.map(item => item.address);
             
-            // 4 test pools
-            let initialValidators = accounts.slice(1,5);
-            let initialPoolAddresses = accounts.slice(5,9);
+            // staking, so we have validators.
 
-            stakingHbbft.connect(initialPoolAddresses[0].address);
-            await stakingHbbft.addPool(initialValidators[0].address, [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+            initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
+            initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
+            initialValidators.length.should.be.equal(3);
+            initialValidators[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
+            initialValidators[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
+            initialValidators[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
+
+            await validatorSetHbbft.initialize(
+                blockRewardHbbft.address, // _blockRewardContract
+                '0x3000000000000000000000000000000000000001', // _randomContract
+                stakingHbbft.address, // _stakingContract
+                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                initialValidators, // _initialMiningAddresses
+                initialStakingAddresses, // _initialStakingAddresses
+            ).should.be.fulfilled;
+            blockRewardHbbft.address.should.be.equal(
+                await validatorSetHbbft.blockRewardContract()
+            );
+            '0x3000000000000000000000000000000000000001'.should.be.equal(
+                await validatorSetHbbft.randomContract()
+            );
+            stakingHbbft.address.should.be.equal(
+                await validatorSetHbbft.getStakingContract()
+            );
+            '0x8000000000000000000000000000000000000001'.should.be.equal(
+                await validatorSetHbbft.keyGenHistoryContract()
+            );
+            (await validatorSetHbbft.getValidators()).should.be.deep.equal(initialValidators);
+            (await validatorSetHbbft.getPendingValidators()).length.should.be.equal(0);
+            for (let i = 0; i < initialValidators.length; i++) {
+                true.should.be.equal(
+                    await validatorSetHbbft.isValidator(initialValidators[i])
+                );
+                (await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[i])).should.be.equal(initialValidators[i]);
+                (await validatorSetHbbft.stakingByMiningAddress(initialValidators[i])).should.be.equal(initialStakingAddresses[i]);
+            }
+            false.should.be.equal(
+                await validatorSetHbbft.isValidator('0x0000000000000000000000000000000000000000')
+            );
+
+            
+            // // 4 test pools
+            // let initialValidators = accounts.slice(1,5);
+            // let initialPoolAddresses = accounts.slice(5,9);
+
+            
+            // await stakingHbbft.connect(initialPoolAddresses[0]).addPool(initialValidators[0].address, [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
 
             // stakingHbbft.addPool()
 
@@ -747,7 +795,7 @@ describe('ValidatorSetHbbft', () => {
                     await setValidatorInternetAddress(pool, address, port);
 
                     const writtenIP = await getValidatorInternetAddress(pool);
-
+                    console.log(`read IP Address is:`, writtenIP.ipAddress);
                     writtenIP.ipAddress.should.be.deep.equal(address);
                     writtenIP.port.should.be.equal(port);
                 }
@@ -756,59 +804,61 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
-    function convertToLittleEndian(number: number): number[] {
-        const byte1 = number & 0xFF;
-        const byte2 = (number >> 8) & 0xFF;
-        return [byte1, byte2];
-    }
-    
-    interface InternetAddress {
-        ipAddress: number[];
-        port: number;
-    }
-
-    async function getValidatorInternetAddress(pool: string) : Promise<InternetAddress> {
-
-        const call_result = await stakingHbbft.getPoolInternetAddress(pool);
-        const portBN = BigNumber.from(call_result[1]);
-        const ipArray = parseHexString(call_result[0]);
-
-        return {
-            ipAddress: [ipArray[12], ipArray[13], ipArray[14], ipArray[15]],
-            port: portBN.toNumber()
-        }
-    }
-
-    function parseHexString(str: string) : number[] { 
-        var result = [];
-        while (str.length >= 2) { 
-            result.push(parseInt(str.substring(0, 2), 16));
-            str = str.substring(2, str.length);
-        }
-    
-        return result;
-    }
-
-    async function setValidatorInternetAddress(pool: string, ipAddress: number[], port: number) : Promise<TransactionResponse> {
-
-        if (port > 65535) {
-            throw new Error('Port number is too big');
-        }
-
-        // transform the Port number into a 2 bytes little endian number Array.
-        let portArray = convertToLittleEndian(port);
-        return vaidatorSetPermission.callFunction("setValidatorInternetAddress", pool, [ipAddress, portArray]);
-    }
-
-    async function increaseTime(time: number) {
-
-        const currentTimestamp = await validatorSetHbbft.getCurrentTimestamp();
-        const futureTimestamp = currentTimestamp.add(BigNumber.from(time));
-        await validatorSetHbbft.setCurrentTimestamp(futureTimestamp);
-        const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp();
-        futureTimestamp.should.be.equal(currentTimestampAfter);
-    }
 });
+
+
+function convertToLittleEndian(number: number): number[] {
+    const byte1 = number & 0xFF;
+    const byte2 = (number >> 8) & 0xFF;
+    return [byte1, byte2];
+}
+
+interface InternetAddress {
+    ipAddress: number[];
+    port: number;
+}
+
+async function getValidatorInternetAddress(pool: string) : Promise<InternetAddress> {
+
+    const call_result = await stakingHbbft.getPoolInternetAddress(pool);
+    const portBN = BigNumber.from(call_result[1]);
+    const ipArray = parseHexString(call_result[0]);
+
+    return {
+        ipAddress: [ipArray[12], ipArray[13], ipArray[14], ipArray[15]],
+        port: portBN.toNumber()
+    }
+}
+
+function parseHexString(str: string) : number[] { 
+    var result = [];
+    while (str.length >= 2) { 
+        result.push(parseInt(str.substring(0, 2), 16));
+        str = str.substring(2, str.length);
+    }
+
+    return result;
+}
+
+async function setValidatorInternetAddress(pool: string, ipAddress: number[], port: number) : Promise<TransactionResponse> {
+
+    if (port > 65535) {
+        throw new Error('Port number is too big');
+    }
+
+    // transform the Port number into a 2 bytes little endian number Array.
+    let portArray = convertToLittleEndian(port);
+    return vaidatorSetPermission.callFunction("setValidatorInternetAddress", pool, [ipAddress, portArray]);
+}
+
+async function increaseTime(time: number) {
+
+    const currentTimestamp = await validatorSetHbbft.getCurrentTimestamp();
+    const futureTimestamp = currentTimestamp.add(BigNumber.from(time));
+    await validatorSetHbbft.setCurrentTimestamp(futureTimestamp);
+    const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp();
+    futureTimestamp.should.be.equal(currentTimestampAfter);
+}
 
 function random(low: number, high: number) {
     return Math.floor((Math.random() * (high - low) + low));
