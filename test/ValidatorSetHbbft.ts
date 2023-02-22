@@ -47,10 +47,16 @@ const stakingFixedEpochDuration = BigNumber.from(86400);
 const stakingTransitionTimeframeLength = BigNumber.from(3600);
 const stakingWithdrawDisallowPeriod = BigNumber.from(1);
 
-describe('ValidatorSetHbbft', () => {
+let initialValidatorsPubKeys: string[];
+let initialValidatorsIpAddresses: string[];
 
-    let initialValidatorsPubKeys: string[];
-    let initialValidatorsIpAddresses: string[];
+let initialValidators: string[];
+let initialStakingAddresses: string[];
+
+let randomHbbft: RandomHbbftMock;
+let accountAddresses: string[];
+
+describe('ValidatorSetHbbft', () => {
 
 
     beforeEach(async () => {
@@ -118,11 +124,9 @@ describe('ValidatorSetHbbft', () => {
     });
 
     describe('initialize()', async () => {
-        let initialValidators: string[];
-        let initialStakingAddresses: string[];
-        const accountAddresses = accounts.map(item => item.address);
 
         beforeEach(async () => {
+            accountAddresses = accounts.map(item => item.address);
             initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
             initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
             initialValidators.length.should.be.equal(3);
@@ -348,14 +352,10 @@ describe('ValidatorSetHbbft', () => {
     });
 
     describe('newValidatorSet()', async () => {
-        let initialValidators: string[];
-        let initialStakingAddresses: string[];
-        let randomHbbft: RandomHbbftMock;
-        const accountAddresses = accounts.map(item => item.address);
-
-
-
+        
         beforeEach(async () => {
+
+            accountAddresses = accounts.map(item => item.address);
             initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
             initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
 
@@ -730,11 +730,9 @@ describe('ValidatorSetHbbft', () => {
             }
 
         });
-
     });
 
     describe('setValidatorInternetAddress()', async() => { 
-
 
         it('Validator Candidates can write and read their IP Address', async () => {
 
