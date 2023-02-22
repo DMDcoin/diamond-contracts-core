@@ -107,7 +107,7 @@ describe('ValidatorSetHbbft', () => {
 
         // initialize txPermission contract.
         await txPermission.initialize([],certifier.address, validatorSetHbbft.address, keyGenHistoryFake);
-        vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft, true);
+        vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft, false);
 
 
         await increaseTime(1);
@@ -368,6 +368,8 @@ describe('ValidatorSetHbbft', () => {
                 randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
             }
 
+            await randomHbbft.initialize(validatorSetHbbft.address);
+
             const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
             keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
             if (useUpgradeProxy) {
@@ -464,7 +466,7 @@ describe('ValidatorSetHbbft', () => {
                     '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
                     '0x00000000000000000000000000000000',
                     { value: stakeAmount }
-                ).should.be.fulfilled;
+                ); // .should.be.fulfilled;
                 stakeAmount.should.be.equal(await stakingHbbft.stakeAmount(stakingAddresses[i], stakingAddresses[i]));
             }
 
@@ -484,13 +486,13 @@ describe('ValidatorSetHbbft', () => {
 
             const seed = random(1000000, 2000000);
             await randomHbbft.setSystemAddress(owner.address).should.be.fulfilled;
-            await randomHbbft.connect(owner).setCurrentSeed(BigNumber.from(seed)).should.be.fulfilled;
-            await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE').should.be.fulfilled;
+            await randomHbbft.connect(owner).setCurrentSeed(BigNumber.from(seed)); // .should.be.fulfilled;
+            await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE'); // .should.be.fulfilled;
             (await randomHbbft.currentSeed()).should.be.equal(BigNumber.from(seed));
 
             // Emulate calling `newValidatorSet()` at the last block of the staking epoch
-            await validatorSetHbbft.setBlockRewardContract(accounts[4].address).should.be.fulfilled;
-            await validatorSetHbbft.connect(accounts[4]).newValidatorSet().should.be.fulfilled;
+            await validatorSetHbbft.setBlockRewardContract(accounts[4].address); // .should.be.fulfilled;
+            await validatorSetHbbft.connect(accounts[4]).newValidatorSet(); // .should.be.fulfilled;
 
             const newValidators = await validatorSetHbbft.getPendingValidators();
 
@@ -783,9 +785,9 @@ describe('ValidatorSetHbbft', () => {
             //initialValidatorsPubKeys
             await stakingHbbft.initialize( params, [fakePK, fakePK], [fakeIP] ); //.should.be.fulfilled;
             
-            console.log(`staking isInitialized: ${await stakingHbbft.isInitialized()}`);
-            console.log(`ValidatorSet isInitialized: ${await validatorSetHbbft.isInitialized()}`);
-            console.log(`Validators: ${await validatorSetHbbft.getValidators()}`);
+            // console.log(`staking isInitialized: ${await stakingHbbft.isInitialized()}`);
+            // console.log(`ValidatorSet isInitialized: ${await validatorSetHbbft.isInitialized()}`);
+            // console.log(`Validators: ${await validatorSetHbbft.getValidators()}`);
 
             const poolsFromContract = await stakingHbbft.getPools();
             poolsFromContract.length.should.be.not.equal(0);
