@@ -397,9 +397,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     // bytes4(keccak256("writeAcks(uint256,uint256,bytes[])"))
     bytes4 public constant WRITE_ACKS_SIGNATURE = 0x5623208e;
 
-    bytes4 public constant SET_VALIDATOR_IP = 0x5554aba1;
-
-    //bytes4 public constant SET_VALIDATOR_IP = 0xa42bdee9;
+    bytes4 public constant SET_VALIDATOR_IP = 0xa42bdee9;
 
     bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 

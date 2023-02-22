@@ -39,8 +39,6 @@ let keyGenHistory: KeyGenHistory;
 //addresses
 let owner: SignerWithAddress;
 let accounts: SignerWithAddress[];
-let initialValidatorsPubKeys: string[];
-let initialValidatorsIpAddresses: string[];
 
 //consts
 // one epoch in 1 day.
@@ -50,6 +48,10 @@ const stakingTransitionTimeframeLength = BigNumber.from(3600);
 const stakingWithdrawDisallowPeriod = BigNumber.from(1);
 
 describe('ValidatorSetHbbft', () => {
+
+    let initialValidatorsPubKeys: string[];
+    let initialValidatorsIpAddresses: string[];
+
 
     beforeEach(async () => {
         [owner, ...accounts] = await ethers.getSigners();
@@ -64,6 +66,11 @@ describe('ValidatorSetHbbft', () => {
             validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
         }
 
+        // Certifier
+        // CertifierHbbft
+        const certifierFactory = await ethers.getContractFactory("CertifierHbbft");
+        const certifier = await certifierFactory.deploy();
+
         // Deploy TxPermission contract
         const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
         let txPermission = await TxPermissionFactory.deploy();
@@ -71,8 +78,6 @@ describe('ValidatorSetHbbft', () => {
             adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(txPermission.address, owner.address, []);
             txPermission = await ethers.getContractAt("TxPermissionHbbft", adminUpgradeabilityProxy.address);
         }
-
-        vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft);
 
         // Deploy BlockRewardHbbft contract
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
@@ -89,6 +94,15 @@ describe('ValidatorSetHbbft', () => {
             adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
             stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
         }
+
+
+        // key gen history functions are not testet here, so we can use a address without implementation.
+        const keyGenHistoryFake = "0x8000000000000000000000000000000000000001";
+
+        // initialize txPermission contract.
+        await txPermission.initialize([],certifier.address, validatorSetHbbft.address, keyGenHistoryFake);
+        vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft, true);
+
 
         await increaseTime(1);
 
@@ -724,27 +738,19 @@ describe('ValidatorSetHbbft', () => {
 
         it('Validator Candidates can write and read their IP Address', async () => {
 
+            let validators = accounts.slice(1,5);
+            let pools = accounts.slice(5,9);
 
-            let initialValidators: string[];
-            let initialStakingAddresses: string[];
-            const accountAddresses = accounts.map(item => item.address);
-            
-            // staking, so we have validators.
-
-            initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
-            initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
-            initialValidators.length.should.be.equal(3);
-            initialValidators[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
-            initialValidators[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
-            initialValidators[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
+            let initialMiningAddresses = [validators[0].address];
+            let initialStakingAddresses = [pools[0].address];
 
             await validatorSetHbbft.initialize(
                 blockRewardHbbft.address, // _blockRewardContract
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
+                initialMiningAddresses, // _initialMiningAddresses
+                initialStakingAddresses // _initialStakingAddresses
             ).should.be.fulfilled;
             blockRewardHbbft.address.should.be.equal(
                 await validatorSetHbbft.blockRewardContract()
@@ -758,45 +764,46 @@ describe('ValidatorSetHbbft', () => {
             '0x8000000000000000000000000000000000000001'.should.be.equal(
                 await validatorSetHbbft.keyGenHistoryContract()
             );
-            (await validatorSetHbbft.getValidators()).should.be.deep.equal(initialValidators);
-            (await validatorSetHbbft.getPendingValidators()).length.should.be.equal(0);
-            for (let i = 0; i < initialValidators.length; i++) {
-                true.should.be.equal(
-                    await validatorSetHbbft.isValidator(initialValidators[i])
-                );
-                (await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[i])).should.be.equal(initialValidators[i]);
-                (await validatorSetHbbft.stakingByMiningAddress(initialValidators[i])).should.be.equal(initialStakingAddresses[i]);
-            }
-            false.should.be.equal(
-                await validatorSetHbbft.isValidator('0x0000000000000000000000000000000000000000')
-            );
 
+
+            let params : IStakingHbbft.StakingParamsStruct = {
+                _candidateMinStake: 1000,
+                _delegatorMinStake: 100,
+                _initialStakingAddresses: initialStakingAddresses,
+                
+                _stakingFixedEpochDuration: 60,
+                _maxStake: 5000,
+                _stakingTransitionTimeframeLength: 10,
+                _stakingWithdrawDisallowPeriod: 10,
+                _validatorSetContract: validatorSetHbbft.address,
+
+            };
+
+            const fakePK = "0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae";
+            const fakeIP = "0x00000000000000000000000000000001"
+            //validators[0].get
+            //initialValidatorsPubKeys
+            await stakingHbbft.initialize( params, [fakePK, fakePK], [fakeIP] ); //.should.be.fulfilled;
             
-            // // 4 test pools
-            // let initialValidators = accounts.slice(1,5);
-            // let initialPoolAddresses = accounts.slice(5,9);
+            console.log(`staking isInitialized: ${await stakingHbbft.isInitialized()}`);
+            console.log(`ValidatorSet isInitialized: ${await validatorSetHbbft.isInitialized()}`);
+            console.log(`Validators: ${await validatorSetHbbft.getValidators()}`);
 
-            
-            // await stakingHbbft.connect(initialPoolAddresses[0]).addPool(initialValidators[0].address, [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
-
-            // stakingHbbft.addPool()
-
-            const pools = await stakingHbbft.getPools();
-            pools.length.should.be.not.equal(0);
+            const poolsFromContract = await stakingHbbft.getPools();
+            poolsFromContract.length.should.be.not.equal(0);
             let ip_last = 1;
             //const activePools = [];
             for (let pool of pools) {
                 
-                if (await stakingHbbft.isPoolActive(pool)) {
-                    
-                    const address = [192, 168, 0, ip_last];
+                if (await stakingHbbft.isPoolActive(pool.address)) {
+                    const validatorAddress = await validatorSetHbbft.miningByStakingAddress(pool.address);
+                    const ipAddress = [0,0,0,0,0,0,0,0,0,0,0,0,192, 168, 0, ip_last];
                     const port =  30303;
-                    console.log(`Setting IP address for pool ${pool} to ${address}`);
-                    await setValidatorInternetAddress(pool, address, port);
-
-                    const writtenIP = await getValidatorInternetAddress(pool);
-                    console.log(`read IP Address is:`, writtenIP.ipAddress);
-                    writtenIP.ipAddress.should.be.deep.equal(address);
+                    // console.log(`Setting IP address for pool ${pool.address}( validator: ) ${validatorAddress} to ${ipAddress}`);
+                    await setValidatorInternetAddress(validatorAddress, ipAddress, port);
+                    const writtenIP = await getValidatorInternetAddress(pool.address);
+                    // console.log(`read IP Address is:`, writtenIP.ipAddress);
+                    writtenIP.ipAddress.should.be.deep.equal(ipAddress);
                     writtenIP.port.should.be.equal(port);
                 }
                 ip_last++;
@@ -807,10 +814,11 @@ describe('ValidatorSetHbbft', () => {
 });
 
 
-function convertToLittleEndian(number: number): number[] {
+function convertToBigEndian(number: number): number[] {
     const byte1 = number & 0xFF;
     const byte2 = (number >> 8) & 0xFF;
-    return [byte1, byte2];
+    return [byte2, byte1];
+
 }
 
 interface InternetAddress {
@@ -825,12 +833,18 @@ async function getValidatorInternetAddress(pool: string) : Promise<InternetAddre
     const ipArray = parseHexString(call_result[0]);
 
     return {
-        ipAddress: [ipArray[12], ipArray[13], ipArray[14], ipArray[15]],
+        ipAddress: ipArray,
         port: portBN.toNumber()
     }
 }
 
 function parseHexString(str: string) : number[] { 
+
+    // remove leading 0x if present.
+    if (str.substring(0, 2) == "0x") {
+        str = str.substring(2, str.length);
+    }
+
     var result = [];
     while (str.length >= 2) { 
         result.push(parseInt(str.substring(0, 2), 16));
@@ -840,15 +854,15 @@ function parseHexString(str: string) : number[] {
     return result;
 }
 
-async function setValidatorInternetAddress(pool: string, ipAddress: number[], port: number) : Promise<TransactionResponse> {
+async function setValidatorInternetAddress(miner: string, ipAddress: number[], port: number) : Promise<TransactionResponse> {
 
     if (port > 65535) {
         throw new Error('Port number is too big');
     }
 
     // transform the Port number into a 2 bytes little endian number Array.
-    let portArray = convertToLittleEndian(port);
-    return vaidatorSetPermission.callFunction("setValidatorInternetAddress", pool, [ipAddress, portArray]);
+    let portArray = convertToBigEndian(port);
+    return vaidatorSetPermission.callFunction("setValidatorInternetAddress", miner, [ipAddress, portArray]);
 }
 
 async function increaseTime(time: number) {
