@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 interface IBlockRewardHbbftCoins {
     function transferReward(uint256, address payable) external;

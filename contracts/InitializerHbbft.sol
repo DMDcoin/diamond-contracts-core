@@ -1,5 +1,4 @@
-pragma solidity ^0.5.16;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.17;
 
 import "./interfaces/IBlockRewardHbbft.sol";
 import "./interfaces/ICertifier.sol";
@@ -56,15 +55,19 @@ contract InitializerHbbft {
             _miningAddresses,
             _stakingAddresses
         );
+
+        IRandomHbbft(_contracts[2]).initialize(_contracts[0]);
         IStakingHbbft(_contracts[3]).initialize(
-            _contracts[0], // _validatorSetContract
-            _stakingAddresses,
-            _stakingParams[0], // _delegatorMinStake
-            _stakingParams[1], // _candidateMinStake
-            _stakingParams[2], // _maxStake
-            _stakingParams[3], // _stakingEpochDuration
-            _stakingParams[4], // _stakingTransitionTimeframeLength
-            _stakingParams[5], // _stakingWithdrawDisallowPeriod
+            IStakingHbbft.StakingParams({
+                _validatorSetContract: _contracts[0], // _validatorSetContract
+                _initialStakingAddresses: _stakingAddresses,
+                _delegatorMinStake: _stakingParams[0], // _delegatorMinStake
+                _candidateMinStake: _stakingParams[1], // _candidateMinStake
+                _maxStake: _stakingParams[2], // _maxStake
+                _stakingFixedEpochDuration: _stakingParams[3], // _stakingEpochDuration
+                _stakingTransitionTimeframeLength: _stakingParams[4], // _stakingTransitionTimeframeLength
+                _stakingWithdrawDisallowPeriod: _stakingParams[5] // _stakingWithdrawDisallowPeriod
+            }),
             _publicKeys,
             _internetAddresses
         );
@@ -88,6 +91,6 @@ contract InitializerHbbft {
     }
 
     function destruct() external {
-        selfdestruct(msg.sender);
+        selfdestruct(payable(msg.sender));
     }
 }

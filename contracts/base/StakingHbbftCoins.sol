@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./StakingHbbftBase.sol";
 import "../interfaces/IBlockRewardHbbftCoins.sol";
@@ -37,7 +37,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
         uint256[] memory _stakingEpochs,
         address _poolStakingAddress
     ) public gasPriceIsValid onlyInitialized {
-        address payable staker = msg.sender;
+        address payable staker = payable(msg.sender);
         uint256 firstEpoch;
         uint256 lastEpoch;
 
@@ -111,7 +111,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
                 );
             }
 
-            rewardSum = rewardSum.add(reward);
+            rewardSum = rewardSum + reward;
 
             rewardWasTaken[_poolStakingAddress][staker][epoch] = true;
 
@@ -217,12 +217,14 @@ contract StakingHbbftCoins is StakingHbbftBase {
     /// @param _amount The amount to send.
     function _sendWithdrawnStakeAmount(address payable _to, uint256 _amount)
         internal
+        virtual
+        override
     {
         if (!_to.send(_amount)) {
             // We use the `Sacrifice` trick to be sure the coins can be 100% sent to the receiver.
             // Otherwise, if the receiver is a contract which has a revert in its fallback function,
             // the sending will fail.
-            (new Sacrifice2).value(_amount)(_to);
+            (new Sacrifice2){value: _amount}(_to);
         }
     }
 }

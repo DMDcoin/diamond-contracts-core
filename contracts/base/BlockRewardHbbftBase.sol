@@ -1,22 +1,19 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "../interfaces/IBlockRewardHbbft.sol";
 import "../interfaces/IRandomHbbft.sol";
 import "../interfaces/IStakingHbbft.sol";
 import "../interfaces/IValidatorSetHbbft.sol";
 import "../upgradeability/UpgradeableOwned.sol";
-import "../libs/SafeMath.sol";
 
 contract Sacrifice {
-    constructor(address payable _recipient) public payable {
+    constructor(address payable _recipient) payable {
         selfdestruct(_recipient);
     }
 }
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
 contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
-    using SafeMath for uint256;
-
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -58,6 +55,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev the reinsertPot holds all coins that are designed for getting reinserted into the coin circulation.
     /// sources are:
+    ///
     uint256 public reinsertPot;
 
     /// @dev each epoch reward, one Fraction of the reinsert pool gets payed out.
@@ -96,14 +94,16 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     }
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Block-Reward-Contract.html
-    modifier onlySystem() {
+    modifier onlySystem() virtual {
         require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
         _;
     }
 
     /// @dev Ensures the caller is the StakingHbbft contract address.
     modifier onlyStakingContract() {
-        require(msg.sender == address(validatorSetContract.stakingContract()));
+        require(
+            msg.sender == address(validatorSetContract.getStakingContract())
+        );
         _;
     }
 
@@ -116,7 +116,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     // =============================================== Setters ========================================================
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
-    function() external payable {
+    receive() external payable {
         reinsertPot += msg.value;
     }
 
@@ -138,7 +138,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
         deltaPotPayoutFraction = 6000;
         reinsertPotPayoutFraction = 6000;
-        governancePotAddress = 0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0;
+        governancePotAddress = payable(
+            0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0
+        );
         governancePotShareNominator = 1;
         governancePotShareDenominator = 10;
     }
@@ -195,7 +197,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         returns (uint256 rewardsNative)
     {
         IStakingHbbft stakingContract = IStakingHbbft(
-            validatorSetContract.stakingContract()
+            validatorSetContract.getStakingContract()
         );
         // If this is the last block of the epoch i.e. master key has been generated.
 
@@ -301,7 +303,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
     function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(0);
+        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     /// @dev Returns an array of epoch numbers for which the specified staker
@@ -316,7 +318,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             _poolStakingAddress
         );
         IStakingHbbft stakingContract = IStakingHbbft(
-            validatorSetContract.stakingContract()
+            validatorSetContract.getStakingContract()
         );
         bool isDelegator = _poolStakingAddress != _staker;
         uint256 firstEpoch;
@@ -386,7 +388,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         returns (uint256)
     {
         IStakingHbbft stakingContract = IStakingHbbft(
-            validatorSetContract.stakingContract()
+            validatorSetContract.getStakingContract()
         );
         uint256 stakingEpoch = stakingContract.stakingEpoch();
 
@@ -496,6 +498,23 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         return share;
     }
 
+    ///@dev Calculates and returns the percentage of the current epoch.
+    function epochPercentage() public view returns (uint256) {
+        IStakingHbbft stakingContract = IStakingHbbft(
+            validatorSetContract.getStakingContract()
+        );
+        uint256 expectedEpochDuration = stakingContract
+            .stakingFixedEpochEndTime() -
+            stakingContract.stakingEpochStartTime();
+        return
+            validatorSetContract.getCurrentTimestamp() >
+                stakingContract.stakingFixedEpochEndTime()
+                ? 1000
+                : ((validatorSetContract.getCurrentTimestamp() -
+                    stakingContract.stakingEpochStartTime()) * 100) /
+                    expectedEpochDuration;
+    }
+
     // ============================================== Internal ========================================================
 
     /// @dev Distributes rewards among pools at the latest block of a staking epoch.
@@ -516,16 +535,21 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
         {
             uint256 maxValidators = validatorSetContract.maxValidators();
-
-            uint256 deltaPotShare = (deltaPot * numValidators) /
+            uint256 deltaPotShare = (deltaPot *
+                numValidators *
+                (epochPercentage())) /
                 deltaPotPayoutFraction /
-                maxValidators;
+                maxValidators /
+                100;
             deltaPot -= deltaPotShare;
 
             // we could reuse the deltaPotShare variable here, to combat the "stack to deep" problem.
-            uint256 reinsertPotShare = (reinsertPot * numValidators) /
+            uint256 reinsertPotShare = (reinsertPot *
+                numValidators *
+                epochPercentage()) /
                 reinsertPotPayoutFraction /
-                maxValidators;
+                maxValidators /
+                100;
             reinsertPot -= reinsertPotShare;
 
             totalReward =
@@ -638,7 +662,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             // We use the `Sacrifice` trick to be sure the coins can be 100% sent to the receiver.
             // Otherwise, if the receiver is a contract which has a revert in its fallback function,
             // the sending will fail.
-            (new Sacrifice).value(_amount)(_to);
+            (new Sacrifice){value: _amount}(_to);
         }
     }
 }

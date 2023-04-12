@@ -1,4 +1,4 @@
-pragma solidity ^0.5.10;
+pragma solidity =0.8.17;
 
 interface IMetadataRegistry {
     event DataChanged(bytes32 indexed name, string key, string plainKey);

@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "../../contracts/base/BlockRewardHbbftBase.sol";
 
@@ -7,7 +7,7 @@ contract BlockRewardHbbftBaseMock is BlockRewardHbbftBase {
 
     // ============================================== Modifiers =======================================================
 
-    modifier onlySystem() {
+    modifier onlySystem() virtual override {
         require(msg.sender == _getSystemAddress());
         _;
     }

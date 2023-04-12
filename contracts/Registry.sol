@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity =0.8.17;
 
 import "./interfaces/IMetadataRegistry.sol";
 import "./interfaces/IOwnerRegistry.sol";
@@ -227,7 +227,7 @@ contract Registry is
 
     function drain() external onlyOwner returns (bool) {
         emit Drained(address(this).balance);
-        msg.sender.transfer(address(this).balance);
+        payable(msg.sender).transfer(address(this).balance);
         return true;
     }
 

@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 interface IValidatorSetHbbft {
     // Key Generation states of validator.
@@ -31,6 +31,8 @@ interface IValidatorSetHbbft {
     function setStakingAddress(address, address) external;
 
     function handleFailedKeyGeneration() external;
+
+    function isFullHealth() external view returns (bool);
 
     function areDelegatorsBanned(address) external view returns (bool);
 
@@ -68,6 +70,8 @@ interface IValidatorSetHbbft {
 
     function randomContract() external view returns (address);
 
+    function notifyUnavailability(address) external;
+
     function reportMaliciousCallable(
         address,
         address,
@@ -83,7 +87,7 @@ interface IValidatorSetHbbft {
 
     function getPublicKey(address) external view returns (bytes memory);
 
-    function stakingContract() external view returns (address);
+    function getStakingContract() external view returns (address);
 
     function getCurrentTimestamp() external view returns (uint256);
 

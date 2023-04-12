@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "../../contracts/ValidatorSetHbbft.sol";
 
@@ -8,7 +8,7 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     // ============================================== Modifiers =======================================================
 
-    modifier onlySystem() {
+    modifier onlySystem() override {
         require(msg.sender == _getSystemAddress());
         _;
     }
@@ -67,7 +67,7 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     /// @dev overrides the calculation of the current timestamp
     /// to use the internal stored "fake" timestamp for testing purposes.
-    function getCurrentTimestamp() external view returns (uint256) {
+    function getCurrentTimestamp() external view override returns (uint256) {
         //require(_currentTimeStamp != 0, 'Timestamp is never expected to be 0');
         return _currentTimeStamp;
     }

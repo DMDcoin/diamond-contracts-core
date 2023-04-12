@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity =0.8.17;
 
 contract UpgradeabilityAdmin {
     /**
@@ -9,7 +9,7 @@ contract UpgradeabilityAdmin {
         0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     /**
-     * @return The admin slot.
+     * @return adm The admin slot.
      */
     function _admin() internal view returns (address adm) {
         bytes32 slot = ADMIN_SLOT;

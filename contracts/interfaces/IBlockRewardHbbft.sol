@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 interface IBlockRewardHbbft {
     function initialize(address) external;

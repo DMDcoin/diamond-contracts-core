@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./BlockRewardHbbftBaseMock.sol";
 import "../../contracts/base/BlockRewardHbbftCoins.sol";
@@ -7,6 +7,13 @@ contract BlockRewardHbbftCoinsMock is
     BlockRewardHbbftCoins,
     BlockRewardHbbftBaseMock
 {
+    modifier onlySystem()
+        virtual
+        override(BlockRewardHbbftBase, BlockRewardHbbftBaseMock) {
+        require(msg.sender == _getSystemAddress());
+        _;
+    }
+
     function setEpochPoolReward(
         uint256 _stakingEpoch,
         address _poolMiningAddress

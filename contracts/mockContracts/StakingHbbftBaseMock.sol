@@ -1,8 +1,14 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "../../contracts/base/StakingHbbftBase.sol";
 
 contract StakingHbbftBaseMock is StakingHbbftBase {
+    IValidatorSetHbbft validatorSetContractMock;
+
+    modifier onlyValidatorSetContract() virtual override {
+        _;
+    }
+
     // =============================================== Setters ========================================================
 
     function addPoolActiveMock(address _stakingAddress) public {
@@ -57,6 +63,12 @@ contract StakingHbbftBaseMock is StakingHbbftBase {
         stakingEpoch = _stakingEpoch;
     }
 
+    function setValidatorMockSetAddress(IValidatorSetHbbft _validatorSetAddress)
+        public
+    {
+        validatorSetContractMock = _validatorSetAddress;
+    }
+
     function setValidatorSetAddress(IValidatorSetHbbft _validatorSetAddress)
         public
     {
@@ -67,7 +79,13 @@ contract StakingHbbftBaseMock is StakingHbbftBase {
 
     // =============================================== Private ========================================================
 
-    function _getMaxCandidates() internal pure returns (uint256) {
+    function _getMaxCandidates()
+        internal
+        pure
+        virtual
+        override
+        returns (uint256)
+    {
         return 100;
     }
 }

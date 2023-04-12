@@ -12,11 +12,11 @@ iterate_sources() {
     for FILE in "$FULLPATH""$1"*.sol; do
         [ -f "$FILE" ] || break
         echo $FILE
-        ./node_modules/.bin/poa-solidity-flattener $FILE $2
+        npx hardhat flatten $FILE > $2"$(basename -- $FILE)"
     done
 }
 
+mkdir -p $FLAT$UPGRADEABILITY;
 iterate_sources $ROOT $FLAT
 
-mkdir -p $FLAT$UPGRADEABILITY;
 iterate_sources $UPGRADEABILITY_FULL $FLAT$UPGRADEABILITY

@@ -1,17 +1,21 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 interface IStakingHbbft {
+    struct StakingParams {
+        address _validatorSetContract;
+        address[] _initialStakingAddresses;
+        uint256 _delegatorMinStake;
+        uint256 _candidateMinStake;
+        uint256 _maxStake;
+        uint256 _stakingFixedEpochDuration;
+        uint256 _stakingTransitionTimeframeLength;
+        uint256 _stakingWithdrawDisallowPeriod;
+    }
+
     function incrementStakingEpoch() external;
 
     function initialize(
-        address,
-        address[] calldata,
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        uint256,
+        StakingParams calldata,
         bytes32[] calldata,
         bytes16[] calldata
     ) external;

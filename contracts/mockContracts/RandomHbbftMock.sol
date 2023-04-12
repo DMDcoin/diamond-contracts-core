@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "../../contracts/RandomHbbft.sol";
 
@@ -8,7 +8,7 @@ contract RandomHbbftMock is RandomHbbft {
 
     // ============================================== Modifiers =======================================================
 
-    modifier onlySystem() {
+    modifier onlySystem() override {
         require(msg.sender == _getSystemAddress());
         _;
     }

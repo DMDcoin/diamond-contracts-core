@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity =0.8.17;
 
 interface IReverseRegistry {
     event ReverseConfirmed(string name, address indexed reverse);

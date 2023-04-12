@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./interfaces/ICertifier.sol";
 import "./interfaces/IStakingHbbft.sol";
@@ -104,7 +104,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         // and the permission contracts checks anyway,
         // if the specific 0 gas transaction is allowed or not.
         IStakingHbbft stakingContract = IStakingHbbft(
-            validatorSetContract.stakingContract()
+            validatorSetContract.getStakingContract()
         );
         return stakingAddress != address(0);
     }
@@ -120,7 +120,7 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
     function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(0);
+        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     // ============================================== Internal ========================================================

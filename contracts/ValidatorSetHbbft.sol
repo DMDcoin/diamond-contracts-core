@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity =0.8.17;
 
 import "./interfaces/IBlockRewardHbbft.sol";
 import "./interfaces/IKeyGenHistory.sol";
@@ -6,13 +6,10 @@ import "./interfaces/IRandomHbbft.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
-import "./libs/SafeMath.sol";
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
 /// before each staking epoch. The logic uses a random seed generated and stored by the `RandomHbbft` contract.
 contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
-    using SafeMath for uint256;
-
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -143,7 +140,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     }
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
-    modifier onlySystem() {
+    modifier onlySystem() virtual {
         require(
             msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE,
             "Only System"
@@ -152,8 +149,19 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     }
 
     /// @dev Returns the current timestamp.
-    function getCurrentTimestamp() external view returns (uint256) {
+    function getCurrentTimestamp() external view virtual returns (uint256) {
         return block.timestamp;
+    }
+
+    function getStakingContract() external view returns (address) {
+        return address(stakingContract);
+    }
+
+    function isFullHealth() external view returns (bool) {
+        // return maxValidators == _currentValidators.length;
+        // for testing purposes we are hardcoding this to true.
+        // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/162
+        return true;
     }
 
     // function getInfo()
@@ -443,6 +451,17 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         }
     }
 
+    /// @dev Notifies hbbft validator set contract that a validator
+    /// asociated with the given `_stakingAddress` became
+    /// unavailable and must be flagged as unavailable.
+    /// @param _stakingAddress The address of the validator which became unavailable.
+    function notifyUnavailability(address _stakingAddress)
+        external
+        onlyStakingContract
+    {
+        validatorAvailableSince[miningByStakingAddress[_stakingAddress]] = 0;
+    }
+
     /// @dev Reports that the malicious validator misbehaved at the specified block.
     /// Called by the node of each honest validator after the specified validator misbehaved.
     /// See https://openethereum.github.io/Validator-Set.html#reporting-contract
@@ -496,11 +515,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         if (validatorsLength > 3) {
             // If more than 2/3 of validators reported about malicious validator
             // for the same `blockNumber`
-            remove = reportedValidators.length.mul(3) > validatorsLength.mul(2);
+            remove = reportedValidators.length * 3 > validatorsLength * 2;
         } else {
             // If more than 1/2 of validators reported about malicious validator
             // for the same `blockNumber`
-            remove = reportedValidators.length.mul(2) > validatorsLength;
+            remove = reportedValidators.length * 2 > validatorsLength;
         }
 
         if (remove) {
@@ -749,10 +768,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _maliciousMiningAddress The mining address of the malicious validator which is passed to
     /// the `reportMalicious` function.
     /// @param _blockNumber The block number which is passed to the `reportMalicious` function.
-    /// @return `bool callable` - The boolean flag indicating whether the `reportMalicious` function can be called at
-    /// the moment. `bool removeReportingValidator` - The boolean flag indicating whether the reporting validator
-    /// should be removed as malicious due to excessive reporting. This flag is only used by the `reportMalicious`
-    /// function.
+    /// @return callable `bool callable` - The boolean flag indicating whether the `reportMalicious` function
+    /// can be called at the moment.
+    /// @return removeReportingValidator `bool removeReportingValidator` - The boolean flag indicating whether
+    /// the reporting validator should be removed as malicious due to excessive reporting. This flag is only used
+    /// by the `reportMalicious` function.
     function reportMaliciousCallable(
         address _reportingMiningAddress,
         address _maliciousMiningAddress,
@@ -1081,7 +1101,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             if (_currentValidators[i] == _miningAddress) {
                 // Remove the malicious validator from `_pendingValidators`
                 _currentValidators[i] = _currentValidators[length - 1];
-                _currentValidators.length--;
+                _currentValidators.pop();
                 return true;
             }
         }
@@ -1204,15 +1224,14 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns (uint256) {
         uint256 currentTimestamp = this.getCurrentTimestamp();
-        uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime().sub(
-            currentTimestamp
-        );
+        uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime() -
+            currentTimestamp;
         // Ban for at least 12 full staking epochs:
         // currentTimestampt + stakingFixedEpochDuration + remainingEpochDuration.
         return
-            currentTimestamp
-                .add(12 * stakingContract.stakingFixedEpochDuration())
-                .add(ticksUntilEnd);
+            currentTimestamp +
+            (12 * stakingContract.stakingFixedEpochDuration()) +
+            (ticksUntilEnd);
     }
 
     /// @dev Returns an index of a pool in the `poolsToBeElected` array

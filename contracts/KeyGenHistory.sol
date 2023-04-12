@@ -1,5 +1,4 @@
-pragma solidity ^0.5.16;
-pragma experimental ABIEncoderV2;
+pragma solidity =0.8.17;
 
 import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
@@ -65,7 +64,7 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     /// parameter to prevent old and wrong transactions get picked up.
     modifier onlyUpcommingEpoch(uint256 _epoch) {
         require(
-            IStakingHbbft(validatorSetContract.stakingContract())
+            IStakingHbbft(validatorSetContract.getStakingContract())
                 .stakingEpoch() +
                 1 ==
                 _epoch,
@@ -201,6 +200,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
 
     /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
     function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(0);
+        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 }
