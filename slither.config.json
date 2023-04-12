@@ -1,0 +1,9 @@
+{
+    "detectors_to_exclude": "naming-convention, solc-version, assembly, similar-names, too-many-digits, calls-loop",
+    "solc_disable_warnings": false,
+    "exclude_informational": true,
+    "exclude_low": false,
+    "exclude_medium": false,
+    "exclude_high": false,
+    "filter_paths": "mockContracts"
+}

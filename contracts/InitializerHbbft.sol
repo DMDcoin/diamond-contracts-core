@@ -46,7 +46,7 @@ contract InitializerHbbft {
         bytes16[] memory _internetAddresses,
         bytes[] memory _parts,
         bytes[][] memory _acks
-    ) public {
+    ) {
         IValidatorSetHbbft(_contracts[0]).initialize(
             _contracts[1], // _blockRewardContract
             _contracts[2], // _randomContract
@@ -88,6 +88,10 @@ contract InitializerHbbft {
             _contracts[0],
             _contracts[6]
         );
+
+        if (block.number > 0) {
+            selfdestruct(payable(msg.sender));
+        }
     }
 
     function destruct() external {
