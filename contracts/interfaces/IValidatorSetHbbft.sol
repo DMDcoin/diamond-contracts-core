@@ -92,4 +92,9 @@ interface IValidatorSetHbbft {
     function getCurrentTimestamp() external view returns (uint256);
 
     function validatorAvailableSince(address) external view returns (uint256);
+
+    function getValidatorCountSweetSpot(uint256)
+        external
+        view
+        returns (uint256);
 }

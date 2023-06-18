@@ -103,9 +103,9 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
         // since the node cache the list of certifiers
         // and the permission contracts checks anyway,
         // if the specific 0 gas transaction is allowed or not.
-        IStakingHbbft stakingContract = IStakingHbbft(
-            validatorSetContract.getStakingContract()
-        );
+        // IStakingHbbft stakingContract = IStakingHbbft(
+        //     validatorSetContract.getStakingContract()
+        // );
         return stakingAddress != address(0);
     }
 

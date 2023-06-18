@@ -38,9 +38,17 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         _;
     }
 
-    function initialize(address _validatorSetContract) public {
-        require(address(validatorSetContract) == address(0), "RandomHbbft must not be already initialized");
-        validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
+    function initialize(address _validatorSet) external {
+        require(
+            msg.sender == _admin() ||
+                tx.origin == _admin() ||
+                address(0) == _admin() ||
+                block.number == 0,
+            "Initialization only on genesis block or by admin"
+        );
+        require(!isInitialized(), "initialization can only be done once");
+        require(_validatorSet != address(0), "ValidatorSet must not be 0");
+        validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
 
     // =============================================== Setters ========================================================
@@ -60,6 +68,11 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         if (!validatorSetContract.isFullHealth()) {
             unhealthiness.set(block.number);
         }
+    }
+
+    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
+    function isInitialized() public view returns (bool) {
+        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     ///@dev returns current random seed
@@ -82,7 +95,6 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         }
         return output;
     }
-
 
     ///@dev returns an seed from requested blocknumber
     function getSeedHistoric(uint256 _blocknumber)

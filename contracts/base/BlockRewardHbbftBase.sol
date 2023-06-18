@@ -204,7 +204,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (_isEpochEndBlock) {
             uint256 stakingEpoch = stakingContract.stakingEpoch();
 
-            uint256 nativeTotalRewardAmount;
+            uint256 nativeTotalRewardAmount = 0;
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
@@ -255,15 +255,38 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             uint256 currentTimestamp = validatorSetContract
                 .getCurrentTimestamp();
 
+            address[] memory miningAddresses = validatorSetContract
+                .getValidators();
+
             // TODO: Problem occurs here if there are not regular blocks:
             // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
 
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
-            bool isPhaseTransition = currentTimestamp >= phaseTransitionTime &&
-                validatorSetContract.getPendingValidators().length == 0;
+            bool isPhaseTransition = currentTimestamp >= phaseTransitionTime;
+            bool toBeUpscaled = false;
+            if (
+                miningAddresses.length * 3 <=
+                (validatorSetContract.maxValidators() * 2)
+            ) {
+                uint256 amountToBeElected = stakingContract
+                    .getPoolsToBeElected()
+                    .length;
+                if (
+                    (amountToBeElected > 0) &&
+                    validatorSetContract.getValidatorCountSweetSpot(
+                        amountToBeElected
+                    ) >
+                    miningAddresses.length
+                ) {
+                    toBeUpscaled = true;
+                }
+            }
 
-            if (isPhaseTransition) {
+            if (
+                (isPhaseTransition || toBeUpscaled) &&
+                validatorSetContract.getPendingValidators().length == 0
+            ) {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
             } else if (
@@ -271,22 +294,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             ) {
                 validatorSetContract.handleFailedKeyGeneration();
             }
-            // } else {
-
-            //     // check for faster validator set upscaling
-            //     // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/90
-
-            //     address[] memory miningAddresses = validatorSetContract.getValidators();
-
-            //     // if there is a miningset that is smaller than the 2/3 of the maxValidators,
-            //     // then we choose the next epoch set.
-            //     if (miningAddresses.length < (validatorSetContract.maxValidators() / 3) * 2) {
-            //         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
-            //         if (poolsToBeElected.length > miningAddresses.length) {
-            //             validatorSetContract.newValidatorSet();
-            //         }
-            //     }
-            // }
         }
     }
 
@@ -321,8 +328,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             validatorSetContract.getStakingContract()
         );
         bool isDelegator = _poolStakingAddress != _staker;
-        uint256 firstEpoch;
-        uint256 lastEpoch;
+        uint256 firstEpoch = 0;
+        uint256 lastEpoch = 0;
 
         if (isDelegator) {
             firstEpoch = stakingContract.stakeFirstEpoch(
@@ -499,6 +506,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     }
 
     ///@dev Calculates and returns the percentage of the current epoch.
+    /// 100% MAX
     function epochPercentage() public view returns (uint256) {
         IStakingHbbft stakingContract = IStakingHbbft(
             validatorSetContract.getStakingContract()
@@ -509,7 +517,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         return
             validatorSetContract.getCurrentTimestamp() >
                 stakingContract.stakingFixedEpochEndTime()
-                ? 1000
+                ? 100
                 : ((validatorSetContract.getCurrentTimestamp() -
                     stakingContract.stakingEpochStartTime()) * 100) /
                     expectedEpochDuration;
@@ -575,7 +583,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
         // Number of validators that are being rewarded.
-        uint256 numRewardedValidators;
+        uint256 numRewardedValidators = 0;
 
         for (uint256 i = 0; i < validators.length; i++) {
             if (

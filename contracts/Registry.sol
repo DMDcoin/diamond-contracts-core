@@ -79,7 +79,7 @@ contract Registry is
         _;
     }
 
-    constructor(address _certifierContract, address _owner) public {
+    constructor(address _certifierContract, address _owner) {
         require(_certifierContract != address(0));
         bytes32 serviceTransactionChecker = keccak256(
             "service_transaction_checker"
