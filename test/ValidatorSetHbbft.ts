@@ -487,9 +487,11 @@ describe('ValidatorSetHbbft', () => {
             const seed = random(1000000, 2000000);
             await randomHbbft.setSystemAddress(owner.address).should.be.fulfilled;
             await randomHbbft.connect(owner).setCurrentSeed(BigNumber.from(seed)); // .should.be.fulfilled;
-            await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE'); // .should.be.fulfilled;
             (await randomHbbft.currentSeed()).should.be.equal(BigNumber.from(seed));
 
+            await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE'); // .should.be.fulfilled;
+            
+            
             // Emulate calling `newValidatorSet()` at the last block of the staking epoch
             await validatorSetHbbft.setBlockRewardContract(accounts[4].address); // .should.be.fulfilled;
             await validatorSetHbbft.connect(accounts[4]).newValidatorSet(); // .should.be.fulfilled;
