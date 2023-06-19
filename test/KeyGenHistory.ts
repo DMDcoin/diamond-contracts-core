@@ -14,6 +14,7 @@ import {
 
 import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { Permission } from "./testhelpers/Permission";
 
 const testdata = require('./testhelpers/data');
 
@@ -40,6 +41,8 @@ let keyGenHistory: KeyGenHistory;
 let txPermission: TxPermissionHbbft;
 let certifier: CertifierHbbft;
 let initializer: InitializerHbbft;
+
+let keyGenHistoryPermission: Permission<KeyGenHistory>;
 
 //addresses
 let owner: SignerWithAddress;
@@ -148,6 +151,9 @@ describe('KeyGenHistory', () => {
                 adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(txPermission.address, owner.address, []);
                 txPermission = await ethers.getContractAt("TxPermissionHbbft", adminUpgradeabilityProxy.address);
             }
+
+            keyGenHistoryPermission = new Permission(txPermission, keyGenHistory, logOutput);
+
             // Deploy Certifier contract
             const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
             certifier = await CertifierFactory.deploy();
@@ -469,51 +475,13 @@ async function printValidatorState(info: string) {
 // run on the test contracts deployed here.
 async function writePart(upcommingEpochNumber: string, round: string, parts: any, from: string) {
 
-    await call3ParaFunction('writePart', from, upcommingEpochNumber, round, parts);
+    await keyGenHistoryPermission.callFunction('writePart', from, [upcommingEpochNumber, round, parts]);
 }
 
 async function writeAcks(upcommingEpochNumber: string, round: string, parts: any, from: string) {
-    await call3ParaFunction('writeAcks', from, upcommingEpochNumber, round, parts);
+    await keyGenHistoryPermission.callFunction('writeAcks', from, [upcommingEpochNumber, round, parts]);
 }
 
-async function call3ParaFunction(functionName: any, from: string, upcommingEpochNumber: string, round: string, parts: any) {
-
-    const currentKeyGenRound = await keyGenHistory.currentKeyGenRound();
-    if (logOutput) {
-        console.log('currentKeyGenRound', currentKeyGenRound.toString());
-    }
-    const asEncoded = keyGenHistory.interface.encodeFunctionData(functionName, [upcommingEpochNumber, round, parts]);
-    if (logOutput) {
-        console.log('calling: ', functionName);
-        console.log('from: ', from)
-        console.log('epoch: ', upcommingEpochNumber.toString());
-        console.log('round: ', round);
-        console.log('encodedCall: ', asEncoded);
-    }
-
-    //const numberFromContract = await txPermission._getSliceUInt256(4, asEncoded);
-    //const numberFromContract2 = await txPermission._decodeUInt256Param(4, asEncoded);
-    //console.log('upcommingEpochNumber: ', numberFromContract.toString());
-    //console.log('numberFromContract2', numberFromContract2.toString());
-
-
-    const allowedTxType = await txPermission.allowedTxTypes(from, keyGenHistory.address, '0x0' /* value */, '0x0' /* gas price */, asEncoded);
-
-    //console.log(allowedTxType.typesMask.toString());
-    // don't ask to cache this result.
-    allowedTxType.cache.should.be.equal(false);
-
-    /// 0x01 - basic transaction (e.g. ether transferring to user wallet);
-    /// 0x02 - contract call;
-    /// 0x04 - contract creation;
-    /// 0x08 - private transaction.
-
-    allowedTxType.typesMask.should.be.equal(BigNumber.from('2'), 'Transaction should be allowed according to TxPermission Contract.');
-
-    // we know now, that this call is allowed.
-    // so we can execute it.
-    await (await ethers.getSigner(from)).sendTransaction({ to: keyGenHistory.address, data: asEncoded });
-}
 
 async function announceAvailability(pool: string) {
 

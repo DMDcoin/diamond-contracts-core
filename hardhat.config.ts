@@ -14,12 +14,22 @@ import type { NetworkUserConfig } from "hardhat/types";
 import type { HardhatUserConfig } from "hardhat/config";
 import { resolve } from "path";
 import { utils } from "ethers";
+import fs from "fs";
 
 const dotenvConfigPath: string = process.env.DOTENV_CONFIG_PATH || "./.env";
 dotenvConfig({ path: resolve(__dirname, dotenvConfigPath) });
 
 // ToDo::change require to smth more suitable
 require('./tasks');
+
+const getMnemonic = () => {
+    try {
+        return fs.readFileSync(".mnemonic").toString().trim();
+    } catch {
+        // this is a dummy mnemonic, never use it for anything.
+        return "arrive furnace echo arch airport scrap glow gold brief food torch senior winner myself mutual";
+    }
+};
 
 // Ensure that we have all the environment variables we need.
 const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : utils.entropyToMnemonic(utils.randomBytes(32));
@@ -74,17 +84,18 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
 const config: {} = {
     defaultNetwork: "hardhat",
     etherscan: {
-        apiKey: {
-            arbitrumOne: process.env.ARBISCAN_API_KEY || "",
-            avalanche: process.env.SNOWTRACE_API_KEY || "",
-            bsc: process.env.BSCSCAN_API_KEY || "",
-            goerli: process.env.ETHERSCAN_API_KEY || "",
-            mainnet: process.env.ETHERSCAN_API_KEY || "",
-            optimisticEthereum: process.env.OPTIMISM_API_KEY || "",
-            polygon: process.env.POLYGONSCAN_API_KEY || "",
-            polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
-            DMDv4: "http://explorer.uniq.diamonds/api",
-        },
+        // apiKey: process.env.ETHERSCAN_API_KEY,
+        apiKey: "123",
+        customChains: [
+            {
+                network: "alpha",
+                chainId: 777012,
+                urls: {
+                    apiURL: "http://explorer.uniq.diamonds/api",
+                    browserURL: "http://explorer.uniq.diamonds",
+                },
+            },
+        ],
     },
     contractSizer: {
         alphaSort: true,
@@ -109,15 +120,17 @@ const config: {} = {
             hardfork: "istanbul",
             minGasPrice: 0
         },
-        arbitrum: getChainConfig("arbitrum-mainnet"),
-        avalanche: getChainConfig("avalanche"),
-        bsc: getChainConfig("bsc"),
-        goerli: getChainConfig("goerli"),
-        mainnet: getChainConfig("mainnet"),
-        optimism: getChainConfig("optimism-mainnet"),
-        "polygon-mainnet": getChainConfig("polygon-mainnet"),
-        "polygon-mumbai": getChainConfig("polygon-mumbai"),
-        DMDv4: getChainConfig("DMDv4"),
+        alpha: {
+            url: "http://38.242.206.145:8540",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+        },
     },
     paths: {
         artifacts: "./artifacts",
