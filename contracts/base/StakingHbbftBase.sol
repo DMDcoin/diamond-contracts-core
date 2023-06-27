@@ -166,6 +166,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// be staked on a single validator.
     uint256 public maxStakeAmount;
 
+    /// @dev governance funding address
+    address payable public governancePotAddress;
+
+    /// @dev block rewards hbbft contract
+    IBlockRewardHbbft public blockRewardHbbft;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
@@ -239,6 +245,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address indexed staker,
         uint256 indexed stakingEpoch,
         uint256 amount
+    );
+
+    event DistributeAbandonedStakes(
+        address indexed caller,
+        uint256 reinsertShare,
+        uint256 governanceShare
     );
 
     // ============================================== Modifiers =======================================================
@@ -675,6 +687,34 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             stakingEpoch,
             claimAmount
         );
+    }
+
+    /// @dev Distribute abandoned stakes among Reinsert and Governance pots.
+    /// 50% goes to reinsert and 50% to governance pot.
+    /// Coins are considered abandoned if they were staked on a validator inactive for 10 years.
+    function distributeAbandonedStakes() external gasPriceIsValid {
+        uint256 totalAbondonedAmount = 0;
+
+        address[] memory inactivePools = _poolsInactive;
+        for (uint256 i = 0; i < inactivePools.length; ++i) {
+            address stakingPool = inactivePools[i];
+
+            if (_isPoolEmpty(stakingPool)) {
+                continue;
+            }
+
+            if (validatorSetContract.isValidatorAbandoned(stakingPool)) {
+                totalAbondonedAmount += stakeAmountTotal[stakingPool];
+            }
+        }
+
+        uint256 governanceShare = totalAbondonedAmount / 2;
+        uint256 reinsertShare = totalAbondonedAmount - governanceShare;
+
+        blockRewardHbbft.addToReinsertPot{value: reinsertShare}();
+        _transferNative(governancePotAddress, governanceShare);
+
+        emit DistributeAbandonedStakes(msg.sender, reinsertShare, governanceShare);
     }
 
     /// @dev Sets (updates) the limit of the minimum candidate stake (CANDIDATE_MIN_STAKE).
@@ -1605,5 +1645,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         }
 
         return true;
+    }
+
+    function _transferNative(address recipient, uint256 amount) internal {
+        require(address(this).balance >= amount, "Insufficient balance");
+
+        (bool success, ) = recipient.call{ value: amount }("");
+        require(success, "Transfer failed");
     }
 }

@@ -7,6 +7,8 @@ import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
 
+import "./libs/DateTime.sol";
+
 /// @dev Stores the current validator set and contains the logic for choosing new validators
 /// before each staking epoch. The logic uses a random seed generated and stored by the `RandomHbbft` contract.
 contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
@@ -93,6 +95,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
     /// @dev duration of ban in epochs
     uint256 public banDuration;
+
+    // ============================================== Constants =======================================================
+
+    /// @dev Number of years of inactivity after which the validator is considered an abandoned
+    uint256 public constant INACTIVE_YEARS_THRESHOLD = 10;
 
     // ================================================ Events ========================================================
 
@@ -859,21 +866,25 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     }
 
     /// @dev Returns a boolean flag indicating whether the specified validator unavailable
-    /// for given `_period` of time
-    /// @param _validator validator address.
-    /// @param _period time period to check unavailability
-    function isValidatorUnavailableFor(address _validator, uint256 _period)
+    /// for `INACTIVE_YEARS_THRESHOLD` years
+    /// @param _stakingAddress staking pool address.
+    function isValidatorAbandoned(address _stakingAddress)
         external
         view
         returns (bool)
     {
-        if (validatorAvailableSince[_validator] != 0) {
+        address validator = miningByStakingAddress[_stakingAddress];
+
+        if (validatorAvailableSince[validator] != 0) {
             return false;
         }
 
-        uint256 unavailableTime = this.getCurrentTimestamp() - validatorAvailableSinceLastWrite[_validator];
+        uint256 yearsInactive = DateTime.diffYears(
+            validatorAvailableSinceLastWrite[validator],
+            this.getCurrentTimestamp()
+        );
 
-        return unavailableTime >= _period;
+        return yearsInactive >= INACTIVE_YEARS_THRESHOLD;
     }
 
     /// @dev Returns the public key for the given miningAddress

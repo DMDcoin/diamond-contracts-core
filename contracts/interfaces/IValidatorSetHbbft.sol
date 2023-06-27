@@ -93,6 +93,8 @@ interface IValidatorSetHbbft {
 
     function validatorAvailableSince(address) external view returns (uint256);
 
+    function isValidatorAbandoned(address) external view returns (bool);
+
     function getValidatorCountSweetSpot(uint256)
         external
         view
