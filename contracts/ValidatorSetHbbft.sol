@@ -77,8 +77,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @dev How many times the given mining address has become a validator.
     mapping(address => uint256) public validatorCounter;
 
-    /// @dev Block Timestamp when a validator was successfully part of
-    mapping(address => uint256) public validatorLastSuccess;
+    /// @dev holds timestamps of last changes in `validatorAvailableSince`
+    mapping(address => uint256) public validatorAvailableSinceLastWrite;
 
     /// @dev holds Availability information for each specific mining address
     /// unavailability happens if a validator gets voted to become a pending validator,
@@ -311,7 +311,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         );
 
         uint256 timestamp = this.getCurrentTimestamp();
-        validatorAvailableSince[msg.sender] = timestamp;
+        _writeValidatorAvailableSince(msg.sender, timestamp);
+
         emit ValidatorAvailable(msg.sender, timestamp);
         // as long the mining node is not banned as well,
         // it can be picked up as regular active node again.
@@ -419,8 +420,10 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
                 stakingContract.removePool(
                     stakingByMiningAddress[miningAddress]
                 );
+
                 // mark the Node address as not available.
-                validatorAvailableSince[miningAddress] = 0;
+                _writeValidatorAvailableSince(miningAddress, 0);
+
                 emit ValidatorUnavailable(
                     miningAddress,
                     this.getCurrentTimestamp()
@@ -463,7 +466,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         external
         onlyStakingContract
     {
-        validatorAvailableSince[miningByStakingAddress[_stakingAddress]] = 0;
+        _writeValidatorAvailableSince(miningByStakingAddress[_stakingAddress], 0);
     }
 
     /// @dev Reports that the malicious validator misbehaved at the specified block.
@@ -855,6 +858,24 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         return stakingContract.getPoolPublicKey(_stakingAddress);
     }
 
+    /// @dev Returns a boolean flag indicating whether the specified validator unavailable
+    /// for given `_period` of time
+    /// @param _validator validator address.
+    /// @param _period time period to check unavailability
+    function isValidatorUnavailableFor(address _validator, uint256 _period)
+        external
+        view
+        returns (bool)
+    {
+        if (validatorAvailableSince[_validator] != 0) {
+            return false;
+        }
+
+        uint256 unavailableTime = this.getCurrentTimestamp() - validatorAvailableSinceLastWrite[_validator];
+
+        return unavailableTime >= _period;
+    }
+
     /// @dev Returns the public key for the given miningAddress
     /// @param _miningAddress mining address of the wanted public key.
     /// @return public key of the _miningAddress
@@ -1226,6 +1247,14 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         );
         miningByStakingAddress[_stakingAddress] = _miningAddress;
         stakingByMiningAddress[_miningAddress] = _stakingAddress;
+    }
+
+    /// @dev Writes `validatorAvaialableSince` and saves timestamp of last change.
+    /// @param _validator validator address
+    /// @param _availableSince timestamp when the validator became available, 0 if unavailable
+    function _writeValidatorAvailableSince(address _validator, uint256 _availableSince) internal {
+        validatorAvailableSince[_validator] = _availableSince;
+        validatorAvailableSinceLastWrite[_validator] = this.getCurrentTimestamp();
     }
 
     /// @dev Returns the future timestamp until which a validator is banned.
