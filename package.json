@@ -5,7 +5,7 @@
     "main": "index.js",
     "scripts": {
         "compile": "npx hardhat compile",
-        "coverage": "npx hardhat coverage",
+        "coverage": "export SOLIDITY_COVERAGE=true && npx hardhat coverage",
         "docs-publish": "npx hardhat docgen && cd docs/website && npm i && npm run publish-gh-pages",
         "docs-start": "npx hardhat docgen && cd docs/website && npm i && npm start",
         "flat": "bash scripts/make_flat.sh",
