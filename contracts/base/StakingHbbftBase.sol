@@ -166,9 +166,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// be staked on a single validator.
     uint256 public maxStakeAmount;
 
-    /// @dev governance funding address
-    address payable public governancePotAddress;
-
     /// @dev block rewards hbbft contract
     IBlockRewardHbbft public blockRewardHbbft;
 
@@ -711,6 +708,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 governanceShare = totalAbondonedAmount / 2;
         uint256 reinsertShare = totalAbondonedAmount - governanceShare;
 
+        address governancePotAddress = blockRewardHbbft.governancePotAddress();
+
         blockRewardHbbft.addToReinsertPot{value: reinsertShare}();
         _transferNative(governancePotAddress, governanceShare);
 
@@ -1234,6 +1233,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         candidateMinStake = _candidateMinStake;
 
         maxStakeAmount = _maxStake;
+
+        blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
     }
 
     /// @dev Adds the specified address to the array of the current active delegators of the specified pool.

@@ -30,9 +30,9 @@ library DateTime {
 
         int __days = _day
           - 32075
-          + 1461 * (_year + 4800 + (_month - 14) / 12) / 4
-          + 367 * (_month - 2 - (_month - 14) / 12 * 12) / 12
-          - 3 * ((_year + 4900 + (_month - 14) / 12) / 100) / 4
+          + (1461 * (_year + 4800 + (_month - 14) / 12)) / 4
+          + (367 * (_month - 2 - (_month - 14) / 12 * 12)) / 12
+          - (3 * ((_year + 4900 + (_month - 14) / 12) / 100)) / 4
           - OFFSET19700101;
 
         _days = uint256(__days);
@@ -59,12 +59,12 @@ library DateTime {
         int __days = int(_days);
 
         int L = __days + 68569 + OFFSET19700101;
-        int N = 4 * L / 146097;
+        int N = (4 * L) / 146097;
         L = L - (146097 * N + 3) / 4;
-        int _year = 4000 * (L + 1) / 1461001;
-        L = L - 1461 * _year / 4 + 31;
-        int _month = 80 * L / 2447;
-        int _day = L - 2447 * _month / 80;
+        int _year = (4000 * (L + 1)) / 1461001;
+        L = L - (1461 * _year) / 4 + 31;
+        int _month = (80 * L) / 2447;
+        int _day = L - (2447 * _month) / 80;
         L = _month / 11;
         _month = _month + 2 - 12 * L;
         _year = 100 * (N - 49) + _year + L;
