@@ -7,8 +7,6 @@ import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
 import "./upgradeability/UpgradeableOwned.sol";
 
-import "./libs/DateTime.sol";
-
 /// @dev Stores the current validator set and contains the logic for choosing new validators
 /// before each staking epoch. The logic uses a random seed generated and stored by the `RandomHbbft` contract.
 contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
@@ -868,7 +866,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @dev Returns a boolean flag indicating whether the specified validator unavailable
     /// for `INACTIVE_YEARS_THRESHOLD` years
     /// @param _stakingAddress staking pool address.
-    function isValidatorAbandoned(address _stakingAddress)
+    /// @param _period time period in seconds after which the validator is considered abandoned
+    function isValidatorInactiveForTime(address _stakingAddress, uint256 _period)
         external
         view
         returns (bool)
@@ -879,12 +878,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             return false;
         }
 
-        uint256 yearsInactive = DateTime.diffYears(
-            validatorAvailableSinceLastWrite[validator],
-            this.getCurrentTimestamp()
-        );
+        uint256 inactiveSeconds = this.getCurrentTimestamp() - validatorAvailableSinceLastWrite[validator];
 
-        return yearsInactive >= INACTIVE_YEARS_THRESHOLD;
+        return inactiveSeconds >= _period;
     }
 
     /// @dev Returns the public key for the given miningAddress

@@ -175,6 +175,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
     uint256 public constant MAX_CANDIDATES = 3000;
+    uint256 public constant VALIDATOR_INACTIVE_THRESHOLD = 10 * 365 days; // approximately 10 years
 
     // ================================================ Events ========================================================
 
@@ -244,6 +245,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address indexed staker,
         uint256 indexed stakingEpoch,
         uint256 amount
+    );
+
+    event GatherAbandonedStakes(
+        address indexed caller,
+        address indexed stakingAddress,
+        uint256 gatheredFunds
     );
 
     event DistributeAbandonedStakes(
@@ -696,26 +703,34 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         address[] memory inactivePools = _poolsInactive;
         for (uint256 i = 0; i < inactivePools.length; ++i) {
+            uint256 gatheredPerStakingAddress = 0;
             address stakingAddress = inactivePools[i];
 
-            if (_isPoolEmpty(stakingAddress) || !validatorSetContract.isValidatorAbandoned(stakingAddress)) {
+            if (
+                _isPoolEmpty(stakingAddress)
+                || !validatorSetContract.isValidatorInactiveForTime(stakingAddress, VALIDATOR_INACTIVE_THRESHOLD)
+            ) {
                 continue;
             }
 
             _removePoolInactive(stakingAddress);
             abandonedAndRemoved[stakingAddress] = true;
 
-            totalAbandonedAmount += stakeAmountTotal[stakingAddress];
+            gatheredPerStakingAddress += stakeAmountTotal[stakingAddress];
             stakeAmountTotal[stakingAddress] = 0;
 
             address[] memory delegators = poolDelegators(stakingAddress);
             for (uint256 j = 0; j < delegators.length; ++j) {
                 address delegator = delegators[j];
 
-                totalAbandonedAmount += stakeAmount[stakingAddress][delegator];
+                gatheredPerStakingAddress += stakeAmount[stakingAddress][delegator];
                 stakeAmount[stakingAddress][delegator] = 0;
                 _removePoolDelegator(stakingAddress, delegator);
             }
+
+            totalAbandonedAmount += gatheredPerStakingAddress;
+
+            emit GatherAbandonedStakes(msg.sender, stakingAddress, gatheredPerStakingAddress);
         }
 
         uint256 governanceShare = totalAbandonedAmount / 2;
