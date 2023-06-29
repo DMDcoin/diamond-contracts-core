@@ -94,10 +94,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @dev duration of ban in epochs
     uint256 public banDuration;
 
-    // ============================================== Constants =======================================================
-
-    /// @dev Number of years of inactivity after which the validator is considered an abandoned
-    uint256 public constant INACTIVE_YEARS_THRESHOLD = 10;
+    /// @dev time in seconds after which the inactive validator is considered abandoned
+    uint256 public validatorInactivityThreshold;
 
     // ================================================ Events ========================================================
 
@@ -187,6 +185,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _randomContract The address of the `RandomHbbft` contract.
     /// @param _stakingContract The address of the `StakingHbbft` contract.
     /// @param _keyGenHistoryContract The address of the `KeyGenHistory` contract.
+    /// @param _validatorInactivityThreshold The time of inactivity in seconds to consider validator abandoned
     /// @param _initialMiningAddresses The array of initial validators' mining addresses.
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
     function initialize(
@@ -194,6 +193,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         address _randomContract,
         address _stakingContract,
         address _keyGenHistoryContract,
+        uint256 _validatorInactivityThreshold,
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external {
@@ -237,6 +237,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         randomContract = _randomContract;
         stakingContract = IStakingHbbft(_stakingContract);
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
+        validatorInactivityThreshold = _validatorInactivityThreshold;
 
         // Add initial validators to the `_currentValidators` array
         for (uint256 i = 0; i < _initialMiningAddresses.length; i++) {
@@ -864,10 +865,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     }
 
     /// @dev Returns a boolean flag indicating whether the specified validator unavailable
-    /// for `INACTIVE_YEARS_THRESHOLD` years
+    /// for `validatorInactivityThreshold` seconds
     /// @param _stakingAddress staking pool address.
-    /// @param _period time period in seconds after which the validator is considered abandoned
-    function isValidatorInactiveForTime(address _stakingAddress, uint256 _period)
+    function isValidatorAbandoned(address _stakingAddress)
         external
         view
         returns (bool)
@@ -880,7 +880,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
         uint256 inactiveSeconds = this.getCurrentTimestamp() - validatorAvailableSinceLastWrite[validator];
 
-        return inactiveSeconds >= _period;
+        return inactiveSeconds >= validatorInactivityThreshold;
     }
 
     /// @dev Returns the public key for the given miningAddress
