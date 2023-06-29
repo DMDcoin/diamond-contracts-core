@@ -169,6 +169,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev block rewards hbbft contract
     IBlockRewardHbbft public blockRewardHbbft;
 
+    mapping(address => bool) public abandonedAndRemoved;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
@@ -690,23 +692,34 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// 50% goes to reinsert and 50% to governance pot.
     /// Coins are considered abandoned if they were staked on a validator inactive for 10 years.
     function distributeAbandonedStakes() external gasPriceIsValid {
-        uint256 totalAbondonedAmount = 0;
+        uint256 totalAbandonedAmount = 0;
 
         address[] memory inactivePools = _poolsInactive;
         for (uint256 i = 0; i < inactivePools.length; ++i) {
-            address stakingPool = inactivePools[i];
+            address stakingAddress = inactivePools[i];
 
-            if (_isPoolEmpty(stakingPool)) {
+            if (_isPoolEmpty(stakingAddress) || !validatorSetContract.isValidatorAbandoned(stakingAddress)) {
                 continue;
             }
 
-            if (validatorSetContract.isValidatorAbandoned(stakingPool)) {
-                totalAbondonedAmount += stakeAmountTotal[stakingPool];
+            _removePoolInactive(stakingAddress);
+            abandonedAndRemoved[stakingAddress] = true;
+
+            totalAbandonedAmount += stakeAmountTotal[stakingAddress];
+            stakeAmountTotal[stakingAddress] = 0;
+
+            address[] memory delegators = poolDelegators(stakingAddress);
+            for (uint256 j = 0; j < delegators.length; ++j) {
+                address delegator = delegators[j];
+
+                totalAbandonedAmount += stakeAmount[stakingAddress][delegator];
+                stakeAmount[stakingAddress][delegator] = 0;
+                _removePoolDelegator(stakingAddress, delegator);
             }
         }
 
-        uint256 governanceShare = totalAbondonedAmount / 2;
-        uint256 reinsertShare = totalAbondonedAmount - governanceShare;
+        uint256 governanceShare = totalAbandonedAmount / 2;
+        uint256 reinsertShare = totalAbandonedAmount - governanceShare;
 
         address governancePotAddress = blockRewardHbbft.governancePotAddress();
 
