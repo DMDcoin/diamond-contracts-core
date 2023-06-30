@@ -730,6 +730,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         address governancePotAddress = blockRewardHbbft.governancePotAddress();
 
+        // slither-disable-next-line arbitrary-send-eth
         blockRewardHbbft.addToReinsertPot{value: reinsertShare}();
         _transferNative(governancePotAddress, governanceShare);
 
@@ -1671,6 +1672,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function _transferNative(address recipient, uint256 amount) internal {
         require(address(this).balance >= amount, "Insufficient balance");
 
+        // slither-disable-next-line unchecked-lowlevel
         (bool success, ) = recipient.call{ value: amount }("");
         require(success, "Transfer failed");
     }
