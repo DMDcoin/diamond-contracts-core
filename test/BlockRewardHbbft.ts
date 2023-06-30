@@ -77,6 +77,8 @@ describe('BlockRewardHbbft', () => {
         initialStakingAddresses[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
         initialStakingAddresses[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
 
+        const validatorInactivityThreshold = 365 * 86400 // 1 year
+
         const AdminUpgradeabilityProxyFactory = await ethers.getContractFactory("AdminUpgradeabilityProxy")
 
         // Deploy ValidatorSet contract
@@ -139,6 +141,7 @@ describe('BlockRewardHbbft', () => {
             randomHbbft.address, // _randomContract
             stakingHbbft.address, // _stakingContract
             keyGenHistory.address, //_keyGenHistoryContract
+            validatorInactivityThreshold, // _validatorInactivityThreshold
             initialValidators, // _initialMiningAddresses
             initialStakingAddresses, // _initialStakingAddresses
         );

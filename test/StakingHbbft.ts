@@ -73,6 +73,8 @@ describe('StakingHbbft', () => {
     // drained each step by 60 by default.
     const deltaPotFillupValue = epochReward.mul(BigNumber.from('60'));
 
+    const validatorInactivityThreshold = 365 * 86400 // 1 year
+
     beforeEach(async () => {
         [owner, ...accounts] = await ethers.getSigners();
         const accountAddresses = accounts.map(item => item.address);
@@ -139,6 +141,7 @@ describe('StakingHbbft', () => {
             randomHbbft.address, // _randomContract
             stakingHbbft.address, // _stakingContract
             keyGenHistory.address, //_keyGenHistoryContract
+            validatorInactivityThreshold, // _validatorInactivityThreshold
             initialValidators, // _initialMiningAddresses
             initialStakingAddresses, // _initialStakingAddresses
         );

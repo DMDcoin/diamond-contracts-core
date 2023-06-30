@@ -52,6 +52,8 @@ const stakingWithdrawDisallowPeriod = BigNumber.from(1);
 const MIN_STAKE = BigNumber.from(ethers.utils.parseEther('1'));
 const MAX_STAKE = BigNumber.from(ethers.utils.parseEther('100000'));
 
+const validatorInactivityThreshold = 365 * 86400 // 1 year
+
 let initialValidatorsPubKeys: string[];
 let initialValidatorsIpAddresses: string[];
 
@@ -147,6 +149,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             );
@@ -174,6 +177,9 @@ describe('ValidatorSetHbbft', () => {
             false.should.be.equal(
                 await validatorSetHbbft.isValidator('0x0000000000000000000000000000000000000000')
             );
+            validatorInactivityThreshold.should.be.equal(
+                await validatorSetHbbft.validatorInactivityThreshold()
+            );
         });
 
         it('should fail if initialization is not done on the genesis block and sender is not admin', async () => {
@@ -183,6 +189,7 @@ describe('ValidatorSetHbbft', () => {
                     '0x3000000000000000000000000000000000000001', // _randomContract
                     stakingHbbft.address, // _stakingContract
                     '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                    validatorInactivityThreshold, // _validatorInactivityThreshold
                     initialValidators, // _initialMiningAddresses
                     initialStakingAddresses // _initialStakingAddresses
                 ).should.be.rejectedWith("Initialization only on genesis block or by admin");
@@ -195,6 +202,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             );
@@ -205,6 +213,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("BlockReward contract address can't be 0");
@@ -215,6 +224,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x0000000000000000000000000000000000000000', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Random contract address can't be 0");
@@ -225,6 +235,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 '0x0000000000000000000000000000000000000000', // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
 
@@ -236,6 +247,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 '0x0000000000000000000000000000000000000001', // _stakingContract
                 '0x0000000000000000000000000000000000000000', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("KeyGenHistory contract address can't be 0");
@@ -246,6 +258,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 [], // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Must provide initial mining addresses");
@@ -256,6 +269,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             );
@@ -264,6 +278,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("ValidatorSet contract is already initialized");
@@ -275,6 +290,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddressesShort, // _initialStakingAddresses
             ).should.be.rejectedWith("Must provide the same amount of mining/staking addresses");
@@ -286,6 +302,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialValidators, // _initialStakingAddresses
             ).should.be.rejectedWith("Mining address cannot be the same as the staking one");
@@ -297,6 +314,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Mining address can't be 0");
@@ -308,6 +326,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Staking address can't be 0");
@@ -319,6 +338,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Staking address already used as a staking one");
@@ -330,6 +350,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Mining address already used as a staking one");
@@ -341,6 +362,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Staking address already used as a mining one");
@@ -352,6 +374,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ).should.be.rejectedWith("Mining address already used as a mining one");
@@ -392,6 +415,7 @@ describe('ValidatorSetHbbft', () => {
                 randomHbbft.address, // _randomContract
                 stakingHbbft.address, // _stakingContract
                 keyGenHistory.address, //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             );
@@ -540,6 +564,7 @@ describe('ValidatorSetHbbft', () => {
                 randomHbbft.address, // _randomContract
                 stakingHbbft.address, // _stakingContract
                 keyGenHistory.address, //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             );
@@ -892,6 +917,7 @@ describe('ValidatorSetHbbft', () => {
                 '0x3000000000000000000000000000000000000001', // _randomContract
                 stakingHbbft.address, // _stakingContract
                 '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialMiningAddresses, // _initialMiningAddresses
                 initialStakingAddresses // _initialStakingAddresses
             ).should.be.fulfilled;
