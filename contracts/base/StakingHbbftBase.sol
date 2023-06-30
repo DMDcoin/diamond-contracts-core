@@ -923,6 +923,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         if (
             !_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker)
+            || abandonedAndRemoved[_poolStakingAddress]
         ) {
             return 0;
         }
