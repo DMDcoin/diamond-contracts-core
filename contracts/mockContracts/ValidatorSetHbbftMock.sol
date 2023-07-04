@@ -50,6 +50,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _currentTimeStamp = _timeStamp;
     }
 
+    function setValidatorAvailableSince(address _validator, uint256 _timestamp) public {
+        _writeValidatorAvailableSince(_validator, _timestamp);
+    }
+
     // =============================================== Getters ========================================================
 
     function getRandomIndex(
