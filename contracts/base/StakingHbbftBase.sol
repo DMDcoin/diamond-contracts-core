@@ -252,7 +252,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 gatheredFunds
     );
 
-    event DistributeAbandonedStakes(
+    event RecoverAbandonedStakes(
         address indexed caller,
         uint256 reinsertShare,
         uint256 governanceShare
@@ -697,10 +697,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Distribute abandoned stakes among Reinsert and Governance pots.
     /// 50% goes to reinsert and 50% to governance pot.
     /// Coins are considered abandoned if they were staked on a validator inactive for 10 years.
-    function distributeAbandonedStakes() external gasPriceIsValid {
+    function recoverAbandonedStakes() external gasPriceIsValid {
         uint256 totalAbandonedAmount = 0;
 
         address[] memory inactivePools = _poolsInactive;
+        require(inactivePools.length != 0, "nothing to recover");
+
         for (uint256 i = 0; i < inactivePools.length; ++i) {
             address stakingAddress = inactivePools[i];
 
@@ -722,8 +724,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
                 _removePoolDelegator(stakingAddress, delegator);
             }
 
+            totalAbandonedAmount += gatheredPerStakingAddress;
+
             emit GatherAbandonedStakes(msg.sender, stakingAddress, gatheredPerStakingAddress);
         }
+
+        require(totalAbandonedAmount != 0, "nothing to recover");
 
         uint256 governanceShare = totalAbandonedAmount / 2;
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
@@ -734,7 +740,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         blockRewardHbbft.addToReinsertPot{value: reinsertShare}();
         _transferNative(governancePotAddress, governanceShare);
 
-        emit DistributeAbandonedStakes(msg.sender, reinsertShare, governanceShare);
+        emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
     }
 
     /// @dev Sets (updates) the limit of the minimum candidate stake (CANDIDATE_MIN_STAKE).

@@ -16,6 +16,8 @@ import fp from 'lodash/fp';
 import { BigNumber, BigNumberish, ContractFactory } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { PromiseOrValue } from "../src/types/common";
+import { expect } from "chai";
+import exp from "constants";
 
 
 require('chai')
@@ -2495,6 +2497,132 @@ describe('StakingHbbft', () => {
             likelihoodInfo.sum.should.be.equal(stakeAmount.div(BigNumber.from(2)));
         });
         // TODO: add unit tests for native coin withdrawal
+    });
+
+    describe('recoverAbandonedStakes()', async () => {
+        let stakingPool: SignerWithAddress;
+        let stakers: SignerWithAddress[];
+
+        let candidateMinStake: BigNumber;
+        let delegatorMinStake: BigNumber;
+        let governanceAddress: string;
+        let reinsertAddress: string;
+
+        beforeEach(async () => {
+            stakingPool = await ethers.getSigner(initialStakingAddresses[0]);
+
+            stakers = accounts.slice(7, 15);
+
+            // Initialize StakingHbbft
+            let structure: IStakingHbbft.StakingParamsStruct = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
+            // Initialize StakingHbbft
+            await stakingHbbft.initialize(
+                structure,
+                initialValidatorsPubKeysSplit, // _publicKeys
+                initialValidatorsIpAddresses // _internetAddresses
+            );
+
+            candidateMinStake = await stakingHbbft.candidateMinStake();
+            delegatorMinStake = await stakingHbbft.delegatorMinStake();
+
+            governanceAddress = await blockRewardHbbft.governancePotAddress();
+            reinsertAddress = blockRewardHbbft.address;
+        });
+
+        async function stake(poolAddress: string, amount: BigNumber, stakers: SignerWithAddress[]) {
+            for (let staker of stakers) {
+                expect(await stakingHbbft.connect(staker).stake(poolAddress, { value: amount }));
+            }
+        }
+
+        async function setValidatorInactive(poolAddress: string) {
+            const validator = await validatorSetHbbft.miningByStakingAddress(poolAddress);
+
+            expect(await validatorSetHbbft.setValidatorAvailableSince(validator, 0));
+            expect(await stakingHbbft.addPoolInactiveMock(poolAddress));
+
+            const poolsInactive = await stakingHbbft.getPoolsInactive();
+
+            expect(poolsInactive.includes(poolAddress)).to.be.true;
+        }
+
+        it("should revert if there is no inactive pools", async () => {
+            await expect(stakingHbbft.recoverAbandonedStakes())
+                .to.be.revertedWith("nothing to recover");
+        });
+
+        it("should revert if validator inactive, but not abandonded", async () => {
+            const expectedTotalStakes = candidateMinStake.add(delegatorMinStake.mul(stakers.length));
+
+            await stake(stakingPool.address, candidateMinStake, [stakingPool])
+            await stake(stakingPool.address, delegatorMinStake, stakers);
+
+            expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(expectedTotalStakes);
+
+            await setValidatorInactive(stakingPool.address);
+            expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.false;
+
+            await expect(stakingHbbft.recoverAbandonedStakes()).to.be.revertedWith("nothing to recover");
+        });
+
+        it("should recover abandoned stakes", async () => {
+            const expectedTotalStakes = candidateMinStake.add(delegatorMinStake.mul(stakers.length));
+            const caller = accounts[5];
+
+            await stake(stakingPool.address, candidateMinStake, [stakingPool])
+            await stake(stakingPool.address, delegatorMinStake, stakers);
+            expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(expectedTotalStakes);
+
+            await setValidatorInactive(stakingPool.address);
+            await increaseTime(validatorInactivityThreshold + 3600);
+            expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
+
+            const expectedGovernanceShare = expectedTotalStakes.div(2);
+            const expectedReinsertShare = expectedTotalStakes.sub(expectedGovernanceShare);
+
+            await expect(stakingHbbft.connect(caller).recoverAbandonedStakes())
+                .to.emit(stakingHbbft, "GatherAbandonedStakes")
+                .withArgs(caller.address, stakingPool.address, expectedTotalStakes)
+                .and
+                .to.emit(stakingHbbft, "RecoverAbandonedStakes")
+                .withArgs(caller.address, expectedReinsertShare, expectedGovernanceShare)
+                .and
+                .to.changeEtherBalances(
+                    [stakingHbbft.address, reinsertAddress, governanceAddress],
+                    [expectedTotalStakes.mul(-1), expectedReinsertShare, expectedGovernanceShare]
+                );
+        });
+
+        it("should recover abandoned stakes, mark pool as abandoned and remove from inactive pools", async () => {
+            const expectedTotalStakes = candidateMinStake.add(delegatorMinStake.mul(stakers.length));
+            const caller = accounts[5];
+
+            await stake(stakingPool.address, candidateMinStake, [stakingPool])
+            await stake(stakingPool.address, delegatorMinStake, stakers);
+            expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(expectedTotalStakes);
+
+            await setValidatorInactive(stakingPool.address);
+            await increaseTime(validatorInactivityThreshold + 3600);
+            expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
+
+            await expect(stakingHbbft.connect(caller).recoverAbandonedStakes())
+                .to.emit(stakingHbbft, "RecoverAbandonedStakes");
+
+            const inactivePools = await stakingHbbft.getPoolsInactive();
+
+            expect(inactivePools.includes(stakingPool.address)).to.be.false;
+            expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
+        });
     });
 
     // TODO: ...add other tests...
