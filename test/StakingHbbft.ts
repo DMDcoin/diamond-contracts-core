@@ -1674,8 +1674,6 @@ describe('StakingHbbft', () => {
         });
     });
 
-    // return;
-
     describe('incrementStakingEpoch()', async () => {
         // set ValidatorSet = accounts[7]
         const validatorSetContract = accounts[7];
@@ -2601,27 +2599,83 @@ describe('StakingHbbft', () => {
                     [stakingHbbft.address, reinsertAddress, governanceAddress],
                     [expectedTotalStakes.mul(-1), expectedReinsertShare, expectedGovernanceShare]
                 );
+
+            expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(0);
         });
 
         it("should recover abandoned stakes, mark pool as abandoned and remove from inactive pools", async () => {
-            const expectedTotalStakes = candidateMinStake.add(delegatorMinStake.mul(stakers.length));
-            const caller = accounts[5];
-
             await stake(stakingPool.address, candidateMinStake, [stakingPool])
             await stake(stakingPool.address, delegatorMinStake, stakers);
-            expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(expectedTotalStakes);
 
             await setValidatorInactive(stakingPool.address);
             await increaseTime(validatorInactivityThreshold + 3600);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
-            await expect(stakingHbbft.connect(caller).recoverAbandonedStakes())
+            await expect(stakingHbbft.recoverAbandonedStakes())
                 .to.emit(stakingHbbft, "RecoverAbandonedStakes");
 
             const inactivePools = await stakingHbbft.getPoolsInactive();
 
             expect(inactivePools.includes(stakingPool.address)).to.be.false;
             expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
+        });
+
+        it("should return maxWithdrawAllowed = 0 if pool was abandoned and removed", async () => {
+            await stake(stakingPool.address, candidateMinStake, [stakingPool])
+            await stake(stakingPool.address, delegatorMinStake, stakers);
+
+            await setValidatorInactive(stakingPool.address);
+            await increaseTime(validatorInactivityThreshold + 3600);
+            expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
+
+            await expect(stakingHbbft.recoverAbandonedStakes())
+                .to.emit(stakingHbbft, "RecoverAbandonedStakes");
+
+            expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
+
+            for (let staker of stakers) {
+                expect(await stakingHbbft.maxWithdrawAllowed(stakingPool.address, staker.address)).to.equal(0);
+            }
+        });
+
+        it("should disallow staking to abandoned pool", async () => {
+            await stake(stakingPool.address, candidateMinStake, [stakingPool])
+            await stake(stakingPool.address, delegatorMinStake, stakers);
+
+            await setValidatorInactive(stakingPool.address);
+            await increaseTime(validatorInactivityThreshold + 3600);
+            expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
+
+            await expect(stakingHbbft.recoverAbandonedStakes())
+                .to.emit(stakingHbbft, "RecoverAbandonedStakes");
+
+            expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
+
+            await expect(
+                stakingHbbft.connect(stakers[0]).stake(stakingPool.address, { value: delegatorMinStake })
+            ).to.be.revertedWith("Stake: pool abandoned")
+        });
+
+        it("should not allow stake withdrawal if pool was abandoned", async () => {
+            await stake(stakingPool.address, candidateMinStake, [stakingPool])
+            await stake(stakingPool.address, delegatorMinStake, stakers);
+
+            await setValidatorInactive(stakingPool.address);
+            await increaseTime(validatorInactivityThreshold + 3600);
+            expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
+
+            await expect(stakingHbbft.recoverAbandonedStakes())
+                .to.emit(stakingHbbft, "RecoverAbandonedStakes");
+
+            expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
+
+            const staker = stakers[1];
+
+            expect(await stakingHbbft.maxWithdrawAllowed(stakingPool.address, staker.address)).to.equal(0);
+
+            await expect(
+                stakingHbbft.connect(staker).withdraw(stakingPool.address, delegatorMinStake)
+            ).to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded")
         });
     });
 

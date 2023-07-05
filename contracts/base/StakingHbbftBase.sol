@@ -1443,6 +1443,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             !validatorSetContract.isValidatorBanned(poolMiningAddress),
             "Stake: Mining address is banned"
         );
+
+        require(!abandonedAndRemoved[_poolStakingAddress], "Stake: pool abandoned");
         //require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker] +
