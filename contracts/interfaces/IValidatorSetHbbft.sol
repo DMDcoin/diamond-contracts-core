@@ -90,8 +90,6 @@ interface IValidatorSetHbbft {
 
     function getStakingContract() external view returns (address);
 
-    function getCurrentTimestamp() external view returns (uint256);
-
     function validatorAvailableSince(address) external view returns (uint256);
 
     function isValidatorAbandoned(address) external view returns (bool);

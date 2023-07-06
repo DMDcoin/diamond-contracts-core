@@ -228,7 +228,7 @@ describe('KeyGenHistory', () => {
 
             const stakingBanned = await validatorSetHbbft.bannedUntil(stakingAddresses[0]);
             const miningBanned = await validatorSetHbbft.bannedUntil(miningAddresses[0]);
-            const currentTS = await validatorSetHbbft.getCurrentTimestamp();
+            const currentTS = await helpers.time.latest();
             const newPoolStakingAddress = stakingAddresses[4];
             const newPoolMiningAddress = miningAddresses[4];
 

@@ -409,7 +409,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         stakingWithdrawDisallowPeriod = stakingParams
             ._stakingWithdrawDisallowPeriod;
         //note: this might be still 0 when created in the genesis block.
-        stakingEpochStartTime = validatorSetContract.getCurrentTimestamp();
+        stakingEpochStartTime = block.timestamp;
         stakingTransitionTimeframeLength = stakingParams
             ._stakingTransitionTimeframeLength;
     }
@@ -896,7 +896,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         // if (stakingFixedEpochDuration == 0){
         //     return true;
         // }
-        // uint256 currentTimestamp = _validatorSetContract.getCurrentTimestamp();
+        // uint256 currentTimestamp = block.timestamp;
         // uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
         // return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
     }

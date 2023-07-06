@@ -154,11 +154,6 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         _;
     }
 
-    /// @dev Returns the current timestamp.
-    function getCurrentTimestamp() external view virtual returns (uint256) {
-        return block.timestamp;
-    }
-
     function getStakingContract() external view returns (address) {
         return address(stakingContract);
     }
@@ -269,7 +264,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         stakingContract.incrementStakingEpoch();
         keyGenHistoryContract.notifyNewEpoch();
         delete _pendingValidators;
-        stakingContract.setStakingEpochStartTime(this.getCurrentTimestamp());
+        stakingContract.setStakingEpochStartTime(block.timestamp);
     }
 
     /// @dev Implements the logic which forms a new validator set. If the number of active pools
@@ -316,7 +311,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             "provided blockhash must match blockchains blockhash"
         );
 
-        uint256 timestamp = this.getCurrentTimestamp();
+        uint256 timestamp = block.timestamp;
         _writeValidatorAvailableSince(msg.sender, timestamp);
 
         emit ValidatorAvailable(msg.sender, timestamp);
@@ -336,9 +331,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     function handleFailedKeyGeneration() external onlyBlockRewardContract {
         // we should only kick out nodes if the nodes have been really to late.
 
-        require(
-            this.getCurrentTimestamp() >=
-                stakingContract.stakingFixedEpochEndTime(),
+        require(block.timestamp >= stakingContract.stakingFixedEpochEndTime(),
             "failed key generation can only be processed after the staking epoch is over."
         );
 
@@ -430,10 +423,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
                 // mark the Node address as not available.
                 _writeValidatorAvailableSince(miningAddress, 0);
 
-                emit ValidatorUnavailable(
-                    miningAddress,
-                    this.getCurrentTimestamp()
-                );
+                emit ValidatorUnavailable(miningAddress, block.timestamp);
             }
         }
 
@@ -593,8 +583,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         view
         returns (bool)
     {
-        return
-            this.getCurrentTimestamp() <= bannedDelegatorsUntil[_miningAddress];
+        return block.timestamp <= bannedDelegatorsUntil[_miningAddress];
     }
 
     /// @dev Returns the previous validator set (validators' mining addresses array).
@@ -641,8 +630,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         }
         // TO DO: arbitrarily chosen period stakingFixedEpochDuration/5.
         if (
-            this.getCurrentTimestamp() -
-                stakingContract.stakingEpochStartTime() <=
+            block.timestamp - stakingContract.stakingEpochStartTime() <=
             stakingContract.stakingFixedEpochDuration() / 5
         ) {
             // The current validator set was finalized by the engine,
@@ -709,7 +697,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         view
         returns (bool)
     {
-        return this.getCurrentTimestamp() <= bannedUntil[_miningAddress];
+        return block.timestamp <= bannedUntil[_miningAddress];
     }
 
     /// @dev Returns a boolean flag indicating whether the specified mining address is a validator
@@ -878,7 +866,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             return false;
         }
 
-        uint256 inactiveSeconds = this.getCurrentTimestamp() - validatorAvailableSinceLastWrite[validator];
+        uint256 inactiveSeconds = block.timestamp - validatorAvailableSinceLastWrite[validator];
 
         return inactiveSeconds >= validatorInactivityThreshold;
     }
@@ -1049,15 +1037,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
         // current end of phase 2 : stakingContract.stakingFixedEpochEndTime()
 
-        // now: validatorSetContract.getCurrentTimestamp();
+        // now: block.timestamp
 
-        if (
-            this.getCurrentTimestamp() >
-            stakingContract.stakingFixedEpochEndTime()
-        ) {
+        if (block.timestamp > stakingContract.stakingFixedEpochEndTime()) {
             stakingContract.notifyNetworkOfftimeDetected(
-                this.getCurrentTimestamp() -
-                    stakingContract.stakingFixedEpochEndTime()
+                block.timestamp - stakingContract.stakingFixedEpochEndTime()
             );
         }
     }
@@ -1261,13 +1245,13 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _availableSince timestamp when the validator became available, 0 if unavailable
     function _writeValidatorAvailableSince(address _validator, uint256 _availableSince) internal {
         validatorAvailableSince[_validator] = _availableSince;
-        validatorAvailableSinceLastWrite[_validator] = this.getCurrentTimestamp();
+        validatorAvailableSinceLastWrite[_validator] = block.timestamp;
     }
 
     /// @dev Returns the future timestamp until which a validator is banned.
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns (uint256) {
-        uint256 currentTimestamp = this.getCurrentTimestamp();
+        uint256 currentTimestamp = block.timestamp;
         uint256 ticksUntilEnd = stakingContract.stakingFixedEpochEndTime() -
             currentTimestamp;
         // Ban for at least 12 full staking epochs:
