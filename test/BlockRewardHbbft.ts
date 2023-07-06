@@ -1,4 +1,6 @@
-import { ethers, network, upgrades } from "hardhat";
+import { ethers, network } from "hardhat";
+
+import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
@@ -132,8 +134,6 @@ describe('BlockRewardHbbft', () => {
                 '0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae4c246658946c2e1d7ded96394a1247fb4d093c32474317ae388e8d25692a0f56']);
         // The IP addresses are irrelevant for these unit test, just initialize them to 0.
         initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
-
-        await validatorSetHbbft.setCurrentTimestamp((await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp)
 
         // Initialize ValidatorSetHbbft
         await validatorSetHbbft.initialize(
@@ -592,57 +592,34 @@ async function getCurrentGovernancePotValue() {
 async function callReward(isEpochEndBlock: boolean) {
     // console.log('getting validators...');
     // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13
-    const validators = await validatorSetHbbft.getValidators();
+    // const validators = await validatorSetHbbft.getValidators();
     // console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner.address);
     await blockRewardHbbft.connect(owner).reward(isEpochEndBlock);
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
-
 }
 
-
-async function increaseTime(time: number) {
-
-    const currentTimestamp = await validatorSetHbbft.getCurrentTimestamp();
-    const futureTimestamp = currentTimestamp.add(BigNumber.from(time));
-    await network.provider.send("evm_setNextBlockTimestamp", [futureTimestamp.toNumber()]);
-    await network.provider.send("evm_mine");
-    await validatorSetHbbft.setCurrentTimestamp(futureTimestamp);
-    const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp();
-    futureTimestamp.should.be.equal(currentTimestampAfter);
-
-}
-
-//time travels forward to the beginning of the next transition,
-//and simulate a block mining (calling reward())
+// time travels forward to the beginning of the next transition,
+// and simulate a block mining (calling reward())
 async function timeTravelToTransition() {
     let startTimeOfNextPhaseTransition = await stakingHbbft.startTimeOfNextPhaseTransition();
 
-    await network.provider.send("evm_setNextBlockTimestamp", [startTimeOfNextPhaseTransition.toNumber()]);
-    await network.provider.send("evm_mine");
-
-    await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextPhaseTransition);
-    const currentTS = await validatorSetHbbft.getCurrentTimestamp();
-    currentTS.should.be.equal(startTimeOfNextPhaseTransition);
+    await helpers.time.increaseTo(startTimeOfNextPhaseTransition);
     await callReward(false);
 }
 
 async function timeTravelToEndEpoch() {
-
     const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime();
-    await network.provider.send("evm_setNextBlockTimestamp", [endTimeOfCurrentEpoch.toNumber()]);
-    await network.provider.send("evm_mine");
-    await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+
+    await helpers.time.increaseTo(endTimeOfCurrentEpoch);
     await callReward(true);
 }
 
 async function finishEpochPrelim(_percentage: BigNumber) {
     const epochDuration = (await stakingHbbft.stakingFixedEpochEndTime()).sub((await stakingHbbft.stakingEpochStartTime())).mul(_percentage).div(100).add(1);
     const endTimeOfCurrentEpoch = (await stakingHbbft.stakingEpochStartTime()).add(epochDuration);
-    await network.provider.send("evm_setNextBlockTimestamp", [endTimeOfCurrentEpoch.toNumber()]);
-    await network.provider.send("evm_mine");
-    await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
-    // _percentage = await blockRewardHbbft.epochPercentage();
+
+    await helpers.time.increaseTo(endTimeOfCurrentEpoch.toNumber());
     await callReward(true);
 }
 
@@ -661,8 +638,9 @@ async function mine() {
         .stakingFixedEpochEndTime()).sub(await stakingHbbft.stakingEpochStartTime());
     let blocktime = expectedEpochDuration.mul(5).div(100).add(1); //5% of the epoch
     // let blocksPerEpoch = 60 * 60 * 12 / blocktime;
-    await network.provider.send("evm_increaseTime", [blocktime.toNumber()]);
-    await validatorSetHbbft.setCurrentTimestamp((await validatorSetHbbft.getCurrentTimestamp()).add(blocktime));
+
+    await helpers.time.increase(blocktime.toNumber());
+
     if ((await validatorSetHbbft.getPendingValidators()).length > 0) {
         const currentValidators = await validatorSetHbbft.getValidators();
         const maxValidators = await validatorSetHbbft.maxValidators();

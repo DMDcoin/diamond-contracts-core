@@ -119,8 +119,7 @@ describe('ValidatorSetHbbft', () => {
         await txPermission.initialize([],certifier.address, validatorSetHbbft.address, keyGenHistoryFake);
         vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft, false);
 
-
-        await increaseTime(1);
+        await helpers.time.increase(1);
 
         // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
         // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
@@ -1038,33 +1037,27 @@ describe('ValidatorSetHbbft', () => {
             );
         });
 
-        it('should save timestamp of validatorAvailableSince last update', async () => {
+        it('should set validatorAvailableSince=timestamp and update last write timestamp', async () => {
             const validator = initialValidators[0];
 
-            const currentTimestamp = await helpers.time.latest();
-            const availableSince = currentTimestamp + 3600;
-
-            await validatorSetHbbft.setCurrentTimestamp(currentTimestamp);
-
+            const availableSince = await helpers.time.latest() + 3600;
             await validatorSetHbbft.setValidatorAvailableSince(validator, availableSince);
 
+            const expectedLastWriteTimestamp = await helpers.time.latest();
+
             (await validatorSetHbbft.validatorAvailableSince(validator)).should.be.equal(availableSince);
-            (await validatorSetHbbft.validatorAvailableSinceLastWrite(validator)).should.be.equal(currentTimestamp);
+            (await validatorSetHbbft.validatorAvailableSinceLastWrite(validator)).should.be.equal(expectedLastWriteTimestamp);
         });
 
-
-        it('should save timestamp of validatorAvailableSince last update', async () => {
+        it('should set validatorAvailableSince=0 and update last write timestamp', async () => {
             const validator = initialValidators[0];
 
-            const currentTimestamp = await helpers.time.latest();
-            const availableSince = currentTimestamp + 3600;
+            await validatorSetHbbft.setValidatorAvailableSince(validator, 0);
 
-            await validatorSetHbbft.setCurrentTimestamp(currentTimestamp);
+            const expectedLastWriteTimestamp = await helpers.time.latest();
 
-            await validatorSetHbbft.setValidatorAvailableSince(validator, availableSince);
-
-            (await validatorSetHbbft.validatorAvailableSince(validator)).should.be.equal(availableSince);
-            (await validatorSetHbbft.validatorAvailableSinceLastWrite(validator)).should.be.equal(currentTimestamp);
+            (await validatorSetHbbft.validatorAvailableSince(validator)).should.be.equal(0);
+            (await validatorSetHbbft.validatorAvailableSinceLastWrite(validator)).should.be.equal(expectedLastWriteTimestamp);
         });
 
         it('should return false from isValidatorAbandoned for active validator', async () => {
@@ -1074,13 +1067,10 @@ describe('ValidatorSetHbbft', () => {
             const currentTimestamp = await helpers.time.latest();
             const availableSince = currentTimestamp;
 
-            await validatorSetHbbft.setCurrentTimestamp(currentTimestamp);
             await validatorSetHbbft.setValidatorAvailableSince(validator, availableSince);
-
             (await validatorSetHbbft.isValidatorAbandoned(staking)).should.be.equal(false);
 
-            await increaseTime(validatorInactivityThreshold + 3600);
-
+            await helpers.time.increase(validatorInactivityThreshold + 3600);
             (await validatorSetHbbft.isValidatorAbandoned(staking)).should.be.equal(false);
         });
 
@@ -1088,17 +1078,13 @@ describe('ValidatorSetHbbft', () => {
             const validator = initialValidators[1];
             const staking = await validatorSetHbbft.stakingByMiningAddress(validator);
 
-            const currentTimestamp = await helpers.time.latest();
-
-            await validatorSetHbbft.setCurrentTimestamp(currentTimestamp);
             await validatorSetHbbft.setValidatorAvailableSince(validator, 0);
-
             (await validatorSetHbbft.isValidatorAbandoned(staking)).should.be.equal(false);
 
-            await increaseTime(validatorInactivityThreshold - 1);
+            await helpers.time.increase(validatorInactivityThreshold - 1);
             (await validatorSetHbbft.isValidatorAbandoned(staking)).should.be.equal(false);
 
-            await increaseTime(1);
+            await helpers.time.increase(1);
             (await validatorSetHbbft.isValidatorAbandoned(staking)).should.be.equal(true);
         });
     });
@@ -1154,15 +1140,6 @@ async function setValidatorInternetAddress(miner: string, ipAddress: number[], p
     // transform the Port number into a 2 bytes little endian number Array.
     let portArray = convertToBigEndian(port);
     return vaidatorSetPermission.callFunction("setValidatorInternetAddress", miner, [ipAddress, portArray]);
-}
-
-async function increaseTime(time: number) {
-
-    const currentTimestamp = await validatorSetHbbft.getCurrentTimestamp();
-    const futureTimestamp = currentTimestamp.add(BigNumber.from(time));
-    await validatorSetHbbft.setCurrentTimestamp(futureTimestamp);
-    const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp();
-    futureTimestamp.should.be.equal(currentTimestampAfter);
 }
 
 function random(low: number, high: number) {

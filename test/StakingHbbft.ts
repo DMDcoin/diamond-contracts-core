@@ -1,6 +1,6 @@
 import { ethers, network, upgrades } from "hardhat";
 
-// import { expectEvent } from '@openzeppelin/test-helpers';
+import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
@@ -124,7 +124,7 @@ describe('StakingHbbft', () => {
 
         //without that, the Time is 0,
         //meaning a lot of checks that expect time to have some value deliver incorrect results.
-        await increaseTime(1);
+        // await increaseTime(1);
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
         keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
@@ -2582,7 +2582,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(expectedTotalStakes);
 
             await setValidatorInactive(stakingPool.address);
-            await increaseTime(validatorInactivityThreshold + 3600);
+            await helpers.time.increase(validatorInactivityThreshold + 3600);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             const expectedGovernanceShare = expectedTotalStakes.div(2);
@@ -2608,7 +2608,8 @@ describe('StakingHbbft', () => {
             await stake(stakingPool.address, delegatorMinStake, stakers);
 
             await setValidatorInactive(stakingPool.address);
-            await increaseTime(validatorInactivityThreshold + 3600);
+
+            await helpers.time.increase(validatorInactivityThreshold + 3600);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
@@ -2625,7 +2626,8 @@ describe('StakingHbbft', () => {
             await stake(stakingPool.address, delegatorMinStake, stakers);
 
             await setValidatorInactive(stakingPool.address);
-            await increaseTime(validatorInactivityThreshold + 3600);
+
+            await helpers.time.increase(validatorInactivityThreshold + 3600);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
@@ -2643,7 +2645,8 @@ describe('StakingHbbft', () => {
             await stake(stakingPool.address, delegatorMinStake, stakers);
 
             await setValidatorInactive(stakingPool.address);
-            await increaseTime(validatorInactivityThreshold + 3600);
+
+            await helpers.time.increase(validatorInactivityThreshold + 3600);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
@@ -2661,7 +2664,8 @@ describe('StakingHbbft', () => {
             await stake(stakingPool.address, delegatorMinStake, stakers);
 
             await setValidatorInactive(stakingPool.address);
-            await increaseTime(validatorInactivityThreshold + 3600);
+
+            await helpers.time.increase(validatorInactivityThreshold + 3600);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
@@ -2696,42 +2700,28 @@ describe('StakingHbbft', () => {
         await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
     }
 
-    async function increaseTime(time: number) {
-
-        const currentTimestamp = await validatorSetHbbft.getCurrentTimestamp();
-        const futureTimestamp = currentTimestamp.add(BigNumber.from(time));
-        await validatorSetHbbft.setCurrentTimestamp(futureTimestamp);
-        const currentTimestampAfter = await validatorSetHbbft.getCurrentTimestamp();
-        futureTimestamp.should.be.equal(currentTimestampAfter);
-    }
-
-    //time travels forward to the beginning of the next transition,
-    //and simulate a block mining (calling reward())
+    // time travels forward to the beginning of the next transition,
+    // and simulate a block mining (calling reward())
     async function timeTravelToTransition() {
-
-
         let startTimeOfNextPhaseTransition = await stakingHbbft.startTimeOfNextPhaseTransition();
 
-        await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextPhaseTransition);
-        const currentTS = await validatorSetHbbft.getCurrentTimestamp();
-        currentTS.should.be.equal(startTimeOfNextPhaseTransition);
+        await helpers.time.increaseTo(startTimeOfNextPhaseTransition);
         await callReward(false);
     }
 
     async function timeTravelToEndEpoch() {
-
-        const tsBeforeTimeTravel = await validatorSetHbbft.getCurrentTimestamp();
-        // console.log('tsBefore:', tsBeforeTimeTravel.toString());
+        const tsBeforeTimeTravel = await helpers.time.latest();
         const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime();
+        // console.log('tsBefore:', tsBeforeTimeTravel.toString());
         // console.log('endTimeOfCurrentEpoch:', endTimeOfCurrentEpoch.toString());
 
         if (endTimeOfCurrentEpoch.lt(tsBeforeTimeTravel)) {
             console.error('Trying to timetravel back in time !!');
         }
-        await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+
+        await helpers.time.increaseTo(endTimeOfCurrentEpoch);
         await callReward(true);
     }
-
 });
 
 function random(low: number, high: number) {

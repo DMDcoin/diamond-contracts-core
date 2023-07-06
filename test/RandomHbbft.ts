@@ -1,4 +1,4 @@
-import { ethers, network, upgrades } from "hardhat";
+import { ethers } from "hardhat";
 
 import {
     AdminUpgradeabilityProxy,
@@ -105,7 +105,6 @@ describe('RandomHbbft', () => {
 
             await randomHbbft.setSystemAddress(owner.address);
             await validatorSetHbbft.setSystemAddress(owner.address);
-            await validatorSetHbbft.setCurrentTimestamp(100);
             await randomHbbft.initialize(validatorSetHbbft.address)
 
             let structure: IStakingHbbft.StakingParamsStruct = {

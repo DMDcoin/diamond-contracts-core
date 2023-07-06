@@ -1,4 +1,6 @@
-import { ethers, network, upgrades } from "hardhat";
+import { ethers } from "hardhat";
+
+import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
@@ -211,13 +213,10 @@ describe('KeyGenHistory', () => {
             validators.should.be.deep.equal(initializingMiningAddresses);
 
             //debug set the current timestamp to 1, so it is not causing problems.
-            await validatorSetHbbft.setCurrentTimestamp(BigNumber.from('1'));
 
             //candidateMinStake = await stakingHbbft.candidateMinStake();
             //delegatorMinStake = await stakingHbbft.delegatorMinStake();
-
-
-        })
+        });
 
         it('failed KeyGeneration, availability.', async () => {
 
@@ -521,28 +520,23 @@ async function callReward(isEpochEndBlock: boolean) {
     await blockRewardHbbft.setSystemAddress(owner.address);
     await blockRewardHbbft.connect(owner).reward(isEpochEndBlock);
     await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
-
 }
 
-//time travels forward to the beginning of the next transition,
-//and simulate a block mining (calling reward())
+// time travels forward to the beginning of the next transition,
+// and simulate a block mining (calling reward())
 async function timeTravelToTransition() {
-
-    let currentTS = await validatorSetHbbft.getCurrentTimestamp();
+    let currentTimestamp = await helpers.time.latest();
     let startTimeOfNextPhaseTransition = await stakingHbbft.startTimeOfNextPhaseTransition();
+
     if (logOutput) {
-        console.log(`timetraveling from ${currentTS} to ${startTimeOfNextPhaseTransition}`);
+        console.log(`timetraveling from ${currentTimestamp} to ${startTimeOfNextPhaseTransition}`);
     }
 
-    await validatorSetHbbft.setCurrentTimestamp(startTimeOfNextPhaseTransition);
-    currentTS = await validatorSetHbbft.getCurrentTimestamp();
-
-    currentTS.should.be.equal(startTimeOfNextPhaseTransition);
+    await helpers.time.increaseTo(startTimeOfNextPhaseTransition);
     await callReward(false);
 }
 
 async function timeTravelToEndEpoch() {
-
     // todo: mimic the behavor of the nodes here:
     // if The Validators managed to write the correct number
     // of Acks and Parts, we are happy and set a "true"
@@ -560,6 +554,7 @@ async function timeTravelToEndEpoch() {
     let callRewardParameter = (numberOfParts === numberOfPendingValidators && numberOfAcks === numberOfPendingValidators);
 
     const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime();
-    await validatorSetHbbft.setCurrentTimestamp(endTimeOfCurrentEpoch);
+
+    await helpers.time.increaseTo(endTimeOfCurrentEpoch);
     await callReward(callRewardParameter);
 }
