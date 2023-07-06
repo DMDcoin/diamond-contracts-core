@@ -166,6 +166,11 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// be staked on a single validator.
     uint256 public maxStakeAmount;
 
+    /// @dev block rewards hbbft contract
+    IBlockRewardHbbft public blockRewardHbbft;
+
+    mapping(address => bool) public abandonedAndRemoved;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
@@ -239,6 +244,18 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address indexed staker,
         uint256 indexed stakingEpoch,
         uint256 amount
+    );
+
+    event GatherAbandonedStakes(
+        address indexed caller,
+        address indexed stakingAddress,
+        uint256 gatheredFunds
+    );
+
+    event RecoverAbandonedStakes(
+        address indexed caller,
+        uint256 reinsertShare,
+        uint256 governanceShare
     );
 
     // ============================================== Modifiers =======================================================
@@ -677,6 +694,55 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         );
     }
 
+    /// @dev Distribute abandoned stakes among Reinsert and Governance pots.
+    /// 50% goes to reinsert and 50% to governance pot.
+    /// Coins are considered abandoned if they were staked on a validator inactive for 10 years.
+    function recoverAbandonedStakes() external gasPriceIsValid {
+        uint256 totalAbandonedAmount = 0;
+
+        address[] memory inactivePools = _poolsInactive;
+        require(inactivePools.length != 0, "nothing to recover");
+
+        for (uint256 i = 0; i < inactivePools.length; ++i) {
+            address stakingAddress = inactivePools[i];
+
+            if (_isPoolEmpty(stakingAddress) || !validatorSetContract.isValidatorAbandoned(stakingAddress)) {
+                continue;
+            }
+
+            _removePoolInactive(stakingAddress);
+            abandonedAndRemoved[stakingAddress] = true;
+
+            uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
+            stakeAmountTotal[stakingAddress] = 0;
+
+            address[] memory delegators = poolDelegators(stakingAddress);
+            for (uint256 j = 0; j < delegators.length; ++j) {
+                address delegator = delegators[j];
+
+                stakeAmount[stakingAddress][delegator] = 0;
+                _removePoolDelegator(stakingAddress, delegator);
+            }
+
+            totalAbandonedAmount += gatheredPerStakingAddress;
+
+            emit GatherAbandonedStakes(msg.sender, stakingAddress, gatheredPerStakingAddress);
+        }
+
+        require(totalAbandonedAmount != 0, "nothing to recover");
+
+        uint256 governanceShare = totalAbandonedAmount / 2;
+        uint256 reinsertShare = totalAbandonedAmount - governanceShare;
+
+        address governancePotAddress = blockRewardHbbft.governancePotAddress();
+
+        // slither-disable-next-line arbitrary-send-eth
+        blockRewardHbbft.addToReinsertPot{value: reinsertShare}();
+        _transferNative(governancePotAddress, governanceShare);
+
+        emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
+    }
+
     /// @dev Sets (updates) the limit of the minimum candidate stake (CANDIDATE_MIN_STAKE).
     /// Can only be called by the `owner`.
     /// @param _minStake The value of a new limit in Wei.
@@ -863,6 +929,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         if (
             !_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker)
+            || abandonedAndRemoved[_poolStakingAddress]
         ) {
             return 0;
         }
@@ -1194,6 +1261,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         candidateMinStake = _candidateMinStake;
 
         maxStakeAmount = _maxStake;
+
+        blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
     }
 
     /// @dev Adds the specified address to the array of the current active delegators of the specified pool.
@@ -1374,6 +1443,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             !validatorSetContract.isValidatorBanned(poolMiningAddress),
             "Stake: Mining address is banned"
         );
+
+        require(!abandonedAndRemoved[_poolStakingAddress], "Stake: pool abandoned");
         //require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker] +
@@ -1605,5 +1676,13 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         }
 
         return true;
+    }
+
+    function _transferNative(address recipient, uint256 amount) internal {
+        require(address(this).balance >= amount, "Insufficient balance");
+
+        // slither-disable-next-line unchecked-lowlevel
+        (bool success, ) = recipient.call{ value: amount }("");
+        require(success, "Transfer failed");
     }
 }

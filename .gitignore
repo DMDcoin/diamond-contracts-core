@@ -31,3 +31,5 @@ src
 .pk
 .mnemonic*
 .env*
+
+.vscode/

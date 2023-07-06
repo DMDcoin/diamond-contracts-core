@@ -52,6 +52,7 @@ contract InitializerHbbft {
             _contracts[2], // _randomContract
             _contracts[3], // _stakingContract
             _contracts[6], // _keyGenHistoryContract
+            10 * 365 days, // inactivity threshold, seconds
             _miningAddresses,
             _stakingAddresses
         );

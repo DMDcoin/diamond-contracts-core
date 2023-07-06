@@ -16,6 +16,7 @@ interface IValidatorSetHbbft {
         address,
         address,
         address,
+        uint256,
         address[] calldata,
         address[] calldata
     ) external;
@@ -92,6 +93,8 @@ interface IValidatorSetHbbft {
     function getCurrentTimestamp() external view returns (uint256);
 
     function validatorAvailableSince(address) external view returns (uint256);
+
+    function isValidatorAbandoned(address) external view returns (bool);
 
     function getValidatorCountSweetSpot(uint256)
         external

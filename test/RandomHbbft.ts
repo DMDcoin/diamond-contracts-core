@@ -54,6 +54,8 @@ const stakingWithdrawDisallowPeriod = BigNumber.from(1);
 // the reward for the first epoch.
 const epochReward = BigNumber.from(ethers.utils.parseEther('1'));
 
+const validatorInactivityThreshold = 365 * 86400 // 1 year
+
 describe('RandomHbbft', () => {
     describe('Initializer', async () => {
 
@@ -95,7 +97,8 @@ describe('RandomHbbft', () => {
                 '0x1000000000000000000000000000000000000001', // _blockRewardContract
                 randomHbbft.address, // _randomContract
                 stakingHbbft.address, // _stakingContract
-                '0x4000000000000000000000000000000000000001', //_keyGenHistoryContract
+                '0x4000000000000000000000000000000000000001', //_keyGenHistoryContract,
+                validatorInactivityThreshold, // _validatorInactivityThreshold
                 initialValidators, // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             );
