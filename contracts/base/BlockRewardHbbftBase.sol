@@ -252,8 +252,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         } else {
             uint256 phaseTransitionTime = stakingContract
                 .startTimeOfNextPhaseTransition();
-            uint256 currentTimestamp = validatorSetContract
-                .getCurrentTimestamp();
 
             address[] memory miningAddresses = validatorSetContract
                 .getValidators();
@@ -263,7 +261,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
-            bool isPhaseTransition = currentTimestamp >= phaseTransitionTime;
+            bool isPhaseTransition = block.timestamp >= phaseTransitionTime;
             bool toBeUpscaled = false;
             if (
                 miningAddresses.length * 3 <=
@@ -290,7 +288,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
             } else if (
-                currentTimestamp >= stakingContract.stakingFixedEpochEndTime()
+                block.timestamp >= stakingContract.stakingFixedEpochEndTime()
             ) {
                 validatorSetContract.handleFailedKeyGeneration();
             }
@@ -515,12 +513,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             .stakingFixedEpochEndTime() -
             stakingContract.stakingEpochStartTime();
         return
-            validatorSetContract.getCurrentTimestamp() >
-                stakingContract.stakingFixedEpochEndTime()
+            block.timestamp > stakingContract.stakingFixedEpochEndTime()
                 ? 100
-                : ((validatorSetContract.getCurrentTimestamp() -
-                    stakingContract.stakingEpochStartTime()) * 100) /
-                    expectedEpochDuration;
+                : ((block.timestamp - stakingContract.stakingEpochStartTime()) * 100) / expectedEpochDuration;
     }
 
     // ============================================== Internal ========================================================
