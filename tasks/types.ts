@@ -16,7 +16,7 @@ export class SpecialContract {
         this.bytecode = bytecode;
     }
 
-    async compileContract(hre: HardhatRuntimeEnvironment, args: any[]): Promise<string> {
+    async compileContract(hre: HardhatRuntimeEnvironment, args: any[]) {
         const factory = await hre.ethers.getContractFactory(this.name!);
         const tx = factory.getDeployTransaction(...args);
 
@@ -117,7 +117,7 @@ export class InitialContractsConfiguration {
         return instance;
     }
 
-    getAddressByContractName(name: string): string | undefined {
+    getAddress(name: string): string | undefined {
         const found = this.core.find(obj => obj.name === name);
 
         return found ? found.proxyAddress : ethers.constants.AddressZero;

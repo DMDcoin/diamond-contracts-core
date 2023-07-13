@@ -2,20 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
-import { ContractFactory } from "ethers";
 // import dotenv from 'dotenv';
 
 import fp, { init } from 'lodash/fp';
 import { InitialContractsConfiguration } from './types';
-
-
-const VALIDATOR_SET_CONTRACT = '0x1000000000000000000000000000000000000001';
-const BLOCK_REWARD_CONTRACT = '0x2000000000000000000000000000000000000001';
-const RANDOM_CONTRACT = '0x3000000000000000000000000000000000000001';
-const STAKING_CONTRACT = '0x1100000000000000000000000000000000000001';
-const PERMISSION_CONTRACT = '0x4000000000000000000000000000000000000001';
-const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
-const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
 
 
 function getInitialContracts(fileName: string) {
@@ -119,8 +109,7 @@ task("make_spec_hbbft", "used to make a spec file")
                 hre,
                 [
                     initialContracts.core[i].implementationAddress, // address _logic
-                    // initialContracts.admin?.address,           // address _admin
-                    owner,
+                    initialContracts.admin!.address,                // address _admin
                     []
                 ]
             );
@@ -134,8 +123,8 @@ task("make_spec_hbbft", "used to make a spec file")
         }
 
         //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
-        spec.engine.hbbft.params.blockRewardContractAddress = BLOCK_REWARD_CONTRACT;
-        spec.params.transactionPermissionContract = PERMISSION_CONTRACT;
+        spec.engine.hbbft.params.blockRewardContractAddress = initialContracts.getAddress("BlockRewardHbbft");
+        spec.params.transactionPermissionContract = initialContracts.getAddress("TxPermissionHbbft");
         spec.params.transactionPermissionContractTransition = '0x0';
         spec.params.registrar = initialContracts.registry?.address;
 
@@ -150,16 +139,19 @@ task("make_spec_hbbft", "used to make a spec file")
         init_data.parts = newParts;
 
         await initialContracts.admin!.compileContract(hre, [owner]);
-        await initialContracts.registry!.compileContract(hre, [CERTIFIER_CONTRACT, owner]);
+        await initialContracts.registry!.compileContract(hre, [
+            initialContracts.getAddress("CertifierHbbft"),
+            owner
+        ]);
         await initialContracts.initializer!.compileContract(hre, [
             [ // _contracts
-                VALIDATOR_SET_CONTRACT,
-                BLOCK_REWARD_CONTRACT,
-                RANDOM_CONTRACT,
-                STAKING_CONTRACT,
-                PERMISSION_CONTRACT,
-                CERTIFIER_CONTRACT,
-                KEY_GEN_HISTORY_CONTRACT
+                initialContracts.getAddress("ValidatorSetHbbft"),
+                initialContracts.getAddress("BlockRewardHbbft"),
+                initialContracts.getAddress("RandomHbbft"),
+                initialContracts.getAddress("StakingHbbft"),
+                initialContracts.getAddress("TxPermissionHbbft"),
+                initialContracts.getAddress("CertifierHbbft"),
+                initialContracts.getAddress("KeyGenHistory")
             ],
             owner, // _owner
             initialValidators, // _miningAddresses
