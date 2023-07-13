@@ -3,11 +3,13 @@ const solc = require('solc');
 const path = require('node:path');
 
 async function compile(dir, contractName) {
+  const contractFileName = contractName + '.sol';
+
   const input = {
     language: 'Solidity',
     sources: {
-      '': {
-        content: fs.readFileSync(dir + contractName + '.sol').toString()
+      [contractFileName]: {
+        content: fs.readFileSync(dir + contractFileName).toString()
       }
     },
     settings: {
@@ -27,7 +29,6 @@ async function compile(dir, contractName) {
   const intermediateFoldersOfCurrentContract = dir.slice(1, -1);
 
   function findImports(path) {
-    console.log(path)
     let sourceCodeToImport;
     if (path[0] === "@") { // directly into node_ module
       sourceCodeToImport = fs.readFileSync(`../../../node_modules/${path}`);
@@ -48,7 +49,7 @@ async function compile(dir, contractName) {
   }
 
   const compiled = JSON.parse(solc.compile(JSON.stringify(input), { import: findImports }))
-  return compiled.contracts[''][contractName];
+  return compiled.contracts[contractFileName][contractName];
 }
 
 module.exports = {

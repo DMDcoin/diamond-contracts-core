@@ -48,7 +48,7 @@
         "hardhat-contract-sizer": "^2.6.1",
         "hardhat-gas-reporter": "^1.0.8",
         "lodash": "^4.17.21",
-        "solc": "^0.8.17",
+        "solc": "0.8.17",
         "solidity-coverage": "^0.7.21",
         "solidity-docgen": "^0.6.0-beta.29",
         "ts-node": "^10.9.1",
