@@ -1,12 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import fp from 'lodash/fp';
 import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
-// import dotenv from 'dotenv';
 
-import fp, { init } from 'lodash/fp';
 import { InitialContractsConfiguration } from './types';
 
+const ProxyContractName = "TransparentUpgradeableProxy";
 
 function getInitialContracts(fileName: string) {
     const rawData = fs.readFileSync(fileName);
@@ -28,8 +28,6 @@ task("make_spec_hbbft", "used to make a spec file")
         const init_data = JSON.parse(rawdata.toString());
 
         const initialContracts = getInitialContracts(taskArgs.initContracts);
-
-        console.log(initialContracts);
 
         if (!process.env.NETWORK_NAME) {
             throw new Error("Please set your NETWORK_NAME in a .env file");
@@ -74,7 +72,14 @@ task("make_spec_hbbft", "used to make a spec file")
 
         let stakingMaxStakeForValidator = hre.ethers.utils.parseEther('50000');
 
-        let stakingParams = [stakingMinStakeForDelegator, stakingMinStakeForValidator, stakingMaxStakeForValidator, stakingEpochDuration, stakingTransitionWindowLength, stakeWithdrawDisallowPeriod];
+        let stakingParams = [
+            stakingMinStakeForDelegator,
+            stakingMinStakeForValidator,
+            stakingMaxStakeForValidator,
+            stakingEpochDuration,
+            stakingTransitionWindowLength,
+            stakeWithdrawDisallowPeriod
+        ];
 
         let publicKeys = init_data.public_keys;
         for (let i = 0; i < publicKeys.length; i++) {
@@ -100,17 +105,17 @@ task("make_spec_hbbft", "used to make a spec file")
             spec.engine.hbbft.params.maximumBlockTime = maximumBlockTime;
         }
 
-        console.log(initialContracts.core);
-
         for (let i = 0; i < initialContracts.core.length; ++i) {
+            console.log("Preparing contract: ", initialContracts.core[i].name);
+
             await initialContracts.core[i].compileContract(hre);
             await initialContracts.core[i].compileProxy(
-                "AdminUpgradeabilityProxy",
+                ProxyContractName,
                 hre,
                 [
                     initialContracts.core[i].implementationAddress, // address _logic
                     initialContracts.admin!.address,                // address _admin
-                    []
+                    []                                              // bytes _data
                 ]
             );
 
