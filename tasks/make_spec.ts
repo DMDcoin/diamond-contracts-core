@@ -8,13 +8,6 @@ import { InitialContractsConfiguration } from './types';
 
 const ProxyContractName = "TransparentUpgradeableProxy";
 
-function getInitialContracts(fileName: string) {
-    const rawData = fs.readFileSync(fileName);
-    const jsonData = JSON.parse(rawData.toString());
-
-    return InitialContractsConfiguration.from(jsonData);
-}
-
 task("make_spec_hbbft", "used to make a spec file")
     .addParam("initContracts", "Initial contracts configuration file")
     .addFlag("useUpgradeProxy", "Upgradeable proxy support")
@@ -27,7 +20,7 @@ task("make_spec_hbbft", "used to make a spec file")
         const rawdata = fs.readFileSync(taskArgs.initDataFile);
         const init_data = JSON.parse(rawdata.toString());
 
-        const initialContracts = getInitialContracts(taskArgs.initContracts);
+        const initialContracts = InitialContractsConfiguration.fromFile(taskArgs.initContracts);
 
         if (!process.env.NETWORK_NAME) {
             throw new Error("Please set your NETWORK_NAME in a .env file");

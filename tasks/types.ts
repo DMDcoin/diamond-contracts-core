@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { ethers } from "ethers";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
@@ -101,7 +102,7 @@ export class InitialContractsConfiguration {
     public initializer?: SpecialContract;
     public registry?: SpecialContract;
 
-    static from(json: any): InitialContractsConfiguration {
+    static fromJSON(json: any): InitialContractsConfiguration {
         const instance = new InitialContractsConfiguration();
 
         for (const [key, value] of Object.entries(json)) {
@@ -115,6 +116,13 @@ export class InitialContractsConfiguration {
         }
 
         return instance;
+    }
+
+    static fromFile(fileName: string): InitialContractsConfiguration {
+        const rawData = fs.readFileSync(fileName);
+        const jsonData = JSON.parse(rawData.toString());
+
+        return InitialContractsConfiguration.fromJSON(jsonData);
     }
 
     getAddress(name: string): string | undefined {
