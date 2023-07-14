@@ -52,11 +52,6 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
         require(_owner != address(0), "Owner address must not be 0");
         require(_validatorSet != address(0), "Validatorset must not be 0");
 
-        require(
-            msg.sender == _owner || tx.origin == _owner || block.number == 0,
-            "Sender must be owner"
-        );
-
         __Ownable_init();
         _transferOwnership(_owner);
 

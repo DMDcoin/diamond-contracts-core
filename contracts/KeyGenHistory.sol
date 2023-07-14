@@ -100,12 +100,6 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
             "Validator contract address cannot be 0."
         );
 
-        // Unit Tests may deploy at block numbers other than 0.
-        require(
-            msg.sender == _owner || tx.origin == _owner || block.number == 0,
-            "Sender must be an owner"
-        );
-
         __Ownable_init();
         _transferOwnership(_owner);
 
