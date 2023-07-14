@@ -15,6 +15,7 @@ interface IStakingHbbft {
     function incrementStakingEpoch() external;
 
     function initialize(
+        address,
         StakingParams calldata,
         bytes32[] calldata,
         bytes16[] calldata

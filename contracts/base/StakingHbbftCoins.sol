@@ -36,7 +36,7 @@ contract StakingHbbftCoins is StakingHbbftBase {
     function claimReward(
         uint256[] memory _stakingEpochs,
         address _poolStakingAddress
-    ) public gasPriceIsValid onlyInitialized {
+    ) public gasPriceIsValid {
         address payable staker = payable(msg.sender);
         uint256 firstEpoch = 0;
         uint256 lastEpoch = 0;
@@ -227,4 +227,11 @@ contract StakingHbbftCoins is StakingHbbftBase {
             (new Sacrifice2){value: _amount}(_to);
         }
     }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[25] private __gap;
 }

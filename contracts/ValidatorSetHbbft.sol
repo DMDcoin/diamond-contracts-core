@@ -1,15 +1,17 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "./interfaces/IBlockRewardHbbft.sol";
 import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IRandomHbbft.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
-import "./upgradeability/UpgradeableOwned.sol";
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
 /// before each staking epoch. The logic uses a random seed generated and stored by the `RandomHbbft` contract.
-contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
+contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHbbft {
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -118,12 +120,6 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
     // ============================================== Modifiers =======================================================
 
-    /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized() {
-        require(isInitialized(), "ValidatorSet: not initialized");
-        _;
-    }
-
     /// @dev Ensures the caller is the BlockRewardHbbft contract address.
     modifier onlyBlockRewardContract() {
         require(msg.sender == blockRewardContract, "Only BlockReward contract");
@@ -154,6 +150,11 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         _;
     }
 
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
+    }
+
     function getStakingContract() external view returns (address) {
         return address(stakingContract);
     }
@@ -176,6 +177,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
 
     /// @dev Initializes the network parameters. Used by the
     /// constructor of the `InitializerHbbft` contract.
+    /// @param _owner The address of the contract owner.
     /// @param _blockRewardContract The address of the `BlockRewardHbbft` contract.
     /// @param _randomContract The address of the `RandomHbbft` contract.
     /// @param _stakingContract The address of the `StakingHbbft` contract.
@@ -184,6 +186,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// @param _initialMiningAddresses The array of initial validators' mining addresses.
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
     function initialize(
+        address _owner,
         address _blockRewardContract,
         address _randomContract,
         address _stakingContract,
@@ -191,18 +194,8 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         uint256 _validatorInactivityThreshold,
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
-    ) external {
-        require(
-            msg.sender == _admin() ||
-                tx.origin == _admin() ||
-                address(0) == _admin() ||
-                block.number == 0,
-            "ValidatorSet: Initialization only on genesis block or by admin"
-        );
-        require(
-            !isInitialized(),
-            "ValidatorSet contract is already initialized"
-        );
+    ) external initializer {
+        require(_owner != address(0), "Owner address can't be 0x0");
         require(
             _blockRewardContract != address(0),
             "BlockReward contract address can't be 0x0"
@@ -227,6 +220,9 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
             _initialMiningAddresses.length == _initialStakingAddresses.length,
             "Must provide the same amount of mining/staking addresses"
         );
+
+        __Ownable_init();
+        _transferOwnership(_owner);
 
         blockRewardContract = _blockRewardContract;
         randomContract = _randomContract;
@@ -475,7 +471,7 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
         address _maliciousMiningAddress,
         uint256 _blockNumber,
         bytes calldata
-    ) external onlyInitialized {
+    ) external {
         address reportingMiningAddress = msg.sender;
 
         _incrementReportingCounter(reportingMiningAddress);
@@ -604,11 +600,6 @@ contract ValidatorSetHbbft is UpgradeableOwned, IValidatorSetHbbft {
     /// which always matches the validator set kept in validator's node.
     function getValidators() public view returns (address[] memory) {
         return _currentValidators;
-    }
-
-    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns (bool) {
-        return blockRewardContract != address(0);
     }
 
     /// @dev Returns a boolean flag indicating whether the specified validator (mining address)

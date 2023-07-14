@@ -3,6 +3,7 @@ pragma solidity =0.8.17;
 interface IKeyGenHistory {
     function initialize(
         address,
+        address,
         address[] calldata,
         bytes[] calldata,
         bytes[][] calldata

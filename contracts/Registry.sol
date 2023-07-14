@@ -1,31 +1,16 @@
 pragma solidity =0.8.17;
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
 import "./interfaces/IMetadataRegistry.sol";
 import "./interfaces/IOwnerRegistry.sol";
 import "./interfaces/IReverseRegistry.sol";
-
-contract Owned {
-    event NewOwner(address indexed old, address indexed current);
-
-    address public owner = msg.sender;
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner is allowed to execute");
-        _;
-    }
-
-    function setOwner(address _new) external onlyOwner {
-        require(_new != address(0), "New owner must not be 0x0");
-        emit NewOwner(owner, _new);
-        owner = _new;
-    }
-}
 
 /// @dev Stores human-readable keys associated with addresses, like DNS information
 /// (see https://wiki.parity.io/Parity-name-registry.html). Needed primarily to store the address
 /// of the `TxPermission` contract (see https://wiki.parity.io/Permissioning.html#transaction-type for details).
 contract Registry is
-    Owned,
+    Ownable,
     IMetadataRegistry,
     IOwnerRegistry,
     IReverseRegistry
@@ -81,18 +66,22 @@ contract Registry is
 
     constructor(address _certifierContract, address _owner) {
         require(_certifierContract != address(0));
+
         bytes32 serviceTransactionChecker = keccak256(
             "service_transaction_checker"
         );
+
         address entryOwner = msg.sender;
         if (_owner != address(0)) {
-            owner = _owner;
             entryOwner = _owner;
+            transferOwnership(_owner);
         }
+
         entries[serviceTransactionChecker].owner = entryOwner;
         entries[serviceTransactionChecker].data["A"] = bytes20(
             _certifierContract
         );
+
         emit Reserved(serviceTransactionChecker, entryOwner);
         emit DataChanged(serviceTransactionChecker, "A", "A");
     }

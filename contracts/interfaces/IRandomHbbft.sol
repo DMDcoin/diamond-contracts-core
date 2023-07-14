@@ -1,7 +1,7 @@
 pragma solidity =0.8.17;
 
 interface IRandomHbbft {
-    function initialize(address) external;
+    function initialize(address, address) external;
 
     function currentSeed() external view returns (uint256);
 

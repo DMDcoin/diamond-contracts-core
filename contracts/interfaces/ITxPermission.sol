@@ -5,6 +5,7 @@ interface ITxPermission {
         address[] calldata,
         address,
         address,
+        address,
         address
     ) external;
 }

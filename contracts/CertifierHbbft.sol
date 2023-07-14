@@ -1,13 +1,15 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "./interfaces/ICertifier.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
-import "./upgradeability/UpgradeableOwned.sol";
 
 /// @dev Allows validators to use a zero gas price for their service transactions
 /// (see https://wiki.parity.io/Permissioning.html#gas-price for more info).
-contract CertifierHbbft is UpgradeableOwned, ICertifier {
+contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -31,15 +33,12 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     /// @param who Specified address for which zero gas price transactions are denied.
     event Revoked(address indexed who);
 
-    // ============================================== Modifiers =======================================================
-
-    /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized() {
-        require(isInitialized(), "Contract requires to be initialized()");
-        _;
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
     }
 
-    // =============================================== Setters ========================================================
+    // =============================================== Setters =======================================================
 
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
@@ -47,34 +46,38 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
     function initialize(
         address[] calldata _certifiedAddresses,
-        address _validatorSet
-    ) external {
-        require(
-            msg.sender == _admin() ||
-                tx.origin == _admin() ||
-                address(0) == _admin() ||
-                block.number == 0,
-            "Sender must be admin"
-        );
-        require(!isInitialized(), "Contract is already initialized");
+        address _validatorSet,
+        address _owner
+    ) external initializer {
+        require(_owner != address(0), "Owner address must not be 0");
         require(_validatorSet != address(0), "Validatorset must not be 0");
+
+        require(
+            msg.sender == _owner || tx.origin == _owner || block.number == 0,
+            "Sender must be owner"
+        );
+
+        __Ownable_init();
+        _transferOwnership(_owner);
+
+        validatorSetContract = IValidatorSetHbbft(_validatorSet);
+
         for (uint256 i = 0; i < _certifiedAddresses.length; i++) {
             _certify(_certifiedAddresses[i]);
         }
-        validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
 
     /// @dev Allows the specified address to use a zero gas price for its transactions.
     /// Can only be called by the `owner`.
     /// @param _who The address for which zero gas price transactions must be allowed.
-    function certify(address _who) external onlyOwner onlyInitialized {
+    function certify(address _who) external onlyOwner {
         _certify(_who);
     }
 
     /// @dev Denies the specified address usage of a zero gas price for its transactions.
     /// Can only be called by the `owner`.
     /// @param _who The address for which transactions with a zero gas price must be denied.
-    function revoke(address _who) external onlyOwner onlyInitialized {
+    function revoke(address _who) external onlyOwner {
         _certified[_who] = false;
         emit Revoked(_who);
     }
@@ -116,11 +119,6 @@ contract CertifierHbbft is UpgradeableOwned, ICertifier {
     /// @param _who The address for which the boolean flag must be determined.
     function certifiedExplicitly(address _who) external view returns (bool) {
         return _certified[_who];
-    }
-
-    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     // ============================================== Internal ========================================================
