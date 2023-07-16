@@ -33,6 +33,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         stakingContract = IStakingHbbft(_address);
     }
 
+    function setKeyGenHistoryContract(address _address) public {
+        keyGenHistoryContract = IKeyGenHistory(_address);
+    }
+
     function setSystemAddress(address _address) public {
         _systemAddress = _address;
     }

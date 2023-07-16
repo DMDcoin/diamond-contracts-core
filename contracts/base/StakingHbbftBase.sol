@@ -288,6 +288,7 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
 
     // =============================================== Setters ========================================================
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // Prevents initialization of implementation contract
         _disableInitializers();

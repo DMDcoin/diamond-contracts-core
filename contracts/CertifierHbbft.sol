@@ -33,6 +33,7 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
     /// @param who Specified address for which zero gas price transactions are denied.
     event Revoked(address indexed who);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // Prevents initialization of implementation contract
         _disableInitializers();

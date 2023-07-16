@@ -79,6 +79,7 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // Prevents initialization of implementation contract
         _disableInitializers();

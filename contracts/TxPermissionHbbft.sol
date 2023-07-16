@@ -49,6 +49,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
 
     event gasPriceChanged(uint256 _value);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // Prevents initialization of implementation contract
         _disableInitializers();

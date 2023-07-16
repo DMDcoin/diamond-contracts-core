@@ -109,6 +109,7 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // Prevents initialization of implementation contract
         _disableInitializers();
