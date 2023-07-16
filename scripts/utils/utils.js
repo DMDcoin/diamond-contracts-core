@@ -31,7 +31,7 @@ async function compile(dir, contractName) {
   function findImports(path) {
     let sourceCodeToImport;
     if (path[0] === "@") { // directly into node_ module
-      sourceCodeToImport = fs.readFileSync(`../../../node_modules/${path}`);
+      sourceCodeToImport = fs.readFileSync(`./node_modules/${path}`);
       return { contents: `${sourceCodeToImport}` };
     }
     if (dir.length === 2) { // array contract path is "./" + contract.sol, i.e simple import in the same folder as the compile.js
