@@ -64,7 +64,7 @@ contract Registry is
         _;
     }
 
-    constructor(address _certifierContract, address _owner) {
+    constructor(address _certifierContract, address _contractOwner) {
         require(_certifierContract != address(0));
 
         bytes32 serviceTransactionChecker = keccak256(
@@ -72,9 +72,9 @@ contract Registry is
         );
 
         address entryOwner = msg.sender;
-        if (_owner != address(0)) {
-            entryOwner = _owner;
-            transferOwnership(_owner);
+        if (_contractOwner != address(0)) {
+            entryOwner = _contractOwner;
+            transferOwnership(_contractOwner);
         }
 
         entries[serviceTransactionChecker].owner = entryOwner;

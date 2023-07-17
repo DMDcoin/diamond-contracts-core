@@ -86,13 +86,13 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
     }
 
     function initialize(
-        address _owner,
+        address _contractOwner,
         address _validatorSetContract,
         address[] memory _validators,
         bytes[] memory _parts,
         bytes[][] memory _acks
     ) external initializer {
-        require(_owner != address(0), "Owner address must not be 0");
+        require(_contractOwner != address(0), "Owner address must not be 0");
         require(_validators.length != 0, "Validators must be more than 0.");
         require(_validators.length == _parts.length, "Wrong number of Parts!");
         require(_validators.length == _acks.length, "Wrong number of Acks!");
@@ -102,7 +102,7 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
         );
 
         __Ownable_init();
-        _transferOwnership(_owner);
+        _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
 

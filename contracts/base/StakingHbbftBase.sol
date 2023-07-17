@@ -168,9 +168,6 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// be staked on a single validator.
     uint256 public maxStakeAmount;
 
-    /// @dev block rewards hbbft contract
-    IBlockRewardHbbft public blockRewardHbbft;
-
     mapping(address => bool) public abandonedAndRemoved;
 
     // ============================================== Constants =======================================================
@@ -268,15 +265,6 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
         _;
     }
 
-    /// @dev Ensures the caller is the BlockRewardHbbft contract address.
-    modifier onlyBlockRewardContract() {
-        require(
-            msg.sender == validatorSetContract.blockRewardContract(),
-            "Only BlockReward"
-        );
-        _;
-    }
-
     /// @dev Ensures the caller is the ValidatorSetHbbft contract address.
     modifier onlyValidatorSetContract() virtual {
         require(
@@ -360,6 +348,7 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
 
     /// @dev Initializes the network parameters.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
+    /// @param _contractOwner The address of the contract owner
     /// @param stakingParams stores other parameters due to stack too deep issue
     ///  _validatorSetContract The address of the `ValidatorSetHbbft` contract.
     ///  _initialStakingAddresses The array of initial validators' staking addresses.
@@ -371,12 +360,12 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
     ///  _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
-        address _owner,
+        address _contractOwner,
         StakingParams calldata stakingParams,
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external initializer {
-        require(_owner != address(0), "Owner address cannot be 0");
+        require(_contractOwner != address(0), "Owner address cannot be 0");
 
         require(
             stakingParams._stakingFixedEpochDuration != 0,
@@ -402,7 +391,7 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
         );
 
         __Ownable_init();
-        _transferOwnership(_owner);
+        _transferOwnership(_contractOwner);
 
         _initialize(
             stakingParams._validatorSetContract,
@@ -739,11 +728,12 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
         uint256 governanceShare = totalAbandonedAmount / 2;
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
 
-        address governancePotAddress = blockRewardHbbft.governancePotAddress();
+        IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
+        address governanceAddress = blockRewardHbbft.getGovernanceAddress();
 
         // slither-disable-next-line arbitrary-send-eth
         blockRewardHbbft.addToReinsertPot{value: reinsertShare}();
-        _transferNative(governancePotAddress, governanceShare);
+        _transferNative(governanceAddress, governanceShare);
 
         emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
     }
@@ -1251,8 +1241,6 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
         candidateMinStake = _candidateMinStake;
 
         maxStakeAmount = _maxStake;
-
-        blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
     }
 
     /// @dev Adds the specified address to the array of the current active delegators of the specified pool.

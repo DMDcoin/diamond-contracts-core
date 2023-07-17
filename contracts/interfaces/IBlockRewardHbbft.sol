@@ -8,5 +8,5 @@ interface IBlockRewardHbbft {
         view
         returns (uint256[] memory);
 
-    function governancePotAddress() external view returns (address payable);
+    function getGovernanceAddress() external view returns (address);
 }

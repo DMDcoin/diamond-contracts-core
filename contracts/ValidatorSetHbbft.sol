@@ -178,7 +178,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
     /// @dev Initializes the network parameters. Used by the
     /// constructor of the `InitializerHbbft` contract.
-    /// @param _owner The address of the contract owner.
+    /// @param _contractOwner The address of the contract owner.
     /// @param _blockRewardContract The address of the `BlockRewardHbbft` contract.
     /// @param _randomContract The address of the `RandomHbbft` contract.
     /// @param _stakingContract The address of the `StakingHbbft` contract.
@@ -187,7 +187,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// @param _initialMiningAddresses The array of initial validators' mining addresses.
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
     function initialize(
-        address _owner,
+        address _contractOwner,
         address _blockRewardContract,
         address _randomContract,
         address _stakingContract,
@@ -196,7 +196,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external initializer {
-        require(_owner != address(0), "Owner address can't be 0x0");
+        require(_contractOwner != address(0), "Owner address can't be 0x0");
         require(
             _blockRewardContract != address(0),
             "BlockReward contract address can't be 0x0"
@@ -223,7 +223,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         );
 
         __Ownable_init();
-        _transferOwnership(_owner);
+        _transferOwnership(_contractOwner);
 
         blockRewardContract = _blockRewardContract;
         randomContract = _randomContract;

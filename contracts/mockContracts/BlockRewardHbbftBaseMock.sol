@@ -20,6 +20,10 @@ contract BlockRewardHbbftBaseMock is BlockRewardHbbftBase {
         _systemAddress = _address;
     }
 
+    function setGovernanceAddress(address _address) public {
+        governancePotAddress = payable(_address);
+    }
+
     function setValidatorMinRewardPercent(
         uint256 _stakingEpoch,
         uint256 _percent

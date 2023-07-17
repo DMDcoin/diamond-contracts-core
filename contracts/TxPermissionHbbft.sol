@@ -64,19 +64,21 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     /// @param _certifier The address of the `Certifier` contract. It is used by `allowedTxTypes` function to know
     /// whether some address is explicitly allowed to use zero gas price.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
+    /// @param _keyGenHistoryContract The address of the `KeyGenHistory` contract.
+    /// @param _contractOwner The address of the contract owner.
     function initialize(
         address[] calldata _allowed,
         address _certifier,
         address _validatorSet,
         address _keyGenHistoryContract,
-        address _owner
+        address _contractOwner
     ) external initializer {
-        require(_owner != address(0), "Owner address must not be 0");
+        require(_contractOwner != address(0), "Owner address must not be 0");
         require(_certifier != address(0), "Certifier address must not be 0");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
 
         __Ownable_init();
-        _transferOwnership(_owner);
+        _transferOwnership(_contractOwner);
 
         for (uint256 i = 0; i < _allowed.length; i++) {
             _addAllowedSender(_allowed[i]);

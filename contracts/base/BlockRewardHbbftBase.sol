@@ -124,13 +124,14 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
 
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
+    /// @param _contractOwner The address of the contract owner
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _owner, address _validatorSet) external initializer {
-        require(_owner != address(0), "Owner address must not be 0");
+    function initialize(address _contractOwner, address _validatorSet) external initializer {
+        require(_contractOwner != address(0), "Owner address must not be 0");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
 
         __Ownable_init();
-        _transferOwnership(_owner);
+        _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
@@ -295,6 +296,10 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
     }
 
     // =============================================== Getters ========================================================
+    function getGovernanceAddress() external view returns (address) {
+        return governancePotAddress;
+    }
+
     /// @dev Returns an array of epoch numbers for which the specified pool (mining address)
     /// got a non-zero reward.
     function epochsPoolGotRewardFor(address _miningAddress)

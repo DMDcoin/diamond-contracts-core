@@ -46,12 +46,12 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
         _disableInitializers();
     }
 
-    function initialize(address _owner, address _validatorSet) external initializer {
+    function initialize(address _contractOwner, address _validatorSet) external initializer {
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
-        require(_owner != address(0), "Owner address must not be 0");
+        require(_contractOwner != address(0), "Owner address must not be 0");
 
         __Ownable_init();
-        _transferOwnership(_owner);
+        _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
