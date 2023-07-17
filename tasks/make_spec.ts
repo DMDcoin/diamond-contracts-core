@@ -1,12 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import fp from 'lodash/fp';
 import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
 
-import { InitialContractsConfiguration } from './types';
+import { InitialContractsConfiguration, NetworkConfiguration } from './types';
 
-const ProxyContractName = "TransparentUpgradeableProxy";
+const ProxyContractName = "contracts/upgradeability/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy";
 
 task("make_spec_hbbft", "used to make a spec file")
     .addParam("initContracts", "Initial contracts configuration file")
@@ -17,99 +16,36 @@ task("make_spec_hbbft", "used to make a spec file")
         console.log("Using initial data file: ", taskArgs.initDataFile);
         console.log("Using initial contracts file: ", taskArgs.initContracts);
 
-        const rawdata = fs.readFileSync(taskArgs.initDataFile);
-        const init_data = JSON.parse(rawdata.toString());
-
         const initialContracts = InitialContractsConfiguration.fromFile(taskArgs.initContracts);
-
-        if (!process.env.NETWORK_NAME) {
-            throw new Error("Please set your NETWORK_NAME in a .env file");
-        }
-
-        const networkName = process.env.NETWORK_NAME;
-        if (!process.env.NETWORK_ID) {
-            throw new Error("Please set your NETWORK_ID in a .env file");
-        }
-
-        const networkID = process.env.NETWORK_ID;
-        if (!process.env.OWNER) {
-            throw new Error("Please set your OWNER in a .env file");
-        }
-
-        const owner = process.env.OWNER.trim();
-        let initialValidators = init_data.validators;
-        for (let i = 0; i < initialValidators.length; i++) {
-            initialValidators[i] = initialValidators[i].trim();
-        }
-
-        let stakingAddresses = init_data.staking_addresses;
-        for (let i = 0; i < stakingAddresses.length; i++) {
-            stakingAddresses[i] = stakingAddresses[i].trim();
-        }
-
-        const stakingEpochDuration = process.env.STAKING_EPOCH_DURATION;
-        const stakeWithdrawDisallowPeriod = process.env.STAKE_WITHDRAW_DISALLOW_PERIOD;
-        const stakingTransitionWindowLength = process.env.STAKING_TRANSITION_WINDOW_LENGTH;
-        const stakingMinStakeForValidatorString = process.env.STAKING_MIN_STAKE_FOR_VALIDATOR;
-        const stakingMinStakeForDelegatorString = process.env.STAKING_MIN_STAKE_FOR_DELEGATOR;
-
-        let stakingMinStakeForValidator = hre.ethers.utils.parseEther('1');
-        if (stakingMinStakeForValidatorString) {
-            stakingMinStakeForValidator = hre.ethers.utils.parseEther(stakingMinStakeForValidatorString);
-        }
-
-        let stakingMinStakeForDelegator = hre.ethers.utils.parseEther('1');
-        if (stakingMinStakeForDelegatorString) {
-            stakingMinStakeForDelegator = hre.ethers.utils.parseEther(stakingMinStakeForDelegatorString);
-        }
-
-        let stakingMaxStakeForValidator = hre.ethers.utils.parseEther('50000');
-
-        let stakingParams = [
-            stakingMinStakeForDelegator,
-            stakingMinStakeForValidator,
-            stakingMaxStakeForValidator,
-            stakingEpochDuration,
-            stakingTransitionWindowLength,
-            stakeWithdrawDisallowPeriod
-        ];
-
-        let publicKeys = init_data.public_keys;
-        for (let i = 0; i < publicKeys.length; i++) {
-            publicKeys[i] = publicKeys[i].trim();
-        }
-        let publicKeysSplit = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])(publicKeys);
-
-        let internetAddresses = init_data.ip_addresses;
-        for (let i = 0; i < internetAddresses.length; i++) {
-            internetAddresses[i] = internetAddresses[i].trim();
-        }
+        const networkConfig = NetworkConfiguration.create(taskArgs.initDataFile);
 
         let spec = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'templates', 'spec_hbbft.json'), 'utf-8'));
 
-        spec.name = networkName;
-        spec.params.networkID = networkID;
-        const minimumBlockTime = Number.parseInt(process.env.MINIMUM_BLOCK_TIME ? process.env.MINIMUM_BLOCK_TIME : "0");
-        if (minimumBlockTime > 0) {
-            spec.engine.hbbft.params.minimumBlockTime = minimumBlockTime;
+        spec.name = networkConfig.networkName;
+        spec.params.networkID = networkConfig.networkId;
+
+        if (networkConfig.minimumBlockTime! > 0) {
+            spec.engine.hbbft.params.minimumBlockTime = networkConfig.maximumBlockTime;
         }
-        const maximumBlockTime = Number.parseInt(process.env.MAXIMUM_BLOCK_TIME ? process.env.MAXIMUM_BLOCK_TIME : "0");
-        if (maximumBlockTime > 0) {
-            spec.engine.hbbft.params.maximumBlockTime = maximumBlockTime;
+
+        if (networkConfig.maximumBlockTime! > 0) {
+            spec.engine.hbbft.params.maximumBlockTime = networkConfig.maximumBlockTime;
         }
 
         for (let i = 0; i < initialContracts.core.length; ++i) {
-            console.log("Preparing contract: ", initialContracts.core[i].name);
+            const contractName = initialContracts.core[i].name!;
+
+            console.log("Preparing contract: ", contractName);
+
+            const initializerArgs = initialContracts.getContractInitializerArgs(contractName, networkConfig);
 
             await initialContracts.core[i].compileContract(hre);
             await initialContracts.core[i].compileProxy(
-                ProxyContractName,
                 hre,
-                [
-                    initialContracts.core[i].implementationAddress, // address _logic
-                    initialContracts.admin!.address,                // address _admin
-                    []                                              // bytes _data
-                ]
+                ProxyContractName,
+                initialContracts.core[i].implementationAddress!, // address _logic
+                initialContracts.admin!.address!,                // address _admin
+                initializerArgs                                  // bytes _data
             );
 
             const contractSpec = initialContracts.core[i].toSpecAccount(taskArgs.useUpgradeProxy, 0);
@@ -126,49 +62,22 @@ task("make_spec_hbbft", "used to make a spec file")
         spec.params.transactionPermissionContractTransition = '0x0';
         spec.params.registrar = initialContracts.registry?.address;
 
-        // fixing parts.
-        // there is a bug in web3-eth-abi handling byte arrays,
-        // but buffer work fine.
-        const newParts: Buffer[] = [];
-        init_data.parts.forEach((x: string) => {
-            newParts.push(Buffer.from(x));
-        });
-
-        init_data.parts = newParts;
-
-        await initialContracts.admin!.compileContract(hre, [owner]);
-        await initialContracts.registry!.compileContract(hre, [
-            initialContracts.getAddress("CertifierHbbft"),
-            owner
-        ]);
-        await initialContracts.initializer!.compileContract(hre, [
-            [ // _contracts
-                initialContracts.getAddress("ValidatorSetHbbft"),
-                initialContracts.getAddress("BlockRewardHbbft"),
-                initialContracts.getAddress("RandomHbbft"),
-                initialContracts.getAddress("StakingHbbft"),
-                initialContracts.getAddress("TxPermissionHbbft"),
+        await initialContracts.admin!.compileContract(hre, [networkConfig.owner]);
+        await initialContracts.registry!.compileContract(
+            hre,
+            [
                 initialContracts.getAddress("CertifierHbbft"),
-                initialContracts.getAddress("KeyGenHistory")
-            ],
-            owner, // _owner
-            initialValidators, // _miningAddresses
-            stakingAddresses, // _stakingAddresses
-            stakingParams,
-            publicKeysSplit,
-            internetAddresses,
-            init_data.parts,
-            init_data.acks
-        ]);
+                networkConfig.owner
+            ]
+        );
 
         spec.accounts = {
             ...spec.accounts,
             ...initialContracts.admin?.toSpecAccount(0),
-            ...initialContracts.registry?.toSpecAccount(0),
-            ...initialContracts.initializer?.toSpecAccount(0)
+            ...initialContracts.registry?.toSpecAccount(0)
         };
 
-        console.log('Using the following initial validators: ' + initialValidators);
+        console.log('Using the following initial validators: ' + networkConfig.initialMiningAddresses);
         console.log('Saving spec_hbbft.json file ...');
 
         fs.writeFileSync(path.join(__dirname, '..', 'spec_hbbft.json'), JSON.stringify(spec, null, '  '), 'utf-8');

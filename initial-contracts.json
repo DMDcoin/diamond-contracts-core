@@ -40,10 +40,6 @@
         "name": "ProxyAdmin",
         "address": "0x8000000000000000000000000000000000000000"
     },
-    "initializer": {
-        "name": "InitializerHbbft",
-        "address": "0xFF00000000000000000000000000000000000000"
-    },
     "registry": {
         "name": "Registry",
         "address": "0x6000000000000000000000000000000000000000"
