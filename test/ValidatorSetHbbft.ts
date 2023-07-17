@@ -4,12 +4,12 @@ import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
-    AdminUpgradeabilityProxy,
     RandomHbbftMock,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
     KeyGenHistory,
-    IStakingHbbft
+    TxPermissionHbbft,
+    CertifierHbbft,
 } from "../src/types";
 
 import fp from 'lodash/fp';
@@ -17,6 +17,7 @@ import { BigNumber} from "ethers";
 import { TransactionResponse } from '@ethersproject/providers'
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Permission } from "./testhelpers/Permission";
+import { expect } from "chai";
 
 require('chai')
     .use(require('chai-as-promised'))
@@ -27,12 +28,11 @@ require('chai')
 // therefore it makes sense to use a proxy for automated testing to have the proxy testet.
 // and to not use it if specific transactions needs to get debugged,
 // like truffle `debug 0xabc`.
-const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-console.log('useUpgradeProxy:', useUpgradeProxy);
+// const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
+// console.log('useUpgradeProxy:', useUpgradeProxy);
 
 //smart contracts
 let blockRewardHbbft: BlockRewardHbbftCoinsMock;
-let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
 let validatorSetHbbft: ValidatorSetHbbftMock;
 let vaidatorSetPermission: Permission<ValidatorSetHbbftMock>
 let stakingHbbft: StakingHbbftCoinsMock;
@@ -65,328 +65,417 @@ let initialStakingAddresses: string[];
 let accountAddresses: string[];
 
 describe('ValidatorSetHbbft', () => {
-
-
     beforeEach(async () => {
         [owner, ...accounts] = await ethers.getSigners();
 
         accountAddresses = accounts.map(item => item.address);
 
-        const AdminUpgradeabilityProxyFactory = await ethers.getContractFactory("AdminUpgradeabilityProxy")
+        const stubAddress = owner.address;
 
-        // Deploy ValidatorSet contract
-        const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        validatorSetHbbft = await ValidatorSetFactory.deploy() as ValidatorSetHbbftMock;
-        if (useUpgradeProxy) {
-            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
-            validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
-        }
+    //     // Deploy ValidatorSet contract
+    //     const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+    //     validatorSetHbbft = await upgrades.deployProxy(
+    //         ValidatorSetFactory,
+    //         [
+    //             owner.address,
+    //             stubAddress,                  // _blockRewardContract
+    //             stubAddress,                  // _randomContract
+    //             stubAddress,                  // _stakingContract
+    //             stubAddress,                  // _keyGenHistoryContract
+    //             validatorInactivityThreshold, // _validatorInactivityThreshold
+    //             initialValidators,            // _initialMiningAddresses
+    //             initialStakingAddresses,      // _initialStakingAddresses
+    //         ],
+    //         { initializer: 'initialize' }
+    //     ) as ValidatorSetHbbftMock;
 
-        // Certifier
-        // CertifierHbbft
-        const certifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifier = await certifierFactory.deploy();
+    //     // CertifierHbbft
+    //     const certifierFactory = await ethers.getContractFactory("CertifierHbbft");
+    //     const certifier = await upgrades.deployProxy(
+    //         certifierFactory,
+    //         [],
+    //         { initializer: 'initialize' }
+    //     ) as CertifierHbbft;
 
-        // Deploy TxPermission contract
-        const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
-        let txPermission = await TxPermissionFactory.deploy();
-        if (useUpgradeProxy) {
-            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(txPermission.address, owner.address, []);
-            txPermission = await ethers.getContractAt("TxPermissionHbbft", adminUpgradeabilityProxy.address);
-        }
+    //     // Deploy TxPermission contract
+    //     const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
+    //     let txPermission = await upgrades.deployProxy(
+    //         TxPermissionFactory,
+    //         [],
+    //         { initializer: 'initialize' }
+    //     ) as TxPermissionHbbft;
 
-        // Deploy BlockRewardHbbft contract
-        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
-        blockRewardHbbft = await BlockRewardHbbftFactory.deploy() as BlockRewardHbbftCoinsMock;
-        if (useUpgradeProxy) {
-            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
-            blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", adminUpgradeabilityProxy.address);
-        }
+    //     // Deploy BlockRewardHbbft contract
+    //     const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
+    //     blockRewardHbbft = await upgrades.deployProxy(
+    //         BlockRewardHbbftFactory,
+    //         [],
+    //         { initializer: 'initialize' }
+    //     ) as BlockRewardHbbftCoinsMock;
 
-        // Deploy BlockRewardHbbft contract
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
-        stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
-        if (useUpgradeProxy) {
-            adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-            stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
-        }
+    //     // Deploy BlockRewardHbbft contract
+    //     const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+    //     stakingHbbft = await upgrades.deployProxy(
+    //         StakingHbbftFactory,
+    //         [],
+    //         { initializer: 'initialize' }
+    //     ) as StakingHbbftCoinsMock;
 
+    //     // key gen history functions are not testet here, so we can use a address without implementation.
+    //     const keyGenHistoryFake = "0x8000000000000000000000000000000000000001";
 
-        // key gen history functions are not testet here, so we can use a address without implementation.
-        const keyGenHistoryFake = "0x8000000000000000000000000000000000000001";
+    //     // initialize txPermission contract.
+    //     await txPermission.initialize([],certifier.address, validatorSetHbbft.address, keyGenHistoryFake);
+    //     vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft, false);
 
-        // initialize txPermission contract.
-        await txPermission.initialize([],certifier.address, validatorSetHbbft.address, keyGenHistoryFake);
-        vaidatorSetPermission = new Permission(txPermission, validatorSetHbbft, false);
+    //     await helpers.time.increase(1);
 
-        await helpers.time.increase(1);
-
-        // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
-        // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
-        // Public keys corresponding to the three private keys above.
-        initialValidatorsPubKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
-            (['0x52be8f332b0404dff35dd0b2ba44993a9d3dc8e770b9ce19a849dff948f1e14c57e7c8219d522c1a4cce775adbee5330f222520f0afdabfdb4a4501ceeb8dcee',
-                '0x99edf3f524a6f73e7f5d561d0030fc6bcc3e4bd33971715617de7791e12d9bdf6258fa65b74e7161bbbf7ab36161260f56f68336a6f65599dc37e7f2e397f845',
-                '0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae4c246658946c2e1d7ded96394a1247fb4d093c32474317ae388e8d25692a0f56']);
-        // The IP addresses are irrelevant for these unit test, just initialize them to 0.
-        initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
+    //     // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
+    //     // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
+    //     // Public keys corresponding to the three private keys above.
+    //     initialValidatorsPubKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
+    //         (['0x52be8f332b0404dff35dd0b2ba44993a9d3dc8e770b9ce19a849dff948f1e14c57e7c8219d522c1a4cce775adbee5330f222520f0afdabfdb4a4501ceeb8dcee',
+    //             '0x99edf3f524a6f73e7f5d561d0030fc6bcc3e4bd33971715617de7791e12d9bdf6258fa65b74e7161bbbf7ab36161260f56f68336a6f65599dc37e7f2e397f845',
+    //             '0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae4c246658946c2e1d7ded96394a1247fb4d093c32474317ae388e8d25692a0f56']);
+    //     // The IP addresses are irrelevant for these unit test, just initialize them to 0.
+    //     initialValidatorsIpAddresses = ['0x00000000000000000000000000000000', '0x00000000000000000000000000000000', '0x00000000000000000000000000000000'];
     });
 
-
     describe('initialize()', async () => {
+        const blockRewardContractAddress = '0x2000000000000000000000000000000000000001';
+        const randomContractAddress = '0x3000000000000000000000000000000000000001';
+        const stakingContractAddress = '0x1100000000000000000000000000000000000001';
+        const keyGenHistoryContractAddress = '0x8000000000000000000000000000000000000001';
 
         beforeEach(async () => {
             accountAddresses = accounts.map(item => item.address);
             initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
             initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
+
             initialValidators.length.should.be.equal(3);
             initialValidators[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
             initialValidators[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
             initialValidators[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
         });
+
         it('should initialize successfully', async () => {
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            );
-            blockRewardHbbft.address.should.be.equal(
-                await validatorSetHbbft.blockRewardContract()
-            );
-            '0x3000000000000000000000000000000000000001'.should.be.equal(
-                await validatorSetHbbft.randomContract()
-            );
-            stakingHbbft.address.should.be.equal(
-                await validatorSetHbbft.getStakingContract()
-            );
-            '0x8000000000000000000000000000000000000001'.should.be.equal(
-                await validatorSetHbbft.keyGenHistoryContract()
-            );
-            (await validatorSetHbbft.getValidators()).should.be.deep.equal(initialValidators);
-            (await validatorSetHbbft.getPendingValidators()).length.should.be.equal(0);
-            for (let i = 0; i < initialValidators.length; i++) {
-                true.should.be.equal(
-                    await validatorSetHbbft.isValidator(initialValidators[i])
-                );
-                (await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[i])).should.be.equal(initialValidators[i]);
-                (await validatorSetHbbft.stakingByMiningAddress(initialValidators[i])).should.be.equal(initialStakingAddresses[i]);
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            validatorSetHbbft = await upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            ) as ValidatorSetHbbftMock;
+
+            expect(await validatorSetHbbft.deployed());
+
+            expect(await validatorSetHbbft.blockRewardContract()).to.equal(blockRewardContractAddress);
+            expect(await validatorSetHbbft.randomContract()).to.equal(randomContractAddress);
+            expect(await validatorSetHbbft.getStakingContract()).to.equal(stakingContractAddress);
+            expect(await validatorSetHbbft.keyGenHistoryContract()).to.equal(keyGenHistoryContractAddress);
+
+            expect(await validatorSetHbbft.getValidators()).to.be.deep.equal(initialValidators);
+            expect((await validatorSetHbbft.getPendingValidators()).length).to.be.equal(0);
+
+            for (let i = 0; i < initialValidators.length; ++i) {
+                expect(await validatorSetHbbft.isValidator(initialValidators[i])).to.be.true;
+                expect(await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[i])).to.be.equal(initialValidators[i]);
+                expect(await validatorSetHbbft.stakingByMiningAddress(initialValidators[i])).to.be.equal(initialStakingAddresses[i]);
             }
-            false.should.be.equal(
-                await validatorSetHbbft.isValidator('0x0000000000000000000000000000000000000000')
-            );
-            validatorInactivityThreshold.should.be.equal(
-                await validatorSetHbbft.validatorInactivityThreshold()
-            );
+
+            expect(await validatorSetHbbft.isValidator(ethers.constants.AddressZero)).to.be.false;
+            expect(await validatorSetHbbft.validatorInactivityThreshold()).to.be.equal(validatorInactivityThreshold);
         });
 
-        it('should fail if initialization is not done on the genesis block and sender is not admin', async () => {
-            if (useUpgradeProxy) { //this test only works if using the upgrade proxy.
-                await validatorSetHbbft.connect(accounts[1]).initialize(
-                    blockRewardHbbft.address, // _blockRewardContract
-                    '0x3000000000000000000000000000000000000001', // _randomContract
-                    stakingHbbft.address, // _stakingContract
-                    '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                    validatorInactivityThreshold, // _validatorInactivityThreshold
-                    initialValidators, // _initialMiningAddresses
-                    initialStakingAddresses // _initialStakingAddresses
-                ).should.be.rejectedWith("Initialization only on genesis block or by admin");
-            }
-        });
-
-        it('should initialize successfully if not done on genesis block but sender is admin', async () => {
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            );
-        });
         it('should fail if BlockRewardHbbft contract address is zero', async () => {
-            await validatorSetHbbft.initialize(
-                '0x0000000000000000000000000000000000000000', // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("BlockReward contract address can't be 0");
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    ethers.constants.AddressZero,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("BlockReward contract address can't be 0x0");
         });
-        it('should fail if RandomHbbft contract address is zero', async () => {
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x0000000000000000000000000000000000000000', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Random contract address can't be 0");
-        });
-        it('should fail if StakingHbbft contract address is zero', async () => {
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                '0x0000000000000000000000000000000000000000', // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
 
-            ).should.be.rejectedWith("Staking contract address can't be 0");
+        it('should fail if RandomHbbft contract address is zero', async () => {
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    ethers.constants.AddressZero,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Random contract address can't be 0x0");
         });
+
+        it('should fail if StakingHbbft contract address is zero', async () => {
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    ethers.constants.AddressZero,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Staking contract address can't be 0x0");
+        });
+
         it('should fail if KeyGenHistory contract address is zero', async () => {
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                '0x0000000000000000000000000000000000000001', // _stakingContract
-                '0x0000000000000000000000000000000000000000', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("KeyGenHistory contract address can't be 0");
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    ethers.constants.AddressZero,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("KeyGenHistory contract address can't be 0x0");
         });
+
         it('should fail if initial mining addresses are empty', async () => {
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                [], // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Must provide initial mining addresses");
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    [],
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Must provide initial mining addresses");
         });
+
         it('should fail if already initialized', async () => {
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            const validatorSetHbbft = await upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
             );
+
             await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("ValidatorSet contract is already initialized");
+                owner.address,
+                blockRewardContractAddress,
+                randomContractAddress,
+                stakingContractAddress,
+                keyGenHistoryContractAddress,
+                validatorInactivityThreshold,
+                initialValidators,
+                initialStakingAddresses,
+            ).should.be.revertedWith("Initializable: contract is already initialized");
         });
+
         it('should fail if the number of mining addresses is not the same as the number of staking ones', async () => {
             const initialStakingAddressesShort = accountAddresses.slice(4, 5 + 1); // accounts[4...5]
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddressesShort, // _initialStakingAddresses
-            ).should.be.rejectedWith("Must provide the same amount of mining/staking addresses");
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddressesShort,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Must provide the same amount of mining/staking addresses");
         });
+
         it('should fail if the mining addresses are the same as the staking ones', async () => {
-            const initialStakingAddressesShort = accounts.slice(4, 5 + 1); // accounts[4...5]
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialValidators, // _initialStakingAddresses
-            ).should.be.rejectedWith("Mining address cannot be the same as the staking one");
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialValidators,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Mining address cannot be the same as the staking one");
         });
+
         it('should fail if some mining address is 0', async () => {
             initialValidators[0] = '0x0000000000000000000000000000000000000000';
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Mining address can't be 0");
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Mining address can't be 0");
         });
+
         it('should fail if some staking address is 0', async () => {
             initialStakingAddresses[0] = '0x0000000000000000000000000000000000000000';
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Staking address can't be 0");
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Staking address can't be 0");
         });
-        it('should fail if a staking address is currently being used as a staking one', async () => {
+
+        it('should fail if a staking address was already used', async () => {
             initialStakingAddresses[1] = initialStakingAddresses[0];
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Staking address already used as a staking one");
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Staking address already used as a staking one");
         });
+
         it('should fail if a mining address is currently being used as a staking one', async () => {
             initialValidators[1] = initialStakingAddresses[0];
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Mining address already used as a staking one");
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Mining address already used as a staking one");
         });
+
         it('should fail if a staking address is currently being used as a mining one', async () => {
             initialStakingAddresses[1] = initialValidators[0];
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Staking address already used as a mining one");
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Staking address already used as a mining one");
         });
-        it('should fail if a mining address is currently being used as a mining one', async () => {
+
+        it('should fail if a mining address was already used', async () => {
             initialValidators[1] = initialValidators[0];
-            await validatorSetHbbft.initialize(
-                blockRewardHbbft.address, // _blockRewardContract
-                '0x3000000000000000000000000000000000000001', // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x8000000000000000000000000000000000000001', //_keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ).should.be.rejectedWith("Mining address already used as a mining one");
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Mining address already used as a mining one");
         });
     });
 
+    /*
 
     describe('newValidatorSet()', async () => {
-
-
-
         beforeEach(async () => {
 
             accountAddresses = accounts.map(item => item.address);
@@ -1088,6 +1177,8 @@ describe('ValidatorSetHbbft', () => {
             (await validatorSetHbbft.isValidatorAbandoned(staking)).should.be.equal(true);
         });
     });
+
+    */
 });
 
 

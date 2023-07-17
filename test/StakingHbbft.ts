@@ -4,12 +4,10 @@ import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
-    AdminUpgradeabilityProxy,
     RandomHbbftMock,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
-    KeyGenHistory,
-    IStakingHbbft
+    KeyGenHistory
 } from "../src/types";
 
 import fp from 'lodash/fp';
@@ -35,7 +33,6 @@ console.log('useUpgradeProxy:', useUpgradeProxy);
 
 //smart contracts
 let blockRewardHbbft: BlockRewardHbbftCoinsMock;
-let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
 let randomHbbft: RandomHbbftMock;
 let validatorSetHbbft: ValidatorSetHbbftMock;
 let stakingHbbft: StakingHbbftCoinsMock;

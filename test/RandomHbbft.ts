@@ -1,8 +1,6 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 import {
-    AdminUpgradeabilityProxy,
-    IStakingHbbft,
     RandomHbbftMock,
     StakingHbbftCoinsMock,
     ValidatorSetHbbftMock,
@@ -28,7 +26,6 @@ console.log('useUpgradeProxy:', useUpgradeProxy);
 const logOutput = false;
 
 //smart contracts
-let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
 let randomHbbft: RandomHbbftMock;
 let validatorSetHbbft: ValidatorSetHbbftMock;
 let stakingHbbft: StakingHbbftCoinsMock;
@@ -63,6 +60,8 @@ describe('RandomHbbft', () => {
             [owner, ...accounts] = await ethers.getSigners();
             const accountAddresses = accounts.map(item => item.address);
 
+            const stubAddress = owner.address;
+
             initialValidators = accountAddresses.slice(1, 25 + 1); // accounts[1...3]
             initialStakingAddresses = accountAddresses.slice(26, 51); // accounts[4...6]
             initialValidators.length.should.be.equal(25);
@@ -70,44 +69,36 @@ describe('RandomHbbft', () => {
             initialValidators[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
             initialValidators[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
             initialValidators[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
-            const AdminUpgradeabilityProxyFactory = await ethers.getContractFactory("AdminUpgradeabilityProxy")
-            // Deploy RandomHbbft contract
-            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
-            randomHbbft = await RandomHbbftFactory.deploy() as RandomHbbftMock;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
-                randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
-            }
+
             // Deploy ValidatorSetHbbft contract
             const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-            validatorSetHbbft = await ValidatorSetFactory.deploy() as ValidatorSetHbbftMock;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
-                validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
-            }
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
-            //Deploy StakingHbbft contract
-            stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-                stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
-            }
+            validatorSetHbbft = await upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    '0x1000000000000000000000000000000000000001', // _blockRewardContract
+                    stubAddress,                                  // _randomContract
+                    stubAddress,                                  // _stakingContract
+                    '0x4000000000000000000000000000000000000001', // _keyGenHistoryContract
+                    validatorInactivityThreshold,                 // _validatorInactivityThreshold
+                    initialValidators,                            // _initialMiningAddresses
+                    initialStakingAddresses,                      // _initialStakingAddresses
+                ],
+                { initializer: 'initialize' }
+            ) as ValidatorSetHbbftMock;
 
-            await validatorSetHbbft.initialize(
-                '0x1000000000000000000000000000000000000001', // _blockRewardContract
-                randomHbbft.address, // _randomContract
-                stakingHbbft.address, // _stakingContract
-                '0x4000000000000000000000000000000000000001', //_keyGenHistoryContract,
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators, // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            );
+            // Deploy RandomHbbft contract
+            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+            randomHbbft = await upgrades.deployProxy(
+                RandomHbbftFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address
+                ],
+                { initializer: 'initialize' }
+            ) as RandomHbbftMock;
 
-            await randomHbbft.setSystemAddress(owner.address);
-            await validatorSetHbbft.setSystemAddress(owner.address);
-            await randomHbbft.initialize(validatorSetHbbft.address)
-
-            let structure: IStakingHbbft.StakingParamsStruct = {
+            let stakingParams = {
                 _validatorSetContract: validatorSetHbbft.address,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
@@ -128,13 +119,23 @@ describe('RandomHbbft', () => {
             let initialValidatorsPubKeysSplit = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
                 (initialValidatorsPubKeys);
 
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            //Deploy StakingHbbft contract
+            stakingHbbft = await upgrades.deployProxy(
+                StakingHbbftFactory,
+                [
+                    owner.address,
+                    stakingParams,
+                    initialValidatorsPubKeysSplit, // _publicKeys
+                    initialValidatorsIpAddresses // _internetAddresses
+                ],
+                { initializer: 'initialize' }
+            ) as StakingHbbftCoinsMock;
 
-            // Initialize StakingHbbft
-            await stakingHbbft.initialize(
-                structure,
-                initialValidatorsPubKeysSplit, // _publicKeys
-                initialValidatorsIpAddresses // _internetAddresses
-            );
+            await randomHbbft.setSystemAddress(owner.address);
+            await validatorSetHbbft.setSystemAddress(owner.address);
+            await validatorSetHbbft.setRandomContract(randomHbbft.address);
+            await validatorSetHbbft.setStakingContract(stakingHbbft.address);
         });
 
         describe("currentSeed()", async () => {
