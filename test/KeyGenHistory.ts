@@ -15,6 +15,7 @@ import {
 import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Permission } from "./testhelpers/Permission";
+import { expect } from "chai";
 
 const testdata = require('./testhelpers/data');
 
@@ -216,6 +217,108 @@ describe('KeyGenHistory', () => {
             const validators = await validatorSetHbbft.getValidators();
 
             validators.should.be.deep.equal(initializingMiningAddresses);
+        });
+
+        it('should revert initialization with owner = address(0)', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    ethers.constants.AddressZero,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Owner address must not be 0');
+        });
+
+        it('should revert initialization with validator contract address = address(0)', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    ethers.constants.AddressZero,
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Validator contract address cannot be 0.');
+        });
+
+        it('should revert initialization with empty validators array', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    [],
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Validators must be more than 0.');
+        });
+
+        it('should revert initialization with wrong number of parts', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    [],
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Wrong number of Parts!');
+        });
+
+        it('should revert initialization with wrong number of acks', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    parts,
+                    []
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Wrong number of Acks!');
+        });
+
+        it('should not allow initialization if initialized contract', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            const contract = await upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            );
+
+            expect(await contract.deployed());
+
+            await expect(contract.initialize(
+                owner.address,
+                validatorSetHbbft.address,
+                initializingMiningAddresses,
+                parts,
+                acks
+            )).to.be.revertedWith('Initializable: contract is already initialized');
         });
 
         it('failed KeyGeneration, availability.', async () => {

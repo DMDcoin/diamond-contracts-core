@@ -9,6 +9,7 @@ import {
 import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import fp from "lodash/fp";
+import { expect } from "chai";
 
 const testdata = require('./testhelpers/data');
 
@@ -136,6 +137,49 @@ describe('RandomHbbft', () => {
             await validatorSetHbbft.setSystemAddress(owner.address);
             await validatorSetHbbft.setRandomContract(randomHbbft.address);
             await validatorSetHbbft.setStakingContract(stakingHbbft.address);
+        });
+
+        it("should revert initialization with validator contract = address(0)", async () => {
+            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+            await expect(upgrades.deployProxy(
+                RandomHbbftFactory,
+                [
+                    owner.address,
+                    ethers.constants.AddressZero
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('ValidatorSet must not be 0');
+        });
+
+        it("should revert initialization with owner = address(0)", async () => {
+            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+            await expect(upgrades.deployProxy(
+                RandomHbbftFactory,
+                [
+                    ethers.constants.AddressZero,
+                    validatorSetHbbft.address
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Owner address must not be 0');
+        });
+
+        it("should not allow initialization if initialized contract", async () => {
+            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+            const contract = await upgrades.deployProxy(
+                RandomHbbftFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address
+                ],
+                { initializer: 'initialize' }
+            );
+
+            expect(await contract.deployed());
+
+            await expect(contract.initialize(
+                owner.address,
+                validatorSetHbbft.address
+            )).to.be.revertedWith('Initializable: contract is already initialized');
         });
 
         describe("currentSeed()", async () => {
