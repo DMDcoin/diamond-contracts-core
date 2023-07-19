@@ -972,7 +972,7 @@ describe('ValidatorSetHbbft', () => {
             ];
 
             const stakeAmountsTotal = stakeAmounts.reduce((accumulator, value) => accumulator + value);
-            const stakeAmountsExpectedShares = stakeAmounts.map((value) => (value / stakeAmountsTotal * 100));
+            const stakeAmountsExpectedShares = stakeAmounts.map((value) => Math.round(value / stakeAmountsTotal * 100));
             let indexesStats = stakeAmounts.map(() => 0);
 
             for (let i = 0; i < repeats; i++) {
