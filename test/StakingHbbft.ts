@@ -4,7 +4,7 @@ import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
-    RandomHbbftMock,
+    RandomHbbft,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
     KeyGenHistory
@@ -100,7 +100,7 @@ describe('StakingHbbft', () => {
 
         await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
 
-        const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+        const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
         const randomHbbft = await upgrades.deployProxy(
             RandomHbbftFactory,
             [
@@ -108,7 +108,7 @@ describe('StakingHbbft', () => {
                 validatorSetHbbft.address
             ],
             { initializer: 'initialize' }
-        ) as RandomHbbftMock;
+        ) as RandomHbbft;
 
         //without that, the Time is 0,
         //meaning a lot of checks that expect time to have some value deliver incorrect results.

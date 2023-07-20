@@ -4,7 +4,7 @@ import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
-    RandomHbbftMock,
+    RandomHbbft,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
     KeyGenHistory,
@@ -34,7 +34,7 @@ const logOutput = false;
 
 //smart contracts
 let blockRewardHbbft: BlockRewardHbbftCoinsMock;
-let randomHbbft: RandomHbbftMock;
+let randomHbbft: RandomHbbft;
 let validatorSetHbbft: ValidatorSetHbbftMock;
 let stakingHbbft: StakingHbbftCoinsMock;
 let keyGenHistory: KeyGenHistory;
@@ -134,7 +134,7 @@ describe('KeyGenHistory', () => {
             ) as BlockRewardHbbftCoinsMock;
 
             // Deploy BlockRewardHbbft contract
-            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
             randomHbbft = await upgrades.deployProxy(
                 RandomHbbftFactory,
                 [
@@ -142,7 +142,7 @@ describe('KeyGenHistory', () => {
                     validatorSetHbbft.address
                 ],
                 { initializer: 'initialize' }
-            ) as RandomHbbftMock;
+            ) as RandomHbbft;
 
             const stakingParams = {
                 _validatorSetContract: validatorSetHbbft.address,

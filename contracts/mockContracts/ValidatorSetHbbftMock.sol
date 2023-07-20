@@ -4,6 +4,7 @@ import "../../contracts/ValidatorSetHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     address internal _systemAddress;
+    bool internal _isFullHealth;
 
     // ============================================== Modifiers =======================================================
 
@@ -45,6 +46,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _writeValidatorAvailableSince(_validator, _timestamp);
     }
 
+    function setIsFullHealth(bool _healthy) public {
+        _isFullHealth = _healthy;
+    }
+
     // =============================================== Getters ========================================================
 
     function getRandomIndex(
@@ -58,6 +63,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
                 _likelihoodSum,
                 uint256(keccak256(abi.encode(_randomNumber)))
             );
+    }
+
+    function isFullHealth() external view override returns (bool) {
+        return _isFullHealth;
     }
 
     // =============================================== Private ========================================================

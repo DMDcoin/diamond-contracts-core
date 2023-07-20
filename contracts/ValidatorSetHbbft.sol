@@ -160,7 +160,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         return address(stakingContract);
     }
 
-    function isFullHealth() external view returns (bool) {
+    function isFullHealth() external view virtual returns (bool) {
         // return maxValidators == _currentValidators.length;
         // for testing purposes we are hardcoding this to true.
         // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/162

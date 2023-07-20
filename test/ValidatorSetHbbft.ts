@@ -4,7 +4,7 @@ import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
     BlockRewardHbbftCoinsMock,
-    RandomHbbftMock,
+    RandomHbbft,
     ValidatorSetHbbftMock,
     StakingHbbftCoinsMock,
     KeyGenHistory,
@@ -49,6 +49,8 @@ const MIN_STAKE = BigNumber.from(ethers.utils.parseEther('1'));
 const MAX_STAKE = BigNumber.from(ethers.utils.parseEther('100000'));
 
 const validatorInactivityThreshold = 365 * 86400 // 1 year
+
+const SystemAccountAddress = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
 let initialValidatorsPubKeys: string[];
 let initialValidatorsIpAddresses: string[];
@@ -103,7 +105,7 @@ describe('ValidatorSetHbbft', () => {
             { initializer: 'initialize' }
         ) as ValidatorSetHbbftMock;
 
-        const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
+        const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
         const randomHbbft = await upgrades.deployProxy(
             RandomHbbftFactory,
             [
@@ -111,7 +113,7 @@ describe('ValidatorSetHbbft', () => {
                 validatorSetHbbft.address
             ],
             { initializer: 'initialize' },
-        ) as RandomHbbftMock;
+        ) as RandomHbbft;
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
         const keyGenHistory = await upgrades.deployProxy(
@@ -189,6 +191,17 @@ describe('ValidatorSetHbbft', () => {
         await validatorSetHbbft.setKeyGenHistoryContract(keyGenHistory.address);
 
         return { validatorSetHbbft, blockRewardHbbft, stakingHbbft, randomHbbft, keyGenHistory, certifier, txPermission };
+    }
+
+    async function impersonateSystemAcc() {
+        await helpers.impersonateAccount(SystemAccountAddress);
+
+        await owner.sendTransaction({
+            to: SystemAccountAddress,
+            value: ethers.utils.parseEther('10'),
+        });
+
+        return await ethers.getSigner(SystemAccountAddress);
     }
 
     beforeEach(async () => {
@@ -615,10 +628,13 @@ describe('ValidatorSetHbbft', () => {
             (await randomHbbft.currentSeed()).should.be.equal(BigNumber.from(0));
 
             const seed = random(1000000, 2000000);
-            await randomHbbft.setSystemAddress(owner.address).should.be.fulfilled;
-            await randomHbbft.connect(owner).setCurrentSeed(BigNumber.from(seed)); // .should.be.fulfilled;
+
+            const systemSigner = await impersonateSystemAcc();
+
+            await randomHbbft.connect(systemSigner).setCurrentSeed(BigNumber.from(seed)); // .should.be.fulfilled;
             (await randomHbbft.currentSeed()).should.be.equal(BigNumber.from(seed));
-            await randomHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
+
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
             // Emulate calling `newValidatorSet()` at the last block of the staking epoch
             await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
@@ -948,6 +964,60 @@ describe('ValidatorSetHbbft', () => {
                 }
             }
         });
+        /*
+        it('should return indexes according to given likelihood', async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const repeats = 2000;
+            const maxFluctuation = 2; // percents, +/-
+
+            const stakeAmounts = [
+                170000, // 17%
+                130000, // 13%
+                10000,  // 1%
+                210000, // 21%
+                90000,  // 9%
+                60000,  // 6%
+                0,      // 0%
+                100000, // 10%
+                40000,  // 4%
+                140000, // 14%
+                30000,  // 3%
+                0,      // 0%
+                20000   // 2%
+            ];
+
+            const stakeAmountsTotal = stakeAmounts.reduce((accumulator, value) => accumulator + value);
+            const stakeAmountsExpectedShares = stakeAmounts.map((value) =>
+                BigNumber.from(value).mul(100).div(stakeAmountsTotal)
+            );
+
+            let indexesStats = stakeAmounts.map(() => 0);
+
+            for (let i = 0; i < repeats; i++) {
+                const index = await validatorSetHbbft.getRandomIndex(
+                    stakeAmounts,
+                    stakeAmountsTotal,
+                    random(0, Number.MAX_SAFE_INTEGER)
+                );
+                indexesStats[index.toNumber()]++;
+            }
+
+            // const stakeAmountsRandomShares = indexesStats.map((value) => Math.round(value / repeats * 100));
+            const stakeAmountsRandomShares = indexesStats.map((value) => BigNumber.from(value).mul(100).div(repeats));
+
+            //console.log(stakeAmountsExpectedShares);
+            //console.log(stakeAmountsRandomShares);
+
+            stakeAmountsRandomShares.forEach((value, index) => {
+                if (stakeAmountsExpectedShares[index].eq(0)) {
+                    value.should.be.equal(0);
+                } else {
+                    stakeAmountsExpectedShares[index].sub(value).abs().should.be.most(maxFluctuation);
+                }
+            });
+        });
+        */
 
         it('should return indexes according to given likelihood', async () => {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
