@@ -38,15 +38,6 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
 
     event NewValidatorsSet(address[] newValidatorSet);
 
-    /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
-    modifier onlySystem() {
-        require(
-            msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE,
-            "Must be executed by System"
-        );
-        _;
-    }
-
     /// @dev Ensures the caller is ValidatorSet contract.
     modifier onlyValidatorSet() {
         require(
