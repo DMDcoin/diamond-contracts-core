@@ -58,6 +58,16 @@ let delegatorMinStake = BigNumber.from(ethers.utils.parseEther('1'));
 let maxStake = BigNumber.from(ethers.utils.parseEther('100000'));
 
 describe('KeyGenHistory', () => {
+    async function impersonateSystemAcc(address: string) {
+        await helpers.impersonateAccount(address);
+
+        await owner.sendTransaction({
+            to: address,
+            value: ethers.utils.parseEther('10'),
+        });
+
+        return await ethers.getSigner(address);
+    }
 
     describe('Deployment', async () => {
         //this info does not match the mininAccounts, but thats not a problem for this tests.
@@ -320,6 +330,28 @@ describe('KeyGenHistory', () => {
                 acks
             )).to.be.revertedWith('Initializable: contract is already initialized');
         });
+
+        it('should restrict calling clearPrevKeyGenState to ValidatorSet contract', async function() {
+            const caller = accounts[5];
+
+            await expect(keyGenHistory.connect(caller).clearPrevKeyGenState([]))
+                .to.be.revertedWith("Must by executed by validatorSetContract");
+        });
+
+        it('should restrict calling notifyNewEpoch to ValidatorSet contract', async function() {
+            const caller = accounts[5];
+
+            await expect(keyGenHistory.connect(caller).notifyNewEpoch())
+                .to.be.revertedWith("Must by executed by validatorSetContract");
+        });
+
+        it('should restrict calling notifyKeyGenFailed to ValidatorSet contract', async function() {
+            const caller = accounts[5];
+
+            await expect(keyGenHistory.connect(caller).notifyKeyGenFailed())
+                .to.be.revertedWith("Must by executed by validatorSetContract");
+        });
+
 
         it('failed KeyGeneration, availability.', async () => {
 
