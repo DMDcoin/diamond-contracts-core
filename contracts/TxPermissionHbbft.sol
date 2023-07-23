@@ -75,7 +75,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     ) external initializer {
         require(_contractOwner != address(0), "Owner address must not be 0");
         require(_certifier != address(0), "Certifier address must not be 0");
-        require(_validatorSet != address(0), "ValidatorSet must not be 0");
+        require(_validatorSet != address(0), "ValidatorSet address must not be 0");
+        require(_keyGenHistoryContract != address(0), "KeyGenHistory address must not be 0");
 
         __Ownable_init();
         _transferOwnership(_contractOwner);
