@@ -235,14 +235,18 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
                         blockNumber
                     );
                 return (callable ? CALL : NONE, false);
-            } else if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
+            }
+
+            if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
                 return (
                     validatorSetContract.canCallAnnounceAvailability(_sender)
                         ? CALL
                         : NONE,
                     false
                 );
-            } else if (signature == SET_VALIDATOR_IP) {
+            }
+
+            if (signature == SET_VALIDATOR_IP) {
                 address pool = validatorSetContract.stakingByMiningAddress(
                     _sender
                 );
@@ -256,7 +260,9 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
                     );
                 }
                 return (NONE, false);
-            } else if (_gasPrice > 0) {
+            }
+
+            if (_gasPrice > 0) {
                 // The other functions of ValidatorSet contract can be called
                 // by anyone except validators' mining addresses if gasPrice is not zero
                 return (
@@ -264,7 +270,9 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
                     false
                 );
             }
-        } else if (_to == address(keyGenHistoryContract)) {
+        }
+
+        if (_to == address(keyGenHistoryContract)) {
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
@@ -300,7 +308,9 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
                     // so this transaction is not allowed.
                     return (NONE, false);
                 }
-            } else if (signature == WRITE_ACKS_SIGNATURE) {
+            }
+
+            if (signature == WRITE_ACKS_SIGNATURE) {
                 if (
                     validatorSetContract.getPendingValidatorKeyGenerationMode(
                         _sender
