@@ -3,10 +3,10 @@ import { ethers, upgrades } from "hardhat";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
-    BlockRewardHbbftCoinsMock,
+    BlockRewardHbbftMock,
     RandomHbbft,
     ValidatorSetHbbftMock,
-    StakingHbbftCoinsMock,
+    StakingHbbftMock,
     KeyGenHistory,
     TxPermissionHbbft,
     CertifierHbbft
@@ -33,10 +33,10 @@ console.log('useUpgradeProxy:', useUpgradeProxy);
 const logOutput = false;
 
 //smart contracts
-let blockRewardHbbft: BlockRewardHbbftCoinsMock;
+let blockRewardHbbft: BlockRewardHbbftMock;
 let randomHbbft: RandomHbbft;
 let validatorSetHbbft: ValidatorSetHbbftMock;
-let stakingHbbft: StakingHbbftCoinsMock;
+let stakingHbbft: StakingHbbftMock;
 let keyGenHistory: KeyGenHistory;
 let txPermission: TxPermissionHbbft;
 let certifier: CertifierHbbft;
@@ -133,7 +133,7 @@ describe('KeyGenHistory', () => {
             ) as ValidatorSetHbbftMock;
 
             // Deploy BlockRewardHbbft contract
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
+            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
             blockRewardHbbft = await upgrades.deployProxy(
                 BlockRewardHbbftFactory,
                 [
@@ -141,7 +141,7 @@ describe('KeyGenHistory', () => {
                     validatorSetHbbft.address
                 ],
                 { initializer: 'initialize' }
-            ) as BlockRewardHbbftCoinsMock;
+            ) as BlockRewardHbbftMock;
 
             // Deploy BlockRewardHbbft contract
             const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
@@ -166,7 +166,7 @@ describe('KeyGenHistory', () => {
             };
 
             // Deploy BlockRewardHbbft contract
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -176,7 +176,7 @@ describe('KeyGenHistory', () => {
                     initialValidatorsIpAddresses
                 ],
                 { initializer: 'initialize' }
-            ) as StakingHbbftCoinsMock;
+            ) as StakingHbbftMock;
 
             const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
             keyGenHistory = await upgrades.deployProxy(

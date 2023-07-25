@@ -13,7 +13,7 @@
         "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
         "test": "node scripts/check_for_clashing.js && npx hardhat test",
         "testNoUpgradeProxy": "export CONTRACTS_NO_UPGRADE_PROXY=true && node scripts/check_for_clashing.js && bash scripts/test.sh",
-        "testOnTestnet": "export CONTRACTS_NO_UPGRADE_PROXY=true && ./node_modules/.bin/truffle test  --network testNet test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftCoinsMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftCoinsMock.sol",
+        "testOnTestnet": "export CONTRACTS_NO_UPGRADE_PROXY=true && ./node_modules/.bin/truffle test  --network testNet test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftMock.sol",
         "getFunctionSignatures": "node scripts/getFunctionSignatures.js"
     },
     "repository": {

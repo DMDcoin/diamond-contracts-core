@@ -7,7 +7,7 @@ import fp from "lodash/fp";
 
 import {
     RandomHbbft,
-    StakingHbbftCoinsMock,
+    StakingHbbftMock,
     ValidatorSetHbbftMock,
 } from "../src/types";
 
@@ -22,7 +22,7 @@ const logOutput = false;
 //smart contracts
 let randomHbbft: RandomHbbft;
 let validatorSetHbbft: ValidatorSetHbbftMock;
-let stakingHbbft: StakingHbbftCoinsMock;
+let stakingHbbft: StakingHbbftMock;
 
 //addresses
 let owner: SignerWithAddress;
@@ -125,7 +125,7 @@ describe('RandomHbbft', () => {
             let initialValidatorsPubKeysSplit = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
                 (initialValidatorsPubKeys);
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             //Deploy StakingHbbft contract
             stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
@@ -136,7 +136,7 @@ describe('RandomHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            ) as StakingHbbftCoinsMock;
+            ) as StakingHbbftMock;
 
             // await randomHbbft.setSystemAddress(owner.address);
             await validatorSetHbbft.setSystemAddress(owner.address);

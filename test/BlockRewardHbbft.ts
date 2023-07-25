@@ -3,10 +3,10 @@ import { ethers, network, upgrades } from "hardhat";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
-    BlockRewardHbbftCoinsMock,
+    BlockRewardHbbftMock,
     RandomHbbft,
     ValidatorSetHbbftMock,
-    StakingHbbftCoinsMock,
+    StakingHbbftMock,
     KeyGenHistory
 } from "../src/types";
 
@@ -29,10 +29,10 @@ const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
 console.log('useUpgradeProxy:', useUpgradeProxy);
 
 //smart contracts
-let blockRewardHbbft: BlockRewardHbbftCoinsMock;
+let blockRewardHbbft: BlockRewardHbbftMock;
 let randomHbbft: RandomHbbft;
 let validatorSetHbbft: ValidatorSetHbbftMock;
-let stakingHbbft: StakingHbbftCoinsMock;
+let stakingHbbft: StakingHbbftMock;
 let keyGenHistory: KeyGenHistory;
 
 //addresses
@@ -100,7 +100,7 @@ describe('BlockRewardHbbft', () => {
         await validatorSetHbbft.deployed();
 
         // Deploy BlockRewardHbbft contract
-        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
+        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
         blockRewardHbbft = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
@@ -108,7 +108,7 @@ describe('BlockRewardHbbft', () => {
                 validatorSetHbbft.address
             ],
             { initializer: 'initialize' }
-        ) as BlockRewardHbbftCoinsMock;
+        ) as BlockRewardHbbftMock;
 
         await blockRewardHbbft.deployed();
 
@@ -146,7 +146,7 @@ describe('BlockRewardHbbft', () => {
             _stakingWithdrawDisallowPeriod: STAKE_WITHDRAW_DISALLOW_PERIOD
         };
 
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
         stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
@@ -156,7 +156,7 @@ describe('BlockRewardHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        ) as StakingHbbftCoinsMock;
+        ) as StakingHbbftMock;
 
         await stakingHbbft.deployed();
 

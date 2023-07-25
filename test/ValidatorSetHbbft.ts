@@ -3,10 +3,10 @@ import { ethers, network, upgrades } from "hardhat";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
-    BlockRewardHbbftCoinsMock,
+    BlockRewardHbbftMock,
     RandomHbbft,
     ValidatorSetHbbftMock,
-    StakingHbbftCoinsMock,
+    StakingHbbftMock,
     KeyGenHistory,
     TxPermissionHbbft,
     CertifierHbbft,
@@ -152,7 +152,7 @@ describe('ValidatorSetHbbft', () => {
             { initializer: 'initialize' }
         ) as TxPermissionHbbft;
 
-        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
+        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
         const blockRewardHbbft = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
@@ -160,7 +160,7 @@ describe('ValidatorSetHbbft', () => {
                 validatorSetHbbft.address
             ],
             { initializer: 'initialize' }
-        ) as BlockRewardHbbftCoinsMock;
+        ) as BlockRewardHbbftMock;
 
         let stakingParams = {
             _validatorSetContract: validatorSetHbbft.address,
@@ -173,7 +173,7 @@ describe('ValidatorSetHbbft', () => {
             _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
         };
 
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
         const stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
@@ -183,7 +183,7 @@ describe('ValidatorSetHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        ) as StakingHbbftCoinsMock;
+        ) as StakingHbbftMock;
 
         await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
         await validatorSetHbbft.setRandomContract(randomHbbft.address);
@@ -1121,7 +1121,7 @@ describe('ValidatorSetHbbft', () => {
                 { initializer: 'initialize' }
             ) as ValidatorSetHbbftMock;
 
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
+            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
             const blockRewardHbbft = await upgrades.deployProxy(
                 BlockRewardHbbftFactory,
                 [
@@ -1129,7 +1129,7 @@ describe('ValidatorSetHbbft', () => {
                     validatorSetHbbft.address
                 ],
                 { initializer: 'initialize' }
-            ) as BlockRewardHbbftCoinsMock;
+            ) as BlockRewardHbbftMock;
 
             const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
             const certifier = await upgrades.deployProxy(
@@ -1173,7 +1173,7 @@ describe('ValidatorSetHbbft', () => {
             const fakePK = "0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae";
             const fakeIP = "0x00000000000000000000000000000001"
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             const stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -1183,7 +1183,7 @@ describe('ValidatorSetHbbft', () => {
                     [fakeIP] // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            ) as StakingHbbftCoinsMock;
+            ) as StakingHbbftMock;
 
             await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
             await validatorSetHbbft.setStakingContract(stakingHbbft.address);
@@ -1236,7 +1236,7 @@ interface InternetAddress {
     port: number;
 }
 
-async function getValidatorInternetAddress(stakingHbbft: StakingHbbftCoinsMock, pool: string) : Promise<InternetAddress> {
+async function getValidatorInternetAddress(stakingHbbft: StakingHbbftMock, pool: string) : Promise<InternetAddress> {
 
     const call_result = await stakingHbbft.getPoolInternetAddress(pool);
     const portBN = BigNumber.from(call_result[1]);
@@ -1288,7 +1288,7 @@ async function announceAvailability(validatorSetHbbft: ValidatorSetHbbftMock, po
     await (await ethers.getSigner(pool)).sendTransaction({ to: validatorSetHbbft.address, data: asEncoded });
 }
 
-async function getCurrentGovernancePotValue(blockRewardHbbft: BlockRewardHbbftCoinsMock) {
+async function getCurrentGovernancePotValue(blockRewardHbbft: BlockRewardHbbftMock) {
     const governnancePotAddress = await blockRewardHbbft.governancePotAddress();
     (BigNumber.from(governnancePotAddress)).should.be.gt(BigNumber.from(0));
     const result = BigNumber.from(await ethers.provider.getBalance(governnancePotAddress));

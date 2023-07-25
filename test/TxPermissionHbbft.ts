@@ -7,7 +7,7 @@ import fp from 'lodash/fp';
 import {
     CertifierHbbft,
     KeyGenHistory,
-    StakingHbbftCoinsMock,
+    StakingHbbftMock,
     TxPermissionHbbftMock,
     ValidatorSetHbbftMock,
     MockStaking,
@@ -93,7 +93,7 @@ describe('TxPermissionHbbft', () => {
         let initialValidatorsPubKeysSplit = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
             (initialValidatorsPubKeys);
 
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
         //Deploy StakingHbbft contract
         const stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
@@ -104,7 +104,7 @@ describe('TxPermissionHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        ) as StakingHbbftCoinsMock;
+        ) as StakingHbbftMock;
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
         const keyGenHistory = await upgrades.deployProxy(

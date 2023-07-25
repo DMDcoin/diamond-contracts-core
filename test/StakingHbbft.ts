@@ -3,10 +3,10 @@ import { ethers, network, upgrades } from "hardhat";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
-    BlockRewardHbbftCoinsMock,
+    BlockRewardHbbftMock,
     RandomHbbft,
     ValidatorSetHbbftMock,
-    StakingHbbftCoinsMock,
+    StakingHbbftMock,
     KeyGenHistory
 } from "../src/types";
 
@@ -88,7 +88,7 @@ describe('StakingHbbft', () => {
         ) as ValidatorSetHbbftMock;
 
         // Deploy BlockRewardHbbft contract
-        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
+        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
         const blockRewardHbbft = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
@@ -96,7 +96,7 @@ describe('StakingHbbft', () => {
                 validatorSetHbbft.address
             ],
             { initializer: 'initialize' }
-        ) as BlockRewardHbbftCoinsMock;
+        ) as BlockRewardHbbftMock;
 
         await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
 
@@ -160,7 +160,7 @@ describe('StakingHbbft', () => {
             '0x00000000000000000000000000000000'
         ];
 
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
         const stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
@@ -170,7 +170,7 @@ describe('StakingHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        ) as StakingHbbftCoinsMock;
+        ) as StakingHbbftMock;
 
         await validatorSetHbbft.setRandomContract(randomHbbft.address);
         await validatorSetHbbft.setStakingContract(stakingHbbft.address);
@@ -460,9 +460,9 @@ describe('StakingHbbft', () => {
         let delegator: SignerWithAddress;
         let delegatorMinStake: BigNumber;
 
-        let stakingHbbftContract: StakingHbbftCoinsMock;
+        let stakingHbbftContract: StakingHbbftMock;
         let validatorSetContract: ValidatorSetHbbftMock;
-        let blockRewardContract: BlockRewardHbbftCoinsMock;
+        let blockRewardContract: BlockRewardHbbftMock;
 
         beforeEach(async () => {
             const { stakingHbbft, validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
@@ -1724,7 +1724,7 @@ describe('StakingHbbft', () => {
     });
 
     describe('incrementStakingEpoch()', async () => {
-        let stakingContract: StakingHbbftCoinsMock;
+        let stakingContract: StakingHbbftMock;
         let validatorSetContract: SignerWithAddress;
 
         beforeEach(async () => {
@@ -1784,7 +1784,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             const stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -1794,7 +1794,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            ) as StakingHbbftCoinsMock;
+            ) as StakingHbbftMock;
 
             stakingFixedEpochDuration.should.be.equal(
                 await stakingHbbft.stakingFixedEpochDuration()
@@ -1842,7 +1842,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -1867,7 +1867,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -1892,7 +1892,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -1917,7 +1917,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             const stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -1951,7 +1951,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -1976,7 +1976,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: 0
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -2001,7 +2001,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: 120954
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -2028,7 +2028,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -2053,7 +2053,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -2078,7 +2078,7 @@ describe('StakingHbbft', () => {
                 _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
             };
 
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
@@ -2095,7 +2095,7 @@ describe('StakingHbbft', () => {
 
     describe('moveStake()', async () => {
         let delegatorAddress: SignerWithAddress;
-        let stakingContract: StakingHbbftCoinsMock;
+        let stakingContract: StakingHbbftMock;
         const stakeAmount = minStake.mul(BigNumber.from(2));
 
         beforeEach(async () => {
@@ -2648,7 +2648,7 @@ describe('StakingHbbft', () => {
         });
 
         async function stake(
-            stakingContract: StakingHbbftCoinsMock,
+            stakingContract: StakingHbbftMock,
             poolAddress: string,
             amount: BigNumber,
             stakers: SignerWithAddress[]
@@ -2659,7 +2659,7 @@ describe('StakingHbbft', () => {
         }
 
         async function setValidatorInactive(
-            stakingContract: StakingHbbftCoinsMock,
+            stakingContract: StakingHbbftMock,
             validatorSetContract: ValidatorSetHbbftMock,
             poolAddress: string
         ) {
@@ -2856,7 +2856,7 @@ describe('StakingHbbft', () => {
 
     // TODO: ...add other tests...
 
-    async function callReward(blockRewardContract: BlockRewardHbbftCoinsMock, isEpochEndBlock: boolean) {
+    async function callReward(blockRewardContract: BlockRewardHbbftMock, isEpochEndBlock: boolean) {
         await blockRewardContract.setSystemAddress(owner.address);
 
         const { events } = await (await blockRewardContract.connect(owner).reward(isEpochEndBlock)).wait();
@@ -2873,8 +2873,8 @@ describe('StakingHbbft', () => {
     // time travels forward to the beginning of the next transition,
     // and simulate a block mining (calling reward())
     async function timeTravelToTransition(
-        blockRewardContract: BlockRewardHbbftCoinsMock,
-        stakingContract: StakingHbbftCoinsMock
+        blockRewardContract: BlockRewardHbbftMock,
+        stakingContract: StakingHbbftMock
     ) {
         let startTimeOfNextPhaseTransition = await stakingContract.startTimeOfNextPhaseTransition();
 
@@ -2883,8 +2883,8 @@ describe('StakingHbbft', () => {
     }
 
     async function timeTravelToEndEpoch(
-        blockRewardContract: BlockRewardHbbftCoinsMock,
-        stakingContract: StakingHbbftCoinsMock
+        blockRewardContract: BlockRewardHbbftMock,
+        stakingContract: StakingHbbftMock
     ) {
         const tsBeforeTimeTravel = await helpers.time.latest();
         const endTimeOfCurrentEpoch = await stakingContract.stakingFixedEpochEndTime();
