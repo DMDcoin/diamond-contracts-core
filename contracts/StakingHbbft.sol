@@ -220,6 +220,7 @@ contract StakingHbbft is StakingHbbftBase {
         virtual
         override
     {
+        // slither-disable-next-line arbitrary-send-eth
         if (!_to.send(_amount)) {
             // We use the `Sacrifice` trick to be sure the coins can be 100% sent to the receiver.
             // Otherwise, if the receiver is a contract which has a revert in its fallback function,
@@ -227,11 +228,4 @@ contract StakingHbbft is StakingHbbftBase {
             (new Sacrifice2){value: _amount}(_to);
         }
     }
-
-    /**
-     * @dev This empty reserved space is put in place to allow future versions to add new
-     * variables without shifting down storage in the inheritance chain.
-     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
-     */
-    uint256[25] private __gap;
 }
