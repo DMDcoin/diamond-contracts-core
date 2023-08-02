@@ -1,22 +1,21 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 import {
-    BlockRewardHbbftCoinsMock,
-    AdminUpgradeabilityProxy,
-    RandomHbbftMock,
+    BlockRewardHbbftMock,
+    RandomHbbft,
     ValidatorSetHbbftMock,
-    StakingHbbftCoinsMock,
+    StakingHbbftMock,
     KeyGenHistory,
     TxPermissionHbbft,
-    CertifierHbbft,
-    InitializerHbbft
+    CertifierHbbft
 } from "../src/types";
 
 import { BigNumber } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Permission } from "./testhelpers/Permission";
+import { expect } from "chai";
 
 const testdata = require('./testhelpers/data');
 
@@ -34,15 +33,13 @@ console.log('useUpgradeProxy:', useUpgradeProxy);
 const logOutput = false;
 
 //smart contracts
-let blockRewardHbbft: BlockRewardHbbftCoinsMock;
-let adminUpgradeabilityProxy: AdminUpgradeabilityProxy;
-let randomHbbft: RandomHbbftMock;
+let blockRewardHbbft: BlockRewardHbbftMock;
+let randomHbbft: RandomHbbft;
 let validatorSetHbbft: ValidatorSetHbbftMock;
-let stakingHbbft: StakingHbbftCoinsMock;
+let stakingHbbft: StakingHbbftMock;
 let keyGenHistory: KeyGenHistory;
 let txPermission: TxPermissionHbbft;
 let certifier: CertifierHbbft;
-let initializer: InitializerHbbft;
 
 let keyGenHistoryPermission: Permission<KeyGenHistory>;
 
@@ -61,8 +58,18 @@ let delegatorMinStake = BigNumber.from(ethers.utils.parseEther('1'));
 let maxStake = BigNumber.from(ethers.utils.parseEther('100000'));
 
 describe('KeyGenHistory', () => {
+    async function impersonateSystemAcc(address: string) {
+        await helpers.impersonateAccount(address);
 
-    describe('Initializer', async () => {
+        await owner.sendTransaction({
+            to: address,
+            value: ethers.utils.parseEther('10'),
+        });
+
+        return await ethers.getSigner(address);
+    }
+
+    describe('Deployment', async () => {
         //this info does not match the mininAccounts, but thats not a problem for this tests.
         let publicKeys = [
             '0x1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1',
@@ -89,8 +96,12 @@ describe('KeyGenHistory', () => {
 
         const stakingWithdrawDisallowPeriod = BigNumber.from(100);
 
+        const validatorInactivityThreshold = 365 * 86400 // 1 year
+
         it('Deploy Contracts', async () => {
             [owner, ...accounts] = await ethers.getSigners();
+            const stubAddress = owner.address;
+
             accountAddresses = accounts.map(item => item.address);
 
             miningAddresses = accountAddresses.slice(11, 20);
@@ -104,119 +115,243 @@ describe('KeyGenHistory', () => {
                 console.log('initial Staking Addresses', initializingStakingAddresses);
             }
 
-
-
-            const AdminUpgradeabilityProxyFactory = await ethers.getContractFactory("AdminUpgradeabilityProxy")
-
             // Deploy ValidatorSet contract
             const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-            validatorSetHbbft = await ValidatorSetFactory.deploy() as ValidatorSetHbbftMock;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(validatorSetHbbft.address, owner.address, []);
-                validatorSetHbbft = await ethers.getContractAt("ValidatorSetHbbftMock", adminUpgradeabilityProxy.address);
-            }
+            validatorSetHbbft = await upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    stubAddress,                  // _blockRewardContract
+                    stubAddress,                  // _randomContract
+                    stubAddress,                  // _stakingContract
+                    stubAddress,                  // _keyGenHistoryContract
+                    validatorInactivityThreshold, // _validatorInactivityThreshold
+                    initializingMiningAddresses,  // _initialMiningAddresses
+                    initializingStakingAddresses, // _initialStakingAddresses
+                ],
+                { initializer: 'initialize' }
+            ) as ValidatorSetHbbftMock;
 
             // Deploy BlockRewardHbbft contract
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftCoinsMock");
-            blockRewardHbbft = await BlockRewardHbbftFactory.deploy() as BlockRewardHbbftCoinsMock;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(blockRewardHbbft.address, owner.address, []);
-                blockRewardHbbft = await ethers.getContractAt("BlockRewardHbbftCoinsMock", adminUpgradeabilityProxy.address);
-            }
+            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
+            blockRewardHbbft = await upgrades.deployProxy(
+                BlockRewardHbbftFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address
+                ],
+                { initializer: 'initialize' }
+            ) as BlockRewardHbbftMock;
 
             // Deploy BlockRewardHbbft contract
-            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbftMock");
-            randomHbbft = await RandomHbbftFactory.deploy() as RandomHbbftMock;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(randomHbbft.address, owner.address, []);
-                randomHbbft = await ethers.getContractAt("RandomHbbftMock", adminUpgradeabilityProxy.address);
-            }
+            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
+            randomHbbft = await upgrades.deployProxy(
+                RandomHbbftFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address
+                ],
+                { initializer: 'initialize' }
+            ) as RandomHbbft;
+
+            const stakingParams = {
+                _validatorSetContract: validatorSetHbbft.address,
+                _initialStakingAddresses: initializingStakingAddresses,
+                _delegatorMinStake: delegatorMinStake,
+                _candidateMinStake: candidateMinStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionwindowLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
+
             // Deploy BlockRewardHbbft contract
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftCoinsMock");
-            stakingHbbft = await StakingHbbftFactory.deploy() as StakingHbbftCoinsMock;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(stakingHbbft.address, owner.address, []);
-                stakingHbbft = await ethers.getContractAt("StakingHbbftCoinsMock", adminUpgradeabilityProxy.address);
-            }
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
+            stakingHbbft = await upgrades.deployProxy(
+                StakingHbbftFactory,
+                [
+                    owner.address,
+                    stakingParams,
+                    publicKeys,
+                    initialValidatorsIpAddresses
+                ],
+                { initializer: 'initialize' }
+            ) as StakingHbbftMock;
 
             const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-            keyGenHistory = await KeyGenFactory.deploy() as KeyGenHistory;
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(keyGenHistory.address, owner.address, []);
-                keyGenHistory = await ethers.getContractAt("KeyGenHistory", adminUpgradeabilityProxy.address);
-            }
-
-            // Deploy TxPermission contract
-            const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
-            txPermission = await TxPermissionFactory.deploy();
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(txPermission.address, owner.address, []);
-                txPermission = await ethers.getContractAt("TxPermissionHbbft", adminUpgradeabilityProxy.address);
-            }
-
-            keyGenHistoryPermission = new Permission(txPermission, keyGenHistory, logOutput);
+            keyGenHistory = await upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            ) as KeyGenHistory;
 
             // Deploy Certifier contract
             const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-            certifier = await CertifierFactory.deploy();
-            if (useUpgradeProxy) {
-                adminUpgradeabilityProxy = await AdminUpgradeabilityProxyFactory.deploy(certifier.address, owner.address, []);
-                certifier = await ethers.getContractAt("CertifierHbbft", adminUpgradeabilityProxy.address);
-            }
+            certifier = await upgrades.deployProxy(
+                CertifierFactory,
+                [
+                    [owner.address],
+                    validatorSetHbbft.address,
+                    owner.address
+                ],
+                { initializer: 'initialize' }
+            ) as CertifierHbbft;
 
-            // analysis of admin addresses.
-            // console.log(await validatorSetHbbft.getInfo());
-            // console.log(owner);
-            // console.log(await validatorSetHbbft.senderAddress());
-            // console.log(await validatorSetHbbft.adminAddress());
-            // console.log(await blockRewardHbbft.adminAddress());
-            // console.log(await randomHbbft.adminAddress());
-            // console.log(await stakingHbbft.adminAddress());
-            // console.log(await txPermission.adminAddress());
+            // Deploy TxPermission contract
+            const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
+            txPermission = await upgrades.deployProxy(
+                TxPermissionFactory,
+                [
+                    [owner.address],
+                    certifier.address,
+                    validatorSetHbbft.address,
+                    keyGenHistory.address,
+                    owner.address
+                ],
+                { initializer: 'initialize' }
+            ) as TxPermissionHbbft;
 
-        });
+            keyGenHistoryPermission = new Permission(txPermission, keyGenHistory, logOutput);
 
-        it('Deploy Initializer', async () => {
-
-            const contractAddresses = [ // _contracts
-                validatorSetHbbft.address,
-                blockRewardHbbft.address,
-                randomHbbft.address,
-                stakingHbbft.address,
-                txPermission.address,
-                certifier.address,
-                keyGenHistory.address
-            ];
-
-            const stakingParams = [
-                delegatorMinStake, //_delegatorMinStake
-                candidateMinStake, //_candidateMinStake
-                maxStake, // _candidateMaxStake
-                stakingEpochDuration, //_stakingEpochDuration
-                stakingTransitionwindowLength, //_stakingTransitionTimeframeLength
-                stakingWithdrawDisallowPeriod, //_stakingWithdrawDisallowPeriod
-            ];
-
-            const InitializerFactory = await ethers.getContractFactory("InitializerHbbft");
-            initializer = await InitializerFactory.deploy(contractAddresses,
-                owner.address, // _owner
-                initializingMiningAddresses, // _miningAddresses
-                initializingStakingAddresses, // _stakingAddresses
-                stakingParams,
-                publicKeys,
-                initialValidatorsIpAddresses,
-                parts,
-                acks) as InitializerHbbft;
+            await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
+            await validatorSetHbbft.setRandomContract(randomHbbft.address);
+            await validatorSetHbbft.setStakingContract(stakingHbbft.address);
+            await validatorSetHbbft.setKeyGenHistoryContract(keyGenHistory.address);
 
             const validators = await validatorSetHbbft.getValidators();
 
             validators.should.be.deep.equal(initializingMiningAddresses);
-
-            //debug set the current timestamp to 1, so it is not causing problems.
-
-            //candidateMinStake = await stakingHbbft.candidateMinStake();
-            //delegatorMinStake = await stakingHbbft.delegatorMinStake();
         });
+
+        it('should revert initialization with owner = address(0)', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    ethers.constants.AddressZero,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Owner address must not be 0');
+        });
+
+        it('should revert initialization with validator contract address = address(0)', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    ethers.constants.AddressZero,
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Validator contract address cannot be 0.');
+        });
+
+        it('should revert initialization with empty validators array', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    [],
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Validators must be more than 0.');
+        });
+
+        it('should revert initialization with wrong number of parts', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    [],
+                    acks
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Wrong number of Parts!');
+        });
+
+        it('should revert initialization with wrong number of acks', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+
+            await expect(upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    parts,
+                    []
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('Wrong number of Acks!');
+        });
+
+        it('should not allow initialization if initialized contract', async () => {
+            const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+            const contract = await upgrades.deployProxy(
+                KeyGenFactory,
+                [
+                    owner.address,
+                    validatorSetHbbft.address,
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            );
+
+            expect(await contract.deployed());
+
+            await expect(contract.initialize(
+                owner.address,
+                validatorSetHbbft.address,
+                initializingMiningAddresses,
+                parts,
+                acks
+            )).to.be.revertedWith('Initializable: contract is already initialized');
+        });
+
+        it('should restrict calling clearPrevKeyGenState to ValidatorSet contract', async function() {
+            const caller = accounts[5];
+
+            await expect(keyGenHistory.connect(caller).clearPrevKeyGenState([]))
+                .to.be.revertedWith("Must by executed by validatorSetContract");
+        });
+
+        it('should restrict calling notifyNewEpoch to ValidatorSet contract', async function() {
+            const caller = accounts[5];
+
+            await expect(keyGenHistory.connect(caller).notifyNewEpoch())
+                .to.be.revertedWith("Must by executed by validatorSetContract");
+        });
+
+        it('should restrict calling notifyKeyGenFailed to ValidatorSet contract', async function() {
+            const caller = accounts[5];
+
+            await expect(keyGenHistory.connect(caller).notifyKeyGenFailed())
+                .to.be.revertedWith("Must by executed by validatorSetContract");
+        });
+
 
         it('failed KeyGeneration, availability.', async () => {
 

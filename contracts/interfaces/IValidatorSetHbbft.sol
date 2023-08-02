@@ -11,16 +11,6 @@ interface IValidatorSetHbbft {
         AllKeysDone
     }
 
-    function initialize(
-        address,
-        address,
-        address,
-        address,
-        uint256,
-        address[] calldata,
-        address[] calldata
-    ) external;
-
     function announceAvailability(uint256, bytes32) external;
 
     function finalizeChange() external;

@@ -4,6 +4,7 @@ import "../../contracts/ValidatorSetHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     address internal _systemAddress;
+    bool internal _isFullHealth;
 
     // ============================================== Modifiers =======================================================
 
@@ -33,12 +34,20 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         stakingContract = IStakingHbbft(_address);
     }
 
+    function setKeyGenHistoryContract(address _address) public {
+        keyGenHistoryContract = IKeyGenHistory(_address);
+    }
+
     function setSystemAddress(address _address) public {
         _systemAddress = _address;
     }
 
     function setValidatorAvailableSince(address _validator, uint256 _timestamp) public {
         _writeValidatorAvailableSince(_validator, _timestamp);
+    }
+
+    function setIsFullHealth(bool _healthy) public {
+        _isFullHealth = _healthy;
     }
 
     // =============================================== Getters ========================================================
@@ -54,6 +63,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
                 _likelihoodSum,
                 uint256(keccak256(abi.encode(_randomNumber)))
             );
+    }
+
+    function isFullHealth() external view override returns (bool) {
+        return _isFullHealth;
     }
 
     // =============================================== Private ========================================================

@@ -1,8 +1,6 @@
 pragma solidity =0.8.17;
 
 interface IBlockRewardHbbft {
-    function initialize(address) external;
-
     function addToReinsertPot() external payable;
 
     function epochsPoolGotRewardFor(address)
@@ -10,5 +8,5 @@ interface IBlockRewardHbbft {
         view
         returns (uint256[] memory);
 
-    function governancePotAddress() external view returns (address payable);
+    function getGovernanceAddress() external view returns (address);
 }

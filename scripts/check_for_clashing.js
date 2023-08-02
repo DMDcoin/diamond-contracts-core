@@ -18,7 +18,7 @@ async function main() {
 
   const storageProxyHashes = await getHashes(
     `${dir}upgradeability/`,
-    'AdminUpgradeabilityProxy'
+    'TransparentUpgradeableProxy'
   );
 
   const filenames = fs.readdirSync(dir);

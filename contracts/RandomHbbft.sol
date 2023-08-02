@@ -1,14 +1,16 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { BitMapsUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/structs/BitMapsUpgradeable.sol";
+
 import "./interfaces/IRandomHbbft.sol";
-import "./upgradeability/UpgradeabilityAdmin.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
-import "./libs/BitMaps.sol";
 
 /// @dev Stores and uppdates a random seed that is used to form a new validator set by the
 /// `ValidatorSetHbbft.newValidatorSet` function.
-contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
-    using BitMaps for BitMaps.BitMap;
+contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
+    using BitMapsUpgradeable for BitMapsUpgradeable.BitMap;
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -22,7 +24,7 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// blocknumber => random seed
     mapping(uint256 => uint256) private randomHistory;
 
-    BitMaps.BitMap private unhealthiness;
+    BitMapsUpgradeable.BitMap private unhealthiness;
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
@@ -38,16 +40,19 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         _;
     }
 
-    function initialize(address _validatorSet) external {
-        require(
-            msg.sender == _admin() ||
-                tx.origin == _admin() ||
-                address(0) == _admin() ||
-                block.number == 0,
-            "Initialization only on genesis block or by admin"
-        );
-        require(!isInitialized(), "initialization can only be done once");
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
+    }
+
+    function initialize(address _contractOwner, address _validatorSet) external initializer {
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
+        require(_contractOwner != address(0), "Owner address must not be 0");
+
+        __Ownable_init();
+        _transferOwnership(_contractOwner);
+
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
 
@@ -68,11 +73,6 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         if (!validatorSetContract.isFullHealth()) {
             unhealthiness.set(block.number);
         }
-    }
-
-    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     ///@dev returns current random seed

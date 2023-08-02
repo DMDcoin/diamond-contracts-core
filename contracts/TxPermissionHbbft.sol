@@ -1,17 +1,19 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "./interfaces/ICertifier.sol";
 import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IRandomHbbft.sol";
 import "./interfaces/IStakingHbbft.sol";
 import "./interfaces/ITxPermission.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
-import "./upgradeability/UpgradeableOwned.sol";
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
 /// protecting the network against "transaction spamming" by malicious validators.
 /// The protection logic is declared in the `allowedTxTypes` function.
-contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
+contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -47,12 +49,10 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     event gasPriceChanged(uint256 _value);
 
-    // ============================================== Modifiers =======================================================
-
-    /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized() {
-        require(isInitialized());
-        _;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
     }
 
     // =============================================== Setters ========================================================
@@ -64,39 +64,38 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// @param _certifier The address of the `Certifier` contract. It is used by `allowedTxTypes` function to know
     /// whether some address is explicitly allowed to use zero gas price.
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
+    /// @param _keyGenHistoryContract The address of the `KeyGenHistory` contract.
+    /// @param _contractOwner The address of the contract owner.
     function initialize(
         address[] calldata _allowed,
         address _certifier,
         address _validatorSet,
-        address _keyGenHistoryContract
-    ) external {
-        require(
-            msg.sender == _admin() ||
-                tx.origin == _admin() ||
-                address(0) == _admin() ||
-                block.number == 0
-        );
-        require(!isInitialized(), "initialization can only be done once");
-        require(_certifier != address(0));
-        require(_validatorSet != address(0), "ValidatorSet must not be 0");
+        address _keyGenHistoryContract,
+        address _contractOwner
+    ) external initializer {
+        require(_contractOwner != address(0), "Owner address must not be 0");
+        require(_certifier != address(0), "Certifier address must not be 0");
+        require(_validatorSet != address(0), "ValidatorSet address must not be 0");
+        require(_keyGenHistoryContract != address(0), "KeyGenHistory address must not be 0");
+
+        __Ownable_init();
+        _transferOwnership(_contractOwner);
+
         for (uint256 i = 0; i < _allowed.length; i++) {
             _addAllowedSender(_allowed[i]);
         }
+
         certifierContract = ICertifier(_certifier);
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
-        minimumGasPrice = 1000000000; // (1 gwei)
-        blockGasLimit = 1000000000; // 1 giga gas block
+        minimumGasPrice = 1 gwei;
+        blockGasLimit = 1_000_000_000; // 1 giga gas block
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
     /// Can only be called by the `owner`. See also the `allowedTxTypes` getter.
     /// @param _sender The address for which transactions of any type must be allowed.
-    function addAllowedSender(address _sender)
-        public
-        onlyOwner
-        onlyInitialized
-    {
+    function addAllowedSender(address _sender) public onlyOwner {
         _addAllowedSender(_sender);
     }
 
@@ -104,11 +103,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// to initiate transactions of any type. Can only be called by the `owner`.
     /// See also the `addAllowedSender` function and `allowedSenders` getter.
     /// @param _sender The removed address.
-    function removeAllowedSender(address _sender)
-        public
-        onlyOwner
-        onlyInitialized
-    {
+    function removeAllowedSender(address _sender) public onlyOwner {
         require(isSenderAllowed[_sender]);
 
         uint256 allowedSendersLength = _allowedSenders.length;
@@ -132,11 +127,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
     /// before submitting it as contribution.
     /// The limit can be changed by the owner (typical the DAO)
     /// @param _value The new minimum gas price.
-    function setMinimumGasPrice(uint256 _value)
-        public
-        onlyOwner
-        onlyInitialized
-    {
+    function setMinimumGasPrice(uint256 _value) public onlyOwner {
         // currently, we do not allow to set the minimum gas price to 0,
         // that would open pandoras box, and the consequences of doing that,
         // requires deeper research.
@@ -147,7 +138,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
 
     /// @dev set's the block gas limit.
     /// IN HBBFT, there must be consens about the block gas limit.
-    function setBlockGasLimit(uint256 _value) public onlyOwner onlyInitialized {
+    function setBlockGasLimit(uint256 _value) public onlyOwner {
         // we make some check that the block gas limit can not be set to low,
         // to prevent the chain to be completly inoperatable.
         // this value is chosen arbitrarily
@@ -155,6 +146,7 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
             _value >= 1000000,
             "Block Gas limit gas price must be at minimum 1,000,000"
         );
+
         blockGasLimit = _value;
     }
 
@@ -243,14 +235,18 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                         blockNumber
                     );
                 return (callable ? CALL : NONE, false);
-            } else if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
+            }
+
+            if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
                 return (
                     validatorSetContract.canCallAnnounceAvailability(_sender)
                         ? CALL
                         : NONE,
                     false
                 );
-            } else if (signature == SET_VALIDATOR_IP) {
+            }
+
+            if (signature == SET_VALIDATOR_IP) {
                 address pool = validatorSetContract.stakingByMiningAddress(
                     _sender
                 );
@@ -264,7 +260,9 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                     );
                 }
                 return (NONE, false);
-            } else if (_gasPrice > 0) {
+            }
+
+            if (_gasPrice > 0) {
                 // The other functions of ValidatorSet contract can be called
                 // by anyone except validators' mining addresses if gasPrice is not zero
                 return (
@@ -272,7 +270,9 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                     false
                 );
             }
-        } else if (_to == address(keyGenHistoryContract)) {
+        }
+
+        if (_to == address(keyGenHistoryContract)) {
             // we allow all calls to the validatorSetContract if the pending validator
             // has to send it's acks and Parts,
             // but has not done this yet.
@@ -308,7 +308,9 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
                     // so this transaction is not allowed.
                     return (NONE, false);
                 }
-            } else if (signature == WRITE_ACKS_SIGNATURE) {
+            }
+
+            if (signature == WRITE_ACKS_SIGNATURE) {
                 if (
                     validatorSetContract.getPendingValidatorKeyGenerationMode(
                         _sender
@@ -376,11 +378,6 @@ contract TxPermissionHbbft is UpgradeableOwned, ITxPermission {
         // In other cases let the `_sender` create any transaction with non-zero gas price,
         // as long the gas price is above the minimum gas price.
         return (_gasPrice >= minimumGasPrice ? ALL : NONE, false);
-    }
-
-    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     // ============================================== Internal ========================================================
