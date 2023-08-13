@@ -25,7 +25,7 @@ task("make_spec_hbbft", "used to make a spec file")
         spec.params.networkID = networkConfig.networkId;
 
         if (networkConfig.minimumBlockTime! > 0) {
-            spec.engine.hbbft.params.minimumBlockTime = networkConfig.maximumBlockTime;
+            spec.engine.hbbft.params.minimumBlockTime = networkConfig.minimumBlockTime;
         }
 
         if (networkConfig.maximumBlockTime! > 0) {
