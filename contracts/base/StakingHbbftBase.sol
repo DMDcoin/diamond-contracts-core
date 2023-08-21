@@ -305,6 +305,8 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
         _stake(stakingAddress, stakingAddress, amount);
         poolInfo[stakingAddress].publicKey = _publicKey;
         poolInfo[stakingAddress].internetAddress = _ip;
+
+        emit PlacedStake(stakingAddress, stakingAddress, stakingEpoch, amount);
     }
 
     /// @dev set's the pool info for a specific ethereum address.
@@ -499,6 +501,8 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
         address staker = msg.sender;
         uint256 amount = msg.value;
         _stake(_toPoolStakingAddress, staker, amount);
+
+        emit PlacedStake(_toPoolStakingAddress, staker, stakingEpoch, amount);
     }
 
     /// @dev Moves the specified amount of staking coins from the staking address of
@@ -1474,8 +1478,6 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
         }
 
         _setLikelihood(_poolStakingAddress);
-
-        emit PlacedStake(_poolStakingAddress, _staker, stakingEpoch, _amount);
     }
 
     /// @dev The internal function used by the `withdraw` and `moveStake` functions.
