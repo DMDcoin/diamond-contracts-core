@@ -62,6 +62,7 @@ async function main() {
     }
 
     const networkId = process.env.NETWORK_ID;
+    console.log('networkId: ', networkId);
     const initialContracts = InitialContractsConfiguration.fromFile("initial-contracts.json");
 
     await generateNetworkManifest(networkId, initialContracts);

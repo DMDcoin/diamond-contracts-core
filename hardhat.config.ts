@@ -95,6 +95,14 @@ const config: {} = {
                     browserURL: "http://explorer.uniq.diamonds",
                 },
             },
+            {
+                network: "alpha2",
+                chainId: 777012,
+                urls: {
+                    apiURL: "http://explorer.uniq.diamonds/api",
+                    browserURL: "http://explorer.uniq.diamonds",
+                },
+            },
         ],
     },
     contractSizer: {
@@ -122,6 +130,17 @@ const config: {} = {
         },
         alpha: {
             url: "http://38.242.206.145:8540",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+        },
+        alpha2: {
+            url: "http://rpc.uniq.diamonds:18545",
             accounts: {
                 mnemonic: getMnemonic(),
                 path: "m/44'/60'/0'/0",
