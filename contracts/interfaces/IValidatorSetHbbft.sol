@@ -11,15 +11,6 @@ interface IValidatorSetHbbft {
         AllKeysDone
     }
 
-    function initialize(
-        address,
-        address,
-        address,
-        address,
-        address[] calldata,
-        address[] calldata
-    ) external;
-
     function announceAvailability(uint256, bytes32) external;
 
     function finalizeChange() external;
@@ -89,7 +80,12 @@ interface IValidatorSetHbbft {
 
     function getStakingContract() external view returns (address);
 
-    function getCurrentTimestamp() external view returns (uint256);
-
     function validatorAvailableSince(address) external view returns (uint256);
+
+    function isValidatorAbandoned(address) external view returns (bool);
+
+    function getValidatorCountSweetSpot(uint256)
+        external
+        view
+        returns (uint256);
 }

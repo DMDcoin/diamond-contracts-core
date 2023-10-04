@@ -1,12 +1,14 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "../interfaces/IBlockRewardHbbft.sol";
 import "../interfaces/IStakingHbbft.sol";
 import "../interfaces/IValidatorSetHbbft.sol";
-import "../upgradeability/UpgradeableOwned.sol";
 
 /// @dev Implements staking and withdrawal logic.
-contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
+contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -166,6 +168,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// be staked on a single validator.
     uint256 public maxStakeAmount;
 
+    mapping(address => bool) public abandonedAndRemoved;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
@@ -241,26 +245,23 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         uint256 amount
     );
 
+    event GatherAbandonedStakes(
+        address indexed caller,
+        address indexed stakingAddress,
+        uint256 gatheredFunds
+    );
+
+    event RecoverAbandonedStakes(
+        address indexed caller,
+        uint256 reinsertShare,
+        uint256 governanceShare
+    );
+
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the transaction gas price is not zero.
     modifier gasPriceIsValid() {
         require(tx.gasprice != 0, "GasPrice is 0");
-        _;
-    }
-
-    /// @dev Ensures the caller is the BlockRewardHbbft contract address.
-    modifier onlyBlockRewardContract() {
-        require(
-            msg.sender == validatorSetContract.blockRewardContract(),
-            "Only BlockReward"
-        );
-        _;
-    }
-
-    /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized() {
-        require(isInitialized(), "Contract not initialized");
         _;
     }
 
@@ -274,6 +275,12 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     }
 
     // =============================================== Setters ========================================================
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
+    }
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
     receive() external payable {
@@ -298,6 +305,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         _stake(stakingAddress, stakingAddress, amount);
         poolInfo[stakingAddress].publicKey = _publicKey;
         poolInfo[stakingAddress].internetAddress = _ip;
+
+        emit PlacedStake(stakingAddress, stakingAddress, stakingEpoch, amount);
     }
 
     /// @dev set's the pool info for a specific ethereum address.
@@ -341,6 +350,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
     /// @dev Initializes the network parameters.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
+    /// @param _contractOwner The address of the contract owner
     /// @param stakingParams stores other parameters due to stack too deep issue
     ///  _validatorSetContract The address of the `ValidatorSetHbbft` contract.
     ///  _initialStakingAddresses The array of initial validators' staking addresses.
@@ -352,10 +362,13 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     ///  _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
+        address _contractOwner,
         StakingParams calldata stakingParams,
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
-    ) external {
+    ) external initializer {
+        require(_contractOwner != address(0), "Owner address cannot be 0");
+
         require(
             stakingParams._stakingFixedEpochDuration != 0,
             "FixedEpochDuration is 0"
@@ -379,6 +392,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             "The transition timeframe must be shorter then the epoch duration"
         );
 
+        __Ownable_init();
+        _transferOwnership(_contractOwner);
+
         _initialize(
             stakingParams._validatorSetContract,
             stakingParams._initialStakingAddresses,
@@ -392,7 +408,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         stakingWithdrawDisallowPeriod = stakingParams
             ._stakingWithdrawDisallowPeriod;
         //note: this might be still 0 when created in the genesis block.
-        stakingEpochStartTime = validatorSetContract.getCurrentTimestamp();
+        stakingEpochStartTime = block.timestamp;
         stakingTransitionTimeframeLength = stakingParams
             ._stakingTransitionTimeframeLength;
     }
@@ -421,7 +437,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     /// @dev Removes the candidate's or validator's pool from the `pools` array (a list of active pools which
     /// can be retrieved by the `getPools` getter). When a candidate or validator wants to remove their pool,
     /// they should call this function from their staking address.
-    function removeMyPool() external gasPriceIsValid onlyInitialized {
+    function removeMyPool() external gasPriceIsValid {
         address stakingAddress = msg.sender;
         address miningAddress = validatorSetContract.miningByStakingAddress(
             stakingAddress
@@ -456,7 +472,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address _fromPoolStakingAddress,
         address _toPoolStakingAddress,
         uint256 _amount
-    ) external gasPriceIsValid onlyInitialized {
+    ) external gasPriceIsValid {
         require(
             _fromPoolStakingAddress != _toPoolStakingAddress,
             "MoveStake: src and dst pool is the same"
@@ -485,6 +501,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         address staker = msg.sender;
         uint256 amount = msg.value;
         _stake(_toPoolStakingAddress, staker, amount);
+
+        emit PlacedStake(_toPoolStakingAddress, staker, stakingEpoch, amount);
     }
 
     /// @dev Moves the specified amount of staking coins from the staking address of
@@ -496,7 +514,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function withdraw(address _fromPoolStakingAddress, uint256 _amount)
         external
         gasPriceIsValid
-        onlyInitialized
     {
         address payable staker = payable(msg.sender);
         _withdraw(_fromPoolStakingAddress, staker, _amount);
@@ -520,7 +537,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function orderWithdraw(address _poolStakingAddress, int256 _amount)
         external
         gasPriceIsValid
-        onlyInitialized
     {
         require(
             _poolStakingAddress != address(0),
@@ -635,7 +651,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function claimOrderedWithdraw(address _poolStakingAddress)
         external
         gasPriceIsValid
-        onlyInitialized
     {
         address payable staker = payable(msg.sender);
 
@@ -677,13 +692,62 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         );
     }
 
+    /// @dev Distribute abandoned stakes among Reinsert and Governance pots.
+    /// 50% goes to reinsert and 50% to governance pot.
+    /// Coins are considered abandoned if they were staked on a validator inactive for 10 years.
+    function recoverAbandonedStakes() external gasPriceIsValid {
+        uint256 totalAbandonedAmount = 0;
+
+        address[] memory inactivePools = _poolsInactive;
+        require(inactivePools.length != 0, "nothing to recover");
+
+        for (uint256 i = 0; i < inactivePools.length; ++i) {
+            address stakingAddress = inactivePools[i];
+
+            if (_isPoolEmpty(stakingAddress) || !validatorSetContract.isValidatorAbandoned(stakingAddress)) {
+                continue;
+            }
+
+            _removePoolInactive(stakingAddress);
+            abandonedAndRemoved[stakingAddress] = true;
+
+            uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
+            stakeAmountTotal[stakingAddress] = 0;
+
+            address[] memory delegators = poolDelegators(stakingAddress);
+            for (uint256 j = 0; j < delegators.length; ++j) {
+                address delegator = delegators[j];
+
+                stakeAmount[stakingAddress][delegator] = 0;
+                _removePoolDelegator(stakingAddress, delegator);
+            }
+
+            totalAbandonedAmount += gatheredPerStakingAddress;
+
+            emit GatherAbandonedStakes(msg.sender, stakingAddress, gatheredPerStakingAddress);
+        }
+
+        require(totalAbandonedAmount != 0, "nothing to recover");
+
+        uint256 governanceShare = totalAbandonedAmount / 2;
+        uint256 reinsertShare = totalAbandonedAmount - governanceShare;
+
+        IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
+        address governanceAddress = blockRewardHbbft.getGovernanceAddress();
+
+        // slither-disable-next-line arbitrary-send-eth
+        blockRewardHbbft.addToReinsertPot{value: reinsertShare}();
+        _transferNative(governanceAddress, governanceShare);
+
+        emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
+    }
+
     /// @dev Sets (updates) the limit of the minimum candidate stake (CANDIDATE_MIN_STAKE).
     /// Can only be called by the `owner`.
     /// @param _minStake The value of a new limit in Wei.
     function setCandidateMinStake(uint256 _minStake)
         external
         onlyOwner
-        onlyInitialized
     {
         candidateMinStake = _minStake;
     }
@@ -694,7 +758,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
     function setDelegatorMinStake(uint256 _minStake)
         external
         onlyOwner
-        onlyInitialized
     {
         delegatorMinStake = _minStake;
     }
@@ -830,14 +893,9 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         // if (stakingFixedEpochDuration == 0){
         //     return true;
         // }
-        // uint256 currentTimestamp = _validatorSetContract.getCurrentTimestamp();
+        // uint256 currentTimestamp = block.timestamp;
         // uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
         // return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
-    }
-
-    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     /// @dev Returns a flag indicating whether a specified address is in the `pools` array.
@@ -863,6 +921,7 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         if (
             !_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker)
+            || abandonedAndRemoved[_poolStakingAddress]
         ) {
             return 0;
         }
@@ -1145,14 +1204,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         bytes32[] memory _publicKeys,
         bytes16[] memory _internetAddresses
     ) internal {
-        require(
-            msg.sender == _admin() ||
-                tx.origin == _admin() ||
-                address(0) == _admin() ||
-                block.number == 0,
-            "Initialization only on genesis block or by admin"
-        );
-        require(!isInitialized(), "Already initialized"); // initialization can only be done once
         require(_validatorSetContract != address(0), "ValidatorSet can't be 0");
         require(
             _initialStakingAddresses.length > 0,
@@ -1374,6 +1425,8 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
             !validatorSetContract.isValidatorBanned(poolMiningAddress),
             "Stake: Mining address is banned"
         );
+
+        require(!abandonedAndRemoved[_poolStakingAddress], "Stake: pool abandoned");
         //require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker] +
@@ -1425,8 +1478,6 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
         }
 
         _setLikelihood(_poolStakingAddress);
-
-        emit PlacedStake(_poolStakingAddress, _staker, stakingEpoch, _amount);
     }
 
     /// @dev The internal function used by the `withdraw` and `moveStake` functions.
@@ -1606,4 +1657,19 @@ contract StakingHbbftBase is UpgradeableOwned, IStakingHbbft {
 
         return true;
     }
+
+    function _transferNative(address recipient, uint256 amount) internal {
+        require(address(this).balance >= amount, "Insufficient balance");
+
+        // slither-disable-next-line unchecked-lowlevel
+        (bool success, ) = recipient.call{ value: amount }("");
+        require(success, "Transfer failed");
+    }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[50] private __gap;
 }

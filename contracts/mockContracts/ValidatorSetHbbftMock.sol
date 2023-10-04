@@ -3,8 +3,8 @@ pragma solidity =0.8.17;
 import "../../contracts/ValidatorSetHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
-    uint256 internal _currentTimeStamp;
     address internal _systemAddress;
+    bool internal _isFullHealth;
 
     // ============================================== Modifiers =======================================================
 
@@ -34,20 +34,20 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         stakingContract = IStakingHbbft(_address);
     }
 
+    function setKeyGenHistoryContract(address _address) public {
+        keyGenHistoryContract = IKeyGenHistory(_address);
+    }
+
     function setSystemAddress(address _address) public {
         _systemAddress = _address;
     }
 
-    function setCurrentTimestamp(uint256 _timeStamp) public {
-        // it makes sense to only allow to travel forward in time.
-        // this assumption makes tests more consistent,
-        // avoiding the usual time travel paradoxons.
-        require(
-            _timeStamp > _currentTimeStamp,
-            "setCurrentTimestamp: Can't timetravel back to the past!"
-        );
+    function setValidatorAvailableSince(address _validator, uint256 _timestamp) public {
+        _writeValidatorAvailableSince(_validator, _timestamp);
+    }
 
-        _currentTimeStamp = _timeStamp;
+    function setIsFullHealth(bool _healthy) public {
+        _isFullHealth = _healthy;
     }
 
     // =============================================== Getters ========================================================
@@ -65,11 +65,8 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
             );
     }
 
-    /// @dev overrides the calculation of the current timestamp
-    /// to use the internal stored "fake" timestamp for testing purposes.
-    function getCurrentTimestamp() external view override returns (uint256) {
-        //require(_currentTimeStamp != 0, 'Timestamp is never expected to be 0');
-        return _currentTimeStamp;
+    function isFullHealth() external view override returns (bool) {
+        return _isFullHealth;
     }
 
     // =============================================== Private ========================================================

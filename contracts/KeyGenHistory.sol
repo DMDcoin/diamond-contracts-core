@@ -1,11 +1,13 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "./interfaces/IKeyGenHistory.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
-import "./upgradeability/UpgradeabilityAdmin.sol";
 import "./interfaces/IStakingHbbft.sol";
 
-contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
+contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -35,21 +37,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     uint256 public currentKeyGenRound;
 
     event NewValidatorsSet(address[] newValidatorSet);
-
-    /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized() {
-        require(isInitialized(), "KeyGenHistory requires to be initialized");
-        _;
-    }
-
-    /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
-    modifier onlySystem() {
-        require(
-            msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE,
-            "Must be executed by System"
-        );
-        _;
-    }
 
     /// @dev Ensures the caller is ValidatorSet contract.
     modifier onlyValidatorSet() {
@@ -83,6 +70,41 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _contractOwner,
+        address _validatorSetContract,
+        address[] memory _validators,
+        bytes[] memory _parts,
+        bytes[][] memory _acks
+    ) external initializer {
+        require(_contractOwner != address(0), "Owner address must not be 0");
+        require(_validators.length != 0, "Validators must be more than 0.");
+        require(_validators.length == _parts.length, "Wrong number of Parts!");
+        require(_validators.length == _acks.length, "Wrong number of Acks!");
+        require(
+            _validatorSetContract != address(0),
+            "Validator contract address cannot be 0."
+        );
+
+        __Ownable_init();
+        _transferOwnership(_contractOwner);
+
+        validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
+
+        for (uint256 i = 0; i < _validators.length; i++) {
+            parts[_validators[i]] = _parts[i];
+            acks[_validators[i]] = _acks[i];
+        }
+
+        currentKeyGenRound = 1;
+    }
+
     /// @dev Clears the state (acks and parts of previous validators.
     /// @param _prevValidators The list of previous validators.
     function clearPrevKeyGenState(address[] calldata _prevValidators)
@@ -102,39 +124,6 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
     }
 
     function notifyNewEpoch() external onlyValidatorSet {
-        currentKeyGenRound = 1;
-    }
-
-    function initialize(
-        address _validatorSetContract,
-        address[] memory _validators,
-        bytes[] memory _parts,
-        bytes[][] memory _acks
-    ) public {
-        // Unit Tests may deploy at block numbers other than 0.
-        require(
-            msg.sender == _admin() ||
-                tx.origin == _admin() ||
-                address(0) == _admin() ||
-                block.number == 0,
-            "Sender must be admin"
-        );
-        require(!isInitialized(), "initialization can only be done once"); // initialization can only be done once
-        require(_validators.length != 0, "Validators must be more than 0.");
-        require(_validators.length == _parts.length, "Wrong number of Parts!");
-        require(_validators.length == _acks.length, "Wrong number of Acks!");
-        require(
-            _validatorSetContract != address(0),
-            "Validator contract address cannot be 0."
-        );
-
-        validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
-
-        for (uint256 i = 0; i < _validators.length; i++) {
-            parts[_validators[i]] = _parts[i];
-            acks[_validators[i]] = _acks[i];
-        }
-
         currentKeyGenRound = 1;
     }
 
@@ -196,10 +185,5 @@ contract KeyGenHistory is UpgradeabilityAdmin, IKeyGenHistory {
         returns (uint128, uint128)
     {
         return (numberOfPartsWritten, numberOfAcksWritten);
-    }
-
-    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 }

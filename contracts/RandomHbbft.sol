@@ -1,14 +1,16 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { BitMapsUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/structs/BitMapsUpgradeable.sol";
+
 import "./interfaces/IRandomHbbft.sol";
-import "./upgradeability/UpgradeabilityAdmin.sol";
 import "./interfaces/IValidatorSetHbbft.sol";
-import "./libs/BitMaps.sol";
 
 /// @dev Stores and uppdates a random seed that is used to form a new validator set by the
 /// `ValidatorSetHbbft.newValidatorSet` function.
-contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
-    using BitMaps for BitMaps.BitMap;
+contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
+    using BitMapsUpgradeable for BitMapsUpgradeable.BitMap;
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -22,7 +24,7 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
     /// blocknumber => random seed
     mapping(uint256 => uint256) private randomHistory;
 
-    BitMaps.BitMap private unhealthiness;
+    BitMapsUpgradeable.BitMap private unhealthiness;
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
@@ -38,9 +40,20 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         _;
     }
 
-    function initialize(address _validatorSetContract) public {
-        require(address(validatorSetContract) == address(0), "RandomHbbft must not be already initialized");
-        validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
+    }
+
+    function initialize(address _contractOwner, address _validatorSet) external initializer {
+        require(_validatorSet != address(0), "ValidatorSet must not be 0");
+        require(_contractOwner != address(0), "Owner address must not be 0");
+
+        __Ownable_init();
+        _transferOwnership(_contractOwner);
+
+        validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
 
     // =============================================== Setters ========================================================
@@ -82,7 +95,6 @@ contract RandomHbbft is UpgradeabilityAdmin, IRandomHbbft {
         }
         return output;
     }
-
 
     ///@dev returns an seed from requested blocknumber
     function getSeedHistoric(uint256 _blocknumber)

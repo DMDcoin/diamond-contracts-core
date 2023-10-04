@@ -1,10 +1,12 @@
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "../interfaces/IBlockRewardHbbft.sol";
 import "../interfaces/IRandomHbbft.sol";
 import "../interfaces/IStakingHbbft.sol";
 import "../interfaces/IValidatorSetHbbft.sol";
-import "../upgradeability/UpgradeableOwned.sol";
 
 contract Sacrifice {
     constructor(address payable _recipient) payable {
@@ -13,7 +15,7 @@ contract Sacrifice {
 }
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
-contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
+contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockRewardHbbft {
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -87,12 +89,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     // ============================================== Modifiers =======================================================
 
-    /// @dev Ensures the `initialize` function was called before.
-    modifier onlyInitialized() {
-        require(isInitialized());
-        _;
-    }
-
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Block-Reward-Contract.html
     modifier onlySystem() virtual {
         require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
@@ -113,6 +109,12 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Prevents initialization of implementation contract
+        _disableInitializers();
+    }
+
     // =============================================== Setters ========================================================
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
@@ -122,17 +124,15 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
 
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
+    /// @param _contractOwner The address of the contract owner
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _validatorSet) external {
-        require(
-            msg.sender == _admin() ||
-                tx.origin == _admin() ||
-                address(0) == _admin() ||
-                block.number == 0,
-            "Initialization only on genesis block or by admin"
-        );
-        require(!isInitialized(), "initialization can only be done once");
+    function initialize(address _contractOwner, address _validatorSet) external initializer {
+        require(_contractOwner != address(0), "Owner address must not be 0");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
+
+        __Ownable_init();
+        _transferOwnership(_contractOwner);
+
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
 
@@ -204,7 +204,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         if (_isEpochEndBlock) {
             uint256 stakingEpoch = stakingContract.stakingEpoch();
 
-            uint256 nativeTotalRewardAmount;
+            uint256 nativeTotalRewardAmount = 0;
             // Distribute rewards among validator pools
             if (stakingEpoch != 0) {
                 nativeTotalRewardAmount = _distributeRewards(stakingEpoch);
@@ -252,45 +252,54 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         } else {
             uint256 phaseTransitionTime = stakingContract
                 .startTimeOfNextPhaseTransition();
-            uint256 currentTimestamp = validatorSetContract
-                .getCurrentTimestamp();
+
+            address[] memory miningAddresses = validatorSetContract
+                .getValidators();
 
             // TODO: Problem occurs here if there are not regular blocks:
             // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
 
             //we are in a transition to phase 2 if the time for it arrived,
             // and we do not have pendingValidators yet.
-            bool isPhaseTransition = currentTimestamp >= phaseTransitionTime &&
-                validatorSetContract.getPendingValidators().length == 0;
+            bool isPhaseTransition = block.timestamp >= phaseTransitionTime;
+            bool toBeUpscaled = false;
+            if (
+                miningAddresses.length * 3 <=
+                (validatorSetContract.maxValidators() * 2)
+            ) {
+                uint256 amountToBeElected = stakingContract
+                    .getPoolsToBeElected()
+                    .length;
+                if (
+                    (amountToBeElected > 0) &&
+                    validatorSetContract.getValidatorCountSweetSpot(
+                        amountToBeElected
+                    ) >
+                    miningAddresses.length
+                ) {
+                    toBeUpscaled = true;
+                }
+            }
 
-            if (isPhaseTransition) {
+            if (
+                (isPhaseTransition || toBeUpscaled) &&
+                validatorSetContract.getPendingValidators().length == 0
+            ) {
                 // Choose new validators
                 validatorSetContract.newValidatorSet();
             } else if (
-                currentTimestamp >= stakingContract.stakingFixedEpochEndTime()
+                block.timestamp >= stakingContract.stakingFixedEpochEndTime()
             ) {
                 validatorSetContract.handleFailedKeyGeneration();
             }
-            // } else {
-
-            //     // check for faster validator set upscaling
-            //     // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/90
-
-            //     address[] memory miningAddresses = validatorSetContract.getValidators();
-
-            //     // if there is a miningset that is smaller than the 2/3 of the maxValidators,
-            //     // then we choose the next epoch set.
-            //     if (miningAddresses.length < (validatorSetContract.maxValidators() / 3) * 2) {
-            //         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
-            //         if (poolsToBeElected.length > miningAddresses.length) {
-            //             validatorSetContract.newValidatorSet();
-            //         }
-            //     }
-            // }
         }
     }
 
     // =============================================== Getters ========================================================
+    function getGovernanceAddress() external view returns (address) {
+        return governancePotAddress;
+    }
+
     /// @dev Returns an array of epoch numbers for which the specified pool (mining address)
     /// got a non-zero reward.
     function epochsPoolGotRewardFor(address _miningAddress)
@@ -299,11 +308,6 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         returns (uint256[] memory)
     {
         return _epochsPoolGotRewardFor[_miningAddress];
-    }
-
-    /// @dev Returns a boolean flag indicating if the `initialize` function has been called.
-    function isInitialized() public view returns (bool) {
-        return validatorSetContract != IValidatorSetHbbft(address(0));
     }
 
     /// @dev Returns an array of epoch numbers for which the specified staker
@@ -321,8 +325,8 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             validatorSetContract.getStakingContract()
         );
         bool isDelegator = _poolStakingAddress != _staker;
-        uint256 firstEpoch;
-        uint256 lastEpoch;
+        uint256 firstEpoch = 0;
+        uint256 lastEpoch = 0;
 
         if (isDelegator) {
             firstEpoch = stakingContract.stakeFirstEpoch(
@@ -499,6 +503,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
     }
 
     ///@dev Calculates and returns the percentage of the current epoch.
+    /// 100% MAX
     function epochPercentage() public view returns (uint256) {
         IStakingHbbft stakingContract = IStakingHbbft(
             validatorSetContract.getStakingContract()
@@ -507,12 +512,9 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             .stakingFixedEpochEndTime() -
             stakingContract.stakingEpochStartTime();
         return
-            validatorSetContract.getCurrentTimestamp() >
-                stakingContract.stakingFixedEpochEndTime()
-                ? 1000
-                : ((validatorSetContract.getCurrentTimestamp() -
-                    stakingContract.stakingEpochStartTime()) * 100) /
-                    expectedEpochDuration;
+            block.timestamp > stakingContract.stakingFixedEpochEndTime()
+                ? 100
+                : ((block.timestamp - stakingContract.stakingEpochStartTime()) * 100) / expectedEpochDuration;
     }
 
     // ============================================== Internal ========================================================
@@ -575,7 +577,7 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](numValidators);
         // Number of validators that are being rewarded.
-        uint256 numRewardedValidators;
+        uint256 numRewardedValidators = 0;
 
         for (uint256 i = 0; i < validators.length; i++) {
             if (
@@ -665,4 +667,11 @@ contract BlockRewardHbbftBase is UpgradeableOwned, IBlockRewardHbbft {
             (new Sacrifice){value: _amount}(_to);
         }
     }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[50] private __gap;
 }
