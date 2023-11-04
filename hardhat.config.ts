@@ -37,30 +37,14 @@ const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : utils.ent
 const infuraApiKey: string = process.env.INFURA_API_KEY ? process.env.INFURA_API_KEY : "";
 
 const chainIds = {
-    "arbitrum-mainnet": 42161,
-    avalanche: 43114,
-    bsc: 56,
-    ganache: 1337,
-    goerli: 5,
-    kovan: 42,
     hardhat: 31337,
-    mainnet: 1,
-    "optimism-mainnet": 10,
-    "polygon-mainnet": 137,
-    "polygon-mumbai": 80001,
-    DMDv4: 777012
+    alpha2: 777012
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
     let jsonRpcUrl: string;
     switch (chain) {
-        case "avalanche":
-            jsonRpcUrl = "https://api.avax.network/ext/bc/C/rpc";
-            break;
-        case "bsc":
-            jsonRpcUrl = "https://bsc-dataseed1.binance.org";
-            break;
-        case "DMDv4":
+        case "alpha2":
             jsonRpcUrl = "http://rpc.uniq.diamonds:8540";
             break;
         default:
@@ -140,7 +124,7 @@ const config: {} = {
             gasPrice: 1000000000,
         },
         alpha2: {
-            url: "http://rpc.uniq.diamonds:18545",
+            url: "http://rpc.uniq.diamonds",
             accounts: {
                 mnemonic: getMnemonic(),
                 path: "m/44'/60'/0'/0",
