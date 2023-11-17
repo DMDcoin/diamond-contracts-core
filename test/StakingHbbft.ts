@@ -2854,6 +2854,34 @@ describe('StakingHbbft', () => {
         });
     });
 
+    describe('setStakingTransitionTimeframeLength()', async () => { 
+        it('should set staking transition time frame length', async () => { 
+            const {
+                stakingHbbft,
+            } = await helpers.loadFixture(deployContractsFixture);
+            
+            // this should succeed.
+            await stakingHbbft.setStakingTransitionTimeframeLength('300');
+            (await stakingHbbft.stakingTransitionTimeframeLength()).should.be.equal('300');
+        });
+
+        it('should not set staking transition time frame length to low value', async () => { 
+            const {
+                stakingHbbft,
+            } = await helpers.loadFixture(deployContractsFixture);
+            await expect(stakingHbbft.setStakingTransitionTimeframeLength('9')).be.revertedWith("The transition timeframe must be longer than 10");
+        });
+
+        it('should not set staking transition time frame length to high value', async () => { 
+            const {
+                stakingHbbft,
+            } = await helpers.loadFixture(deployContractsFixture);
+            await expect(stakingHbbft.setStakingTransitionTimeframeLength('100000')).be.revertedWith("The transition timeframe must be smaller than the epoch duration");
+        });
+
+    });
+
+
     // TODO: ...add other tests...
 
     async function callReward(blockRewardContract: BlockRewardHbbftMock, isEpochEndBlock: boolean) {
