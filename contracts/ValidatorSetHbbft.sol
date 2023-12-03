@@ -280,7 +280,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         // if you want smaller values for tests,
         // the contract can be deployed with a smaller value
         // (no restriction there)
-        require(_seconds > 604800);
+        require(_seconds > 604800, "_seconds value must be less then a week.");
         validatorInactivityThreshold = _seconds;
     }
 
