@@ -272,6 +272,19 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         _newValidatorSet(new address[](0));
     }
 
+
+    function setValidatorInactivityThreshold(
+        uint256 _seconds
+    ) external onlyOwner {
+        // chosen abritary minimum value of a week.
+        // if you want smaller values for tests,
+        // the contract can be deployed with a smaller value
+        // (no restriction there)
+        require(_seconds > 604800);
+        validatorInactivityThreshold = _seconds;
+    }
+
+
     /// @dev Removes malicious validators.
     /// Called by the the Hbbft engine when a validator has been inactive for a long period.
     /// @param _miningAddresses The mining addresses of the malicious validators.
