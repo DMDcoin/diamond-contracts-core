@@ -1222,6 +1222,30 @@ describe('ValidatorSetHbbft', () => {
             }
         });
     });
+    
+    describe('setValidatorInactivityThreshold()', async() => {
+        it('fail on small value', async () => { 
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(validatorSetHbbft.setValidatorInactivityThreshold(100)).to.be.revertedWith("_seconds value must be less then a week.");
+
+        }); 
+
+        it('correct value is set', async () => { 
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            let value30Days = 2592000; 
+            await validatorSetHbbft.setValidatorInactivityThreshold(value30Days); 
+            expect(await validatorSetHbbft.validatorInactivityThreshold()).to.be.equal(value30Days);
+        }); 
+
+        it('only owner should be able to change value', async () => { 
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+            let nobody =  (await ethers.getSigners())[42];
+            let value30Days = 2592000; 
+            await expect(validatorSetHbbft.connect(nobody).setValidatorInactivityThreshold(value30Days)).to.be.revertedWith("Ownable: caller is not the owner");
+        });
+    });
 });
 
 function convertToBigEndian(number: number): number[] {
