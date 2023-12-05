@@ -78,6 +78,12 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
     /// `governancePotAddress`. See also `governancePotShareNominator`
     uint256 public governancePotShareDenominator;
 
+    /// @dev the address of the `ConnectivityTrackerHbbft` contract.
+    address public connectivityTracker;
+
+    /// @dev flag indicating whether it is needed to end current epoch earlier.
+    bool public earlyEpochEnd;
+
     uint256 public constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
     uint256 public constant REWARD_PERCENT_MULTIPLIER = 1000000;
 
@@ -109,6 +115,12 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
         _;
     }
 
+    /// @dev Ensures the caller is the ConnectivityTracker contract address.
+    modifier onlyConnectivityTracker() {
+        require(msg.sender == connectivityTracker);
+        _;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // Prevents initialization of implementation contract
@@ -126,14 +138,21 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
     /// @param _contractOwner The address of the contract owner
     /// @param _validatorSet The address of the `ValidatorSetHbbft` contract.
-    function initialize(address _contractOwner, address _validatorSet) external initializer {
+    function initialize(
+        address _contractOwner,
+        address _validatorSet,
+        address _connectivityTracker
+    ) external initializer {
         require(_contractOwner != address(0), "Owner address must not be 0");
         require(_validatorSet != address(0), "ValidatorSet must not be 0");
+        require(_connectivityTracker != address(0), "ConnectivityTracker must not be 0");
 
         __Ownable_init();
         _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
+        connectivityTracker = _connectivityTracker;
+
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
 
         deltaPotPayoutFraction = 6000;
@@ -184,6 +203,17 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
         reinsertPotPayoutFraction = _value;
     }
 
+    function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
+        connectivityTracker = _connectivityTracker;
+    }
+
+    /// @dev Notify block reward contract, that current epoch must be closed earlier.
+    ///
+    /// https://github.com/DMDcoin/diamond-contracts-core/issues/92
+    function notifyEarlyEpochEnd() external onlyConnectivityTracker {
+        earlyEpochEnd = true;
+    }
+
     /// @dev Called by the engine when producing and closing a block,
     /// see https://wiki.parity.io/Block-Reward-Contract.html.
     /// This function performs all of the automatic operations needed for accumulating block producing statistics,
@@ -201,7 +231,7 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
         );
         // If this is the last block of the epoch i.e. master key has been generated.
 
-        if (_isEpochEndBlock) {
+        if (_isEpochEndBlock || earlyEpochEnd) {
             uint256 stakingEpoch = stakingContract.stakingEpoch();
 
             uint256 nativeTotalRewardAmount = 0;
@@ -246,6 +276,8 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
             // the rewards got distributed,
             // we now can finalize the epoch and start with a new one.
             validatorSetContract.finalizeChange();
+
+            earlyEpochEnd = false;
 
             emit CoinsRewarded(nativeTotalRewardAmount);
             return 0;
@@ -673,5 +705,5 @@ contract BlockRewardHbbftBase is Initializable, OwnableUpgradeable, IBlockReward
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }

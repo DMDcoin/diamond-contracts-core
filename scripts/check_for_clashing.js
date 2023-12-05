@@ -35,13 +35,7 @@ async function main() {
     const stats = fs.statSync(dir + filename);
 
     if (stats.isFile()) {
-      const contractName = filename.replace('.sol', '');
-
-      if (contractName == 'Migrations') {
-        continue;
-      }
-
-      contracts.push(contractName);
+      contracts.push(filename.replace('.sol', ''));
     }
   }
 

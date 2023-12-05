@@ -8,6 +8,7 @@ import "solidity-coverage";
 import "hardhat-contract-sizer";
 import "@openzeppelin/hardhat-upgrades";
 import 'solidity-docgen';
+import 'hardhat-tracer';
 import { config as dotenvConfig } from "dotenv";
 import type { NetworkUserConfig } from "hardhat/types";
 // ToDo::check why config excluding gas reporter and typechain
@@ -93,6 +94,15 @@ const config: {} = {
         alphaSort: true,
         runOnCompile: true,
         disambiguatePaths: false,
+        only: [
+            "Hbbft",
+            "Registry"
+        ],
+        except: [
+            "Mock",
+            "Sacrifice",
+            "Base"
+        ]
     },
     gasReporter: {
         currency: "USD",

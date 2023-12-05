@@ -167,6 +167,10 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         return true;
     }
 
+    function getCurrentValidatorsCount() external view returns (uint256) {
+        return _currentValidators.length;
+    }
+
     // function getInfo()
     // public
     // view
