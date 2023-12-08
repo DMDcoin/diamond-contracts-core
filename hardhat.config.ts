@@ -75,7 +75,7 @@ const config: {} = {
                 network: "alpha",
                 chainId: 777012,
                 urls: {
-                    apiURL: "http://explorer.uniq.diamonds/api",
+                    apiURL: "https://explorer.uniq.diamonds/api",
                     browserURL: "http://explorer.uniq.diamonds",
                 },
             },
@@ -83,7 +83,7 @@ const config: {} = {
                 network: "alpha2",
                 chainId: 777012,
                 urls: {
-                    apiURL: "http://explorer.uniq.diamonds/api",
+                    apiURL: "https://explorer.uniq.diamonds/api",
                     browserURL: "http://explorer.uniq.diamonds",
                 },
             },
