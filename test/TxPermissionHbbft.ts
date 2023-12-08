@@ -138,6 +138,7 @@ describe('TxPermissionHbbft', () => {
                 certifier.address,
                 validatorSetHbbft.address,
                 keyGenHistory.address,
+                stubAddress,
                 owner.address
             ],
             { initializer: 'initialize' }
@@ -164,6 +165,7 @@ describe('TxPermissionHbbft', () => {
             const certifierAddress = accountAddresses[0];
             const validatorSetAddress = accountAddresses[1];
             const keyGenHistoryAddress = accountAddresses[2];
+            const connectivityTrackerAddress = accountAddresses[3];
 
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
             const txPermission = await upgrades.deployProxy(
@@ -173,6 +175,7 @@ describe('TxPermissionHbbft', () => {
                     certifierAddress,
                     validatorSetAddress,
                     keyGenHistoryAddress,
+                    connectivityTrackerAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -183,6 +186,7 @@ describe('TxPermissionHbbft', () => {
             expect(await txPermission.certifierContract()).to.equal(certifierAddress);
             expect(await txPermission.keyGenHistoryContract()).to.equal(keyGenHistoryAddress);
             expect(await txPermission.validatorSetContract()).to.equal(validatorSetAddress);
+            expect(await txPermission.connectivityTracker()).to.equal(connectivityTrackerAddress);
             expect(await txPermission.owner()).to.equal(owner.address);
 
             expect(await txPermission.allowedSenders()).to.deep.equal(allowedSenders);
@@ -190,14 +194,16 @@ describe('TxPermissionHbbft', () => {
 
         it("should revert initialization with CertifierHbbft = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
                     ethers.constants.AddressZero,
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -206,14 +212,16 @@ describe('TxPermissionHbbft', () => {
 
         it("should revert initialization with ValidatorSet = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
+                    stubAddress,
                     ethers.constants.AddressZero,
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -222,30 +230,52 @@ describe('TxPermissionHbbft', () => {
 
         it("should revert initialization with KeyGenHistory = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
                     ethers.constants.AddressZero,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWith('KeyGenHistory address must not be 0');
         });
 
-        it("should revert initialization with owner = address(0)", async () => {
+        it("should revert initialization with ConnectivityTracker = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    ethers.constants.AddressZero,
+                    owner.address
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('ConnectivityTracker address must not be 0');
+        });
+
+        it("should revert initialization with owner = address(0)", async () => {
+            const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
+
+            await expect(upgrades.deployProxy(
+                TxPermissionFactory,
+                [
+                    allowedSenders,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
                     ethers.constants.AddressZero,
                 ],
                 { initializer: 'initialize' }
@@ -254,14 +284,16 @@ describe('TxPermissionHbbft', () => {
 
         it("should not allow initialization if initialized contract", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             const contract = await upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -271,9 +303,10 @@ describe('TxPermissionHbbft', () => {
 
             await expect(contract.initialize(
                 allowedSenders,
-                accountAddresses[0],
-                accountAddresses[0],
-                accountAddresses[0],
+                stubAddress,
+                stubAddress,
+                stubAddress,
+                stubAddress,
                 owner.address
             )).to.be.revertedWith('Initializable: contract is already initialized');
         });
