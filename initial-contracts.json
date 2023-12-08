@@ -34,6 +34,11 @@
             "name": "StakingHbbft",
             "proxyAddress": "0x1100000000000000000000000000000000000001",
             "implementationAddress": "0x1100000000000000000000000000000000000000"
+        },
+        {
+            "name": "ConnectivityTrackerHbbft",
+            "proxyAddress": "0x1200000000000000000000000000000000000001",
+            "implementationAddress": "0x1200000000000000000000000000000000000000"
         }
     ],
     "admin": {
