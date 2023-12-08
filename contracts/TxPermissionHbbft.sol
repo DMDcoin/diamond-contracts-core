@@ -470,8 +470,11 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         uint256 paramsSize = _calldata.length - 4 > 96 ? 96 : _calldata.length - 4;
         bytes memory params = _memcpy(_calldata, paramsSize, 4);
 
-        (address validator, uint256 blockNumber, bytes32 blockHash) = abi
-            .decode(params, (address, uint256, bytes32));
+        (
+            address validator,
+            uint256 blockNumber,
+            bytes32 blockHash
+        ) = abi.decode(params, (address, uint256, bytes32));
 
         if (selector == REPORT_MISSING_CONNECTIVITY_SELECTOR) {
             uint32 mask = NONE;

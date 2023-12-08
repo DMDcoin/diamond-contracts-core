@@ -10,13 +10,13 @@ import {
     StakingHbbftMock,
     TxPermissionHbbftMock,
     ValidatorSetHbbftMock,
-    MockStaking,
-    MockValidatorSet
+    ConnectivityTrackerHbbft
 } from "../src/types";
 
 const testdata = require('./testhelpers/data');
 
 const validatorInactivityThreshold = 365 * 86400 // 1 year
+const minReportAgeBlocks = 10;
 
 const contractName = "TX_PERMISSION_CONTRACT";
 const contractNameHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(contractName));
@@ -130,6 +130,34 @@ describe('TxPermissionHbbft', () => {
             { initializer: 'initialize' }
         ) as CertifierHbbft;
 
+        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
+        const blockRewardHbbft = await upgrades.deployProxy(
+            BlockRewardHbbftFactory,
+            [
+                owner.address,
+                validatorSetHbbft.address,
+                stubAddress
+            ],
+            { initializer: 'initialize' }
+        );
+
+        await blockRewardHbbft.deployed();
+
+        const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
+        const connectivityTracker = await upgrades.deployProxy(
+            ConnectivityTrackerFactory,
+            [
+                owner.address,
+                validatorSetHbbft.address,
+                stakingHbbft.address,
+                blockRewardHbbft.address,
+                minReportAgeBlocks,
+            ],
+            { initializer: 'initialize' }
+        ) as ConnectivityTrackerHbbft;
+
+        await blockRewardHbbft.setConnectivityTracker(connectivityTracker.address);
+
         const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
         const txPermission = await upgrades.deployProxy(
             TxPermissionFactory,
@@ -138,7 +166,7 @@ describe('TxPermissionHbbft', () => {
                 certifier.address,
                 validatorSetHbbft.address,
                 keyGenHistory.address,
-                stubAddress,
+                connectivityTracker.address,
                 owner.address
             ],
             { initializer: 'initialize' }
@@ -147,7 +175,7 @@ describe('TxPermissionHbbft', () => {
         await validatorSetHbbft.setKeyGenHistoryContract(keyGenHistory.address);
         await validatorSetHbbft.setStakingContract(stakingHbbft.address);
 
-        return { txPermission, validatorSetHbbft, certifier, keyGenHistory, stakingHbbft };
+        return { txPermission, validatorSetHbbft, certifier, keyGenHistory, stakingHbbft, connectivityTracker };
     }
 
     before(async () => {
@@ -1195,6 +1223,146 @@ describe('TxPermissionHbbft', () => {
                     );
 
                     expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
+                    expect(result.cache).to.be.false;
+                });
+            });
+
+            describe('calls to ConnectivityTracker contract', async function () {
+                it("should allow reportMissingConnectivity if callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    const latestBlockNum = await helpers.time.latestBlock();
+                    const block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportMissingConnectivity',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            block.hash
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should not allow reportMissingConnectivity if not callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    const latestBlockNum = await helpers.time.latestBlock();
+                    const block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportMissingConnectivity',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            ethers.constants.HashZero
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should allow reportReconnect if callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+                    const validator = initialValidators[1];
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    let latestBlockNum = await helpers.time.latestBlock();
+                    let block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
+                        validator,
+                        block.number,
+                        block.hash
+                    ));
+
+                    latestBlockNum = await helpers.time.latestBlock();
+                    block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportReconnect',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            block.hash
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should not allow reportReconnect if not callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    const latestBlockNum = await helpers.time.latestBlock();
+                    const block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportReconnect',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            ethers.constants.HashZero
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
                     expect(result.cache).to.be.false;
                 });
             });
