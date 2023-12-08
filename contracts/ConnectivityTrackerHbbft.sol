@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.17;
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {EnumerableSetUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {
+    EnumerableSetUpgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
-import {IConnectivityTrackerHbbft} from "./interfaces/IConnectivityTrackerHbbft.sol";
-import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
-import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
-import {IBlockRewardHbbft} from "./interfaces/IBlockRewardHbbft.sol";
+import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
+import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
+import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 
 contract ConnectivityTrackerHbbft is
     Initializable,
@@ -51,34 +53,6 @@ contract ConnectivityTrackerHbbft is
     error OnlyValidator();
     error ReportTooEarly();
     error UnknownReconnectReporter(address reporter, address validator);
-
-    modifier onlyValidator() {
-        if (!validatorSetContract.isValidator(msg.sender)) {
-            revert OnlyValidator();
-        }
-        _;
-    }
-
-    modifier onlyValidBlock(uint256 blockNumber, bytes32 blockHash) {
-        if (blockNumber > block.number || blockhash(blockNumber) != blockHash) {
-            revert InvalidBlock();
-        }
-
-        uint256 epochStartBlock = stakingContract.stakingEpochStartBlock();
-        if (block.number < epochStartBlock + minReportAgeBlocks) {
-            revert ReportTooEarly();
-        }
-        _;
-    }
-
-    modifier nonFlagged() {
-        uint256 epoch = currentEpoch();
-
-        if (_flaggedValidators[epoch].contains(msg.sender)) {
-            revert CannotReportByFlaggedValidator(msg.sender);
-        }
-        _;
-    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -131,13 +105,15 @@ contract ConnectivityTrackerHbbft is
         address validator,
         uint256 blockNumber,
         bytes32 blockHash
-    ) external onlyValidator nonFlagged onlyValidBlock(blockNumber, blockHash) {
+    ) external {
+        checkReportMissingConnectivityCallable(
+            msg.sender,
+            validator,
+            blockNumber,
+            blockHash
+        );
+
         uint256 epoch = currentEpoch();
-
-        if (_reporters[epoch][validator].contains(msg.sender)) {
-            revert AlreadyReported(msg.sender, validator);
-        }
-
         uint256 currentScore = validatorConnectivityScore[epoch][validator];
         if (currentScore == 0) {
             // slither-disable-next-line unused-return
@@ -158,14 +134,15 @@ contract ConnectivityTrackerHbbft is
         address validator,
         uint256 blockNumber,
         bytes32 blockHash
-    ) external onlyValidator nonFlagged onlyValidBlock(blockNumber, blockHash) {
+    ) external {
+        checkReportReconnectCallable(
+            msg.sender,
+            validator,
+            blockNumber,
+            blockHash
+        );
+
         uint256 epoch = currentEpoch();
-
-        // Only "missing connectivity" reporter can also report reconnect
-        if (!_reporters[epoch][validator].contains(msg.sender)) {
-            revert UnknownReconnectReporter(msg.sender, validator);
-        }
-
         uint256 currentScore = validatorConnectivityScore[epoch][validator];
         if (currentScore != 0) {
             validatorConnectivityScore[epoch][validator] = currentScore - 1;
@@ -190,6 +167,37 @@ contract ConnectivityTrackerHbbft is
         return
             validatorConnectivityScore[currentEpoch()][validator] <
             earlyEpochEndThreshold();
+    }
+
+    function checkReportMissingConnectivityCallable(
+        address caller,
+        address validator,
+        uint256 blockNumber,
+        bytes32 blockHash
+    ) public view {
+        uint256 epoch = currentEpoch();
+
+        _validateParams(epoch, caller, blockNumber, blockHash);
+
+        if (_reporters[epoch][validator].contains(caller)) {
+            revert AlreadyReported(caller, validator);
+        }
+    }
+
+    function checkReportReconnectCallable(
+        address caller,
+        address validator,
+        uint256 blockNumber,
+        bytes32 blockHash
+    ) public view {
+        uint256 epoch = currentEpoch();
+
+        _validateParams(epoch, caller, blockNumber, blockHash);
+
+        // Only "missing connectivity" reporter can also report reconnect
+        if (!_reporters[epoch][validator].contains(caller)) {
+            revert UnknownReconnectReporter(caller, validator);
+        }
     }
 
     function getFlaggedValidators() public view returns (address[] memory) {
@@ -226,12 +234,39 @@ contract ConnectivityTrackerHbbft is
         for (uint256 i = 0; i < flaggedValidators.length; ++i) {
             address validator = flaggedValidators[i];
 
-            if (validatorConnectivityScore[epoch][validator] >= reportersThreshold) {
+            if (
+                validatorConnectivityScore[epoch][validator] >=
+                reportersThreshold
+            ) {
                 ++result;
             }
         }
 
         return result;
+    }
+
+    function _validateParams(
+        uint256 epoch,
+        address caller,
+        uint256 blockNumber,
+        bytes32 blockHash
+    ) private view {
+        if (!validatorSetContract.isValidator(caller)) {
+            revert OnlyValidator();
+        }
+
+        if (blockNumber > block.number || blockhash(blockNumber) != blockHash) {
+            revert InvalidBlock();
+        }
+
+        if (_flaggedValidators[epoch].contains(caller)) {
+            revert CannotReportByFlaggedValidator(caller);
+        }
+
+        uint256 epochStartBlock = stakingContract.stakingEpochStartBlock();
+        if (block.number < epochStartBlock + minReportAgeBlocks) {
+            revert ReportTooEarly();
+        }
     }
 
     function _decideEarlyEpochEndNeeded(uint256 epoch) private {

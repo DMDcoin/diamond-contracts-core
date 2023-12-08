@@ -18,5 +18,19 @@ interface IConnectivityTrackerHbbft {
         address validator
     ) external view returns (bool);
 
+    function checkReportMissingConnectivityCallable(
+        address caller,
+        address validator,
+        uint256 blockNumber,
+        bytes32 blockHash
+    ) external view;
+
+    function checkReportReconnectCallable(
+        address caller,
+        address validator,
+        uint256 blockNumber,
+        bytes32 blockHash
+    ) external view;
+
     function isEarlyEpochEnd(uint256 epoch) external view returns (bool);
 }
