@@ -208,6 +208,7 @@ describe('KeyGenHistory', () => {
                     certifier.address,
                     validatorSetHbbft.address,
                     keyGenHistory.address,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }

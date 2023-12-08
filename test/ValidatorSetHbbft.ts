@@ -152,6 +152,7 @@ describe('ValidatorSetHbbft', () => {
                 certifier.address,
                 validatorSetHbbft.address,
                 keyGenHistory.address,
+                stubAddress,
                 owner.address
             ],
             { initializer: 'initialize' }
@@ -1159,6 +1160,7 @@ describe('ValidatorSetHbbft', () => {
                     certifier.address,
                     validatorSetHbbft.address,
                     keyGenHistoryFake,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
