@@ -6,6 +6,8 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     address internal _systemAddress;
     bool internal _isFullHealth;
 
+    receive() external payable {}
+
     // ============================================== Modifiers =======================================================
 
     modifier onlySystem() override {

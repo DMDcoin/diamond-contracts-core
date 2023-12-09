@@ -88,4 +88,6 @@ interface IValidatorSetHbbft {
         external
         view
         returns (uint256);
+
+    function getCurrentValidatorsCount() external view returns (uint256);
 }

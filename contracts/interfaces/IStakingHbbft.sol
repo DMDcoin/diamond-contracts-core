@@ -82,4 +82,6 @@ interface IStakingHbbft {
     function stakingFixedEpochEndTime() external view returns (uint256);
 
     function stakingEpochStartTime() external view returns (uint256);
+
+    function stakingEpochStartBlock() external view returns (uint256);
 }

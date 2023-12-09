@@ -7,7 +7,8 @@ import {
     RandomHbbft,
     ValidatorSetHbbftMock,
     StakingHbbftMock,
-    KeyGenHistory
+    KeyGenHistory,
+    ConnectivityTrackerHbbftMock
 } from "../src/types";
 
 import fp from 'lodash/fp';
@@ -70,6 +71,10 @@ describe('StakingHbbft', () => {
     async function deployContractsFixture() {
         const stubAddress = owner.address;
 
+        const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
+        const connectivityTracker = await upgrades.deployProxy(ConnectivityTrackerFactory) as ConnectivityTrackerHbbftMock;
+        await connectivityTracker.deployed();
+
         // Deploy ValidatorSet contract
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
         const validatorSetHbbft = await upgrades.deployProxy(
@@ -93,7 +98,8 @@ describe('StakingHbbft', () => {
             BlockRewardHbbftFactory,
             [
                 owner.address,
-                validatorSetHbbft.address
+                validatorSetHbbft.address,
+                connectivityTracker.address
             ],
             { initializer: 'initialize' }
         ) as BlockRewardHbbftMock;

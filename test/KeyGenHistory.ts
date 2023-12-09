@@ -9,7 +9,8 @@ import {
     StakingHbbftMock,
     KeyGenHistory,
     TxPermissionHbbft,
-    CertifierHbbft
+    CertifierHbbft,
+    ConnectivityTrackerHbbftMock
 } from "../src/types";
 
 import { BigNumber } from "ethers";
@@ -40,6 +41,7 @@ let stakingHbbft: StakingHbbftMock;
 let keyGenHistory: KeyGenHistory;
 let txPermission: TxPermissionHbbft;
 let certifier: CertifierHbbft;
+let connectivityTracker: ConnectivityTrackerHbbftMock;
 
 let keyGenHistoryPermission: Permission<KeyGenHistory>;
 
@@ -58,17 +60,6 @@ let delegatorMinStake = BigNumber.from(ethers.utils.parseEther('1'));
 let maxStake = BigNumber.from(ethers.utils.parseEther('100000'));
 
 describe('KeyGenHistory', () => {
-    async function impersonateSystemAcc(address: string) {
-        await helpers.impersonateAccount(address);
-
-        await owner.sendTransaction({
-            to: address,
-            value: ethers.utils.parseEther('10'),
-        });
-
-        return await ethers.getSigner(address);
-    }
-
     describe('Deployment', async () => {
         //this info does not match the mininAccounts, but thats not a problem for this tests.
         let publicKeys = [
@@ -115,6 +106,10 @@ describe('KeyGenHistory', () => {
                 console.log('initial Staking Addresses', initializingStakingAddresses);
             }
 
+            const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
+            connectivityTracker = await upgrades.deployProxy(ConnectivityTrackerFactory) as ConnectivityTrackerHbbftMock;
+            await connectivityTracker.deployed();
+
             // Deploy ValidatorSet contract
             const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
             validatorSetHbbft = await upgrades.deployProxy(
@@ -138,7 +133,8 @@ describe('KeyGenHistory', () => {
                 BlockRewardHbbftFactory,
                 [
                     owner.address,
-                    validatorSetHbbft.address
+                    validatorSetHbbft.address,
+                    connectivityTracker.address
                 ],
                 { initializer: 'initialize' }
             ) as BlockRewardHbbftMock;
@@ -212,6 +208,7 @@ describe('KeyGenHistory', () => {
                     certifier.address,
                     validatorSetHbbft.address,
                     keyGenHistory.address,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }

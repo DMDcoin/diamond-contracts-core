@@ -9,7 +9,7 @@
         "docs-publish": "npx hardhat docgen && cd docs/website && npm i && npm run publish-gh-pages",
         "docs-start": "npx hardhat docgen && cd docs/website && npm i && npm start",
         "flat": "bash scripts/make_flat.sh",
-        "solidity-docgen": "rm -rf docs/docs/api* && npm i && npx hardhat docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol,Migrations.sol . contracts docs && node docs/website/sidebars-fix.js",
+        "solidity-docgen": "rm -rf docs/docs/api* && npm i && npx hardhat docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol . contracts docs && node docs/website/sidebars-fix.js",
         "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
         "test": "node scripts/check_for_clashing.js && npx hardhat test",
         "testNoUpgradeProxy": "export CONTRACTS_NO_UPGRADE_PROXY=true && node scripts/check_for_clashing.js && bash scripts/test.sh",
@@ -54,5 +54,8 @@
         "ts-node": "^10.9.1",
         "typechain": "^8.1.0",
         "typescript": "^4.8.4"
+    },
+    "dependencies": {
+        "hardhat-tracer": "^1.3.0"
     }
 }

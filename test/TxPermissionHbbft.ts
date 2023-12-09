@@ -10,13 +10,13 @@ import {
     StakingHbbftMock,
     TxPermissionHbbftMock,
     ValidatorSetHbbftMock,
-    MockStaking,
-    MockValidatorSet
+    ConnectivityTrackerHbbft
 } from "../src/types";
 
 const testdata = require('./testhelpers/data');
 
 const validatorInactivityThreshold = 365 * 86400 // 1 year
+const minReportAgeBlocks = 10;
 
 const contractName = "TX_PERMISSION_CONTRACT";
 const contractNameHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(contractName));
@@ -130,6 +130,34 @@ describe('TxPermissionHbbft', () => {
             { initializer: 'initialize' }
         ) as CertifierHbbft;
 
+        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
+        const blockRewardHbbft = await upgrades.deployProxy(
+            BlockRewardHbbftFactory,
+            [
+                owner.address,
+                validatorSetHbbft.address,
+                stubAddress
+            ],
+            { initializer: 'initialize' }
+        );
+
+        await blockRewardHbbft.deployed();
+
+        const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
+        const connectivityTracker = await upgrades.deployProxy(
+            ConnectivityTrackerFactory,
+            [
+                owner.address,
+                validatorSetHbbft.address,
+                stakingHbbft.address,
+                blockRewardHbbft.address,
+                minReportAgeBlocks,
+            ],
+            { initializer: 'initialize' }
+        ) as ConnectivityTrackerHbbft;
+
+        await blockRewardHbbft.setConnectivityTracker(connectivityTracker.address);
+
         const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
         const txPermission = await upgrades.deployProxy(
             TxPermissionFactory,
@@ -138,6 +166,7 @@ describe('TxPermissionHbbft', () => {
                 certifier.address,
                 validatorSetHbbft.address,
                 keyGenHistory.address,
+                connectivityTracker.address,
                 owner.address
             ],
             { initializer: 'initialize' }
@@ -146,7 +175,7 @@ describe('TxPermissionHbbft', () => {
         await validatorSetHbbft.setKeyGenHistoryContract(keyGenHistory.address);
         await validatorSetHbbft.setStakingContract(stakingHbbft.address);
 
-        return { txPermission, validatorSetHbbft, certifier, keyGenHistory, stakingHbbft };
+        return { txPermission, validatorSetHbbft, certifier, keyGenHistory, stakingHbbft, connectivityTracker };
     }
 
     before(async () => {
@@ -164,6 +193,7 @@ describe('TxPermissionHbbft', () => {
             const certifierAddress = accountAddresses[0];
             const validatorSetAddress = accountAddresses[1];
             const keyGenHistoryAddress = accountAddresses[2];
+            const connectivityTrackerAddress = accountAddresses[3];
 
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
             const txPermission = await upgrades.deployProxy(
@@ -173,6 +203,7 @@ describe('TxPermissionHbbft', () => {
                     certifierAddress,
                     validatorSetAddress,
                     keyGenHistoryAddress,
+                    connectivityTrackerAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -183,6 +214,7 @@ describe('TxPermissionHbbft', () => {
             expect(await txPermission.certifierContract()).to.equal(certifierAddress);
             expect(await txPermission.keyGenHistoryContract()).to.equal(keyGenHistoryAddress);
             expect(await txPermission.validatorSetContract()).to.equal(validatorSetAddress);
+            expect(await txPermission.connectivityTracker()).to.equal(connectivityTrackerAddress);
             expect(await txPermission.owner()).to.equal(owner.address);
 
             expect(await txPermission.allowedSenders()).to.deep.equal(allowedSenders);
@@ -190,14 +222,16 @@ describe('TxPermissionHbbft', () => {
 
         it("should revert initialization with CertifierHbbft = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
                     ethers.constants.AddressZero,
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -206,14 +240,16 @@ describe('TxPermissionHbbft', () => {
 
         it("should revert initialization with ValidatorSet = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
+                    stubAddress,
                     ethers.constants.AddressZero,
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -222,30 +258,52 @@ describe('TxPermissionHbbft', () => {
 
         it("should revert initialization with KeyGenHistory = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
                     ethers.constants.AddressZero,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWith('KeyGenHistory address must not be 0');
         });
 
-        it("should revert initialization with owner = address(0)", async () => {
+        it("should revert initialization with ConnectivityTracker = address(0)", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             await expect(upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    ethers.constants.AddressZero,
+                    owner.address
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith('ConnectivityTracker address must not be 0');
+        });
+
+        it("should revert initialization with owner = address(0)", async () => {
+            const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
+
+            await expect(upgrades.deployProxy(
+                TxPermissionFactory,
+                [
+                    allowedSenders,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
                     ethers.constants.AddressZero,
                 ],
                 { initializer: 'initialize' }
@@ -254,14 +312,16 @@ describe('TxPermissionHbbft', () => {
 
         it("should not allow initialization if initialized contract", async () => {
             const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
+            const stubAddress = accountAddresses[0];
 
             const contract = await upgrades.deployProxy(
                 TxPermissionFactory,
                 [
                     allowedSenders,
-                    accountAddresses[0],
-                    accountAddresses[0],
-                    accountAddresses[0],
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -271,9 +331,10 @@ describe('TxPermissionHbbft', () => {
 
             await expect(contract.initialize(
                 allowedSenders,
-                accountAddresses[0],
-                accountAddresses[0],
-                accountAddresses[0],
+                stubAddress,
+                stubAddress,
+                stubAddress,
+                stubAddress,
                 owner.address
             )).to.be.revertedWith('Initializable: contract is already initialized');
         });
@@ -1162,6 +1223,146 @@ describe('TxPermissionHbbft', () => {
                     );
 
                     expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
+                    expect(result.cache).to.be.false;
+                });
+            });
+
+            describe('calls to ConnectivityTracker contract', async function () {
+                it("should allow reportMissingConnectivity if callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    const latestBlockNum = await helpers.time.latestBlock();
+                    const block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportMissingConnectivity',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            block.hash
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should not allow reportMissingConnectivity if not callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    const latestBlockNum = await helpers.time.latestBlock();
+                    const block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportMissingConnectivity',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            ethers.constants.HashZero
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should allow reportReconnect if callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+                    const validator = initialValidators[1];
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    let latestBlockNum = await helpers.time.latestBlock();
+                    let block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
+                        validator,
+                        block.number,
+                        block.hash
+                    ));
+
+                    latestBlockNum = await helpers.time.latestBlock();
+                    block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportReconnect',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            block.hash
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should not allow reportReconnect if not callable", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+
+                    await helpers.mine(minReportAgeBlocks + 1);
+
+                    const latestBlockNum = await helpers.time.latestBlock();
+                    const block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportReconnect',
+                        [
+                            initialValidators[1],
+                            block.number,
+                            ethers.constants.HashZero
+                        ]
+                    );
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        connectivityTracker.address,
+                        0,
+                        gasPrice,
+                        ethers.utils.arrayify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
                     expect(result.cache).to.be.false;
                 });
             });
