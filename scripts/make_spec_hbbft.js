@@ -13,8 +13,7 @@ const STAKING_CONTRACT = '0x1100000000000000000000000000000000000001';
 const PERMISSION_CONTRACT = '0x4000000000000000000000000000000000000001';
 const CERTIFIER_CONTRACT = '0x5000000000000000000000000000000000000001';
 const KEY_GEN_HISTORY_CONTRACT = '0x7000000000000000000000000000000000000001';
-
-
+const CONNECTIVITY_TRACKER = '0x9000000000000000000000000000000000000001';
 
 main();
 
@@ -85,7 +84,8 @@ async function main() {
     'Registry',
     'StakingHbbft',
     'TxPermissionHbbft',
-    'ValidatorSetHbbft'
+    'ValidatorSetHbbft',
+    'ConnectivityTrackerHbbft',
   ];
 
   let spec = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'templates', 'spec_hbbft.json'), 'UTF-8'));
@@ -266,6 +266,24 @@ async function main() {
     spec.params.registrar = '0x6000000000000000000000000000000000000000';
 
 
+    // Build ConnectivityTrackerHbbft contract
+
+    deploy = await contract.deploy({data: '0x' + storageProxyCompiled.bytecode, arguments: [
+      '0x9000000000000000000000000000000000000000', // implementation address
+      owner,
+      []
+    ]});
+
+    spec.accounts[CONNECTIVITY_TRACKER] = {
+      balance: '0',
+      constructor: await deploy.encodeABI()
+    };
+
+    spec.accounts['0x9000000000000000000000000000000000000000'] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['ConnectivityTrackerHbbft'].bytecode
+    };
+
   }
   else { // not useUpgradeProxy
 
@@ -321,6 +339,11 @@ async function main() {
     spec.accounts[KEY_GEN_HISTORY_CONTRACT] = {
       balance: '0',
       constructor: '0x' + contractsCompiled['KeyGenHistory'].bytecode
+    };
+
+    spec.accounts[CONNECTIVITY_TRACKER] = {
+      balance: '0',
+      constructor: '0x' + contractsCompiled['ConnectivityTrackerHbbft'].bytecode
     };
   }
 
