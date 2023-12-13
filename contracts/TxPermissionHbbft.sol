@@ -154,6 +154,10 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         blockGasLimit = _value;
     }
 
+    function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
+        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
+    }
+
     // =============================================== Getters ========================================================
 
     /// @dev Returns the contract's name recognizable by node's engine.
