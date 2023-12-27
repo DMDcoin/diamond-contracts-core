@@ -2886,7 +2886,29 @@ describe('StakingHbbft', () => {
         });
 
     });
+    
 
+
+    describe('setStakingFixedEpochDuration()', async () => { 
+        it('should set staking fixed epoch transition', async () => { 
+            const {
+                stakingHbbft,
+            } = await helpers.loadFixture(deployContractsFixture);
+            
+            // this should succeed.
+            await stakingHbbft.setStakingFixedEpochDuration('600000');
+            (await stakingHbbft.stakingFixedEpochDuration()).should.be.equal('600000');
+        });
+
+        it('should not set staking transition time frame length to low value', async () => { 
+            const {
+                stakingHbbft,
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            let tranitionTimeFrame = await stakingHbbft.stakingTransitionTimeframeLength();
+            await expect(stakingHbbft.setStakingFixedEpochDuration(tranitionTimeFrame)).be.revertedWith("The fixed epoch duration timeframe must be greater than the transition timeframe length");
+        });
+    });
 
     // TODO: ...add other tests...
 
