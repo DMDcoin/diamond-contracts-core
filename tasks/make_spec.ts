@@ -5,7 +5,8 @@ import { task } from "hardhat/config";
 
 import { InitialContractsConfiguration, NetworkConfiguration } from './types';
 
-const ProxyContractName = "contracts/upgradeability/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy";
+const ProxyContractName = "TransparentUpgradeableProxy";
+const ProxyAdminContractName = "ProxyAdminOwnable";
 
 task("make_spec_hbbft", "used to make a spec file")
     .addParam("initContracts", "Initial contracts configuration file")
@@ -61,6 +62,8 @@ task("make_spec_hbbft", "used to make a spec file")
         spec.params.transactionPermissionContract = initialContracts.getAddress("TxPermissionHbbft");
         spec.params.transactionPermissionContractTransition = '0x0';
         spec.params.registrar = initialContracts.registry?.address;
+
+        console.log("here")
 
         await initialContracts.admin!.compileContract(hre, [networkConfig.owner]);
         await initialContracts.registry!.compileContract(
