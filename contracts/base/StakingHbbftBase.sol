@@ -459,6 +459,15 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
 
         stakingTransitionTimeframeLength = _value;
     }
+
+    function setStakingFixedEpochDuration(uint256 _value) 
+        external
+        onlyOwner {
+        require(_value > stakingTransitionTimeframeLength, 
+            "The fixed epoch duration timeframe must be greater than the transition timeframe length");
+        stakingFixedEpochDuration = _value;
+    }
+
     /// @dev Sets the timetamp of the current epoch's last block as the start time of the upcoming staking epoch.
     /// Called by the `ValidatorSetHbbft.newValidatorSet` function at the last block of a staking epoch.
     /// @param _timestamp The starting time of the very first block in the upcoming staking epoch.
