@@ -73,6 +73,14 @@ const config: {} = {
         apiKey: "123",
         customChains: [
             {
+                network: "local",
+                chainId: 777012,
+                urls: {
+                    apiURL: "http://127.0.0.1:4000/api",
+                    browserURL: "http://127.0.0.1:4000",
+                },
+            },
+            {
                 network: "alpha",
                 chainId: 777012,
                 urls: {
@@ -121,6 +129,17 @@ const config: {} = {
             allowUnlimitedContractSize: true,
             hardfork: "istanbul",
             minGasPrice: 0
+        },
+        local: {
+            url: "http://127.0.0.1:8540",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
         },
         alpha: {
             url: "http://38.242.206.145:8540",
