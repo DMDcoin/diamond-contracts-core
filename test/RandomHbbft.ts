@@ -11,14 +11,6 @@ import {
     ValidatorSetHbbftMock,
 } from "../src/types";
 
-// delegatecall are a problem for truffle debugger
-// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-// and to not use it if specific transactions needs to get debugged,
-// like truffle `debug 0xabc`.
-const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-console.log('useUpgradeProxy:', useUpgradeProxy);
-const logOutput = false;
-
 //smart contracts
 let randomHbbft: RandomHbbft;
 let validatorSetHbbft: ValidatorSetHbbftMock;

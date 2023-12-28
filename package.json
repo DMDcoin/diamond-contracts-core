@@ -49,7 +49,7 @@
         "hardhat-gas-reporter": "^1.0.8",
         "lodash": "^4.17.21",
         "solc": "0.8.17",
-        "solidity-coverage": "0.8.2",
+        "solidity-coverage": "^0.8.5",
         "solidity-docgen": "^0.6.0-beta.29",
         "ts-node": "^10.9.1",
         "typechain": "^8.1.0",
