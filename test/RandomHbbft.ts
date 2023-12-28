@@ -39,7 +39,7 @@ const validatorInactivityThreshold = 365 * 86400 // 1 year
 
 const SystemAccountAddress = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
-describe.skip('RandomHbbft', () => {
+describe('RandomHbbft', () => {
     async function impersonateSystemAcc() {
         await helpers.impersonateAccount(SystemAccountAddress);
 

@@ -53,7 +53,7 @@ let candidateMinStake = BigNumber.from(ethers.utils.parseEther('2'));
 let delegatorMinStake = BigNumber.from(ethers.utils.parseEther('1'));
 let maxStake = BigNumber.from(ethers.utils.parseEther('100000'));
 
-describe.skip('KeyGenHistory', () => {
+describe('KeyGenHistory', () => {
     describe('Deployment', async () => {
         //this info does not match the mininAccounts, but thats not a problem for this tests.
         let publicKeys = [

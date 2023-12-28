@@ -54,7 +54,7 @@ let initialStakingAddresses: string[];
 
 let accountAddresses: string[];
 
-describe.skip('ValidatorSetHbbft', () => {
+describe('ValidatorSetHbbft', () => {
     async function deployContractsFixture() {
         [owner, ...accounts] = await ethers.getSigners();
 

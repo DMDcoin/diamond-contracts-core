@@ -33,7 +33,7 @@ let accounts: SignerWithAddress[];
 //consts
 const ERROR_MSG = 'VM Exception while processing transaction: revert';
 
-describe.skip('StakingHbbft', () => {
+describe('StakingHbbft', () => {
     let initialValidators: string[];
     let initialStakingAddresses: string[];
     let initialValidatorsPubKeys: string[];

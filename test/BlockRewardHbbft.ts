@@ -56,6 +56,8 @@ const STAKE_WITHDRAW_DISALLOW_PERIOD = 2; // one less than EPOCH DURATION, there
 const MIN_STAKE = BigNumber.from(ethers.utils.parseEther('1'));
 const MAX_STAKE = BigNumber.from(ethers.utils.parseEther('100000'));
 
+const SystemAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
+
 describe('BlockRewardHbbft', () => {
     it('network started', async () => {
         [owner, ...accounts] = await ethers.getSigners();
@@ -512,6 +514,45 @@ describe('BlockRewardHbbft', () => {
         (await blockRewardHbbft.validatorRewardPercent(stakingAddress)).should.be.equal(300000);
     })
 
+    it("should end epoch earlier if notified", async () => {
+        (await blockRewardHbbft.setConnectivityTracker(owner.address)).should.not.be.reverted;
+
+        (await blockRewardHbbft.earlyEpochEnd()).should.be.false;
+        (await blockRewardHbbft.connect(owner).notifyEarlyEpochEnd()).should.not.be.reverted;
+        (await blockRewardHbbft.earlyEpochEnd()).should.be.true;
+
+        await blockRewardHbbft.setSystemAddress(owner.address);
+        (await blockRewardHbbft.connect(owner).reward(false)).should.emit(
+            blockRewardHbbft,
+            "CoinsRewarded"
+        );
+
+        await blockRewardHbbft.setSystemAddress(SystemAddress);
+    });
+
+    it("should not end epoch earlier if not notified", async () => {
+        (await blockRewardHbbft.earlyEpochEnd()).should.be.false;
+
+        await blockRewardHbbft.setSystemAddress(owner.address);
+        (await blockRewardHbbft.connect(owner).reward(false)).should.not.emit(
+            blockRewardHbbft,
+            "CoinsRewarded"
+        );
+
+        await blockRewardHbbft.setSystemAddress(SystemAddress);
+    });
+
+    it("should restrict calling notifyEarlyEpochEnd to connectivity tracker contract only", async () => {
+        const allowedCaller = accounts[10];
+        const caller = accounts[11];
+
+        (await blockRewardHbbft.setConnectivityTracker(allowedCaller.address)).should.not.be.reverted;
+        (await blockRewardHbbft.connectivityTracker()).should.be.equal(allowedCaller.address);
+
+        await (blockRewardHbbft.connect(caller).notifyEarlyEpochEnd()).should.be.reverted;
+        (await blockRewardHbbft.connect(allowedCaller).notifyEarlyEpochEnd()).should.not.be.reverted;
+    });
+
     describe("Upscaling tests", async () => {
         it("Add multiple validator pools and upscale if needed.", async () => {
             const accountAddresses = accounts.map(item => item.address);
@@ -577,7 +618,7 @@ function sortedEqual<T>(arr1: T[], arr2: T[]): void {
 // async function callFinalizeChange() {
 //   await validatorSetHbbft.setSystemAddress(owner);
 //   await validatorSetHbbft.finalizeChange({from: owner});
-//   await validatorSetHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
+//   await validatorSetHbbft.setSystemAddress(SystemAddress);
 // }
 
 async function getCurrentGovernancePotValue() {
@@ -595,7 +636,7 @@ async function callReward(isEpochEndBlock: boolean) {
     // console.log('got validators:', validators);
     await blockRewardHbbft.setSystemAddress(owner.address);
     await blockRewardHbbft.connect(owner).reward(isEpochEndBlock);
-    await blockRewardHbbft.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
+    await blockRewardHbbft.setSystemAddress(SystemAddress);
 }
 
 // time travels forward to the beginning of the next transition,
