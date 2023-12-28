@@ -5,7 +5,7 @@ import { task } from "hardhat/config";
 
 import { InitialContractsConfiguration, NetworkConfiguration } from './types';
 
-const ProxyContractName = "contracts/upgradeability/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy";
+const ProxyContractName = "TransparentUpgradeableProxy";
 
 task("make_spec_hbbft", "used to make a spec file")
     .addParam("initContracts", "Initial contracts configuration file")
