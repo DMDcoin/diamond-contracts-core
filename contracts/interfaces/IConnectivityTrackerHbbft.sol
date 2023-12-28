@@ -14,10 +14,6 @@ interface IConnectivityTrackerHbbft {
         bytes32 blockHash
     ) external;
 
-    function getCurrentConnectionStatus(
-        address validator
-    ) external view returns (bool);
-
     function checkReportMissingConnectivityCallable(
         address caller,
         address validator,

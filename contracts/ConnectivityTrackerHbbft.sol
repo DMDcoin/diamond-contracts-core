@@ -27,7 +27,6 @@ contract ConnectivityTrackerHbbft is
     uint256 public earlyEpochEndToleranceLevel;
 
     mapping(uint256 => bool) public isEarlyEpochEnd;
-    mapping(uint256 => mapping(address => uint256)) public validatorConnectivityScore;
 
     mapping(uint256 => EnumerableSetUpgradeable.AddressSet) private _flaggedValidators;
     mapping(uint256 => mapping(address => EnumerableSetUpgradeable.AddressSet)) private _reporters;
@@ -43,6 +42,10 @@ contract ConnectivityTrackerHbbft is
     event ReportReconnect(
         address indexed reporter,
         address indexed validator,
+        uint256 indexed blockNumber
+    );
+    event NotifyEarlyEpochEnd(
+        uint256 indexed epoch,
         uint256 indexed blockNumber
     );
 
@@ -114,13 +117,11 @@ contract ConnectivityTrackerHbbft is
         );
 
         uint256 epoch = currentEpoch();
-        uint256 currentScore = validatorConnectivityScore[epoch][validator];
+        uint256 currentScore = getValidatorConnectivityScore(epoch, validator);
         if (currentScore == 0) {
             // slither-disable-next-line unused-return
             _flaggedValidators[epoch].add(validator);
         }
-
-        validatorConnectivityScore[epoch][validator] = currentScore + 1;
 
         // slither-disable-next-line unused-return
         _reporters[epoch][validator].add(msg.sender);
@@ -143,17 +144,16 @@ contract ConnectivityTrackerHbbft is
         );
 
         uint256 epoch = currentEpoch();
-        uint256 currentScore = validatorConnectivityScore[epoch][validator];
-        if (currentScore != 0) {
-            validatorConnectivityScore[epoch][validator] = currentScore - 1;
+        uint256 currentScore = getValidatorConnectivityScore(epoch, validator);
 
-            if (validatorConnectivityScore[epoch][validator] == 0) {
+        if (currentScore != 0) {
+            // slither-disable-next-line unused-return
+            _reporters[epoch][validator].remove(msg.sender);
+
+            if (currentScore == 1) {
                 // slither-disable-next-line unused-return
                 _flaggedValidators[epoch].remove(validator);
             }
-
-            // slither-disable-next-line unused-return
-            _reporters[epoch][validator].remove(msg.sender);
         }
 
         _decideEarlyEpochEndNeeded(epoch);
@@ -161,12 +161,11 @@ contract ConnectivityTrackerHbbft is
         emit ReportReconnect(msg.sender, validator, blockNumber);
     }
 
-    function getCurrentConnectionStatus(
+    function getValidatorConnectivityScore(
+        uint256 epoch,
         address validator
-    ) external view returns (bool) {
-        return
-            validatorConnectivityScore[currentEpoch()][validator] <
-            earlyEpochEndThreshold();
+    ) public view returns (uint256) {
+        return _reporters[epoch][validator].length();
     }
 
     function checkReportMissingConnectivityCallable(
@@ -235,7 +234,7 @@ contract ConnectivityTrackerHbbft is
             address validator = flaggedValidators[i];
 
             if (
-                validatorConnectivityScore[epoch][validator] >=
+                getValidatorConnectivityScore(epoch, validator) >=
                 reportersThreshold
             ) {
                 ++result;
@@ -279,5 +278,7 @@ contract ConnectivityTrackerHbbft is
 
         isEarlyEpochEnd[epoch] = true;
         blockRewardContract.notifyEarlyEpochEnd();
+
+        emit NotifyEarlyEpochEnd(epoch, block.number);
     }
 }
