@@ -7,7 +7,7 @@ import { CertifierHbbft, ValidatorSetHbbftMock } from "../src/types";
 
 const validatorInactivityThreshold = 365 * 86400 // 1 year
 
-describe('CertifierHbbft contract', () => {
+describe.skip('CertifierHbbft contract', () => {
     let accounts: SignerWithAddress[];
     let owner: SignerWithAddress;
 

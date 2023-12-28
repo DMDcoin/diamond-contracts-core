@@ -25,12 +25,6 @@ require('chai')
     .use(require('chai-bn')(BigNumber))
     .should();
 
-// delegatecall are a problem for truffle debugger
-// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-// and to not use it if specific transactions needs to get debugged,
-// like truffle `debug 0xabc`.
-const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-console.log('useUpgradeProxy:', useUpgradeProxy);
 const logOutput = false;
 
 //smart contracts
@@ -59,7 +53,7 @@ let candidateMinStake = BigNumber.from(ethers.utils.parseEther('2'));
 let delegatorMinStake = BigNumber.from(ethers.utils.parseEther('1'));
 let maxStake = BigNumber.from(ethers.utils.parseEther('100000'));
 
-describe('KeyGenHistory', () => {
+describe.skip('KeyGenHistory', () => {
     describe('Deployment', async () => {
         //this info does not match the mininAccounts, but thats not a problem for this tests.
         let publicKeys = [

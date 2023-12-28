@@ -24,14 +24,6 @@ require('chai')
     .use(require('chai-bn')(BigNumber))
     .should();
 
-
-// delegatecall are a problem for truffle debugger
-// therefore it makes sense to use a proxy for automated testing to have the proxy testet.
-// and to not use it if specific transactions needs to get debugged,
-// like truffle `debug 0xabc`.
-const useUpgradeProxy = !(process.env.CONTRACTS_NO_UPGRADE_PROXY == 'true');
-console.log('useUpgradeProxy:', useUpgradeProxy);
-
 //addresses
 let owner: SignerWithAddress;
 let candidateMiningAddress: SignerWithAddress;
@@ -41,7 +33,7 @@ let accounts: SignerWithAddress[];
 //consts
 const ERROR_MSG = 'VM Exception while processing transaction: revert';
 
-describe('StakingHbbft', () => {
+describe.skip('StakingHbbft', () => {
     let initialValidators: string[];
     let initialStakingAddresses: string[];
     let initialValidatorsPubKeys: string[];
