@@ -168,6 +168,15 @@ contract ConnectivityTrackerHbbft is
         return _reporters[epoch][validator].length();
     }
 
+    /// @dev Returns true if the specified validator was reported by the specified reporter at the given epoch.
+    function isReported(
+        uint256 epoch,
+        address validator,
+        address reporter
+    ) external view returns (bool) {
+        return _reporters[currentEpoch()][validator].contains(reporter);
+    }
+
     function checkReportMissingConnectivityCallable(
         address caller,
         address validator,
@@ -219,15 +228,22 @@ contract ConnectivityTrackerHbbft is
         }
     }
 
+    function countFaultyValidators(uint256 epoch)
+    public view returns (uint256) {
+        return _countFaultyValidators(epoch);
+    }
+
     function _countFaultyValidators(
         uint256 epoch
     ) private view returns (uint256) {
         address[] memory flaggedValidators = getFlaggedValidators();
 
         uint256 unflaggedValidatorsCount = validatorSetContract
-            .getCurrentValidatorsCount() - flaggedValidators.length;
+            .getCurrentValidatorsCount() - flaggedValidators.length; // 16 - 4 = 12
 
-        uint256 reportersThreshold = (unflaggedValidatorsCount * 2) / 3 + 1;
+            
+
+        uint256 reportersThreshold = (2 * unflaggedValidatorsCount) / 3 + 1;  // 24 / 3  + 1 = 9    
         uint256 result = 0;
 
         for (uint256 i = 0; i < flaggedValidators.length; ++i) {
