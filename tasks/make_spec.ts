@@ -38,8 +38,9 @@ task("make_spec_hbbft", "used to make a spec file")
             console.log("Preparing contract: ", contractName);
 
             const initializerArgs = initialContracts.getContractInitializerArgs(contractName, networkConfig);
-
+            console.log("Compile contract: ", contractName);
             await initialContracts.core[i].compileContract(hre);
+            console.log("Compile Proxy for ", contractName);
             await initialContracts.core[i].compileProxy(
                 hre,
                 ProxyContractName,
