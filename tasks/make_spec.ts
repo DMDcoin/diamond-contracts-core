@@ -48,14 +48,17 @@ task("make_spec_hbbft", "used to make a spec file")
                 initialContracts.admin!.address!,                // address _admin
                 initializerArgs                                  // bytes _data
             );
-
+            
+            console.log("generating spec for ", contractName);
             const contractSpec = initialContracts.core[i].toSpecAccount(taskArgs.useUpgradeProxy, 0);
-
+            
             spec.accounts = {
                 ...spec.accounts,
                 ...contractSpec
             };
         }
+
+        console.log("Spec preparation done.");
 
         //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
         spec.engine.hbbft.params.blockRewardContractAddress = initialContracts.getAddress("BlockRewardHbbft");
