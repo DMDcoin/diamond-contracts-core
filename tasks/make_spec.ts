@@ -38,9 +38,8 @@ task("make_spec_hbbft", "used to make a spec file")
             console.log("Preparing contract: ", contractName);
 
             const initializerArgs = initialContracts.getContractInitializerArgs(contractName, networkConfig);
-            console.log("Compile contract: ", contractName);
+
             await initialContracts.core[i].compileContract(hre);
-            console.log("Compile Proxy for ", contractName);
             await initialContracts.core[i].compileProxy(
                 hre,
                 ProxyContractName,
@@ -49,7 +48,6 @@ task("make_spec_hbbft", "used to make a spec file")
                 initializerArgs                                  // bytes _data
             );
             
-            console.log("generating spec for ", contractName);
             const contractSpec = initialContracts.core[i].toSpecAccount(taskArgs.useUpgradeProxy, 0);
             
             spec.accounts = {
@@ -58,15 +56,16 @@ task("make_spec_hbbft", "used to make a spec file")
             };
         }
 
-        console.log("Spec preparation done.");
-
         //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
         spec.engine.hbbft.params.blockRewardContractAddress = initialContracts.getAddress("BlockRewardHbbft");
         spec.params.transactionPermissionContract = initialContracts.getAddress("TxPermissionHbbft");
         spec.params.transactionPermissionContractTransition = '0x0';
         spec.params.registrar = initialContracts.registry?.address;
 
+        console.log("compiling adming contract.");
         await initialContracts.admin!.compileContract(hre, [networkConfig.owner]);
+
+        console.log("compiling registry contract.");
         await initialContracts.registry!.compileContract(
             hre,
             [
