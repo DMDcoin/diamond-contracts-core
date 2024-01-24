@@ -62,7 +62,8 @@ task("make_spec_hbbft", "used to make a spec file")
         spec.params.transactionPermissionContractTransition = '0x0';
         spec.params.registrar = initialContracts.registry?.address;
 
-        console.log("compiling adming contract.");
+        console.log("compiling adming contract. owner: ", networkConfig.owner);
+        
         await initialContracts.admin!.compileContract(hre, [networkConfig.owner]);
 
         console.log("compiling registry contract.");
