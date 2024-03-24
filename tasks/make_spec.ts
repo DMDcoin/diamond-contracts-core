@@ -9,7 +9,7 @@ const ProxyContractName = "TransparentUpgradeableProxy";
 
 task("make_spec_hbbft", "used to make a spec file")
     .addParam("initContracts", "Initial contracts configuration file")
-    .addParam("initialFundAddress", "Initial address that holds all funds")
+    .addOptionalParam("initialFundAddress", "Initial address that holds all funds")
     .addFlag("useUpgradeProxy", "Upgradeable proxy support")
     .addPositionalParam("initDataFile", "Initial spec configuration file")
     .setAction(async (taskArgs, hre) => {
