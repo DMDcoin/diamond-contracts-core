@@ -773,6 +773,7 @@ contract StakingHbbftBase is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// Can only be called by the `owner`.
     /// @param _minStake The value of a new limit in Wei.
     function setDelegatorMinStake(uint256 _minStake)
+        virtual
         external
         onlyOwner
     {

@@ -46,6 +46,21 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     /// @dev The address of the `ConnectivityTrackerHbbft` contract.
     IConnectivityTrackerHbbft public connectivityTracker;
 
+    /**
+     * @dev Represents a parameter range for a specific getter function.
+     * @param getter The getter function signature.
+     * @param range The range of values for the parameter.
+     */
+    struct ParameterRange {
+        bytes4 getter;
+        uint256[] range;
+    }
+
+    /**
+     * @dev A mapping that stores the allowed parameter ranges for each function signature.
+     */
+    mapping(bytes4 => ParameterRange) public allowedParameterRange;
+
     // ============================================== Events ==========================================================
 
     event gasPriceChanged(uint256 _value);
@@ -54,6 +69,23 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     constructor() {
         // Prevents initialization of implementation contract
         _disableInitializers();
+    }
+
+    // ============================================== Modifiers =======================================================
+
+    /**
+     * @dev Modifier to check if a new value is within the allowed range.
+     * @param newVal The new value to be checked.
+     * @notice This modifier is used to ensure that the new value is within the allowed range.
+     * If the new value is not within the allowed range, the function using this modifier
+     * will revert with an error message.
+     */
+    modifier withinAllowedRange(uint256 newVal) {
+        require(
+            isWithinAllowedRange(msg.sig, newVal),
+            "new value not within allowed range"
+        );
+        _;
     }
 
     // =============================================== Setters ========================================================
@@ -131,7 +163,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     /// before submitting it as contribution.
     /// The limit can be changed by the owner (typical the DAO)
     /// @param _value The new minimum gas price.
-    function setMinimumGasPrice(uint256 _value) public onlyOwner {
+    function setMinimumGasPrice(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // currently, we do not allow to set the minimum gas price to 0,
         // that would open pandoras box, and the consequences of doing that,
         // requires deeper research.
@@ -142,7 +174,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
 
     /// @dev set's the block gas limit.
     /// IN HBBFT, there must be consens about the block gas limit.
-    function setBlockGasLimit(uint256 _value) public onlyOwner {
+    function setBlockGasLimit(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // we make some check that the block gas limit can not be set to low,
         // to prevent the chain to be completly inoperatable.
         // this value is chosen arbitrarily
@@ -156,6 +188,51 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
 
     function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
+    }
+
+    /**
+     * @dev Sets the minimum stake required for delegators.
+     * @param _minStake The new minimum stake amount.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     * - The stake amount must be within the allowed range.
+     */
+    function setDelegatorMinStake(uint256 _minStake)
+        override
+        external
+        onlyOwner
+        withinAllowedRange(_minStake)
+    {
+        delegatorMinStake = _minStake;
+    }
+
+    /**
+     * @dev Sets the allowed changeable parameter for a specific setter function.
+     * @param setter The name of the setter function.
+     * @param getter The name of the getter function.
+     * @param params The array of allowed parameter values.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function setAllowedChangeableParameter(
+        string memory setter,
+        string memory getter,
+        uint256[] memory params
+    ) external onlyOwner {
+        allowedParameterRange[bytes4(keccak256(bytes(setter)))] = ParameterRange(
+            bytes4(keccak256(bytes(getter))),
+            params
+        );
+    }
+
+    /**
+     * @dev Removes the allowed changeable parameter for a given function selector.
+     * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function removeAllowedChangeableParameter(string memory funcSelector) external onlyOwner {
+        delete allowedParameterRange[bytes4(keccak256(bytes(funcSelector)))];
     }
 
     // =============================================== Getters ========================================================
@@ -393,6 +470,31 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         return (_gasPrice >= minimumGasPrice ? ALL : NONE, false);
     }
 
+    /**
+     * @dev Checks if the given `newVal` is within the allowed range for the specified function selector.
+     * @param funcSelector The function selector.
+     * @param newVal The new value to be checked.
+     * @return A boolean indicating whether the `newVal` is within the allowed range.
+     */
+    function isWithinAllowedRange(bytes4 funcSelector, uint256 newVal) public view returns(bool) {
+        ParameterRange memory allowedRange = allowedParameterRange[funcSelector];
+        if(allowedRange.range.length == 0) return false;
+        uint256[] memory range = allowedRange.range;
+        uint256 currVal = _getValueWithSelector(allowedRange.getter);
+        bool currValFound;
+
+        for (uint256 i = 0; i < range.length; i++) {
+            if (range[i] == currVal) {
+                currValFound = true;
+                uint256 leftVal = (i > 0) ? range[i - 1] : range[0];
+                uint256 rightVal = (i < range.length - 1) ? range[i + 1] : range[range.length - 1];
+                if (newVal != leftVal && newVal != rightVal) return false;
+                break;
+            }
+        }
+        return currValFound;
+    }
+
     // ============================================== Internal ========================================================
 
     // Allowed transaction types mask
@@ -511,5 +613,17 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
 
             return (mask, false);
         }
+    }
+
+    /**
+     * @dev Internal function to get the value of a contract state variable using a getter function.
+     * @param getterSelector The selector of the getter function.
+     * @return The value of the contract state variable.
+     */
+    function _getValueWithSelector(bytes4 getterSelector) private view returns (uint256) {
+        bytes memory payload = abi.encodeWithSelector(getterSelector);
+        (bool success, bytes memory result) = address(this).staticcall(payload);
+        require(success, "Getter call failed");
+        return abi.decode(result, (uint256));
     }
 }
