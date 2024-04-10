@@ -64,6 +64,36 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     // ============================================== Events ==========================================================
 
     event gasPriceChanged(uint256 _value);
+    
+    /**
+     * @dev Emitted when the minimum gas price is updated.
+     * @param _minGasPrice The new minimum gas price.
+     */
+    event SetMinimumGasPrice(uint256 _minGasPrice);
+
+    /**
+     * @dev Emitted when the block gas limit is updated.
+     * @param _blockGasLimit The new block gas limit.
+     */
+    event SetBlockGasLimit(uint256 _blockGasLimit);
+
+    /**
+     * @dev Event emitted when changeable parameters are set.
+     * @param setter The address of the setter.
+     * @param getter The address of the getter.
+     * @param params An array of uint256 values representing the parameters.
+     */
+    event SetChangeAbleParameter(
+        string setter,
+        string getter,
+        uint256[] params
+    );
+
+    /**
+     * @dev Emitted when changeable parameters are removed.
+     * @param funcSelector The function selector of the removed changeable parameters.
+     */
+    event RemoveChangeAbleParameter(string funcSelector);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -170,6 +200,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         require(_value > 0, "Minimum gas price must not be zero");
         emit gasPriceChanged(_value);
         minimumGasPrice = _value;
+        emit SetMinimumGasPrice(_value);
     }
 
     /// @dev set's the block gas limit.
@@ -184,26 +215,11 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         );
 
         blockGasLimit = _value;
+        emit SetBlockGasLimit(_value);
     }
 
     function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
-    }
-
-    /**
-     * @dev Sets the minimum stake required for delegators.
-     * @param _minStake The new minimum stake amount.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     * - The stake amount must be within the allowed range.
-     */
-    function setDelegatorMinStake(uint256 _minStake)
-        override
-        external
-        onlyOwner
-        withinAllowedRange(_minStake)
-    {
-        delegatorMinStake = _minStake;
     }
 
     /**
@@ -223,6 +239,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
             bytes4(keccak256(bytes(getter))),
             params
         );
+        emit SetChangeAbleParameter(setter, getter, params);
     }
 
     /**
@@ -233,6 +250,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
      */
     function removeAllowedChangeableParameter(string memory funcSelector) external onlyOwner {
         delete allowedParameterRange[bytes4(keccak256(bytes(funcSelector)))];
+        emit RemoveChangeAbleParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================

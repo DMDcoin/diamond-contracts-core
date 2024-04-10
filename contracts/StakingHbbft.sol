@@ -44,6 +44,30 @@ contract StakingHbbft is StakingHbbftBase {
         uint256 nativeCoinsAmount
     );
 
+    /**
+     * @dev Emitted when the minimum stake for a delegator is updated.
+     * @param minStake The new minimum stake value.
+     */
+    event SetDelegatorMinStake(uint256 minStake);
+
+    /**
+     * @dev Event emitted when changeable parameters are set.
+     * @param setter The address of the setter.
+     * @param getter The address of the getter.
+     * @param params An array of uint256 values representing the parameters.
+     */
+    event SetChangeAbleParameter(
+        string setter,
+        string getter,
+        uint256[] params
+    );
+
+    /**
+     * @dev Emitted when changeable parameters are removed.
+     * @param funcSelector The function selector of the removed changeable parameters.
+     */
+    event RemoveChangeAbleParameter(string funcSelector);
+
     // ============================================== Modifiers =======================================================
 
     /**
@@ -167,6 +191,7 @@ contract StakingHbbft is StakingHbbftBase {
         withinAllowedRange(_minStake)
     {
         delegatorMinStake = _minStake;
+        emit SetDelegatorMinStake(_minStake);
     }
 
     /**
@@ -186,6 +211,7 @@ contract StakingHbbft is StakingHbbftBase {
             bytes4(keccak256(bytes(getter))),
             params
         );
+        emit SetChangeAbleParameter(setter, getter, params);
     }
 
     /**
@@ -196,6 +222,7 @@ contract StakingHbbft is StakingHbbftBase {
      */
     function removeAllowedChangeableParameter(string memory funcSelector) external onlyOwner {
         delete allowedParameterRange[bytes4(keccak256(bytes(funcSelector)))];
+        emit RemoveChangeAbleParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================
