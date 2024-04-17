@@ -3,22 +3,9 @@ pragma solidity =0.8.17;
 import "../BlockRewardHbbft.sol";
 
 contract BlockRewardHbbftMock is BlockRewardHbbft {
-    address internal _systemAddress;
-
-    // ============================================== Modifiers =======================================================
-
-    modifier onlySystem() virtual override {
-        require(msg.sender == _getSystemAddress());
-        _;
-    }
-
     // =============================================== Setters ========================================================
 
     function sendCoins() public payable {}
-
-    function setSystemAddress(address _address) public {
-        _systemAddress = _address;
-    }
 
     function setGovernanceAddress(address _address) public {
         governancePotAddress = payable(_address);
@@ -80,11 +67,5 @@ contract BlockRewardHbbftMock is BlockRewardHbbft {
         }
 
         _epochsPoolGotRewardFor[_poolMiningAddress].push(_stakingEpoch);
-    }
-
-    // =============================================== Private ========================================================
-
-    function _getSystemAddress() internal view returns (address) {
-        return _systemAddress;
     }
 }

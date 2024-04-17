@@ -1,7 +1,6 @@
 import { ethers, upgrades } from "hardhat";
 import { expect } from "chai";
-import { BigNumber } from "ethers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 import fp from "lodash/fp";
 
@@ -10,21 +9,21 @@ import {
     ValidatorSetHbbftMock,
     StakingHbbftMock,
     BlockRewardHbbftMock,
-    KeyGenHistory,
 } from "../src/types";
-import { keccak256 } from "ethers/lib/utils";
+
+import { getNValidatorsPartNAcks } from "./testhelpers/data";
 
 describe('ConnectivityTrackerHbbft', () => {
     const validatorInactivityThreshold = 86400 // 1 day
     const minReportAgeBlocks = 10;
 
-    let accounts: SignerWithAddress[];
-    let owner: SignerWithAddress;
+    let accounts: HardhatEthersSigner[];
+    let owner: HardhatEthersSigner;
     let addresses: string[]
-    let initialValidators: SignerWithAddress[];
-    let initialStakingAccounts: SignerWithAddress[];
+    let initialValidators: HardhatEthersSigner[];
+    let initialStakingAccounts: HardhatEthersSigner[];
 
-    let nonValidators: SignerWithAddress[];
+    let nonValidators: HardhatEthersSigner[];
 
     before(async () => {
         accounts = await ethers.getSigners();
@@ -42,33 +41,11 @@ describe('ConnectivityTrackerHbbft', () => {
         const validatorAddresses = initialValidators.map(x => x.address);
         const stakingAddresses = initialStakingAccounts.map(x => x.address);
 
-        const parts = Array(initialValidators.length).fill([
-            0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196,
-            140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213,
-            127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0,
-            153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43,
-            141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233,
-            11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108,
-            60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218,
-            46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35,
-            240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240,
-            106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118,
-            153, 95, 53, 127, 160, 237, 246, 41
-        ]);
-        const acks = Array(initialValidators.length).fill([
-            [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251,
-                103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179,
-                52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199,
-                37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111,
-                79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237,
-                242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32,
-                147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42,
-                41, 140, 202, 191, 12, 73, 146, 2]
-        ]);
+        const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
 
-        const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbft = await upgrades.deployProxy(
-            ValidatorSetFactory,
+        const validatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+        const validatorSetHbbftProxy = await upgrades.deployProxy(
+            validatorSetFactory,
             [
                 owner.address,
                 stubAddress,                  // _blockRewardContract
@@ -80,48 +57,48 @@ describe('ConnectivityTrackerHbbft', () => {
                 stakingAddresses,             // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        ) as ValidatorSetHbbftMock;
+        );
 
-        await validatorSetHbbft.deployed();
+        await validatorSetHbbftProxy.waitForDeployment();
 
-        const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
+        const keyGenFactoryFactory = await ethers.getContractFactory("KeyGenHistory");
         const keyGenHistory = await upgrades.deployProxy(
-            KeyGenFactory,
+            keyGenFactoryFactory,
             [
                 owner.address,
-                validatorSetHbbft.address,
+                await validatorSetHbbftProxy.getAddress(),
                 validatorAddresses,
                 parts,
                 acks
             ],
             { initializer: 'initialize' }
-        ) as KeyGenHistory;
+        );
 
         let stakingParams = {
-            _validatorSetContract: validatorSetHbbft.address,
+            _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
             _initialStakingAddresses: stakingAddresses,
-            _delegatorMinStake: ethers.utils.parseEther('1'),
-            _candidateMinStake: ethers.utils.parseEther('10'),
-            _maxStake: ethers.utils.parseEther('100'),
-            _stakingFixedEpochDuration: BigNumber.from(86400),
-            _stakingTransitionTimeframeLength: BigNumber.from(3600),
-            _stakingWithdrawDisallowPeriod: BigNumber.from(1)
+            _delegatorMinStake: ethers.parseEther('1'),
+            _candidateMinStake: ethers.parseEther('10'),
+            _maxStake: ethers.parseEther('100'),
+            _stakingFixedEpochDuration: 86400n,
+            _stakingTransitionTimeframeLength: 3600n,
+            _stakingWithdrawDisallowPeriod: 1n
         };
 
         let initialValidatorsPubKeys: string[] = [];
         let initialValidatorsIpAddresses: string[] = [];
 
         for (let i = 0; i < stakingAddresses.length; i++) {
-            initialValidatorsPubKeys.push(ethers.Wallet.createRandom().publicKey);
-            initialValidatorsIpAddresses.push('0x00000000000000000000000000000000');
+            initialValidatorsPubKeys.push(ethers.Wallet.createRandom().signingKey.publicKey);
+            initialValidatorsIpAddresses.push(ethers.zeroPadBytes("0x00", 16));
         }
 
         let initialValidatorsPubKeysSplit = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
             (initialValidatorsPubKeys);
 
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-        const stakingHbbft = await upgrades.deployProxy(
-            StakingHbbftFactory,
+        const stakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
+        const stakingHbbftProxy = await upgrades.deployProxy(
+            stakingHbbftFactory,
             [
                 owner.address,
                 stakingParams,
@@ -130,41 +107,58 @@ describe('ConnectivityTrackerHbbft', () => {
 
             ],
             { initializer: 'initialize' }
-        ) as StakingHbbftMock;
+        );
 
-        await stakingHbbft.deployed();
+        await stakingHbbftProxy.waitForDeployment();
 
-        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardHbbft = await upgrades.deployProxy(
-            BlockRewardHbbftFactory,
+        const blockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
+        const blockRewardHbbftProxy = await upgrades.deployProxy(
+            blockRewardHbbftFactory,
             [
                 owner.address,
-                validatorSetHbbft.address,
+                await validatorSetHbbftProxy.getAddress(),
                 stubAddress
             ],
             { initializer: 'initialize' }
-        ) as BlockRewardHbbftMock;
+        );
 
-        await blockRewardHbbft.deployed();
+        await blockRewardHbbftProxy.waitForDeployment();
 
-        const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
-        const connectivityTracker = await upgrades.deployProxy(
-            ConnectivityTrackerFactory,
+        const connectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
+        const connectivityTrackerProxy = await upgrades.deployProxy(
+            connectivityTrackerFactory,
             [
                 owner.address,
-                validatorSetHbbft.address,
-                stakingHbbft.address,
-                blockRewardHbbft.address,
+                await validatorSetHbbftProxy.getAddress(),
+                await stakingHbbftProxy.getAddress(),
+                await blockRewardHbbftProxy.getAddress(),
                 minReportAgeBlocks,
             ],
             { initializer: 'initialize' }
+        );
+
+        await connectivityTrackerProxy.waitForDeployment();
+
+        const validatorSetHbbft = validatorSetFactory.attach(
+            await validatorSetHbbftProxy.getAddress()
+        ) as ValidatorSetHbbftMock;
+
+        const stakingHbbft = stakingHbbftFactory.attach(
+            await stakingHbbftProxy.getAddress()
+        ) as StakingHbbftMock;
+
+        const blockRewardHbbft = blockRewardHbbftFactory.attach(
+            await blockRewardHbbftProxy.getAddress()
+        ) as BlockRewardHbbftMock;
+
+        const connectivityTracker = connectivityTrackerFactory.attach(
+            await connectivityTrackerProxy.getAddress()
         ) as ConnectivityTrackerHbbft;
 
-        await connectivityTracker.deployed();
-        await blockRewardHbbft.setConnectivityTracker(connectivityTracker.address);
-        await validatorSetHbbft.setStakingContract(stakingHbbft.address);
-        await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
-        await validatorSetHbbft.setKeyGenHistoryContract(keyGenHistory.address);
+        await blockRewardHbbft.setConnectivityTracker(await connectivityTracker.getAddress());
+        await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
+        await validatorSetHbbft.setBlockRewardContract(await blockRewardHbbft.getAddress());
+        await validatorSetHbbft.setKeyGenHistoryContract(await keyGenHistory.getAddress());
 
         return { connectivityTracker, validatorSetHbbft, stakingHbbft, blockRewardHbbft };
     }
@@ -174,7 +168,7 @@ describe('ConnectivityTrackerHbbft', () => {
 
         await owner.sendTransaction({
             to: caller,
-            value: ethers.utils.parseEther('10'),
+            value: ethers.parseEther('10'),
         });
 
         const latest = await helpers.time.latest();
@@ -193,7 +187,7 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(upgrades.deployProxy(
                 ConnectivityTrackerFactory,
                 [
-                    ethers.constants.AddressZero,
+                    ethers.ZeroAddress,
                     stubAddress,
                     stubAddress,
                     stubAddress,
@@ -211,7 +205,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 ConnectivityTrackerFactory,
                 [
                     owner.address,
-                    ethers.constants.AddressZero,
+                    ethers.ZeroAddress,
                     stubAddress,
                     stubAddress,
                     minReportAgeBlocks
@@ -229,7 +223,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 [
                     owner.address,
                     stubAddress,
-                    ethers.constants.AddressZero,
+                    ethers.ZeroAddress,
                     stubAddress,
                     minReportAgeBlocks
                 ],
@@ -247,7 +241,7 @@ describe('ConnectivityTrackerHbbft', () => {
                     owner.address,
                     stubAddress,
                     stubAddress,
-                    ethers.constants.AddressZero,
+                    ethers.ZeroAddress,
                     minReportAgeBlocks
                 ],
                 { initializer: 'initialize' }
@@ -270,7 +264,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 { initializer: 'initialize' }
             );
 
-            expect(await contract.deployed());
+            expect(await contract.waitForDeployment());
 
             await expect(contract.initialize(
                 owner.address,
@@ -337,8 +331,8 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(caller).reportMissingConnectivity(
                     initialValidators[0].address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "OnlyValidator");
         });
@@ -350,8 +344,8 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(initialValidators[0]).reportMissingConnectivity(
                     initialValidators[1].address,
-                    latestBlock.number + 5,
-                    latestBlock.hash
+                    latestBlock!.number + 5,
+                    latestBlock!.hash!
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "InvalidBlock");
         });
@@ -363,8 +357,8 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(initialValidators[0]).reportMissingConnectivity(
                     initialValidators[1].address,
-                    latestBlock.number,
-                    keccak256(ethers.utils.toUtf8Bytes(latestBlock.hash))
+                    latestBlock!.number,
+                    ethers.keccak256(ethers.toUtf8Bytes(latestBlock!.hash!))
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "InvalidBlock");
         });
@@ -372,14 +366,14 @@ describe('ConnectivityTrackerHbbft', () => {
         it("should revert too early report", async () => {
             const { connectivityTracker, validatorSetHbbft, stakingHbbft } = await helpers.loadFixture(deployContracts);
 
-            await setStakingEpochStartTime(validatorSetHbbft.address, stakingHbbft);
+            await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
             const latestBlock = await ethers.provider.getBlock("latest");
 
             await expect(
                 connectivityTracker.connect(initialValidators[0]).reportMissingConnectivity(
                     initialValidators[1].address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "ReportTooEarly");
         });
@@ -389,21 +383,21 @@ describe('ConnectivityTrackerHbbft', () => {
             const reporter = initialValidators[0];
             const validator = initialValidators[1];
 
-            await setStakingEpochStartTime(validatorSetHbbft.address, stakingHbbft);
+            await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
             await helpers.mine(minReportAgeBlocks + 1);
 
             const latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             await expect(connectivityTracker.connect(reporter).reportMissingConnectivity(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             )).to.be.revertedWithCustomError(connectivityTracker, "AlreadyReported")
                 .withArgs(reporter.address, validator.address);
         });
@@ -417,14 +411,14 @@ describe('ConnectivityTrackerHbbft', () => {
 
             expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             await expect(connectivityTracker.connect(validator).reportMissingConnectivity(
                 reporter.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             )).to.be.revertedWithCustomError(connectivityTracker, "CannotReportByFlaggedValidator")
                 .withArgs(validator.address);
         });
@@ -439,14 +433,14 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(reporter).reportMissingConnectivity(
                     validator.address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 )
             ).to.emit(connectivityTracker, "ReportMissingConnectivity")
                 .withArgs(
                     reporter.address,
                     validator.address,
-                    latestBlock.number
+                    latestBlock!.number
                 );
         });
 
@@ -465,13 +459,13 @@ describe('ConnectivityTrackerHbbft', () => {
 
             expect(await connectivityTracker.connect(initialValidators[0]).reportMissingConnectivity(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             expect(await connectivityTracker.getFlaggedValidators()).to.include(validator.address);
             expect(await connectivityTracker.getValidatorConnectivityScore(currentEpoch, validator.address))
-                .to.equal(previousScore.add(1));
+                .to.equal(previousScore + 1n);
         });
 
         it("should increase validator score with each report", async () => {
@@ -486,13 +480,13 @@ describe('ConnectivityTrackerHbbft', () => {
             for (let i = 1; i < initialValidators.length; ++i) {
                 expect(await connectivityTracker.connect(initialValidators[i]).reportMissingConnectivity(
                     validator.address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 ));
 
                 expect(
                     await connectivityTracker.getValidatorConnectivityScore(epoch, validator.address)
-                ).to.equal(initialScore.add(i))
+                ).to.equal(initialScore + BigInt(i))
             }
 
             expect(await connectivityTracker.getValidatorConnectivityScore(epoch, validator.address))
@@ -517,8 +511,8 @@ describe('ConnectivityTrackerHbbft', () => {
                 for (let j = 0; j < badValidators.length - 1; ++j) {
                     expect(await connectivityTracker.connect(goodValidators[i]).reportMissingConnectivity(
                         badValidators[j].address,
-                        latestBlock.number,
-                        latestBlock.hash
+                        latestBlock!.number,
+                        latestBlock!.hash!
                     ));
                 }
             }
@@ -528,8 +522,8 @@ describe('ConnectivityTrackerHbbft', () => {
             const lastValidatorToReport = goodValidators[goodValidators.length - 1];
             await expect(connectivityTracker.connect(lastValidatorToReport).reportMissingConnectivity(
                 badValidators[badValidators.length - 1].address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             )).to.emit(connectivityTracker, "NotifyEarlyEpochEnd")
                 .withArgs(epoch, lastBlock + 1);
 
@@ -547,8 +541,8 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(caller).reportReconnect(
                     initialValidators[0].address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "OnlyValidator");
         });
@@ -561,8 +555,8 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(initialValidators[0]).reportReconnect(
                     initialValidators[1].address,
-                    latestBlock.number + 5,
-                    latestBlock.hash
+                    latestBlock!.number + 5,
+                    latestBlock!.hash!
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "InvalidBlock");
         });
@@ -575,8 +569,8 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(initialValidators[0]).reportReconnect(
                     initialValidators[1].address,
-                    latestBlock.number,
-                    keccak256(ethers.utils.toUtf8Bytes(latestBlock.hash))
+                    latestBlock!.number,
+                    ethers.keccak256(ethers.toUtf8Bytes(latestBlock!.hash!))
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "InvalidBlock");
         });
@@ -584,14 +578,14 @@ describe('ConnectivityTrackerHbbft', () => {
         it("should revert too early report", async () => {
             const { connectivityTracker, validatorSetHbbft, stakingHbbft } = await helpers.loadFixture(deployContracts);
 
-            await setStakingEpochStartTime(validatorSetHbbft.address, stakingHbbft);
+            await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
             const latestBlock = await ethers.provider.getBlock("latest");
 
             await expect(
                 connectivityTracker.connect(initialValidators[0]).reportReconnect(
                     initialValidators[1].address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "ReportTooEarly");
         });
@@ -605,8 +599,8 @@ describe('ConnectivityTrackerHbbft', () => {
             await expect(
                 connectivityTracker.connect(reporter).reportReconnect(
                     validator.address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 )
             ).to.be.revertedWithCustomError(connectivityTracker, "UnknownReconnectReporter")
                 .withArgs(reporter.address, validator.address);
@@ -619,21 +613,21 @@ describe('ConnectivityTrackerHbbft', () => {
             const reporter = initialValidators[0];
             const validator = initialValidators[1];
 
-            await setStakingEpochStartTime(validatorSetHbbft.address, stakingHbbft);
+            await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
             await helpers.mine(minReportAgeBlocks + 1);
 
             let latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             await expect(connectivityTracker.connect(validator).reportReconnect(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             )).to.be.revertedWithCustomError(connectivityTracker, "CannotReportByFlaggedValidator")
                 .withArgs(validator.address);
         });
@@ -643,29 +637,29 @@ describe('ConnectivityTrackerHbbft', () => {
             const reporter = initialValidators[0];
             const validator = initialValidators[1];
 
-            await setStakingEpochStartTime(validatorSetHbbft.address, stakingHbbft);
+            await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
             await helpers.mine(minReportAgeBlocks + 1);
 
             let latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             latestBlock = await ethers.provider.getBlock("latest");
             await expect(
                 connectivityTracker.connect(reporter).reportReconnect(
                     validator.address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 )
             ).to.be.emit(connectivityTracker, "ReportReconnect")
                 .withArgs(
                     reporter.address,
                     validator.address,
-                    latestBlock.number
+                    latestBlock!.number
                 );
         });
 
@@ -677,8 +671,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             expect(await connectivityTracker.connect(initialValidators[0]).reportMissingConnectivity(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             expect(await connectivityTracker.getFlaggedValidators()).to.include(validator.address);
@@ -686,8 +680,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             expect(await connectivityTracker.connect(caller).reportReconnect(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             expect(await connectivityTracker.getFlaggedValidators()).to.not.include(validator.address);
@@ -701,8 +695,8 @@ describe('ConnectivityTrackerHbbft', () => {
             for (const reporter of [initialValidators[0], initialValidators[1]]) {
                 expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
                     validator.address,
-                    latestBlock.number,
-                    latestBlock.hash
+                    latestBlock!.number,
+                    latestBlock!.hash!
                 ));
             }
 
@@ -712,13 +706,13 @@ describe('ConnectivityTrackerHbbft', () => {
 
             expect(await connectivityTracker.connect(initialValidators[0]).reportReconnect(
                 validator.address,
-                latestBlock.number,
-                latestBlock.hash
+                latestBlock!.number,
+                latestBlock!.hash!
             ));
 
             const currentScore = await connectivityTracker.getValidatorConnectivityScore(epoch, validator.address);
 
-            expect(currentScore).to.equal(previousScore.sub(1));
+            expect(currentScore).to.equal(previousScore - 1n);
         });
     });
 });
