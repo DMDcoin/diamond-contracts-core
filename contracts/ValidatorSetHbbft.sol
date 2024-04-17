@@ -718,11 +718,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         view
         returns (bool)
     {
-        if (isValidator[_miningAddress]) {
-            return true;
-        }
-
-        return isPendingValidator(_miningAddress);
+        return isValidator[_miningAddress] || isPendingValidator(_miningAddress);
     }
 
     /// @dev Returns a boolean flag indicating whether the specified mining address is a pending validator.
@@ -733,7 +729,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         view
         returns (bool)
     {
-        for (uint256 i = 0; i < _pendingValidators.length; i++) {
+        for (uint256 i = 0; i < _pendingValidators.length; ++i) {
             if (_miningAddress == _pendingValidators[i]) {
                 return true;
             }

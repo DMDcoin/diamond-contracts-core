@@ -467,10 +467,6 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.isPoolActive(candidate1StakingAddress.address)).to.be.true;
             expect(await stakingHbbft.isPoolActive(candidate2StakingAddress.address)).to.be.true;
 
-            // Check indexes (0...2 are busy by initial validators)
-            expect(await stakingHbbft.poolIndex(candidate1StakingAddress.address)).to.equal(3n);
-            expect(await stakingHbbft.poolIndex(candidate2StakingAddress.address)).to.equal(4n);
-
             // Check indexes in the `poolsToBeElected` list
             expect(await stakingHbbft.poolToBeElectedIndex(candidate1StakingAddress.address)).to.equal(0n);
             expect(await stakingHbbft.poolToBeElectedIndex(candidate2StakingAddress.address)).to.equal(1n);
@@ -492,9 +488,7 @@ describe('StakingHbbft', () => {
 
             for (let i = initialValidators.length; i < 100; ++i) {
                 // Add a new pool
-                const candidate = ethers.Wallet.createRandom().address;
-                await stakingHbbft.addPoolActiveMock(candidate);
-                expect(await stakingHbbft.poolIndex(candidate)).to.equal(BigInt(i));
+                await stakingHbbft.addPoolActiveMock(candidateStakingAddress);
             }
 
             // Try to add a new pool outside of max limit, max limit is 100 in mock contract.
@@ -1991,10 +1985,10 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakingWithdrawDisallowPeriod()).to.be.equal(stakingWithdrawDisallowPeriod);
             expect(await stakingHbbft.validatorSetContract()).to.be.equal(validatorSetContract)
 
-            for (let i = 0; i < initialStakingAddresses.length; i++) {
-                expect(await stakingHbbft.poolIndex(initialStakingAddresses[i])).to.equal(BigInt(i))
-                expect(await stakingHbbft.isPoolActive(initialStakingAddresses[i])).to.be.true;
-                expect(await stakingHbbft.poolToBeRemovedIndex(initialStakingAddresses[i])).to.be.equal(BigInt(i))
+            for (const stakingAddress of initialStakingAddresses) {
+                expect(await stakingHbbft.isPoolActive(stakingAddress)).to.be.true;
+                expect(await stakingHbbft.getPools()).to.include(stakingAddress);
+                expect(await stakingHbbft.getPoolsToBeRemoved()).to.include(stakingAddress);
             }
 
             expect(await stakingHbbft.getPools()).to.be.deep.equal(initialStakingAddresses);
@@ -2643,17 +2637,6 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.getPools()).to.be.deep.equal(initialStakingAddresses);
         });
 
-        it('should reset pool index', async () => {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            expect(await stakingHbbft.poolIndex(initialStakingAddresses[1])).to.be.equal(1n);
-
-            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
-            await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[1]);
-
-            expect(await stakingHbbft.poolIndex(initialStakingAddresses[1])).to.be.equal(0n);
-        });
-
         it('should add/remove a pool to/from the utility lists', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -2675,22 +2658,15 @@ describe('StakingHbbft', () => {
 
             // Remove the pool
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
-            expect(await stakingHbbft.poolInactiveIndex(initialStakingAddresses[0])).to.be.equal(0n);
+            await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
+            expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([initialStakingAddresses[0]]);
 
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
             expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([initialStakingAddresses[0]]);
             expect(await stakingHbbft.poolInactiveIndex(initialStakingAddresses[0])).to.be.equal(0n);
 
-            await stakingHbbft.setStakeAmountTotal(initialStakingAddresses[0], 0n);
-            await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
-            expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
-            expect(await stakingHbbft.getPoolsToBeElected()).to.be.empty;
-
-            expect(await stakingHbbft.poolToBeRemovedIndex(initialStakingAddresses[1])).to.be.equal(1n);
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[1]);
-
             expect(await stakingHbbft.getPoolsToBeRemoved()).to.be.deep.equal([initialStakingAddresses[2]]);
-            expect(await stakingHbbft.poolToBeRemovedIndex(initialStakingAddresses[1])).to.be.equal(0n);
         });
     });
 
@@ -2987,7 +2963,7 @@ describe('StakingHbbft', () => {
 
             const poolsInactive = await stakingContract.getPoolsInactive();
 
-            expect(poolsInactive.includes(poolAddress)).to.be.true;
+            expect(poolsInactive).to.include(poolAddress);
         }
 
         it("should revert if there is no inactive pools", async () => {
@@ -3084,9 +3060,7 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.recoverAbandonedStakes())
                 .to.emit(stakingHbbft, "RecoverAbandonedStakes");
 
-            const inactivePools = await stakingHbbft.getPoolsInactive();
-
-            expect(inactivePools.includes(stakingPool.address)).to.be.false;
+            expect(await stakingHbbft.getPoolsInactive()).to.not.include(stakingPool.address);
             expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
         });
 

@@ -23,23 +23,24 @@ contract BlockRewardHbbftMock is BlockRewardHbbft {
         uint256 _stakingEpoch,
         address _miningAddress
     ) public {
-        _snapshotPoolStakeAmounts(
-            _stakingContract,
-            _stakingEpoch,
-            _miningAddress
-        );
+        // _snapshotPoolStakeAmounts(
+        //     _stakingContract,
+        //     _stakingEpoch,
+        //     _miningAddress
+        // );
     }
 
-    function setSnapshotPoolValidatorStakeAmount(
-        uint256 _stakingEpoch,
-        address _poolMiningAddress,
-        uint256 _amount
-    ) public {
-        snapshotPoolValidatorStakeAmount[_stakingEpoch][
-            _poolMiningAddress
-        ] = _amount;
-    }
+    // function setSnapshotPoolValidatorStakeAmount(
+    //     uint256 _stakingEpoch,
+    //     address _poolMiningAddress,
+    //     uint256 _amount
+    // ) public {
+    //     snapshotPoolValidatorStakeAmount[_stakingEpoch][
+    //         _poolMiningAddress
+    //     ] = _amount;
+    // }
 
+    /*
     function setEpochPoolReward(
         uint256 _stakingEpoch,
         address _poolMiningAddress
@@ -50,11 +51,11 @@ contract BlockRewardHbbftMock is BlockRewardHbbft {
             "SetEpochPoolReward: epoch can't be 0"
         );
         require(msg.value != 0, "SetEpochPoolReward: reward can't be 0");
-        require(
-            epochPoolNativeReward[_stakingEpoch][_poolMiningAddress] == 0,
-            "SetEpochPoolReward: epochPoolNativeReward already set"
-        );
-        epochPoolNativeReward[_stakingEpoch][_poolMiningAddress] = msg.value;
+        // require(
+        //     epochPoolNativeReward[_stakingEpoch][_poolMiningAddress] == 0,
+        //     "SetEpochPoolReward: epochPoolNativeReward already set"
+        // );
+        // epochPoolNativeReward[_stakingEpoch][_poolMiningAddress] = msg.value;
 
         uint256[] memory thisPoolsRewards = _epochsPoolGotRewardFor[
             _poolMiningAddress
@@ -68,4 +69,5 @@ contract BlockRewardHbbftMock is BlockRewardHbbft {
 
         _epochsPoolGotRewardFor[_poolMiningAddress].push(_stakingEpoch);
     }
+    */
 }
