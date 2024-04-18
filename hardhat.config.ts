@@ -2,6 +2,7 @@ import fs from "fs";
 import { ethers } from "ethers";
 import { HardhatUserConfig } from "hardhat/config";
 
+import "hardhat-tracer"
 import 'dotenv/config'
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-ethers";

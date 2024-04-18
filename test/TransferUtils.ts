@@ -1,10 +1,10 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 describe("Transfer utils library", function () {
-    let users: SignerWithAddress[];
+    let users: HardhatEthersSigner[];
 
     before(async function () {
         users = await ethers.getSigners();
@@ -13,16 +13,16 @@ describe("Transfer utils library", function () {
     async function deployContracts() {
         const transferUtilsFactory = await ethers.getContractFactory("TransferUtilsMock");
         const transferUtils = await transferUtilsFactory.deploy();
-        await transferUtils.deployed();
+        await transferUtils.waitForDeployment();
 
         const mockReceiverFactory = await ethers.getContractFactory("EtherReceiverMock");
         const mockReceiver = await mockReceiverFactory.deploy();
-        await mockReceiver.deployed();
+        await mockReceiver.waitForDeployment();
 
-        const balance = ethers.utils.parseEther("10")
+        const balance = ethers.parseEther("10")
 
         await users[1].sendTransaction({
-            to: transferUtils.address,
+            to: await transferUtils.getAddress(),
             value: balance,
         });
 
@@ -39,7 +39,7 @@ describe("Transfer utils library", function () {
         await expect(
             transferUtils.transferNative(
                 transferReceiver.address,
-                balance.add(balance),
+                balance * 2n,
             )
         ).revertedWithCustomError(transferUtils, "InsufficientBalance");
     });
@@ -49,44 +49,47 @@ describe("Transfer utils library", function () {
 
         expect(await mockReceiver.toggleReceive(false));
 
-        await expect(transferUtils.transferNative(mockReceiver.address, balance))
+        await expect(transferUtils.transferNative(await mockReceiver.getAddress(), balance))
             .revertedWithCustomError(transferUtils, "TransferFailed")
-            .withArgs(mockReceiver.address, balance);
+            .withArgs(await mockReceiver.getAddress(), balance);
     });
 
     it("should transfer ether using transferNative", async function () {
         const { transferUtils, mockReceiver, balance } = await helpers.loadFixture(deployContracts);
+        const receiverAddress = await mockReceiver.getAddress();
 
         expect(await mockReceiver.toggleReceive(true));
 
-        await expect(() => transferUtils.transferNative(mockReceiver.address, balance))
+        await expect(() => transferUtils.transferNative(receiverAddress, balance))
             .to.changeEtherBalances(
                 [transferUtils, mockReceiver],
-                [balance.mul(-1), balance]
+                [-balance, balance]
             );
     });
 
     it("should transfer using transferNativeEnsure", async function () {
         const { transferUtils, mockReceiver, balance } = await helpers.loadFixture(deployContracts);
+        const receiverAddress = await mockReceiver.getAddress();
 
         expect(await mockReceiver.toggleReceive(true));
 
-        await expect(() => transferUtils.transferNativeEnsure(mockReceiver.address, balance))
+        await expect(() => transferUtils.transferNativeEnsure(receiverAddress, balance))
             .to.changeEtherBalances(
                 [transferUtils, mockReceiver],
-                [balance.mul(-1), balance]
+                [-balance, balance]
             );
     });
 
     it("should ensure token transfer using Sacrifice contract", async function () {
         const { transferUtils, mockReceiver, balance } = await helpers.loadFixture(deployContracts);
+        const receiverAddress = await mockReceiver.getAddress();
 
         expect(await mockReceiver.toggleReceive(false));
 
-        await expect(() => transferUtils.transferNativeEnsure(mockReceiver.address, balance))
+        await expect(() => transferUtils.transferNativeEnsure(receiverAddress, balance))
             .to.changeEtherBalances(
                 [transferUtils, mockReceiver],
-                [balance.mul(-1), balance]
+                [-balance, balance]
             );
     });
 });

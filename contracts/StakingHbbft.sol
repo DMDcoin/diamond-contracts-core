@@ -11,6 +11,7 @@ import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
+import "hardhat/console.sol";
 
 /// @dev Implements staking and withdrawal logic.
 contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
@@ -124,8 +125,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     mapping(uint256 => mapping(address => uint256)) public snapshotPoolValidatorStakeAmount;
 
     /// @dev The delegator's staked amount snapshot for specified epoch
-    mapping(address => mapping(address => mapping(uint256 => uint256))) private _delegatorStakeSnapshot;
-    mapping(address => mapping(address => uint256)) private _stakeSnapshotLastEpoch;
+    /// pool => delegator => epoch => stake amount
+    mapping(address => mapping(address => mapping(uint256 => uint256))) internal _delegatorStakeSnapshot;
+
+    /// @dev Number of last epoch when stake snapshot was taken. pool => delegator => epoch
+    mapping(address => mapping(address => uint256)) internal _stakeSnapshotLastEpoch;
 
     // ============================================== Constants =======================================================
 
@@ -1177,10 +1181,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// @param _staker The staker's address.
     /// @param _amount The amount of coins to be staked.
     function _stake(address _poolStakingAddress, address _staker, uint256 _amount) private {
-        address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
-
-        require(poolMiningAddress != address(0), "Pool does not exist. miningAddress for that staking address is 0");
         require(_poolStakingAddress != address(0), "Stake: stakingAddress is 0");
+
+        address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
+        require(poolMiningAddress != address(0), "Pool does not exist. miningAddress for that staking address is 0");
         require(_amount != 0, "Stake: stakingAmount is 0");
         require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");
 
@@ -1292,7 +1296,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         address _miningAddress,
         address _delegator
     ) private {
-        if (!validatorSetContract.isValidatorOrPending(_miningAddress)) {
+        if (!validatorSetContract.isValidatorOrPending(_miningAddress) || stakingEpoch == 0) {
             return;
         }
 
@@ -1310,6 +1314,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         address _stakingAddress,
         address _delegator
     ) private view returns (uint256) {
+        if (_stakingEpoch == 0) {
+            return 0;
+        }
+
         if (_stakeSnapshotLastEpoch[_stakingAddress][_delegator] == _stakingEpoch) {
             return _delegatorStakeSnapshot[_stakingAddress][_delegator][_stakingEpoch];
         } else {
