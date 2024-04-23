@@ -7,7 +7,6 @@ import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
-import "hardhat/console.sol";
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
 contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbft {
@@ -83,18 +82,6 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Block-Reward-Contract.html
     modifier onlySystem() virtual {
         require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
-        _;
-    }
-
-    /// @dev Ensures the caller is the StakingHbbft contract address.
-    modifier onlyStakingContract() {
-        require(msg.sender == address(validatorSetContract.getStakingContract()));
-        _;
-    }
-
-    /// @dev Ensures the caller is the ValidatorSetHbbft contract address.
-    modifier onlyValidatorSetContract() {
-        require(msg.sender == address(validatorSetContract));
         _;
     }
 
@@ -274,8 +261,6 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
             validators
         );
 
-        console.log("num rewarded validators: ", numRewardedValidators);
-
         // No rewards distributed in this epoch
         if (numRewardedValidators == 0) {
             return 0;
@@ -429,12 +414,6 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
     function _getPotsShares(uint256 numValidators) internal view returns (PotsShares memory) {
         uint256 maxValidators = validatorSetContract.maxValidators();
         uint256 epochPercent = epochPercentage();
-
-        console.log("num validators:   ", numValidators);
-        console.log("delta pot:        ", deltaPot);
-        console.log("epochPercent:     ", epochPercent);
-        console.log("delta pot payout: ", deltaPotPayoutFraction);
-        console.log("maxValidators:    ", maxValidators);
 
         PotsShares memory shares;
 
