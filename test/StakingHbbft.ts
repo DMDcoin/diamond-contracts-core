@@ -3,6 +3,7 @@ import { expect } from "chai";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 import fp from "lodash/fp";
+import * as _ from "lodash";
 
 import {
     BlockRewardHbbftMock,
@@ -13,14 +14,13 @@ import {
 } from "../src/types";
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
-import { getSigner } from "@openzeppelin/hardhat-upgrades/dist/utils";
 
 //consts
 const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
 const ZeroPublicKey = ethers.zeroPadBytes("0x00", 64);
 const ZeroIpAddress = ethers.zeroPadBytes("0x00", 16);
 
-describe.only('StakingHbbft', () => {
+describe('StakingHbbft', () => {
     let owner: HardhatEthersSigner;
     let candidateMiningAddress: HardhatEthersSigner;
     let candidateStakingAddress: HardhatEthersSigner;
@@ -2038,6 +2038,111 @@ describe.only('StakingHbbft', () => {
                 const pool = await ethers.getSigner(initialStakingAddresses[i]);
 
                 expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake + poolReward);
+            }
+        });
+
+        it('should restake delegators rewards according to stakes', async () => {
+            const {
+                stakingHbbft,
+                blockRewardHbbft,
+                validatorSetHbbft,
+                candidateMinStake,
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
+
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+
+                await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+            }
+
+            let systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            interface StakeRecord {
+                delegator: string;
+                pool: string;
+                stake: bigint;
+            }
+
+            const delegators = accounts.slice(15, 20);
+            const stakeRecords = new Array<StakeRecord>();
+            const poolTotalStakes = new Map<string, bigint>();
+
+            for (const _pool of initialStakingAddresses) {
+                let _poolTotalStake = candidateMinStake;
+
+                for (const _delegator of delegators) {
+                    const stake = ethers.parseEther(_.random(1, 10).toString());
+
+                    stakeRecords.push({ delegator: _delegator.address, pool: _pool, stake: stake });
+
+                    _poolTotalStake += stake;
+
+                    await stakingHbbft.connect(_delegator).stake(_pool, { value: stake });
+                    expect(await stakingHbbft.stakeAmount(_pool, _delegator.address)).to.equal(stake);
+                }
+
+                poolTotalStakes.set(_pool, _poolTotalStake);
+
+                expect(await stakingHbbft.stakeAmountTotal(_pool)).to.be.eq(_poolTotalStake);
+            }
+
+            systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+            await helpers.mine(1);
+
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            const deltaPotValue = ethers.parseEther('10');
+            await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+            expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+
+            const validators = await validatorSetHbbft.getValidators();
+            const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+
+            const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+            const poolReward = validatorRewards / BigInt(validators.length);
+
+            systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            const validatorMinRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
+
+            for (const _stakeRecord of stakeRecords) {
+                let validatorShare = 0n;
+                let delegatorShare = 0n;
+
+                const poolTotalStake = poolTotalStakes.get(_stakeRecord.pool)!;
+                const delegatorsStake = poolTotalStake - candidateMinStake;
+
+                const minRewardPercentExceeded = candidateMinStake * (100n - validatorMinRewardPercent)
+                    > delegatorsStake * validatorMinRewardPercent;
+
+                if (minRewardPercentExceeded) {
+                    validatorShare = (poolReward * candidateMinStake) / poolTotalStake;
+                    delegatorShare = (poolReward * _stakeRecord.stake) / poolTotalStake;
+                } else {
+                    validatorShare = (poolReward * validatorMinRewardPercent) / 100n;
+                    delegatorShare = (poolReward * _stakeRecord.stake * (100n - validatorMinRewardPercent))
+                        / (delegatorsStake * 100n);
+                }
+
+                expect(
+                    await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.pool)
+                ).to.be.closeTo(candidateMinStake + validatorShare, 100n);
+
+                expect(
+                    await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.delegator)
+                ).to.be.closeTo(_stakeRecord.stake + delegatorShare, 100n);
             }
         });
     });
