@@ -240,7 +240,6 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
         uint256 numValidators = validators.length;
         require(numValidators != 0, "Empty Validator list");
 
-
         PotsShares memory shares = _getPotsShares(numValidators);
 
         deltaPot -= shares.deltaPotAmount;
