@@ -11,7 +11,6 @@ import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
-import "hardhat/console.sol";
 
 /// @dev Implements staking and withdrawal logic.
 contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {

@@ -20,7 +20,7 @@ const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
 const ZeroPublicKey = ethers.zeroPadBytes("0x00", 64);
 const ZeroIpAddress = ethers.zeroPadBytes("0x00", 16);
 
-describe('StakingHbbft', () => {
+describe.only('StakingHbbft', () => {
     let owner: HardhatEthersSigner;
     let candidateMiningAddress: HardhatEthersSigner;
     let candidateStakingAddress: HardhatEthersSigner;
@@ -598,7 +598,6 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWith("Only ValidatorSet");
         });
     });
-
 
     describe('initialize()', async () => {
         const validatorSetContract = '0x1000000000000000000000000000000000000001';
@@ -1439,6 +1438,17 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[1]);
             expect(await stakingHbbft.getPoolsToBeRemoved()).to.be.deep.equal([initialStakingAddresses[2]]);
         });
+
+    });
+
+    describe('removePools()', async () => {
+        it('should restrict calling removePools to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).removePools())
+                .to.be.revertedWith("Only ValidatorSet")
+        });
     });
 
     describe('removeMyPool()', async () => {
@@ -1621,6 +1631,34 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount + 1n))
                 .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
             await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
+        });
+
+        it('should revert orderWithdraw with gasPrice = 0', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.orderWithdraw(
+                initialStakingAddresses[1],
+                ethers.parseEther('1'),
+                { gasPrice: 0n },
+            )).to.be.revertedWith("GasPrice is 0");
+        });
+
+        it('should revert orderWithdraw with pool = address(0)', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.orderWithdraw(
+                ethers.ZeroAddress,
+                ethers.parseEther('1'),
+            )).to.be.revertedWith("poolStakingAddress must not be 0x0");
+        });
+
+        it('should revert orderWithdraw with amount = 0', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.orderWithdraw(
+                initialStakingAddresses[1],
+                0n,
+            )).to.be.revertedWith("ordered withdraw amount must not be 0");
         });
 
         it('should fail if withdraw already ordered amount', async () => {
@@ -2140,6 +2178,87 @@ describe('StakingHbbft', () => {
                 expect(await stakingHbbft.snapshotPoolTotalStakeAmount(stakingEpoch, pool)).to.be.eq(candidateMinStake + stakeAmount);
                 expect(await stakingHbbft.getPoolValidatorStakeAmount(stakingEpoch, pool.address)).to.be.eq(candidateMinStake);
             }
+        });
+    });
+
+    describe('other functions', async () => {
+        it('should restrict calling notifyKeyGenFailed to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifyKeyGenFailed())
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling notifyNetworkOfftimeDetected to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifyNetworkOfftimeDetected(0n))
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling notifyAvailability to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifyAvailability(initialStakingAddresses[1]))
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling setStakingEpochStartTime to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).setStakingEpochStartTime(0n))
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling setValidatorInternetAddress to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).setValidatorInternetAddress(
+                ethers.ZeroAddress,
+                ZeroIpAddress,
+                '0x6987',
+            )).to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should update validator ip:port using setValidatorInternetAddress', async () => {
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[1];
+            const ipAddress = ethers.zeroPadBytes("0xfe", 16);
+            const port = '0x6987';
+
+            const validatorSetSigner = await impersonateAcc(await validatorSetHbbft.getAddress());
+            expect(await stakingHbbft.connect(validatorSetSigner).setValidatorInternetAddress(validator, ipAddress, port));
+            await helpers.stopImpersonatingAccount(validatorSetSigner.address);
+
+            const poolInfo = await stakingHbbft.poolInfo(validator);
+            expect(poolInfo.internetAddress).to.equal(ipAddress);
+            expect(poolInfo.port).to.equal(port);
+        });
+
+        it('should update own pool info using setPoolInfo', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = await ethers.getSigner(initialValidators[1]);
+            const publicKey = ethers.zeroPadBytes("0xdeadbeef", 64);
+            const ipAddress = ethers.zeroPadBytes("0xfe", 16);
+            const port = '0x6987';
+
+            expect(await stakingHbbft.connect(validator).setPoolInfo(
+                publicKey,
+                ipAddress,
+                port,
+            ));
+
+            const poolInfo = await stakingHbbft.poolInfo(validator);
+            expect(poolInfo.publicKey).to.equal(publicKey);
+            expect(poolInfo.internetAddress).to.equal(ipAddress);
+            expect(poolInfo.port).to.equal(port);
         });
     });
 
