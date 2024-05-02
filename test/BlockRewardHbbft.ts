@@ -440,11 +440,13 @@ describe('BlockRewardHbbft', () => {
                 .to.be.revertedWith("Payout fraction must not be 0");
         });
 
-        it('should set delta pot payout fraction', async () => {
+        it('should set delta pot payout fraction and emit event', async () => {
             const previousValue = await blockRewardHbbft.deltaPotPayoutFraction();
             const newValue = 10;
 
-            expect(await blockRewardHbbft.setdeltaPotPayoutFraction(newValue));
+            await expect(blockRewardHbbft.setdeltaPotPayoutFraction(newValue))
+                .to.emit(blockRewardHbbft, "SetDeltaPotPayoutFraction")
+                .withArgs(newValue);
             expect(await blockRewardHbbft.deltaPotPayoutFraction()).to.be.equal(newValue);
 
             expect(await blockRewardHbbft.setdeltaPotPayoutFraction(previousValue));
@@ -465,11 +467,13 @@ describe('BlockRewardHbbft', () => {
                 .to.be.revertedWith("Payout fraction must not be 0");
         });
 
-        it('should set reinsert pot payout fraction', async () => {
+        it('should set reinsert pot payout fraction and emit event', async () => {
             const previousValue = await blockRewardHbbft.reinsertPotPayoutFraction();
             const newValue = 10;
 
-            expect(await blockRewardHbbft.setReinsertPotPayoutFraction(newValue));
+            await expect(blockRewardHbbft.setReinsertPotPayoutFraction(newValue))
+                .to.emit(blockRewardHbbft, "SetReinsertPotPayoutFraction")
+                .withArgs(newValue);
             expect(await blockRewardHbbft.reinsertPotPayoutFraction()).to.be.equal(newValue);
 
             expect(await blockRewardHbbft.setReinsertPotPayoutFraction(previousValue));
@@ -485,11 +489,18 @@ describe('BlockRewardHbbft', () => {
                 .to.be.revertedWith("Ownable: caller is not the owner");
         });
 
-        it('should set connectivity tracker address', async () => {
-            const previousValue = await blockRewardHbbft.connectivityTracker();
-            const newValue = ethers.ZeroAddress;
+        it('should revert set zero address', async () => {
+            await expect(blockRewardHbbft.setConnectivityTracker(ethers.ZeroAddress))
+                .to.be.revertedWith("ConnectivityTracker must not be 0");
+        });
 
-            expect(await blockRewardHbbft.setConnectivityTracker(newValue));
+        it('should set connectivity tracker address and emit event', async () => {
+            const previousValue = await blockRewardHbbft.connectivityTracker();
+            const newValue = accounts[7];
+
+            await expect(blockRewardHbbft.setConnectivityTracker(newValue))
+                .to.emit(blockRewardHbbft, "SetConnectivityTracker")
+                .withArgs(newValue);
             expect(await blockRewardHbbft.connectivityTracker()).to.be.equal(newValue);
 
             expect(await blockRewardHbbft.setConnectivityTracker(previousValue));
