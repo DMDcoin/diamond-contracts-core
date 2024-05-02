@@ -1279,6 +1279,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         uint256 _likelihoodSum,
         uint256 _randomNumber
     ) internal pure returns (uint256) {
+        // slither-disable-next-line weak-prng
         uint256 random = _randomNumber % _likelihoodSum;
         uint256 sum = 0;
         uint256 index = 0;

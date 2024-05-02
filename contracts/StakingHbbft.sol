@@ -514,6 +514,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
             return;
         }
 
+        uint256 poolReward = msg.value;
         uint256 totalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_poolStakingAddress];
         uint256 validatorStake = snapshotPoolValidatorStakeAmount[stakingEpoch][_poolStakingAddress];
 
@@ -531,36 +532,35 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
                 minRewardPercentExceeded,
                 validatorStake,
                 totalStake,
-                msg.value,
+                poolReward,
                 _validatorMinRewardPercent
             );
 
             for (uint256 i = 0; i < delegators.length; ++i) {
-                address delegator = delegators[i];
                 uint256 delegatorReward = _delegatorRewardShare(
                     minRewardPercentExceeded,
                     totalStake,
-                    _getDelegatorStake(stakingEpoch, _poolStakingAddress, delegator),
+                    _getDelegatorStake(stakingEpoch, _poolStakingAddress, delegators[i]),
                     delegatorsStake,
-                    msg.value,
+                    poolReward,
                     _validatorMinRewardPercent
                 );
 
-                stakeAmount[_poolStakingAddress][delegator] += delegatorReward;
-                _stakeAmountByEpoch[_poolStakingAddress][delegator][stakingEpoch] += delegatorReward;
+                stakeAmount[_poolStakingAddress][delegators[i]] += delegatorReward;
+                _stakeAmountByEpoch[_poolStakingAddress][delegators[i]][stakingEpoch] += delegatorReward;
             }
         } else {
             // Whole pool stake belongs to the pool owner
             // and he received all the rewards.
-            validatorReward = msg.value;
+            validatorReward = poolReward;
         }
 
         stakeAmount[_poolStakingAddress][_poolStakingAddress] += validatorReward;
-        stakeAmountTotal[_poolStakingAddress] += msg.value;
+        stakeAmountTotal[_poolStakingAddress] += poolReward;
 
         _setLikelihood(_poolStakingAddress);
 
-        emit RestakeReward(_poolStakingAddress, stakingEpoch, validatorReward, msg.value - validatorReward);
+        emit RestakeReward(_poolStakingAddress, stakingEpoch, validatorReward, poolReward - validatorReward);
     }
 
     /// @dev Orders coins withdrawal from the staking address of the specified pool to the

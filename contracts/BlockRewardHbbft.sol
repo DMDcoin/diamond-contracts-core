@@ -2,6 +2,7 @@ pragma solidity =0.8.17;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
@@ -9,7 +10,7 @@ import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
-contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbft {
+contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IBlockRewardHbbft {
     struct PotsShares {
         uint256 deltaPotAmount;
         uint256 reinsertPotAmount;
@@ -77,6 +78,18 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
     /// @param rewards The amount minted and distributed among the validators.
     event CoinsRewarded(uint256 rewards);
 
+    /// @dev Emitted by the `setConnectivityTracker` function.
+    /// @param _connectivityTracker New ConnectivityTracker contract address.
+    event SetConnectivityTracker(address _connectivityTracker);
+
+    /// @dev Emitted by the `setdeltaPotPayoutFraction` function.
+    /// @param _fraction New delta pot payout fraction value.
+    event SetDeltaPotPayoutFraction(uint256 _fraction);
+
+    /// @dev Emitted by the `setReinsertPotPayoutFraction` function.
+    /// @param _fraction New reinsert pot payout fraction value.
+    event SetReinsertPotPayoutFraction(uint256 _fraction);
+
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Block-Reward-Contract.html
@@ -118,6 +131,7 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
         require(_connectivityTracker != address(0), "ConnectivityTracker must not be 0");
 
         __Ownable_init();
+        __ReentrancyGuard_init();
         _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
@@ -159,6 +173,8 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
     function setdeltaPotPayoutFraction(uint256 _value) external onlyOwner {
         require(_value != 0, "Payout fraction must not be 0");
         deltaPotPayoutFraction = _value;
+
+        emit SetDeltaPotPayoutFraction(_value);
     }
 
     /// @dev set the reinsert pot payout fraction.
@@ -169,10 +185,15 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
     function setReinsertPotPayoutFraction(uint256 _value) external onlyOwner {
         require(_value != 0, "Payout fraction must not be 0");
         reinsertPotPayoutFraction = _value;
+
+        emit SetReinsertPotPayoutFraction(_value);
     }
 
     function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
+        require(_connectivityTracker != address(0), "ConnectivityTracker must not be 0");
         connectivityTracker = _connectivityTracker;
+
+        emit SetConnectivityTracker(_connectivityTracker);
     }
 
     /// @dev Notify block reward contract, that current epoch must be closed earlier.
@@ -189,7 +210,8 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
     /// and rewards distributing at the end of a staking epoch.
     /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e.
     /// just before the pending validators are finalized.
-    function reward(bool _isEpochEndBlock) external onlySystem returns (uint256 rewardsNative) {
+    function reward(bool _isEpochEndBlock) external onlySystem nonReentrant returns (uint256 rewardsNative) {
+        // slither-disable-start reentrancy-eth
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.getStakingContract());
 
         // If this is the last block of the epoch i.e. master key has been generated.
@@ -202,6 +224,8 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
         } else {
             _closeBlock(stakingContract);
         }
+
+        // slither-disable-end reentrancy-eth
     }
 
     // =============================================== Getters ========================================================
@@ -235,6 +259,7 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
     /// @return Returns the reward amount in native coins needed to be minted
     /// and accrued to the balance of this contract.
     function _distributeRewards(uint256 _stakingEpoch, IStakingHbbft stakingContract) private returns (uint256) {
+        // slither-disable-start reentrancy-eth
         address[] memory validators = validatorSetContract.getValidators();
 
         uint256 numValidators = validators.length;
@@ -287,6 +312,8 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
         }
 
         nativeRewardUndistributed = shares.totalRewards - distributedAmount;
+
+        // slither-disable-end reentrancy-eth
 
         return distributedAmount;
     }
@@ -414,7 +441,7 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, IBlockRewardHbbf
         uint256 maxValidators = validatorSetContract.maxValidators();
         uint256 epochPercent = epochPercentage();
 
-        PotsShares memory shares;
+        PotsShares memory shares = PotsShares(0, 0, 0, 0);
 
         shares.deltaPotAmount =
             (deltaPot * numValidators * epochPercent) /
