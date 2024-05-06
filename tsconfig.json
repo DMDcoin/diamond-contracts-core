@@ -14,7 +14,7 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "strict": true,
-    "target": "es6"
+    "target": "es2020"
   },
   "files": ["./hardhat.config.ts"],
   "include": ["./test", "./src", "./scripts"]

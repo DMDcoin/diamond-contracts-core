@@ -3,12 +3,12 @@ pragma solidity =0.8.17;
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import "./interfaces/ICertifier.sol";
-import "./interfaces/IKeyGenHistory.sol";
-import "./interfaces/IRandomHbbft.sol";
-import "./interfaces/IStakingHbbft.sol";
-import "./interfaces/ITxPermission.sol";
-import "./interfaces/IValidatorSetHbbft.sol";
+import { ICertifier } from "./interfaces/ICertifier.sol";
+import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
+import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
+import { ITxPermission } from "./interfaces/ITxPermission.sol";
+import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
 /// protecting the network against "transaction spamming" by malicious validators.
@@ -40,10 +40,11 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     /// because of storage modifictions.
     uint256 public minimumGasPrice;
 
-    // ============================================== Constants =======================================================
-
     /// @dev defines the block gas limit, respected by the hbbft validators.
     uint256 public blockGasLimit;
+
+    /// @dev The address of the `ConnectivityTrackerHbbft` contract.
+    IConnectivityTrackerHbbft public connectivityTracker;
 
     // ============================================== Events ==========================================================
 
@@ -71,12 +72,14 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         address _certifier,
         address _validatorSet,
         address _keyGenHistoryContract,
+        address _connectivityTracker,
         address _contractOwner
     ) external initializer {
         require(_contractOwner != address(0), "Owner address must not be 0");
         require(_certifier != address(0), "Certifier address must not be 0");
         require(_validatorSet != address(0), "ValidatorSet address must not be 0");
         require(_keyGenHistoryContract != address(0), "KeyGenHistory address must not be 0");
+        require(_connectivityTracker != address(0), "ConnectivityTracker address must not be 0");
 
         __Ownable_init();
         _transferOwnership(_contractOwner);
@@ -88,6 +91,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         certifierContract = ICertifier(_certifier);
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
+        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
         minimumGasPrice = 1 gwei;
         blockGasLimit = 1_000_000_000; // 1 giga gas block
     }
@@ -150,6 +154,10 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         blockGasLimit = _value;
     }
 
+    function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
+        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
+    }
+
     // =============================================== Getters ========================================================
 
     /// @dev Returns the contract's name recognizable by node's engine.
@@ -192,39 +200,32 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     function allowedTxTypes(
         address _sender,
         address _to,
-        uint256, /*_value */
+        uint256 /*_value */,
         uint256 _gasPrice,
         bytes memory _data
     ) public view returns (uint32 typesMask, bool cache) {
+        // TODO Refactor this function to reduce it's size and avoid future 'stack too deep' error
+        // Let the `_sender ` initiate any transaction if the `_sender` is in the `allowedSenders` list
         if (isSenderAllowed[_sender]) {
-            // Let the `_sender` initiate any transaction if the `_sender` is in the `allowedSenders` list
             return (ALL, false);
         }
 
         // Get the called function's signature
         bytes4 signature = bytes4(0);
-
-        uint256 i;
-        for (i = 0; _data.length >= 4 && i < 4; i++) {
+        for (uint256 i = 0; _data.length >= 4 && i < 4; i++) {
             signature |= bytes4(_data[i]) >> (i * 8);
         }
 
         if (_to == address(validatorSetContract)) {
             // The rules for the ValidatorSet contract
             if (signature == REPORT_MALICIOUS_SIGNATURE) {
-                bytes memory abiParams;
-                if (_data.length - 4 > 64) {
-                    abiParams = new bytes(64);
-                } else {
-                    abiParams = new bytes(_data.length - 4);
-                }
+                uint256 paramsSize = _data.length - 4 > 64 ? 64 : _data.length - 4;
+                bytes memory abiParams = _memcpy(_data, paramsSize, 4);
 
-                for (i = 0; i < abiParams.length; i++) {
-                    abiParams[i] = _data[i + 4];
-                }
-
-                (address maliciousMiningAddress, uint256 blockNumber) = abi
-                    .decode(abiParams, (address, uint256));
+                (
+                    address maliciousMiningAddress,
+                    uint256 blockNumber
+                ) = abi.decode(abiParams, (address, uint256));
 
                 // The `reportMalicious()` can only be called by the validator's mining address
                 // when the calling is allowed
@@ -356,6 +357,18 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
             // just treat it as normal call
         }
 
+        if (_to == address(connectivityTracker)) {
+            if (
+                signature == REPORT_MISSING_CONNECTIVITY_SELECTOR ||
+                signature == REPORT_RECONNECT_SELECTOR
+            ) {
+                return _handleCallToConnectivityTracker(_sender, signature, _data);
+            }
+
+            // if there is another external call to ConnectivityTracker contracts.
+            // just treat it as normal call
+        }
+
         //TODO: figure out if this applies to HBBFT as well.
         if (validatorSetContract.isValidator(_sender) && _gasPrice > 0) {
             // Let the validator's mining address send their accumulated tx fees to some wallet
@@ -405,6 +418,12 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
 
     bytes4 public constant ANNOUNCE_AVAILABILITY_SIGNATURE = 0x43bcce9f;
 
+    // bytes4(keccak256("reportMissingConnectivity(address,uint256,bytes32)"))
+    bytes4 public constant REPORT_MISSING_CONNECTIVITY_SELECTOR = 0x911cee74;
+
+    // bytes4(keccak256("reportReconnect(address,uint256,bytes32)"))
+    bytes4 public constant REPORT_RECONNECT_SELECTOR = 0xb2a68421;
+
     /// @dev An internal function used by the `addAllowedSender` and `initialize` functions.
     /// @param _sender The address for which transactions of any type must be allowed.
     function _addAllowedSender(address _sender) internal {
@@ -418,18 +437,79 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     /// @param _begin offset to start reading the 32 bytes.
     /// @param _data byte[] to read the data from.
     /// @return uint256 value found on offset _begin in _data.
-    function _getSliceUInt256(uint256 _begin, bytes memory _data)
-        internal
-        pure
-        returns (uint256)
-    {
+    function _getSliceUInt256(
+        uint256 _begin,
+        bytes memory _data
+    ) internal pure returns (uint256) {
         uint256 a = 0;
         for (uint256 i = 0; i < 32; i++) {
             a =
                 a +
                 (((uint256)((uint8)(_data[_begin + i]))) *
-                    ((uint256)(2**((31 - i) * 8))));
+                    ((uint256)(2 ** ((31 - i) * 8))));
         }
         return a;
+    }
+
+    function _memcpy(
+        bytes memory src,
+        uint256 len,
+        uint256 offset
+    ) internal pure returns (bytes memory) {
+        bytes memory result = new bytes(len);
+
+        for (uint256 i = 0; i < len; ++i) {
+            result[i] = src[i + offset];
+        }
+
+        return result;
+    }
+
+    function _handleCallToConnectivityTracker(
+        address sender,
+        bytes4 selector,
+        bytes memory _calldata
+    ) internal view returns (uint32 typesMask, bool cache) {
+        // 3 x 32 bytes calldata args = 96 bytes
+        uint256 paramsSize = _calldata.length - 4 > 96 ? 96 : _calldata.length - 4;
+        bytes memory params = _memcpy(_calldata, paramsSize, 4);
+
+        (
+            address validator,
+            uint256 blockNumber,
+            bytes32 blockHash
+        ) = abi.decode(params, (address, uint256, bytes32));
+
+        if (selector == REPORT_MISSING_CONNECTIVITY_SELECTOR) {
+            uint32 mask = NONE;
+            try
+                connectivityTracker.checkReportMissingConnectivityCallable(
+                    sender,
+                    validator,
+                    blockNumber,
+                    blockHash
+                )
+            {
+                mask = CALL;
+            } catch {}
+
+            return (mask, false);
+        }
+
+        if (selector == REPORT_RECONNECT_SELECTOR) {
+            uint32 mask = NONE;
+            try
+                connectivityTracker.checkReportReconnectCallable(
+                    sender,
+                    validator,
+                    blockNumber,
+                    blockHash
+                )
+            {
+                mask = CALL;
+            } catch {}
+
+            return (mask, false);
+        }
     }
 }

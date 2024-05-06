@@ -51,12 +51,6 @@ interface IStakingHbbft {
 
     function poolDelegators(address) external view returns (address[] memory);
 
-    function rewardWasTaken(
-        address,
-        address,
-        uint256
-    ) external view returns (bool);
-
     function setValidatorInternetAddress(
         address,
         bytes16,
@@ -66,10 +60,6 @@ interface IStakingHbbft {
     function stakeAmount(address, address) external view returns (uint256);
 
     function stakeAmountTotal(address) external view returns (uint256);
-
-    function stakeFirstEpoch(address, address) external view returns (uint256);
-
-    function stakeLastEpoch(address, address) external view returns (uint256);
 
     function stakingWithdrawDisallowPeriod() external view returns (uint256);
 
@@ -82,4 +72,21 @@ interface IStakingHbbft {
     function stakingFixedEpochEndTime() external view returns (uint256);
 
     function stakingEpochStartTime() external view returns (uint256);
+
+    function stakingEpochStartBlock() external view returns (uint256);
+
+    function restake(
+        address _poolStakingAddress,
+        uint256 validatorReward
+    ) external payable;
+
+    function snapshotPoolStakeAmounts(
+        uint256 _epoch,
+        address _stakingPool
+    ) external;
+
+    function getPoolValidatorStakeAmount(
+        uint256 _epoch,
+        address _stakingPool
+    ) external view returns (uint256);
 }

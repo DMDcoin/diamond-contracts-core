@@ -1,19 +1,20 @@
 import fs from 'fs';
 import path from 'path';
-import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
 
 import { InitialContractsConfiguration, NetworkConfiguration } from './types';
 
-const ProxyContractName = "contracts/upgradeability/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy";
+const ProxyContractName = "TransparentUpgradeableProxy";
 
 task("make_spec_hbbft", "used to make a spec file")
     .addParam("initContracts", "Initial contracts configuration file")
+    .addOptionalParam("initialFundAddress", "Initial address that holds all funds")
     .addFlag("useUpgradeProxy", "Upgradeable proxy support")
     .addPositionalParam("initDataFile", "Initial spec configuration file")
     .setAction(async (taskArgs, hre) => {
         console.log("Using upgrade proxy: ", taskArgs.useUpgradeProxy)
         console.log("Using initial data file: ", taskArgs.initDataFile);
+        console.log("initial funding address: ", taskArgs.initialFundAddress);
         console.log("Using initial contracts file: ", taskArgs.initContracts);
 
         const initialContracts = InitialContractsConfiguration.fromFile(taskArgs.initContracts);
@@ -30,6 +31,14 @@ task("make_spec_hbbft", "used to make a spec file")
 
         if (networkConfig.maximumBlockTime! > 0) {
             spec.engine.hbbft.params.maximumBlockTime = networkConfig.maximumBlockTime;
+        }
+
+        //todo: sanitizing initialFundAddress
+        if (taskArgs.initialFundAddress) {
+            spec.accounts[taskArgs.initialFundAddress] = 
+            { 
+                balance: "4380000000000000000000000" 
+            };
         }
 
         for (let i = 0; i < initialContracts.core.length; ++i) {

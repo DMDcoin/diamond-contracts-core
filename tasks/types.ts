@@ -37,6 +37,7 @@ export class NetworkConfiguration {
     public minimumBlockTime?: number;
     public maximumBlockTime?: number;
     public validatorInactivityThreshold?: number;
+    public minReportAgeBlocks?: number;
 
     static create(fileName: string): NetworkConfiguration {
         const instance = new NetworkConfiguration();
@@ -58,6 +59,7 @@ export class NetworkConfiguration {
 
         instance.minimumBlockTime = Number.parseInt(process.env.MINIMUM_BLOCK_TIME ? process.env.MINIMUM_BLOCK_TIME : "0");
         instance.maximumBlockTime = Number.parseInt(process.env.MAXIMUM_BLOCK_TIME ? process.env.MAXIMUM_BLOCK_TIME : "0");
+        instance.minReportAgeBlocks = Number.parseInt(process.env.MIN_REPORT_AGE_BLOCKS ? process.env.MIN_REPORT_AGE_BLOCKS : "10");
 
         instance.networkName = process.env.NETWORK_NAME;
         instance.networkId = process.env.NETWORK_ID;
@@ -292,6 +294,7 @@ export class InitialContractsConfiguration {
                 return [
                     config.owner,
                     this.getAddress('ValidatorSetHbbft'),
+                    this.getAddress('ConnectivityTrackerHbbft')
                 ];
             case 'RandomHbbft':
                 return [
@@ -304,6 +307,7 @@ export class InitialContractsConfiguration {
                     this.getAddress('CertifierHbbft'),
                     this.getAddress('ValidatorSetHbbft'),
                     this.getAddress('KeyGenHistory'),
+                    this.getAddress('ConnectivityTrackerHbbft'),
                     config.owner
                 ];
             case 'CertifierHbbft':
@@ -329,6 +333,14 @@ export class InitialContractsConfiguration {
                     },
                     config.publicKeys,
                     config.internetAddresses
+                ];
+            case 'ConnectivityTrackerHbbft':
+                return [
+                    config.owner,
+                    this.getAddress('ValidatorSetHbbft'),
+                    this.getAddress('StakingHbbft'),
+                    this.getAddress('BlockRewardHbbft'),
+                    config.minReportAgeBlocks
                 ];
             case 'Registry':
                 return [

@@ -6,6 +6,8 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     address internal _systemAddress;
     bool internal _isFullHealth;
 
+    receive() external payable {}
+
     // ============================================== Modifiers =======================================================
 
     modifier onlySystem() override {
@@ -48,6 +50,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     function setIsFullHealth(bool _healthy) public {
         _isFullHealth = _healthy;
+    }
+
+    function forceFinalizeNewValidators() external {
+        _finalizeNewValidators();
     }
 
     // =============================================== Getters ========================================================

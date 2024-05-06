@@ -167,6 +167,10 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         return true;
     }
 
+    function getCurrentValidatorsCount() external view returns (uint256) {
+        return _currentValidators.length;
+    }
+
     // function getInfo()
     // public
     // view
@@ -271,6 +275,19 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     function newValidatorSet() external onlyBlockRewardContract {
         _newValidatorSet(new address[](0));
     }
+
+
+    function setValidatorInactivityThreshold(
+        uint256 _seconds
+    ) external onlyOwner {
+        // chosen abritary minimum value of a week.
+        // if you want smaller values for tests,
+        // the contract can be deployed with a smaller value
+        // (no restriction there)
+        require(_seconds > 604800, "_seconds value must be less then a week.");
+        validatorInactivityThreshold = _seconds;
+    }
+
 
     /// @dev Removes malicious validators.
     /// Called by the the Hbbft engine when a validator has been inactive for a long period.
@@ -701,11 +718,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         view
         returns (bool)
     {
-        if (isValidator[_miningAddress]) {
-            return true;
-        }
-
-        return isPendingValidator(_miningAddress);
+        return isValidator[_miningAddress] || isPendingValidator(_miningAddress);
     }
 
     /// @dev Returns a boolean flag indicating whether the specified mining address is a pending validator.
@@ -716,7 +729,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         view
         returns (bool)
     {
-        for (uint256 i = 0; i < _pendingValidators.length; i++) {
+        for (uint256 i = 0; i < _pendingValidators.length; ++i) {
             if (_miningAddress == _pendingValidators[i]) {
                 return true;
             }
@@ -1266,6 +1279,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         uint256 _likelihoodSum,
         uint256 _randomNumber
     ) internal pure returns (uint256) {
+        // slither-disable-next-line weak-prng
         uint256 random = _randomNumber % _likelihoodSum;
         uint256 sum = 0;
         uint256 index = 0;
