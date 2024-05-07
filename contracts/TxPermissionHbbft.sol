@@ -155,30 +155,43 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
         minimumGasPrice = 1 gwei;
-        blockGasLimit = 1_000_000_000; // 1 giga gas block
+        blockGasLimit = 100_000; // 1 giga gas block
 
-        uint256[] memory minimumGasPriceParams = new uint256[](11);
+        uint256[] memory minGasPriceAllowedParams = new uint256[](11);
+        minGasPriceAllowedParams[0] = 0.1 gwei;
+        minGasPriceAllowedParams[1] = 0.2 gwei;
+        minGasPriceAllowedParams[2] = 0.4 gwei;
+        minGasPriceAllowedParams[3] = 0.6 gwei;
+        minGasPriceAllowedParams[4] = 0.8 gwei;
+        minGasPriceAllowedParams[5] = 1 gwei;
+        minGasPriceAllowedParams[6] = 2 gwei;
+        minGasPriceAllowedParams[7] = 4 gwei;
+        minGasPriceAllowedParams[8] = 6 gwei;
+        minGasPriceAllowedParams[9] = 8 gwei;
+        minGasPriceAllowedParams[10] = 10 gwei;
 
-        uint256 value = 0.1 gwei;
-        for (uint256 i = 0; i <= 10; i++) {
-            minimumGasPriceParams[i] = value;
-            value *= 2;
-        }
-
-        allowedParameterRange[bytes4(keccak256(bytes("setMinimumGasPrice(uint256)")))] = ParameterRange(
-            bytes4(keccak256(bytes("minimumGasPrice()"))),
-            minimumGasPriceParams
+        setAllowedChangeableParameter(
+            "setMinimumGasPrice(uint256)",
+            "minimumGasPrice()",
+            minGasPriceAllowedParams
         );
 
-        uint256[] memory blockGasLimit = new uint256[](10);
+        uint256[] memory blockGasLimitAllowedParams = new uint256[](10);
+        blockGasLimitAllowedParams[0] = 100000;
+        blockGasLimitAllowedParams[1] = 200000;
+        blockGasLimitAllowedParams[2] = 300000;
+        blockGasLimitAllowedParams[3] = 400000;
+        blockGasLimitAllowedParams[4] = 500000;
+        blockGasLimitAllowedParams[5] = 600000;
+        blockGasLimitAllowedParams[6] = 700000;
+        blockGasLimitAllowedParams[7] = 800000;
+        blockGasLimitAllowedParams[8] = 900000;
+        blockGasLimitAllowedParams[9] = 1000000;
 
-        for (uint256 i = 0; i < blockGasLimit.length; i++) {
-            blockGasLimit[i] = (i + 1) * 100000;
-        }
-
-        allowedParameterRange[bytes4(keccak256(bytes("setBlockGasLimit(uint256)")))] = ParameterRange(
-            bytes4(keccak256(bytes("blockGasLimit()"))),
-            blockGasLimit
+        setAllowedChangeableParameter(
+            "setBlockGasLimit(uint256)",
+            "blockGasLimit()",
+            blockGasLimitAllowedParams
         );
     }
 
@@ -234,8 +247,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         // to prevent the chain to be completly inoperatable.
         // this value is chosen arbitrarily
         require(
-            _value >= 1000000,
-            "Block Gas limit gas price must be at minimum 1,000,000"
+            _value >= 100000,
+            "Block Gas limit gas price must be at minimum 100,000"
         );
 
         blockGasLimit = _value;
@@ -258,7 +271,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         string memory setter,
         string memory getter,
         uint256[] memory params
-    ) external onlyOwner {
+    ) public onlyOwner {
         allowedParameterRange[bytes4(keccak256(bytes(setter)))] = ParameterRange(
             bytes4(keccak256(bytes(getter))),
             params
