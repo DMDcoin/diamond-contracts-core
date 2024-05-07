@@ -460,14 +460,15 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(0)
-                ).to.be.revertedWith('Minimum gas price must not be zero');
+                ).to.be.revertedWith('new value not within allowed range');
             });
 
             it("should set minimum gas price", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
-                const minGasPrice = 123;
-
+                const minGasPrice = ethers.utils.parseUnits('0.8', 'gwei');
+                console.log((await txPermission.minimumGasPrice()).toString(), "current GAS PRICE", minGasPrice.toString());
+                console.log(await txPermission.allowedParameterRange('0xd249b31c'), "allowed range");
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(minGasPrice)
                 ).to.emit(txPermission, "gasPriceChanged")
@@ -572,7 +573,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = 2;
+                const minGasPrice = ethers.utils.parseUnits('1', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
@@ -581,7 +582,7 @@ describe('TxPermissionHbbft', () => {
                     sender.address,
                     ethers.constants.AddressZero,
                     0,
-                    minGasPrice / 2,
+                    Number(minGasPrice) / 2,
                     '0x00',
                 );
 
@@ -593,7 +594,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = 2;
+                const minGasPrice = ethers.utils.parseUnits('0.8', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);

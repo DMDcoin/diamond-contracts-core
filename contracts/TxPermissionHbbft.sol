@@ -156,6 +156,30 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
         minimumGasPrice = 1 gwei;
         blockGasLimit = 1_000_000_000; // 1 giga gas block
+
+        uint256[] memory minimumGasPriceParams = new uint256[](11);
+
+        uint256 value = 0.1 gwei;
+        for (uint256 i = 0; i <= 10; i++) {
+            minimumGasPriceParams[i] = value;
+            value *= 2;
+        }
+
+        allowedParameterRange[bytes4(keccak256(bytes("setMinimumGasPrice(uint256)")))] = ParameterRange(
+            bytes4(keccak256(bytes("minimumGasPrice()"))),
+            minimumGasPriceParams
+        );
+
+        uint256[] memory blockGasLimit = new uint256[](10);
+
+        for (uint256 i = 0; i < blockGasLimit.length; i++) {
+            blockGasLimit[i] = (i + 1) * 100000;
+        }
+
+        allowedParameterRange[bytes4(keccak256(bytes("setBlockGasLimit(uint256)")))] = ParameterRange(
+            bytes4(keccak256(bytes("blockGasLimit()"))),
+            blockGasLimit
+        );
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
