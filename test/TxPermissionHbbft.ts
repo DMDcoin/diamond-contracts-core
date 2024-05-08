@@ -263,7 +263,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Certifier address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with ValidatorSet = address(0)", async () => {
@@ -281,7 +281,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('ValidatorSet address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with KeyGenHistory = address(0)", async () => {
@@ -299,7 +299,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('KeyGenHistory address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with ConnectivityTracker = address(0)", async () => {
@@ -317,7 +317,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('ConnectivityTracker address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with owner = address(0)", async () => {
@@ -335,7 +335,7 @@ describe('TxPermissionHbbft', () => {
                     ethers.ZeroAddress,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Owner address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should not allow initialization if initialized contract", async () => {
@@ -488,7 +488,7 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(0)
-                ).to.be.revertedWith('Minimum gas price must not be zero');
+                ).to.be.revertedWithCustomError(txPermission, "InvalidMinGasPrice");
             });
 
             it("should set minimum gas price", async function () {
@@ -498,7 +498,7 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(minGasPrice)
-                ).to.emit(txPermission, "gasPriceChanged")
+                ).to.emit(txPermission, "GasPriceChanged")
                     .withArgs(minGasPrice);
 
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
@@ -521,7 +521,7 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setBlockGasLimit(blockGasLimit)
-                ).to.be.revertedWith('Block Gas limit gas price must be at minimum 1,000,000');
+                ).to.be.revertedWithCustomError(txPermission, "InvalidBlockGasLimit");
             });
 
             it("should set block gas limit", async function () {

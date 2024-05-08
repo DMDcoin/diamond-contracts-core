@@ -39,6 +39,7 @@ describe('ValidatorSetHbbft', () => {
     let accounts: HardhatEthersSigner[];
 
     let initialValidatorsPubKeys: string[];
+    let initialValidatorsPubKeysSplit: string[];
     let initialValidatorsIpAddresses: string[];
 
     let initialValidators: string[];
@@ -159,7 +160,7 @@ describe('ValidatorSetHbbft', () => {
             [
                 owner.address,
                 stakingParams, // initializer structure
-                initialValidatorsPubKeys, // _publicKeys
+                initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
@@ -192,15 +193,15 @@ describe('ValidatorSetHbbft', () => {
         return { validatorSetHbbft, blockRewardHbbft, stakingHbbft, randomHbbft, keyGenHistory, certifier, txPermission };
     }
 
-    async function impersonateSystemAcc() {
-        await helpers.impersonateAccount(SystemAccountAddress);
+    async function impersonateAcc(address: string) {
+        await helpers.impersonateAccount(address);
 
         await owner.sendTransaction({
-            to: SystemAccountAddress,
+            to: address,
             value: ethers.parseEther('10'),
         });
 
-        return await ethers.getSigner(SystemAccountAddress);
+        return await ethers.getSigner(address);
     }
 
     beforeEach(async () => {
@@ -215,17 +216,22 @@ describe('ValidatorSetHbbft', () => {
         // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
         // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
         // Public keys corresponding to the three private keys above.
-        initialValidatorsPubKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])([
+
+        initialValidatorsPubKeys = [
             '0x52be8f332b0404dff35dd0b2ba44993a9d3dc8e770b9ce19a849dff948f1e14c57e7c8219d522c1a4cce775adbee5330f222520f0afdabfdb4a4501ceeb8dcee',
             '0x99edf3f524a6f73e7f5d561d0030fc6bcc3e4bd33971715617de7791e12d9bdf6258fa65b74e7161bbbf7ab36161260f56f68336a6f65599dc37e7f2e397f845',
             '0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae4c246658946c2e1d7ded96394a1247fb4d093c32474317ae388e8d25692a0f56'
-        ]);
+        ];
+
+        initialValidatorsPubKeysSplit = fp.flatMap((x: string) => [
+            x.substring(0, 66), '0x' + x.substring(66, 130)
+        ])(initialValidatorsPubKeys);
 
         // The IP addresses are irrelevant for these unit test, just initialize them to 0.
         initialValidatorsIpAddresses = Array(3).fill(ethers.zeroPadBytes("0x00", 16));
     });
 
-    describe('initialize()', async () => {
+    describe('initialize', async () => {
         const blockRewardContractAddress = '0x2000000000000000000000000000000000000001';
         const randomContractAddress = '0x3000000000000000000000000000000000000001';
         const stakingContractAddress = '0x1100000000000000000000000000000000000001';
@@ -275,6 +281,24 @@ describe('ValidatorSetHbbft', () => {
             expect(await validatorSetHbbft.validatorInactivityThreshold()).to.be.equal(validatorInactivityThreshold);
         });
 
+        it('should fail if owner address is zero', async () => {
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            await expect(upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    ethers.ZeroAddress,
+                    blockRewardContractAddress,
+                    randomContractAddress,
+                    stakingContractAddress,
+                    keyGenHistoryContractAddress,
+                    validatorInactivityThreshold,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ZeroAddress");
+        });
+
         it('should fail if BlockRewardHbbft contract address is zero', async () => {
             const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
             await expect(upgrades.deployProxy(
@@ -290,7 +314,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("BlockReward contract address can't be 0x0");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ZeroAddress");
         });
 
         it('should fail if RandomHbbft contract address is zero', async () => {
@@ -308,7 +332,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Random contract address can't be 0x0");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ZeroAddress");
         });
 
         it('should fail if StakingHbbft contract address is zero', async () => {
@@ -326,7 +350,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Staking contract address can't be 0x0");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ZeroAddress");
         });
 
         it('should fail if KeyGenHistory contract address is zero', async () => {
@@ -344,7 +368,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("KeyGenHistory contract address can't be 0x0");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ZeroAddress");
         });
 
         it('should fail if initial mining addresses are empty', async () => {
@@ -362,7 +386,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Must provide initial mining addresses");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ValidatorsListEmpty");
         });
 
         it('should fail if already initialized', async () => {
@@ -411,7 +435,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddressesShort,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Must provide the same amount of mining/staking addresses");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "InitialAddressesLengthMismatch");
         });
 
         it('should fail if the mining addresses are the same as the staking ones', async () => {
@@ -429,7 +453,7 @@ describe('ValidatorSetHbbft', () => {
                     initialValidators,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Mining address cannot be the same as the staking one");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "InvalidAddressPair");
         });
 
         it('should fail if some mining address is 0', async () => {
@@ -449,7 +473,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Mining address can't be 0");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ZeroAddress");
         });
 
         it('should fail if some staking address is 0', async () => {
@@ -469,7 +493,7 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Staking address can't be 0");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "ZeroAddress");
         });
 
         it('should fail if a staking address was already used', async () => {
@@ -489,7 +513,8 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Staking address already used as a staking one");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "StakingAddressAlreadyUsed")
+                .withArgs(initialStakingAddresses[1]);
         });
 
         it('should fail if a mining address is currently being used as a staking one', async () => {
@@ -509,7 +534,8 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Mining address already used as a staking one");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "MiningAddressAlreadyUsed")
+                .withArgs(initialValidators[1]);
         });
 
         it('should fail if a staking address is currently being used as a mining one', async () => {
@@ -529,7 +555,8 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Staking address already used as a mining one");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "StakingAddressAlreadyUsed")
+                .withArgs(initialStakingAddresses[1]);
         });
 
         it('should fail if a mining address was already used', async () => {
@@ -549,15 +576,189 @@ describe('ValidatorSetHbbft', () => {
                     initialStakingAddresses,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Mining address already used as a mining one");
+            )).to.be.revertedWithCustomError(ValidatorSetFactory, "MiningAddressAlreadyUsed")
+                .withArgs(initialValidators[1]);
         });
     });
 
-    describe('newValidatorSet()', async () => {
+    describe('setValidatorInactivityThreshold', async () => {
+        it('fail to set threshold less than a week', async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const value = 60 * 60 * 24 * 7 - 1;
+
+            await expect(validatorSetHbbft.setValidatorInactivityThreshold(value))
+                .to.be.revertedWithCustomError(validatorSetHbbft, "InvalidInactivityThreshold");
+        });
+
+        it('correct value is set', async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            let value30Days = 2592000;
+            await validatorSetHbbft.setValidatorInactivityThreshold(value30Days);
+            expect(await validatorSetHbbft.validatorInactivityThreshold()).to.be.equal(value30Days);
+        });
+
+        it('only owner should be able to change value', async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+            let nobody = (await ethers.getSigners())[42];
+            let value30Days = 2592000;
+
+            await expect(validatorSetHbbft.connect(nobody).setValidatorInactivityThreshold(value30Days))
+                .to.be.revertedWith("Ownable: caller is not the owner");
+        });
+    });
+
+    describe('setValidatorInternetAddress', async () => {
+        let validatorSetPermission: Permission<ValidatorSetHbbftMock>
+
+        it('Validator Candidates can write and read their IP Address', async () => {
+            let validators = accounts.slice(1, 5);
+            let pools = accounts.slice(5, 9);
+
+            let initialMiningAddr = [validators[0].address];
+            let initialStakingAddr = [pools[0].address];
+
+            const stubAddress = owner.address;
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            const validatorSetHbbftProxy = await upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    stubAddress,                                  // _blockRewardContract
+                    '0x3000000000000000000000000000000000000001', // _randomContract
+                    stubAddress,                                  // _stakingContract
+                    '0x8000000000000000000000000000000000000001', // _keyGenHistoryContract
+                    validatorInactivityThreshold,                 // _validatorInactivityThreshold
+                    initialMiningAddr,                            // _initialMiningAddresses
+                    initialStakingAddr,                           // _initialStakingAddresses
+                ],
+                { initializer: 'initialize' }
+            );
+
+            await validatorSetHbbftProxy.waitForDeployment();
+
+            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
+            const blockRewardHbbft = await upgrades.deployProxy(
+                BlockRewardHbbftFactory,
+                [
+                    owner.address,
+                    await validatorSetHbbftProxy.getAddress(),
+                    stubAddress
+                ],
+                { initializer: 'initialize' }
+            );
+
+            await blockRewardHbbft.waitForDeployment();
+
+            const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
+            const certifier = await upgrades.deployProxy(
+                CertifierFactory,
+                [
+                    [owner.address],
+                    await validatorSetHbbftProxy.getAddress(),
+                    owner.address
+                ],
+                { initializer: 'initialize' }
+            );
+
+            await certifier.waitForDeployment();
+
+            const keyGenHistoryFake = "0x8000000000000000000000000000000000000001";
+
+            const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
+            const txPermissionProxy = await upgrades.deployProxy(
+                TxPermissionFactory,
+                [
+                    [owner.address],
+                    await certifier.getAddress(),
+                    await validatorSetHbbftProxy.getAddress(),
+                    keyGenHistoryFake,
+                    stubAddress,
+                    owner.address
+                ],
+                { initializer: 'initialize' }
+            );
+
+            await txPermissionProxy.waitForDeployment();
+
+
+            let stakingParams = {
+                _candidateMinStake: 1000,
+                _delegatorMinStake: 100,
+                _initialStakingAddresses: initialStakingAddr,
+                _stakingFixedEpochDuration: 60,
+                _maxStake: 5000,
+                _stakingTransitionTimeframeLength: 10,
+                _stakingWithdrawDisallowPeriod: 10,
+                _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
+            };
+
+            const fakePK = "0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae";
+            const fakeIP = "0x00000000000000000000000000000001"
+
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
+            const stakingHbbftProxy = await upgrades.deployProxy(
+                StakingHbbftFactory,
+                [
+                    owner.address,
+                    stakingParams, // initializer structure
+                    [fakePK, fakePK], // _publicKeys
+                    [fakeIP] // _internetAddresses
+                ],
+                { initializer: 'initialize' }
+            );
+
+            await stakingHbbftProxy.waitForDeployment();
+
+            const txPermission = TxPermissionFactory.attach(
+                await txPermissionProxy.getAddress()
+            ) as TxPermissionHbbft;
+
+            const validatorSetHbbft = ValidatorSetFactory.attach(
+                await validatorSetHbbftProxy.getAddress()
+            ) as ValidatorSetHbbftMock;
+
+            const stakingHbbft = StakingHbbftFactory.attach(
+                await stakingHbbftProxy.getAddress()
+            ) as StakingHbbftMock;
+
+            validatorSetPermission = new Permission(txPermission, validatorSetHbbft, false);
+
+            await validatorSetHbbft.setBlockRewardContract(await blockRewardHbbft.getAddress());
+            await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
+
+            expect(await validatorSetHbbft.blockRewardContract()).to.equal(await blockRewardHbbft.getAddress());
+            expect(await validatorSetHbbft.getStakingContract()).to.equal(await stakingHbbft.getAddress());
+            expect(await validatorSetHbbft.randomContract()).to.equal('0x3000000000000000000000000000000000000001');
+            expect(await validatorSetHbbft.keyGenHistoryContract()).to.equal('0x8000000000000000000000000000000000000001')
+
+            expect(await stakingHbbft.getPools()).to.be.not.empty;
+
+            let ipLast = 1;
+            for (let pool of pools) {
+                if (await stakingHbbft.isPoolActive(pool.address)) {
+                    const validatorAddress = await validatorSetHbbft.miningByStakingAddress(pool.address);
+                    const ipAddress = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 0, ipLast]);
+                    const port = 30303;
+
+                    await setValidatorInternetAddress(validatorSetPermission, validatorAddress, ipAddress, port);
+                    const writtenIP = await getValidatorInternetAddress(stakingHbbft, pool.address);
+
+                    expect(writtenIP).to.deep.equal({ ipAddress: ipAddress, port: BigInt(port) });
+                }
+                ipLast++;
+            }
+        });
+    });
+
+    describe('newValidatorSet', async () => {
         it('can only be called by BlockReward contract', async () => {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await expect(validatorSetHbbft.connect(owner).newValidatorSet()).to.be.revertedWith("Only BlockReward contract");
+            await expect(validatorSetHbbft.connect(owner).newValidatorSet())
+                .to.be.revertedWithCustomError(validatorSetHbbft, "Unauthorized");
             await validatorSetHbbft.setBlockRewardContract(accounts[4].address);
             await validatorSetHbbft.connect(accounts[4]).newValidatorSet();
         });
@@ -642,7 +843,7 @@ describe('ValidatorSetHbbft', () => {
             expect(await randomHbbft.currentSeed()).to.be.equal(0n);
 
             const seed = random(1000000, 2000000);
-            const systemSigner = await impersonateSystemAcc();
+            const systemSigner = await impersonateAcc(SystemAccountAddress);
 
             await randomHbbft.connect(systemSigner).setCurrentSeed(seed);
             expect(await randomHbbft.currentSeed()).to.be.equal(seed);
@@ -660,6 +861,33 @@ describe('ValidatorSetHbbft', () => {
             for (let i = 0; i < newValidators.length; i++) {
                 expect(miningAddresses.indexOf(newValidators[i].toLowerCase())).to.be.gte(0n);
             }
+        });
+    });
+
+    describe('notifyUnavailability', async () => {
+        it('should restrict calling to staking contract', async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(validatorSetHbbft.connect(owner).notifyUnavailability(initialStakingAddresses[1]))
+                .to.be.revertedWithCustomError(validatorSetHbbft, "Unauthorized");
+        });
+
+        it('should notfiy unavailable by staking contract', async () => {
+            const { validatorSetHbbft, stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.addBalance({ value: ethers.parseEther('1') });
+            const stakingSigner = await ethers.getImpersonatedSigner(await stakingHbbft.getAddress());
+
+            const poolStaking = initialStakingAddresses[2];
+            const poolMining = await validatorSetHbbft.miningByStakingAddress(poolStaking);
+
+            const tx = await validatorSetHbbft.connect(stakingSigner).notifyUnavailability(poolStaking);
+            await tx.wait();
+
+            const expectedLastWriteTimestamp = (await tx.getBlock())!.timestamp;
+
+            expect(await validatorSetHbbft.validatorAvailableSince(poolMining)).to.eq(0n);
+            expect(await validatorSetHbbft.validatorAvailableSinceLastWrite(poolMining)).to.equal(expectedLastWriteTimestamp);
         });
     });
 
@@ -724,7 +952,113 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
-    describe("Report Malicious tests", async () => {
+    describe('finalizeChange', async () => {
+        it('should restrict calling to block reward contract', async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(validatorSetHbbft.connect(owner).finalizeChange())
+                .to.be.revertedWithCustomError(validatorSetHbbft, "Unauthorized");
+        });
+
+        it('should call by block reward address', async () => {
+            const { validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const blockRewardSigner = await impersonateAcc(await blockRewardHbbft.getAddress());
+            await expect(validatorSetHbbft.connect(blockRewardSigner).finalizeChange()).to.be.fulfilled;
+
+            await helpers.stopImpersonatingAccount(blockRewardSigner.address);
+        });
+    });
+
+    describe('removeMaliciousValidators', async () => {
+        it("should restrict calling to system address", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(validatorSetHbbft.connect(owner).removeMaliciousValidators([ethers.ZeroAddress]))
+                .to.be.revertedWithCustomError(validatorSetHbbft, "Unauthorized");
+        });
+
+        it("should call by system address", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const systemSigner = await impersonateAcc(SystemAccountAddress);
+            expect(await validatorSetHbbft.connect(systemSigner).removeMaliciousValidators(
+                [initialValidators[1]]
+            ));
+
+            await helpers.stopImpersonatingAccount(systemSigner.address);
+        });
+    });
+
+    describe('setStakingAddress', async () => {
+        it("should restrict calling to staking contract", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+
+            await expect(validatorSetHbbft.connect(caller).setStakingAddress(ethers.ZeroAddress, ethers.ZeroAddress))
+                .to.be.revertedWithCustomError(validatorSetHbbft, "Unauthorized");
+        });
+
+        it("should set stakingAddress", async () => {
+            const { validatorSetHbbft, stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.addBalance({ value: ethers.parseEther('1') });
+            const stakingSigner = await ethers.getImpersonatedSigner(await stakingHbbft.getAddress());
+
+            const poolMining = ethers.Wallet.createRandom().address;
+            const poolStaking = ethers.Wallet.createRandom().address;
+
+            expect(await validatorSetHbbft.connect(stakingSigner).setStakingAddress(poolMining, poolStaking));
+            expect(await validatorSetHbbft.stakingByMiningAddress(poolMining)).to.equal(poolStaking);
+        });
+    });
+
+    describe('setMaxValidators', async () => {
+        it("should restrict calling to contract owner", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+
+            await expect(validatorSetHbbft.connect(caller).setMaxValidators(0n))
+                .to.be.revertedWith("Ownable: caller is not the owner");
+        });
+
+        it("should set max validators", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const newValue = 50n;
+
+            await expect(validatorSetHbbft.connect(owner).setMaxValidators(newValue))
+                .to.emit(validatorSetHbbft, "SetMaxValidators")
+                .withArgs(newValue);
+
+            expect(await validatorSetHbbft.maxValidators()).to.equal(newValue);
+        });
+    });
+
+    describe('setBanDuration', async () => {
+        it("should restrict calling to contract owner", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+
+            await expect(validatorSetHbbft.connect(caller).setBanDuration(0n))
+                .to.be.revertedWith("Ownable: caller is not the owner");
+        });
+
+        it("should set ban duration", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const newValue = 150n;
+
+            await expect(validatorSetHbbft.connect(owner).setBanDuration(newValue))
+                .to.emit(validatorSetHbbft, "SetBanDuration")
+                .withArgs(newValue);
+
+            expect(await validatorSetHbbft.banDuration()).to.equal(newValue);
+        });
+    });
+
+    describe('reportMalicious', async () => {
         let validatorSetHbbftContract: ValidatorSetHbbftMock;
 
         beforeEach(async () => {
@@ -841,7 +1175,25 @@ describe('ValidatorSetHbbft', () => {
         })
     });
 
-    describe('_getRandomIndex()', async () => {
+    describe('getPublicKey', async () => {
+        it("should get public key by mining address", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const idx = 2;
+
+            expect(await validatorSetHbbft.getPublicKey(initialValidators[idx]))
+                .to.equal(initialValidatorsPubKeys[idx]);
+        });
+
+        it("should get public key by staking address", async () => {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const idx = 2;
+
+            expect(await validatorSetHbbft.publicKeyByStakingAddress(initialStakingAddresses[idx]))
+                .to.equal(initialValidatorsPubKeys[idx]);
+        });
+    });
+
+    describe('_getRandomIndex', async () => {
         it('should return an adjusted index for defined inputs', async () => {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -1110,7 +1462,7 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
-    describe('getValidatorCountSweetSpot()', async () => {
+    describe('getValidatorCountSweetSpot', async () => {
         it('hbbft sweet spots are calculated correct. getValidatorCountSweetSpot', async () => {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -1132,175 +1484,6 @@ describe('ValidatorSetHbbft', () => {
                 const result = await validatorSetHbbft.getValidatorCountSweetSpot(i + 1);
                 expect(result).to.equal(expected);
             }
-        });
-    });
-
-    describe('setValidatorInternetAddress()', async () => {
-        let validatorSetPermission: Permission<ValidatorSetHbbftMock>
-
-        it('Validator Candidates can write and read their IP Address', async () => {
-            let validators = accounts.slice(1, 5);
-            let pools = accounts.slice(5, 9);
-
-            let initialMiningAddr = [validators[0].address];
-            let initialStakingAddr = [pools[0].address];
-
-            const stubAddress = owner.address;
-
-            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-            const validatorSetHbbftProxy = await upgrades.deployProxy(
-                ValidatorSetFactory,
-                [
-                    owner.address,
-                    stubAddress,                                  // _blockRewardContract
-                    '0x3000000000000000000000000000000000000001', // _randomContract
-                    stubAddress,                                  // _stakingContract
-                    '0x8000000000000000000000000000000000000001', // _keyGenHistoryContract
-                    validatorInactivityThreshold,                 // _validatorInactivityThreshold
-                    initialMiningAddr,                            // _initialMiningAddresses
-                    initialStakingAddr,                           // _initialStakingAddresses
-                ],
-                { initializer: 'initialize' }
-            );
-
-            await validatorSetHbbftProxy.waitForDeployment();
-
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-            const blockRewardHbbft = await upgrades.deployProxy(
-                BlockRewardHbbftFactory,
-                [
-                    owner.address,
-                    await validatorSetHbbftProxy.getAddress(),
-                    stubAddress
-                ],
-                { initializer: 'initialize' }
-            );
-
-            await blockRewardHbbft.waitForDeployment();
-
-            const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-            const certifier = await upgrades.deployProxy(
-                CertifierFactory,
-                [
-                    [owner.address],
-                    await validatorSetHbbftProxy.getAddress(),
-                    owner.address
-                ],
-                { initializer: 'initialize' }
-            );
-
-            await certifier.waitForDeployment();
-
-            const keyGenHistoryFake = "0x8000000000000000000000000000000000000001";
-
-            const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
-            const txPermissionProxy = await upgrades.deployProxy(
-                TxPermissionFactory,
-                [
-                    [owner.address],
-                    await certifier.getAddress(),
-                    await validatorSetHbbftProxy.getAddress(),
-                    keyGenHistoryFake,
-                    stubAddress,
-                    owner.address
-                ],
-                { initializer: 'initialize' }
-            );
-
-            await txPermissionProxy.waitForDeployment();
-
-
-            let stakingParams = {
-                _candidateMinStake: 1000,
-                _delegatorMinStake: 100,
-                _initialStakingAddresses: initialStakingAddr,
-                _stakingFixedEpochDuration: 60,
-                _maxStake: 5000,
-                _stakingTransitionTimeframeLength: 10,
-                _stakingWithdrawDisallowPeriod: 10,
-                _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
-            };
-
-            const fakePK = "0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae";
-            const fakeIP = "0x00000000000000000000000000000001"
-
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-            const stakingHbbftProxy = await upgrades.deployProxy(
-                StakingHbbftFactory,
-                [
-                    owner.address,
-                    stakingParams, // initializer structure
-                    [fakePK, fakePK], // _publicKeys
-                    [fakeIP] // _internetAddresses
-                ],
-                { initializer: 'initialize' }
-            );
-
-            await stakingHbbftProxy.waitForDeployment();
-
-            const txPermission = TxPermissionFactory.attach(
-                await txPermissionProxy.getAddress()
-            ) as TxPermissionHbbft;
-
-            const validatorSetHbbft = ValidatorSetFactory.attach(
-                await validatorSetHbbftProxy.getAddress()
-            ) as ValidatorSetHbbftMock;
-
-            const stakingHbbft = StakingHbbftFactory.attach(
-                await stakingHbbftProxy.getAddress()
-            ) as StakingHbbftMock;
-
-            validatorSetPermission = new Permission(txPermission, validatorSetHbbft, false);
-
-            await validatorSetHbbft.setBlockRewardContract(await blockRewardHbbft.getAddress());
-            await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
-
-            expect(await validatorSetHbbft.blockRewardContract()).to.equal(await blockRewardHbbft.getAddress());
-            expect(await validatorSetHbbft.getStakingContract()).to.equal(await stakingHbbft.getAddress());
-            expect(await validatorSetHbbft.randomContract()).to.equal('0x3000000000000000000000000000000000000001');
-            expect(await validatorSetHbbft.keyGenHistoryContract()).to.equal('0x8000000000000000000000000000000000000001')
-
-            expect(await stakingHbbft.getPools()).to.be.not.empty;
-
-            let ipLast = 1;
-            for (let pool of pools) {
-                if (await stakingHbbft.isPoolActive(pool.address)) {
-                    const validatorAddress = await validatorSetHbbft.miningByStakingAddress(pool.address);
-                    const ipAddress = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 0, ipLast]);
-                    const port = 30303;
-
-                    await setValidatorInternetAddress(validatorSetPermission, validatorAddress, ipAddress, port);
-                    const writtenIP = await getValidatorInternetAddress(stakingHbbft, pool.address);
-
-                    expect(writtenIP).to.deep.equal({ ipAddress: ipAddress, port: BigInt(port) });
-                }
-                ipLast++;
-            }
-        });
-    });
-
-    describe('setValidatorInactivityThreshold()', async () => {
-        it('fail on small value', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(validatorSetHbbft.setValidatorInactivityThreshold(100)).to.be.revertedWith("_seconds value must be less then a week.");
-        });
-
-        it('correct value is set', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            let value30Days = 2592000;
-            await validatorSetHbbft.setValidatorInactivityThreshold(value30Days);
-            expect(await validatorSetHbbft.validatorInactivityThreshold()).to.be.equal(value30Days);
-        });
-
-        it('only owner should be able to change value', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-            let nobody = (await ethers.getSigners())[42];
-            let value30Days = 2592000;
-
-            await expect(validatorSetHbbft.connect(nobody).setValidatorInactivityThreshold(value30Days))
-                .to.be.revertedWith("Ownable: caller is not the owner");
         });
     });
 });

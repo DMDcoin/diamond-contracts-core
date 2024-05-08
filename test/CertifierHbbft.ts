@@ -78,7 +78,7 @@ describe('CertifierHbbft contract', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Validatorset must not be 0');
+            )).to.be.revertedWithCustomError(contractFactory, "ZeroAddress");
         });
 
         it("should revert initialization with owner = address(0)", async () => {
@@ -91,7 +91,7 @@ describe('CertifierHbbft contract', () => {
                     ethers.ZeroAddress
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Owner address must not be 0');
+            )).to.be.revertedWithCustomError(contractFactory, "ZeroAddress");
         });
 
         it("should not allow initialization if initialized contract", async () => {

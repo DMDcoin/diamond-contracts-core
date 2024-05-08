@@ -3,9 +3,10 @@ pragma solidity =0.8.17;
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import "./interfaces/IKeyGenHistory.sol";
-import "./interfaces/IValidatorSetHbbft.sol";
-import "./interfaces/IStakingHbbft.sol";
+import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
+import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
+import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 
 contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
     // =============================================== Storage ========================================================
@@ -38,35 +39,38 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
 
     event NewValidatorsSet(address[] newValidatorSet);
 
+    error AcksAlreadySubmitted();
+    error IncorrectEpoch();
+    error IncorrectRound(uint256 expected, uint256 submited);
+    error NotPendingValidator(address validator);
+    error PartsAlreadySubmitted();
+    error WrongEpoch();
+    error WrongAcksNumber();
+    error WrongPartsNumber();
+
     /// @dev Ensures the caller is ValidatorSet contract.
     modifier onlyValidatorSet() {
-        require(
-            msg.sender == address(validatorSetContract),
-            "Must by executed by validatorSetContract"
-        );
+        if (msg.sender != address(validatorSetContract)) {
+            revert Unauthorized();
+        }
         _;
     }
 
     /// @dev ensures that Key Generation functions are called with wrong _epoch
     /// parameter to prevent old and wrong transactions get picked up.
     modifier onlyUpcommingEpoch(uint256 _epoch) {
-        require(
-            IStakingHbbft(validatorSetContract.getStakingContract())
-                .stakingEpoch() +
-                1 ==
-                _epoch,
-            "Key Generation function called with wrong _epoch parameter."
-        );
+        if (IStakingHbbft(validatorSetContract.getStakingContract()).stakingEpoch() + 1 != _epoch) {
+            revert IncorrectEpoch();
+        }
         _;
     }
 
     /// @dev ensures that Key Generation functions are called with wrong _epoch
     /// parameter to prevent old and wrong transactions get picked up.
     modifier onlyCorrectRound(uint256 _roundCounter) {
-        require(
-            currentKeyGenRound == _roundCounter,
-            "Key Generation function called with wrong _roundCounter parameter."
-        );
+        if (currentKeyGenRound != _roundCounter) {
+            revert IncorrectRound(currentKeyGenRound, _roundCounter);
+        }
         _;
     }
 
@@ -83,14 +87,21 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
         bytes[] memory _parts,
         bytes[][] memory _acks
     ) external initializer {
-        require(_contractOwner != address(0), "Owner address must not be 0");
-        require(_validators.length != 0, "Validators must be more than 0.");
-        require(_validators.length == _parts.length, "Wrong number of Parts!");
-        require(_validators.length == _acks.length, "Wrong number of Acks!");
-        require(
-            _validatorSetContract != address(0),
-            "Validator contract address cannot be 0."
-        );
+        if (_contractOwner == address(0) || _validatorSetContract == address(0)) {
+            revert ZeroAddress();
+        }
+
+        if (_validators.length == 0) {
+            revert ValidatorsListEmpty();
+        }
+
+        if (_validators.length != _parts.length) {
+            revert WrongPartsNumber();
+        }
+
+        if (_validators.length != _acks.length) {
+            revert WrongAcksNumber();
+        }
 
         __Ownable_init();
         _transferOwnership(_contractOwner);
@@ -107,14 +118,12 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
 
     /// @dev Clears the state (acks and parts of previous validators.
     /// @param _prevValidators The list of previous validators.
-    function clearPrevKeyGenState(address[] calldata _prevValidators)
-        external
-        onlyValidatorSet
-    {
-        for (uint256 i = 0; i < _prevValidators.length; i++) {
+    function clearPrevKeyGenState(address[] calldata _prevValidators) external onlyValidatorSet {
+        for (uint256 i = 0; i < _prevValidators.length; ++i) {
             delete parts[_prevValidators[i]];
             delete acks[_prevValidators[i]];
         }
+
         numberOfPartsWritten = 0;
         numberOfAcksWritten = 0;
     }
@@ -131,18 +140,17 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
         uint256 _upcommingEpoch,
         uint256 _roundCounter,
         bytes memory _part
-    )
-        public
-        onlyUpcommingEpoch(_upcommingEpoch)
-        onlyCorrectRound(_roundCounter)
-    {
+    ) external onlyUpcommingEpoch(_upcommingEpoch) onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
-        require(
-            validatorSetContract.isPendingValidator(msg.sender),
-            "Sender is not a pending validator"
-        );
-        require(parts[msg.sender].length == 0, "Parts already submitted!");
+        if (!validatorSetContract.isPendingValidator(msg.sender)) {
+            revert NotPendingValidator(msg.sender);
+        }
+
+        if (parts[msg.sender].length != 0) {
+            revert PartsAlreadySubmitted();
+        }
+
         parts[msg.sender] = _part;
         numberOfPartsWritten++;
     }
@@ -151,18 +159,17 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
         uint256 _upcommingEpoch,
         uint256 _roundCounter,
         bytes[] memory _acks
-    )
-        public
-        onlyUpcommingEpoch(_upcommingEpoch)
-        onlyCorrectRound(_roundCounter)
-    {
+    ) external onlyUpcommingEpoch(_upcommingEpoch) onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
-        require(
-            validatorSetContract.isPendingValidator(msg.sender),
-            "Sender is not a pending validator"
-        );
-        require(acks[msg.sender].length == 0, "Acks already submitted");
+        if (!validatorSetContract.isPendingValidator(msg.sender)) {
+            revert NotPendingValidator(msg.sender);
+        }
+
+        if (acks[msg.sender].length != 0) {
+            revert AcksAlreadySubmitted();
+        }
+
         acks[msg.sender] = _acks;
         numberOfAcksWritten++;
     }
@@ -179,11 +186,7 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
         return currentKeyGenRound;
     }
 
-    function getNumberOfKeyFragmentsWritten()
-        external
-        view
-        returns (uint128, uint128)
-    {
+    function getNumberOfKeyFragmentsWritten() external view returns (uint128, uint128) {
         return (numberOfPartsWritten, numberOfAcksWritten);
     }
 }

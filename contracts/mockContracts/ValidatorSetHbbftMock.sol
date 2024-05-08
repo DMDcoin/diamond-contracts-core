@@ -1,19 +1,13 @@
 pragma solidity =0.8.17;
 
-import "../../contracts/ValidatorSetHbbft.sol";
+import { ValidatorSetHbbft } from "../ValidatorSetHbbft.sol";
+import { IKeyGenHistory } from "../interfaces/IKeyGenHistory.sol";
+import { IStakingHbbft } from "../interfaces/IStakingHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
-    address internal _systemAddress;
     bool internal _isFullHealth;
 
     receive() external payable {}
-
-    // ============================================== Modifiers =======================================================
-
-    modifier onlySystem() override {
-        require(msg.sender == _getSystemAddress());
-        _;
-    }
 
     // =============================================== Setters ========================================================
 
@@ -38,10 +32,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     function setKeyGenHistoryContract(address _address) public {
         keyGenHistoryContract = IKeyGenHistory(_address);
-    }
-
-    function setSystemAddress(address _address) public {
-        _systemAddress = _address;
     }
 
     function setValidatorAvailableSince(address _validator, uint256 _timestamp) public {
@@ -73,11 +63,5 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     function isFullHealth() external view override returns (bool) {
         return _isFullHealth;
-    }
-
-    // =============================================== Private ========================================================
-
-    function _getSystemAddress() internal view returns (address) {
-        return _systemAddress;
     }
 }

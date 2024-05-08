@@ -170,7 +170,7 @@ contract ConnectivityTrackerHbbft is
 
     /// @dev Returns true if the specified validator was reported by the specified reporter at the given epoch.
     function isReported(
-        uint256 epoch,
+        uint256,
         address validator,
         address reporter
     ) external view returns (bool) {

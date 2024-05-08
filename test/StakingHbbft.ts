@@ -277,7 +277,8 @@ describe('StakingHbbft', () => {
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: maxStake + minStake }
-            )).to.be.revertedWith('stake limit has been exceeded');
+            )).to.be.revertedWithCustomError(stakingHbbft, "PoolStakeLimitExceeded")
+                .withArgs(candidateStakingAddress.address, candidateStakingAddress.address);
         });
 
         it('should fail if mining address is 0', async () => {
@@ -288,22 +289,22 @@ describe('StakingHbbft', () => {
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Mining address can't be 0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "ZeroAddress");
         });
 
         it('should fail if mining address is equal to staking', async () => {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateStakingAddress.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Mining address cannot be the same as the staking one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "InvalidAddressPair");
         });
 
         it('should fail if the pool with the same mining/staking address is already existing', async () => {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const candidateMiningAddress2 = accounts[9];
             const candidateStakingAddress2 = accounts[10];
@@ -320,56 +321,56 @@ describe('StakingHbbft', () => {
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Mining address already used as a mining one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "MiningAddressAlreadyUsed");
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress2.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Staking address already used as a staking one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "StakingAddressAlreadyUsed");
 
             await expect(stakingHbbft.connect(candidateMiningAddress2).addPool(
                 candidateStakingAddress.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Mining address already used as a staking one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "MiningAddressAlreadyUsed");
 
             await expect(stakingHbbft.connect(candidateMiningAddress).addPool(
                 candidateStakingAddress2.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Staking address already used as a mining one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "StakingAddressAlreadyUsed");
 
             await expect(stakingHbbft.connect(candidateMiningAddress2).addPool(
                 candidateMiningAddress.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Mining address already used as a mining one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "MiningAddressAlreadyUsed");
 
             await expect(stakingHbbft.connect(candidateMiningAddress).addPool(
                 candidateMiningAddress2.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Staking address already used as a mining one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "StakingAddressAlreadyUsed");
 
             await expect(stakingHbbft.connect(candidateStakingAddress2).addPool(
                 candidateStakingAddress.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Mining address already used as a staking one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "MiningAddressAlreadyUsed");
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateStakingAddress2.address,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("Staking address already used as a staking one");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "StakingAddressAlreadyUsed");
 
             expect(await stakingHbbft.connect(candidateStakingAddress2).addPool(
                 candidateMiningAddress2.address,
@@ -387,7 +388,7 @@ describe('StakingHbbft', () => {
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { gasPrice: 0, value: minStake }
-            )).to.be.revertedWith("GasPrice is 0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
         it('should fail if staking amount is 0', async () => {
@@ -398,7 +399,7 @@ describe('StakingHbbft', () => {
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: 0n }
-            )).to.be.revertedWith("Stake: stakingAmount is 0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount");
         });
 
         it.skip('should fail if stacking time is inside disallowed range', async () => {
@@ -429,7 +430,7 @@ describe('StakingHbbft', () => {
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake / 2n }
-            )).to.be.revertedWith("Stake: candidateStake less than candidateMinStake");
+            )).to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount");
         });
 
         it('stake amount should be increased', async () => {
@@ -512,7 +513,7 @@ describe('StakingHbbft', () => {
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
-            )).to.be.revertedWith("MAX_CANDIDATES pools exceeded");
+            )).to.be.revertedWithCustomError(stakingHbbft, "MaxPoolsCountExceeded");
 
             expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.false;
         });
@@ -545,7 +546,7 @@ describe('StakingHbbft', () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(owner.sendTransaction({ to: await stakingHbbft.getAddress(), value: 1n }))
-                .to.be.revertedWith("Not payable");
+                .to.be.revertedWithCustomError(stakingHbbft, "NotPayable");
 
             await owner.sendTransaction({ to: accounts[1].address, value: 1n });
             expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(0n);
@@ -595,7 +596,7 @@ describe('StakingHbbft', () => {
 
         it('can only be called by ValidatorSet contract', async () => {
             await expect(stakingContract.connect(accounts[8]).incrementStakingEpoch())
-                .to.be.revertedWith("Only ValidatorSet");
+                .to.be.revertedWithCustomError(stakingContract, "Unauthorized");
         });
     });
 
@@ -686,7 +687,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Owner address cannot be 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroAddress");
         });
 
         it('should fail if ValidatorSet contract address is zero', async () => {
@@ -711,7 +712,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("ValidatorSet can't be 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroAddress");
         });
 
         it('should fail if delegatorMinStake is zero', async () => {
@@ -736,7 +737,8 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("DelegatorMinStake is 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidInitialStakeAmount")
+                .withArgs(minStake, 0);
         });
 
         it('should fail if candidateMinStake is zero', async () => {
@@ -761,7 +763,8 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("CandidateMinStake is 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidInitialStakeAmount")
+                .withArgs(0, minStake);
         });
 
         it('should fail if already initialized', async () => {
@@ -820,10 +823,10 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("FixedEpochDuration is 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidFixedEpochDuration");
         });
 
-        it('should fail if stakingstakingEpochStartBlockWithdrawDisallowPeriod is 0', async () => {
+        it('should fail if stakingWithdrawDisallowPeriod is 0', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
                 _initialStakingAddresses: initialStakingAddresses,
@@ -845,7 +848,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("WithdrawDisallowPeriod is 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroWidthrawDisallowPeriod");
         });
 
         it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async () => {
@@ -870,7 +873,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("FixedEpochDuration must be longer than withdrawDisallowPeriod");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidFixedEpochDuration");
         });
 
         it('should fail if some staking address is 0', async () => {
@@ -897,7 +900,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("InitialStakingAddresses can't be 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroAddress");
         });
 
         it('should fail if timewindow is 0', async () => {
@@ -922,7 +925,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("The transition timeframe must be longer than 0");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidTransitionTimeFrame");
         });
 
         it('should fail if transition timewindow is smaller than the staking time window', async () => {
@@ -947,88 +950,88 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("The transition timeframe must be shorter then the epoch duration");
+            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidTransitionTimeFrame");
         });
     });
 
     describe('moveStake()', async () => {
-        let delegatorAddress: HardhatEthersSigner;
+        let delegator: HardhatEthersSigner;
         let stakingContract: StakingHbbftMock;
         const stakeAmount = minStake * 2n;
 
         beforeEach(async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            delegatorAddress = accounts[7];
+            delegator = accounts[7];
             stakingContract = stakingHbbft;
 
             // Place stakes
             await stakingContract.connect(await ethers.getSigner(initialStakingAddresses[0])).stake(initialStakingAddresses[0], { value: stakeAmount });
             await stakingContract.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingContract.connect(delegatorAddress).stake(initialStakingAddresses[0], { value: stakeAmount });
+            await stakingContract.connect(delegator).stake(initialStakingAddresses[0], { value: stakeAmount });
         });
 
         it('should move entire stake', async () => {
             // we can move the stake, since the staking address is not part of the active validator set,
             // since we never did never a time travel.
             // If we do, the stakingAddresses are blocked to withdraw without an orderwithdraw.
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(stakeAmount);
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegator.address)).to.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegator.address)).to.be.equal(0n);
 
-            await stakingContract.connect(delegatorAddress).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount);
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(0n);
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(stakeAmount);
+            await stakingContract.connect(delegator).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegator.address)).to.be.equal(0n);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegator.address)).to.be.equal(stakeAmount);
         });
 
         it('should move part of the stake', async () => {
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(stakeAmount);
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegator.address)).to.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegator.address)).to.be.equal(0n);
 
-            await stakingContract.connect(delegatorAddress).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], minStake);
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(minStake);
-            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(minStake);
+            await stakingContract.connect(delegator).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], minStake);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegator.address)).to.be.equal(minStake);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegator.address)).to.be.equal(minStake);
         });
 
         it('should move part of the stake', async () => {
-            await stakingContract.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: stakeAmount });
+            await stakingContract.connect(delegator).stake(initialStakingAddresses[1], { value: stakeAmount });
 
             const sourcePool = initialStakingAddresses[0];
             const targetPool = initialStakingAddresses[1];
 
-            expect(await stakingContract.stakeAmount(sourcePool, delegatorAddress.address)).to.be.equal(stakeAmount);
-            expect(await stakingContract.stakeAmount(targetPool, delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(sourcePool, delegator.address)).to.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(targetPool, delegator.address)).to.be.equal(stakeAmount);
 
             const moveAmount = minStake / 2n;
             expect(moveAmount).to.be.below(await stakingContract.delegatorMinStake());
 
-            await stakingContract.connect(delegatorAddress).moveStake(sourcePool, targetPool, moveAmount);
-            expect(await stakingContract.stakeAmount(sourcePool, delegatorAddress.address)).to.be.equal(stakeAmount - moveAmount);
-            expect(await stakingContract.stakeAmount(targetPool, delegatorAddress.address)).to.be.equal(stakeAmount + moveAmount);
+            await stakingContract.connect(delegator).moveStake(sourcePool, targetPool, moveAmount);
+            expect(await stakingContract.stakeAmount(sourcePool, delegator.address)).to.be.equal(stakeAmount - moveAmount);
+            expect(await stakingContract.stakeAmount(targetPool, delegator.address)).to.be.equal(stakeAmount + moveAmount);
         });
 
         it('should fail for zero gas price', async () => {
-            await expect(stakingContract.connect(delegatorAddress).moveStake(
+            await expect(stakingContract.connect(delegator).moveStake(
                 initialStakingAddresses[0],
                 initialStakingAddresses[1],
                 stakeAmount,
                 { gasPrice: 0 }
-            )).to.be.revertedWith("GasPrice is 0");
+            )).to.be.revertedWithCustomError(stakingContract, "ZeroGasPrice");
         });
 
         it('should fail if the source and destination addresses are the same', async () => {
-            await expect(stakingContract.connect(delegatorAddress).moveStake(
+            await expect(stakingContract.connect(delegator).moveStake(
                 initialStakingAddresses[0],
                 initialStakingAddresses[0],
                 stakeAmount
-            )).to.be.revertedWith("MoveStake: src and dst pool is the same");
+            )).to.be.revertedWithCustomError(stakingContract, "InvalidMoveStakePoolsAddress");
         });
 
         it('should fail if the staker tries to move more than they have', async () => {
-            await expect(stakingContract.connect(delegatorAddress).moveStake(
+            await expect(stakingContract.connect(delegator).moveStake(
                 initialStakingAddresses[0],
                 initialStakingAddresses[1],
                 stakeAmount * 2n
-            )).to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+            )).to.be.revertedWithCustomError(stakingContract, "MaxAllowedWithdrawExceeded");
         });
 
         it('should fail if the staker tries to overstake by moving stake.', async () => {
@@ -1039,17 +1042,18 @@ describe('StakingHbbft', () => {
 
             let currentSourceStake = await stakingContract.stakeAmountTotal(sourcePool);
             const totalStakeableSource = maxStake - currentSourceStake;
-            await stakingContract.connect(delegatorAddress).stake(sourcePool, { value: totalStakeableSource });
+            await stakingContract.connect(delegator).stake(sourcePool, { value: totalStakeableSource });
 
             let currentTargetStake = await stakingContract.stakeAmountTotal(targetPool);
             const totalStakeableTarget = maxStake - currentTargetStake;
-            await stakingContract.connect(delegatorAddress).stake(targetPool, { value: totalStakeableTarget });
+            await stakingContract.connect(delegator).stake(targetPool, { value: totalStakeableTarget });
             // source is at max stake now, now tip it over.
-            await expect(stakingContract.connect(delegatorAddress).moveStake(
+            await expect(stakingContract.connect(delegator).moveStake(
                 sourcePool,
                 targetPool,
                 1n
-            )).to.be.revertedWith("stake limit has been exceeded");
+            )).to.be.revertedWithCustomError(stakingContract, "PoolStakeLimitExceeded")
+                .withArgs(targetPool, delegator.address);
         });
     });
 
@@ -1097,28 +1101,34 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.connect(pool).stake(
                 pool.address,
                 { value: candidateMinStake, gasPrice: 0 }
-            )).to.be.revertedWith("GasPrice is 0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
         it('should fail for a zero staking pool address', async () => {
             const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(delegatorAddress).stake(ethers.ZeroAddress, { value: delegatorMinStake }))
-                .to.be.revertedWith("Stake: stakingAddress is 0");
+                .to.be.revertedWithCustomError(stakingHbbft, "ZeroAddress");
         });
 
         it('should fail for a non-existing pool', async () => {
             const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await expect(stakingHbbft.connect(delegatorAddress).stake(accounts[10].address, { value: delegatorMinStake }))
-                .to.be.revertedWith("Pool does not exist. miningAddress for that staking address is 0");
+            const pool = accounts[10].address;
+
+            await expect(stakingHbbft.connect(delegatorAddress).stake(pool, { value: delegatorMinStake }))
+                .to.be.revertedWithCustomError(stakingHbbft, "PoolNotExist")
+                .withArgs(pool);
         });
 
         it('should fail for a zero amount', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
+            const pool = initialStakingAddresses[1];
+
             await expect(stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: 0 }))
-                .to.be.revertedWith("Stake: stakingAmount is 0");
+                .to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount")
+                .withArgs(pool, delegatorAddress.address);
         });
 
         it('should fail for a banned validator', async () => {
@@ -1132,13 +1142,17 @@ describe('StakingHbbft', () => {
             const pool = await ethers.getSigner(initialStakingAddresses[1]);
 
             await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
-            await validatorSetHbbft.setSystemAddress(owner.address);
-            await validatorSetHbbft.connect(owner).removeMaliciousValidators([initialValidators[1]]);
+
+            const systemSigner = await impersonateAcc(SystemAccountAddress);
+            await validatorSetHbbft.connect(systemSigner).removeMaliciousValidators([initialValidators[1]]);
 
             await expect(stakingHbbft.connect(delegatorAddress).stake(
                 pool.address,
                 { value: delegatorMinStake }
-            )).to.be.revertedWith("Stake: Mining address is banned");
+            )).to.be.revertedWithCustomError(stakingHbbft, "PoolMiningBanned")
+                .withArgs(pool.address);
+
+            await helpers.stopImpersonatingAccount(systemSigner.address);
         });
 
         it.skip('should only success in the allowed staking window', async () => {
@@ -1159,7 +1173,8 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.connect(pool).stake(
                 pool.address,
                 { value: halfOfCandidateMinStake }
-            )).to.be.revertedWith("Stake: candidateStake less than candidateMinStake");
+            )).to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount")
+                .withArgs(pool.address, pool.address);
         });
 
         it('should fail if a delegator stakes less than DELEGATOR_MIN_STAKE', async () => {
@@ -1173,7 +1188,8 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.connect(delegatorAddress).stake(
                 pool.address,
                 { value: halfOfDelegatorMinStake }
-            )).to.be.revertedWith("Stake: delegatorStake is less than delegatorMinStake");
+            )).to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount")
+                .withArgs(pool.address, delegatorAddress.address);
         });
 
         it('should fail if a delegator stakes more than maxStake', async () => {
@@ -1185,7 +1201,8 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.connect(delegatorAddress).stake(
                 pool.address,
                 { value: maxStake + 1n }
-            )).to.be.revertedWith("stake limit has been exceeded");
+            )).to.be.revertedWithCustomError(stakingHbbft, "PoolStakeLimitExceeded")
+                .withArgs(pool.address, delegatorAddress.address);
         });
 
         it('should fail if a delegator stakes into an empty pool', async () => {
@@ -1197,7 +1214,8 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.connect(delegatorAddress).stake(
                 pool.address,
                 { value: delegatorMinStake }
-            )).to.be.revertedWith("Stake: can't delegate in empty pool");
+            )).to.be.revertedWithCustomError(stakingHbbft, "PoolEmpty")
+                .withArgs(pool.address);
         });
 
         it('should increase a stake amount', async () => {
@@ -1394,7 +1412,7 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await expect(stakingHbbft.connect(accounts[8]).removePool(initialStakingAddresses[0]))
-                .to.be.revertedWith("Only ValidatorSet");
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it("shouldn't fail when removing a nonexistent pool", async () => {
@@ -1438,7 +1456,6 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[1]);
             expect(await stakingHbbft.getPoolsToBeRemoved()).to.be.deep.equal([initialStakingAddresses[2]]);
         });
-
     });
 
     describe('removePools()', async () => {
@@ -1447,7 +1464,7 @@ describe('StakingHbbft', () => {
             const caller = accounts[10];
 
             await expect(stakingHbbft.connect(caller).removePools())
-                .to.be.revertedWith("Only ValidatorSet")
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
     });
 
@@ -1459,24 +1476,27 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
             await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
             await expect(stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({ gasPrice: 0n }))
-                .to.be.rejectedWith("GasPrice is 0");
+                .to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
         it('should fail for initial validator during the initial staking epoch', async () => {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
+            const pool = initialStakingAddresses[0];
+
             expect(await stakingHbbft.stakingEpoch()).to.be.equal(0n);
             expect(await validatorSetHbbft.isValidator(initialValidators[0])).to.be.true;
-            expect(await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[0])).to.be.equal(initialValidators[0]);
+            expect(await validatorSetHbbft.miningByStakingAddress(pool)).to.be.equal(initialValidators[0]);
 
-            await expect(stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({}))
-                .to.be.revertedWith("Can't remove pool during 1st staking epoch");
+            await expect(stakingHbbft.connect(await ethers.getSigner(pool)).removeMyPool())
+                .to.be.revertedWithCustomError(stakingHbbft, "PoolCannotBeRemoved")
+                .withArgs(pool);
 
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
             await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
 
-            await expect(stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({})).to.be.fulfilled
+            await expect(stakingHbbft.connect(await ethers.getSigner(pool)).removeMyPool()).to.be.fulfilled
         });
     });
 
@@ -1529,7 +1549,7 @@ describe('StakingHbbft', () => {
                 staker.address,
                 stakeAmount,
                 { gasPrice: 0 }
-            )).to.be.revertedWith("GasPrice is 0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
         it('should fail for a zero pool address', async () => {
@@ -1539,7 +1559,7 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(staker).stake(staker.address, { value: stakeAmount });
             await expect(stakingHbbft.connect(staker).withdraw(ethers.ZeroAddress, stakeAmount))
-                .to.be.revertedWith("Withdraw pool staking address must not be null");
+                .to.be.revertedWithCustomError(stakingHbbft, "ZeroAddress");
 
             await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
         });
@@ -1551,7 +1571,7 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(staker).stake(staker.address, { value: stakeAmount });
             await expect(stakingHbbft.connect(staker).withdraw(staker.address, 0n))
-                .to.be.revertedWith("amount to withdraw must not be 0");
+                .to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
 
             await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
         });
@@ -1565,10 +1585,16 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: stakeAmount });
 
             await validatorSetHbbft.setBannedUntil(initialValidators[1], '0xffffffffffffffff');
+
+            const maxAllowedForPool = await stakingHbbft.maxWithdrawOrderAllowed(pool.address, pool.address);
             await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount))
-                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
+                .withArgs(maxAllowedForPool, stakeAmount);
+
+            const maxAllowedForDelegator = await stakingHbbft.maxWithdrawOrderAllowed(pool.address, delegatorAddress.address);
             await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount))
-                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
+                .withArgs(maxAllowedForDelegator, stakeAmount);
 
             await validatorSetHbbft.setBannedUntil(initialValidators[1], 0n);
             await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
@@ -1601,8 +1627,11 @@ describe('StakingHbbft', () => {
             const pool = await ethers.getSigner(initialStakingAddresses[1]);
 
             await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
-            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount - candidateMinStake + 1n))
-                .to.be.revertedWith("newStake amount must be greater equal than the min stake.");
+
+            const withdrawAmount = stakeAmount - candidateMinStake + 1n;
+            await expect(stakingHbbft.connect(pool).withdraw(pool.address, withdrawAmount))
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidWithdrawAmount")
+                .withArgs(pool.address, pool.address, withdrawAmount);
 
             await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount - candidateMinStake);
             await stakingHbbft.connect(pool).withdraw(pool.address, candidateMinStake);
@@ -1616,8 +1645,12 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
             await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: stakeAmount });
-            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount - delegatorMinStake + 1n))
-                .to.be.revertedWith("newStake amount must be greater equal than the min stake.");
+
+            const withdrawAmount = stakeAmount - delegatorMinStake + 1n;
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool.address, withdrawAmount))
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidWithdrawAmount")
+                .withArgs(pool.address, delegatorAddress.address, withdrawAmount);
+
             await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount - delegatorMinStake);
             await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, delegatorMinStake);
         });
@@ -1628,8 +1661,14 @@ describe('StakingHbbft', () => {
             const pool = await ethers.getSigner(initialStakingAddresses[1]);
 
             await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
-            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount + 1n))
-                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+
+            const maxAllowed = await stakingHbbft.maxWithdrawAllowed(pool.address, pool.address);
+            const withdrawAmount = stakeAmount + 1n;
+
+            await expect(stakingHbbft.connect(pool).withdraw(pool.address, withdrawAmount))
+                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
+                .withArgs(maxAllowed, withdrawAmount);
+
             await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
         });
 
@@ -1640,7 +1679,7 @@ describe('StakingHbbft', () => {
                 initialStakingAddresses[1],
                 ethers.parseEther('1'),
                 { gasPrice: 0n },
-            )).to.be.revertedWith("GasPrice is 0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
         it('should revert orderWithdraw with pool = address(0)', async () => {
@@ -1649,7 +1688,7 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.orderWithdraw(
                 ethers.ZeroAddress,
                 ethers.parseEther('1'),
-            )).to.be.revertedWith("poolStakingAddress must not be 0x0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "ZeroAddress");
         });
 
         it('should revert orderWithdraw with amount = 0', async () => {
@@ -1658,13 +1697,13 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.orderWithdraw(
                 initialStakingAddresses[1],
                 0n,
-            )).to.be.revertedWith("ordered withdraw amount must not be 0");
+            )).to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
         });
 
         it('should fail if withdraw already ordered amount', async () => {
             const { stakingHbbft, validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await validatorSetHbbft.setSystemAddress(owner.address);
+            const systemSigner = await impersonateAcc(SystemAccountAddress);
 
             // Place a stake during the initial staking epoch
             expect(await stakingHbbft.stakingEpoch()).to.be.equal(0n);
@@ -1714,10 +1753,16 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(restOfAmount);
             expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
 
-            await expect(stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount))
-                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
-            await expect(stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], restOfAmount + 1n))
-                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+            const pool = initialStakingAddresses[1];
+            const maxAllowed = await stakingHbbft.maxWithdrawAllowed(pool, delegatorAddress.address);
+
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool, stakeAmount))
+                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
+                .withArgs(maxAllowed, stakeAmount);
+
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool, restOfAmount + 1n))
+                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
+                .withArgs(maxAllowed, restOfAmount + 1n);
 
             await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], restOfAmount);
             expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
@@ -1725,6 +1770,8 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.orderedWithdrawAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(orderedAmount);
             expect(await stakingHbbft.poolDelegators(initialStakingAddresses[1])).to.be.empty;
             expect(await stakingHbbft.poolDelegatorsInactive(initialStakingAddresses[1])).to.be.deep.equal([delegatorAddress.address]);
+
+            await helpers.stopImpersonatingAccount(systemSigner.address);
         });
 
         it('should decrease likelihood', async () => {
@@ -1787,14 +1834,14 @@ describe('StakingHbbft', () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.recoverAbandonedStakes({ gasPrice: 0n }))
-                .to.be.revertedWith("GasPrice is 0");
+                .to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
         it("should revert if there is no inactive pools", async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.recoverAbandonedStakes())
-                .to.be.revertedWith("nothing to recover");
+                .to.be.revertedWithCustomError(stakingHbbft, "NoStakesToRecover");
         });
 
         it("should revert if validator inactive, but not abandonded", async () => {
@@ -1815,7 +1862,8 @@ describe('StakingHbbft', () => {
             await setValidatorInactive(stakingHbbft, validatorSetHbbft, stakingPool.address);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.false;
 
-            await expect(stakingHbbft.recoverAbandonedStakes()).to.be.revertedWith("nothing to recover");
+            await expect(stakingHbbft.recoverAbandonedStakes())
+                .to.be.revertedWithCustomError(stakingHbbft, "NoStakesToRecover");
         });
 
         it("should recover abandoned stakes", async () => {
@@ -1937,7 +1985,8 @@ describe('StakingHbbft', () => {
 
             await expect(
                 stakingHbbft.connect(stakers[0]).stake(stakingPool.address, { value: delegatorMinStake })
-            ).to.be.revertedWith("Stake: pool abandoned")
+            ).to.be.revertedWithCustomError(stakingHbbft, "PoolAbandoned")
+                .withArgs(stakingPool.address);
         });
 
         it("should not allow stake withdrawal if pool was abandoned", async () => {
@@ -1963,11 +2012,13 @@ describe('StakingHbbft', () => {
 
             const staker = stakers[1];
 
-            expect(await stakingHbbft.maxWithdrawAllowed(stakingPool.address, staker.address)).to.equal(0);
+            const maxAllowedWithraw = await stakingHbbft.maxWithdrawAllowed(stakingPool.address, staker.address);
+            expect(maxAllowedWithraw).to.equal(0);
 
             await expect(
                 stakingHbbft.connect(staker).withdraw(stakingPool.address, delegatorMinStake)
-            ).to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded")
+            ).to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
+                .withArgs(maxAllowedWithraw, delegatorMinStake);
         });
     });
 
@@ -1977,7 +2028,7 @@ describe('StakingHbbft', () => {
 
             const caller = accounts[5];
             await expect(stakingHbbft.connect(caller).restake(ethers.ZeroAddress, 0n))
-                .to.be.revertedWith("Only BlockReward");
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it('should do nothing if zero value provided', async () => {
@@ -2167,14 +2218,14 @@ describe('StakingHbbft', () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.setStakingTransitionTimeframeLength(9n))
-                .to.be.revertedWith("The transition timeframe must be longer than 10");
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingTransitionTimeframe");
         });
 
         it('should not set staking transition time frame length to high value', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.setStakingTransitionTimeframeLength(100000n))
-                .to.be.revertedWith("The transition timeframe must be smaller than the epoch duration");
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingTransitionTimeframe");
         });
 
     });
@@ -2200,7 +2251,7 @@ describe('StakingHbbft', () => {
 
             let tranitionTimeFrame = await stakingHbbft.stakingTransitionTimeframeLength();
             await expect(stakingHbbft.setStakingFixedEpochDuration(tranitionTimeFrame))
-                .to.be.revertedWith("The fixed epoch duration timeframe must be greater than the transition timeframe length");
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingFixedEpochDuration");
         });
     });
 
@@ -2246,7 +2297,7 @@ describe('StakingHbbft', () => {
 
             const caller = accounts[5];
             await expect(stakingHbbft.connect(caller).snapshotPoolStakeAmounts(0n, initialStakingAddresses[1]))
-                .to.be.revertedWith("Only BlockReward");
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it('should create validator stake snapshot after epoch close', async () => {
@@ -2292,7 +2343,7 @@ describe('StakingHbbft', () => {
             const caller = accounts[10];
 
             await expect(stakingHbbft.connect(caller).notifyKeyGenFailed())
-                .to.be.revertedWith("Only ValidatorSet");
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it('should restrict calling notifyNetworkOfftimeDetected to validator set contract', async () => {
@@ -2300,7 +2351,7 @@ describe('StakingHbbft', () => {
             const caller = accounts[10];
 
             await expect(stakingHbbft.connect(caller).notifyNetworkOfftimeDetected(0n))
-                .to.be.revertedWith("Only ValidatorSet");
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it('should restrict calling notifyAvailability to validator set contract', async () => {
@@ -2308,7 +2359,7 @@ describe('StakingHbbft', () => {
             const caller = accounts[10];
 
             await expect(stakingHbbft.connect(caller).notifyAvailability(initialStakingAddresses[1]))
-                .to.be.revertedWith("Only ValidatorSet");
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it('should restrict calling setStakingEpochStartTime to validator set contract', async () => {
@@ -2316,7 +2367,7 @@ describe('StakingHbbft', () => {
             const caller = accounts[10];
 
             await expect(stakingHbbft.connect(caller).setStakingEpochStartTime(0n))
-                .to.be.revertedWith("Only ValidatorSet");
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it('should restrict calling setValidatorInternetAddress to validator set contract', async () => {
@@ -2327,7 +2378,7 @@ describe('StakingHbbft', () => {
                 ethers.ZeroAddress,
                 ZeroIpAddress,
                 '0x6987',
-            )).to.be.revertedWith("Only ValidatorSet");
+            )).to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
         it('should update validator ip:port using setValidatorInternetAddress', async () => {

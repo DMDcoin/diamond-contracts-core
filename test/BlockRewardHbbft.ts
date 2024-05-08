@@ -376,7 +376,7 @@ describe('BlockRewardHbbft', () => {
                     stubAddress
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("Owner address must not be 0");
+            )).to.be.revertedWithCustomError(BlockRewardHbbftFactory, "ZeroAddress");
         });
 
         it('should fail if ValidatorSet = address(0)', async () => {
@@ -389,7 +389,7 @@ describe('BlockRewardHbbft', () => {
                     stubAddress
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("ValidatorSet must not be 0");
+            )).to.be.revertedWithCustomError(BlockRewardHbbftFactory, "ZeroAddress");
         });
 
         it('should fail if ConnectivityTracker = address(0)', async () => {
@@ -402,7 +402,7 @@ describe('BlockRewardHbbft', () => {
                     ethers.ZeroAddress
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith("ConnectivityTracker must not be 0");
+            )).to.be.revertedWithCustomError(BlockRewardHbbftFactory, "ZeroAddress");
         });
 
         it('should fail on double initialization', async () => {
@@ -437,7 +437,7 @@ describe('BlockRewardHbbft', () => {
 
         it('should not allow zero payout fraction', async () => {
             await expect(blockRewardHbbft.setdeltaPotPayoutFraction(0))
-                .to.be.revertedWith("Payout fraction must not be 0");
+                .to.be.revertedWithCustomError(blockRewardHbbft, "ZeroPayoutFraction");
         });
 
         it('should set delta pot payout fraction and emit event', async () => {
@@ -464,7 +464,7 @@ describe('BlockRewardHbbft', () => {
 
         it('should not allow zero payout fraction', async () => {
             await expect(blockRewardHbbft.setReinsertPotPayoutFraction(0))
-                .to.be.revertedWith("Payout fraction must not be 0");
+                .to.be.revertedWithCustomError(blockRewardHbbft, "ZeroPayoutFraction");
         });
 
         it('should set reinsert pot payout fraction and emit event', async () => {
@@ -491,7 +491,7 @@ describe('BlockRewardHbbft', () => {
 
         it('should revert set zero address', async () => {
             await expect(blockRewardHbbft.setConnectivityTracker(ethers.ZeroAddress))
-                .to.be.revertedWith("ConnectivityTracker must not be 0");
+                .to.be.revertedWithCustomError(blockRewardHbbft, "ZeroAddress");
         });
 
         it('should set connectivity tracker address and emit event', async () => {
@@ -538,7 +538,7 @@ describe('BlockRewardHbbft', () => {
 
             const systemSigner = await impersonateAcc(SystemAccountAddress);
             await expect(blockRewardContract.connect(systemSigner).reward(true))
-                .to.be.revertedWith("Empty Validator list");
+                .to.be.revertedWithCustomError(blockRewardContract, "ValidatorsListEmpty");
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
@@ -993,11 +993,14 @@ describe('BlockRewardHbbft', () => {
     })
 
     it("upscaling: banning validator up to 16", async () => {
-        await validatorSetHbbft.setSystemAddress(owner.address);
 
         while ((await validatorSetHbbft.getValidators()).length > 16) {
             await mine();
-            await validatorSetHbbft.connect(owner).removeMaliciousValidators([(await validatorSetHbbft.getValidators())[13]]);
+            const validators = await validatorSetHbbft.getValidators();
+
+            const systemSigner = await impersonateAcc(SystemAccountAddress);
+            await validatorSetHbbft.connect(systemSigner).removeMaliciousValidators([validators[13]]);
+            await helpers.stopImpersonatingAccount(systemSigner.address);
         }
 
         expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(16);
