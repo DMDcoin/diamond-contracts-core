@@ -36,8 +36,4 @@ contract TxPermissionHbbftMock is TxPermissionHbbft {
     function setValidatorSetContract(address _address) external {
         validatorSetContract = IValidatorSetHbbft(_address);
     }
-
-    function getAllowedParams(string memory _selector) external view returns (ParameterRange memory) {
-        return allowedParameterRange[bytes4(keccak256(bytes(_selector)))];
-    }
 }

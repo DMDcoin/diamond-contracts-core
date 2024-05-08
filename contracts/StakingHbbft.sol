@@ -2,6 +2,7 @@
 pragma solidity =0.8.17;
 
 import "./base/StakingHbbftBase.sol";
+import { ValueGuards } from "./ValueGuards.sol";
 import "./interfaces/IBlockRewardHbbftCoins.sol";
 
 contract Sacrifice2 {
@@ -11,24 +12,7 @@ contract Sacrifice2 {
 }
 
 /// @dev Implements staking and withdrawal logic.
-contract StakingHbbft is StakingHbbftBase {
-    // =============================================== Storage ========================================================
-
-    /**
-     * @dev Represents a parameter range for a specific getter function.
-     * @param getter The getter function signature.
-     * @param range The range of values for the parameter.
-     */
-    struct ParameterRange {
-        bytes4 getter;
-        uint256[] range;
-    }
-
-    /**
-     * @dev A mapping that stores the allowed parameter ranges for each function signature.
-     */
-    mapping(bytes4 => ParameterRange) public allowedParameterRange;
-
+contract StakingHbbft is StakingHbbftBase, ValueGuards {
     // ================================================ Events ========================================================
 
     /// @dev Emitted by the `claimReward` function to signal the staker withdrew the specified
@@ -49,38 +33,6 @@ contract StakingHbbft is StakingHbbftBase {
      * @param minStake The new minimum stake value.
      */
     event SetDelegatorMinStake(uint256 minStake);
-
-    /**
-     * @dev Event emitted when changeable parameters are set.
-     * @param setter The address of the setter.
-     * @param getter The address of the getter.
-     * @param params An array of uint256 values representing the parameters.
-     */
-    event SetChangeAbleParameter(
-        string setter,
-        string getter,
-        uint256[] params
-    );
-
-    /**
-     * @dev Emitted when changeable parameters are removed.
-     * @param funcSelector The function selector of the removed changeable parameters.
-     */
-    event RemoveChangeAbleParameter(string funcSelector);
-
-    // ============================================== Modifiers =======================================================
-
-    /**
-     * @dev Modifier to check if a new value is within the allowed range.
-     * @param newVal The new value to be checked.
-     * @notice This modifier is used to ensure that the new value is within the allowed range.
-     * If the new value is not within the allowed range, the function using this modifier
-     * will revert with an error message.
-     */
-    modifier withinAllowedRange(uint256 newVal) {
-        require(isWithinAllowedRange(msg.sig, newVal), "new value not within allowed range");
-        _;
-    }
 
     // =============================================== Setters ========================================================
 
@@ -206,12 +158,8 @@ contract StakingHbbft is StakingHbbftBase {
         string memory setter,
         string memory getter,
         uint256[] memory params
-    ) external onlyOwner {
-        allowedParameterRange[bytes4(keccak256(bytes(setter)))] = ParameterRange(
-            bytes4(keccak256(bytes(getter))),
-            params
-        );
-        emit SetChangeAbleParameter(setter, getter, params);
+    ) public override onlyOwner {
+        super.setAllowedChangeableParameter(setter, getter, params);
     }
 
     /**
@@ -220,9 +168,8 @@ contract StakingHbbft is StakingHbbftBase {
      * Requirements:
      * - Only the contract owner can call this function.
      */
-    function removeAllowedChangeableParameter(string memory funcSelector) external onlyOwner {
-        delete allowedParameterRange[bytes4(keccak256(bytes(funcSelector)))];
-        emit RemoveChangeAbleParameter(funcSelector);
+    function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
+        super.removeAllowedChangeableParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================
@@ -314,31 +261,6 @@ contract StakingHbbft is StakingHbbftBase {
         return rewardSum;
     }
 
-    /**
-     * @dev Checks if the given `newVal` is within the allowed range for the specified function selector.
-     * @param funcSelector The function selector.
-     * @param newVal The new value to be checked.
-     * @return A boolean indicating whether the `newVal` is within the allowed range.
-     */
-    function isWithinAllowedRange(bytes4 funcSelector, uint256 newVal) public view returns(bool) {
-        ParameterRange memory allowedRange = allowedParameterRange[funcSelector];
-        if(allowedRange.range.length == 0) return false;
-        uint256[] memory range = allowedRange.range;
-        uint256 currVal = _getValueWithSelector(allowedRange.getter);
-        bool currValFound;
-
-        for (uint256 i = 0; i < range.length; i++) {
-            if (range[i] == currVal) {
-                currValFound = true;
-                uint256 leftVal = (i > 0) ? range[i - 1] : range[0];
-                uint256 rightVal = (i < range.length - 1) ? range[i + 1] : range[range.length - 1];
-                if (newVal != leftVal && newVal != rightVal) return false;
-                break;
-            }
-        }
-        return currValFound;
-    }
-
     // ============================================== Internal ========================================================
 
     /// @dev Sends coins from this contract to the specified address.
@@ -356,17 +278,5 @@ contract StakingHbbft is StakingHbbftBase {
             // the sending will fail.
             (new Sacrifice2){value: _amount}(_to);
         }
-    }
-
-    /**
-     * @dev Internal function to get the value of a contract state variable using a getter function.
-     * @param getterSelector The selector of the getter function.
-     * @return The value of the contract state variable.
-     */
-    function _getValueWithSelector(bytes4 getterSelector) private view returns (uint256) {
-        bytes memory payload = abi.encodeWithSelector(getterSelector);
-        (bool success, bytes memory result) = address(this).staticcall(payload);
-        require(success, "Getter call failed");
-        return abi.decode(result, (uint256));
     }
 }
