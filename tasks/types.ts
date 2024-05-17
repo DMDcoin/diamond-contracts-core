@@ -1,18 +1,18 @@
 import fs from 'fs';
 import fp from 'lodash/fp';
-import { BigNumber, ethers } from "ethers";
+import { ethers } from "ethers";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
 import { getInitializerData } from '@openzeppelin/hardhat-upgrades/dist/utils';
 
 export class StakingParams {
     public _initialStakingAddresses?: string[];
-    public _delegatorMinStake?: BigNumber;
-    public _candidateMinStake?: BigNumber;
-    public _maxStake?: BigNumber;
-    public _stakingFixedEpochDuration?: BigNumber;
-    public _stakingTransitionTimeframeLength?: BigNumber;
-    public _stakingWithdrawDisallowPeriod?: BigNumber;
+    public _delegatorMinStake?: bigint;
+    public _candidateMinStake?: bigint;
+    public _maxStake?: bigint;
+    public _stakingFixedEpochDuration?: bigint;
+    public _stakingTransitionTimeframeLength?: bigint;
+    public _stakingWithdrawDisallowPeriod?: bigint;
 
     constructor(init: Partial<StakingParams>) {
         Object.assign(this, init);
@@ -106,14 +106,15 @@ export class NetworkConfiguration {
         const stakingMinStakeForDelegatorString = process.env.STAKING_MIN_STAKE_FOR_DELEGATOR;
         const validatorInactivityThresholdString = process.env.VALIDATOR_INACTIVITY_THRESHOLD;
 
-        let stakingMinStakeForValidator = ethers.utils.parseEther('1');
+        
+        let stakingMinStakeForValidator = ethers.parseEther('1');
         if (stakingMinStakeForValidatorString) {
-            stakingMinStakeForValidator = ethers.utils.parseEther(stakingMinStakeForValidatorString);
+            stakingMinStakeForValidator = ethers.parseEther(stakingMinStakeForValidatorString);
         }
 
-        let stakingMinStakeForDelegator = ethers.utils.parseEther('1');
+        let stakingMinStakeForDelegator = ethers.parseEther('1');
         if (stakingMinStakeForDelegatorString) {
-            stakingMinStakeForDelegator = ethers.utils.parseEther(stakingMinStakeForDelegatorString);
+            stakingMinStakeForDelegator = ethers.parseEther(stakingMinStakeForDelegatorString);
         }
 
         instance.validatorInactivityThreshold = 365 * 86400 // 1year
@@ -121,16 +122,17 @@ export class NetworkConfiguration {
             instance.validatorInactivityThreshold = parseInt(validatorInactivityThresholdString);
         }
 
-        let stakingMaxStakeForValidator = ethers.utils.parseEther('50000');
+        let stakingMaxStakeForValidator = ethers.parseEther('50000');
 
+        
         instance.stakingParams = new StakingParams({
             _initialStakingAddresses: instance.initialStakingAddresses,
             _delegatorMinStake: stakingMinStakeForDelegator,
             _candidateMinStake: stakingMinStakeForValidator,
             _maxStake: stakingMaxStakeForValidator,
-            _stakingFixedEpochDuration: BigNumber.from(stakingEpochDuration),
-            _stakingTransitionTimeframeLength: BigNumber.from(stakingTransitionWindowLength),
-            _stakingWithdrawDisallowPeriod: BigNumber.from(stakeWithdrawDisallowPeriod),
+            _stakingFixedEpochDuration: BigInt(stakingEpochDuration!),
+            _stakingTransitionTimeframeLength: BigInt(stakingTransitionWindowLength!),
+            _stakingWithdrawDisallowPeriod: BigInt(stakeWithdrawDisallowPeriod!),
         });
 
         return instance;
@@ -154,7 +156,7 @@ export class SpecialContract {
 
     async compileContract(hre: HardhatRuntimeEnvironment, args: any[]) {
         const factory = await hre.ethers.getContractFactory(this.name!);
-        const tx = factory.getDeployTransaction(...args);
+        const tx = await factory.getDeployTransaction(...args);
 
         this.bytecode = tx.data!.toString();
     }
@@ -205,7 +207,7 @@ export class CoreContract {
         const contractFactory = await hre.ethers.getContractFactory(this.name!);
 
         const initializerData = getInitializerData(contractFactory.interface, args, 'initialize')
-        const tx = proxyFactory.getDeployTransaction(logicAddress, adminAddress, initializerData);
+        const tx = await proxyFactory.getDeployTransaction(logicAddress, adminAddress, initializerData);
 
         this.proxyBytecode = tx.data!.toString();
     }
@@ -217,7 +219,7 @@ export class CoreContract {
     }
 
     toSpecAccount(useUpgradeProxy: boolean, initialBalance: number) {
-        let spec = {};
+        let spec : { [id: string] : any; } = {};
 
         if (useUpgradeProxy) {
             spec[this.implementationAddress!] = {
@@ -241,7 +243,7 @@ export class CoreContract {
 }
 
 export class InitialContractsConfiguration {
-    public core: CoreContract[];
+    public core: CoreContract[] = [];
     public admin?: SpecialContract;
     public registry?: SpecialContract;
 
@@ -271,7 +273,8 @@ export class InitialContractsConfiguration {
     getAddress(name: string): string | undefined {
         const found = this.core.find(obj => obj.name === name);
 
-        return found ? found.proxyAddress : ethers.constants.AddressZero;
+        
+        return found ? found.proxyAddress : ethers.ZeroAddress;
     }
 
     getContractInitializerArgs(
