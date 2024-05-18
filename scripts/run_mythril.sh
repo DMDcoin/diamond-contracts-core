@@ -28,8 +28,9 @@ iterate_sources() {
         [ -e "$filename" ] || continue
 
         contract_name=$(basename -- "$filename")
+        out_file_name="${contract_name%%.*}.txt"
         echo "starting mythril analysis of $contract_name"
-        myth analyze --solv "$solc_version" "$filename" > "$2"/"$contract_name" 2>/dev/null &
+        myth analyze --solv "$solc_version" "$filename" > "$2"/"$out_file_name" 2>/dev/null &
     done
 
     wait

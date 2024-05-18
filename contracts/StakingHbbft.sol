@@ -4,6 +4,7 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import { EnumerableSetUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
@@ -13,7 +14,7 @@ import { TransferUtils } from "./utils/TransferUtils.sol";
 
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
-contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
+contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     EnumerableSetUpgradeable.AddressSet private _pools;
@@ -321,6 +322,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         }
 
         __Ownable_init();
+        __ReentrancyGuard_init();
         _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(stakingParams._validatorSetContract);
@@ -527,10 +529,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// @param _fromPoolStakingAddress The staking address of the pool from which the coins should be withdrawn.
     /// @param _amount The amount of coins to be withdrawn. The amount cannot exceed the value returned
     /// by the `maxWithdrawAllowed` getter.
-    function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid {
+    function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid nonReentrant {
         address payable staker = payable(msg.sender);
         _withdraw(_fromPoolStakingAddress, staker, _amount);
-        TransferUtils.transferNativeEnsure(staker, _amount);
+        TransferUtils.transferNative(staker, _amount);
         emit WithdrewStake(_fromPoolStakingAddress, staker, stakingEpoch, _amount);
     }
 
@@ -723,7 +725,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// @dev Withdraws the staking coins from the specified pool ordered during the previous staking epochs with
     /// the `orderWithdraw` function. The ordered amount can be retrieved by the `orderedWithdrawAmount` getter.
     /// @param _poolStakingAddress The staking address of the pool from which the ordered coins are withdrawn.
-    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid {
+    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid nonReentrant {
         address payable staker = payable(msg.sender);
 
         if (stakingEpoch <= orderWithdrawEpoch[_poolStakingAddress][staker]) {
@@ -751,7 +753,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
             _withdrawCheckPool(_poolStakingAddress, staker);
         }
 
-        TransferUtils.transferNativeEnsure(staker, claimAmount);
+        TransferUtils.transferNative(staker, claimAmount);
 
         emit ClaimedOrderedWithdrawal(_poolStakingAddress, staker, stakingEpoch, claimAmount);
     }

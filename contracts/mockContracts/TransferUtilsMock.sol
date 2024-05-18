@@ -11,8 +11,4 @@ contract TransferUtilsMock {
     function transferNative(address recipient, uint256 amount) external payable {
         recipient.transferNative(amount);
     }
-
-    function transferNativeEnsure(address recipient, uint256 amount) external payable {
-        TransferUtils.transferNativeEnsure(payable(recipient), amount);
-    }
 }
