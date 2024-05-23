@@ -31,8 +31,8 @@ export class NetworkConfiguration {
     public initialStakingAddresses?: string[];
     public permittedAddresses?: string[];
 
-    public parts?: Array<Buffer>;
-    public acks: any;
+    public parts: Array<string> = [];
+    public acks: Array<Array<string>> = [];
 
     public minimumBlockTime?: number;
     public maximumBlockTime?: number;
@@ -85,9 +85,9 @@ export class NetworkConfiguration {
             publicKeys[i] = publicKeys[i].trim();
         }
 
-        const newParts: Buffer[] = [];
+        const newParts: string[] = [];
         initData.parts.forEach((x: string) => {
-            newParts.push(Buffer.from(x));
+            newParts.push( '0x' + x);
         });
 
         instance.publicKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])(publicKeys);
@@ -97,7 +97,18 @@ export class NetworkConfiguration {
         instance.permittedAddresses = [instance.owner];
 
         instance.parts = newParts;
-        instance.acks = initData.acks;
+        let newAcks : Array<Array<string>> = [];
+
+        // initData.acks
+        initData.acks.forEach((acksValidator: Array<string>) => {
+            let acks : Array<string> = [];
+            acksValidator.forEach((ack: string) => {
+                acks.push( '0x' + ack);
+            });
+            newAcks.push(acks);
+        });
+
+        instance.acks = newAcks;
 
         const stakingEpochDuration = process.env.STAKING_EPOCH_DURATION;
         const stakeWithdrawDisallowPeriod = process.env.STAKE_WITHDRAW_DISALLOW_PERIOD;
