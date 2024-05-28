@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: MIT
 pragma solidity =0.8.17;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ValueGuards } from "./ValueGuards.sol";
+import "./interfaces/IBlockRewardHbbft.sol";
 
 import {
     EnumerableSetUpgradeable
@@ -13,7 +16,7 @@ import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 
 /// @dev Implements staking and withdrawal logic.
-contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
+contract StakingHbbft is Initializable, OwnableUpgradeable, ValueGuards, IStakingHbbft {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     EnumerableSetUpgradeable.AddressSet private _pools;
@@ -764,6 +767,49 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
 
         snapshotPoolTotalStakeAmount[_epoch][_stakingPool] = totalAmount;
         snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] = stakeAmount[_stakingPool][_stakingPool];
+    }
+
+    /**
+     * @dev Sets the minimum stake required for delegators.
+     * @param _minStake The new minimum stake amount.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     * - The stake amount must be within the allowed range.
+     */
+    function setDelegatorMinStake(uint256 _minStake)
+        override
+        external
+        onlyOwner
+        withinAllowedRange(_minStake)
+    {
+        delegatorMinStake = _minStake;
+        emit SetDelegatorMinStake(_minStake);
+    }
+
+    /**
+     * @dev Sets the allowed changeable parameter for a specific setter function.
+     * @param setter The name of the setter function.
+     * @param getter The name of the getter function.
+     * @param params The array of allowed parameter values.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function setAllowedChangeableParameter(
+        string memory setter,
+        string memory getter,
+        uint256[] memory params
+    ) public override onlyOwner {
+        super.setAllowedChangeableParameter(setter, getter, params);
+    }
+
+    /**
+     * @dev Removes the allowed changeable parameter for a given function selector.
+     * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
+        super.removeAllowedChangeableParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================

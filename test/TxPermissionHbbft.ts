@@ -488,14 +488,13 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(0)
-                ).to.be.revertedWith('Minimum gas price must not be zero');
+                ).to.be.revertedWith('new value not within allowed range');
             });
 
             it("should set minimum gas price", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
-                const minGasPrice = 123;
-
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(minGasPrice)
                 ).to.emit(txPermission, "gasPriceChanged")
@@ -514,20 +513,20 @@ describe('TxPermissionHbbft', () => {
                 await expect(txPermission.connect(caller).setBlockGasLimit(1)).to.be.revertedWith("Ownable: caller is not the owner");
             });
 
-            it("should not allow to set block gas limit less than 1_000_000", async function () {
+            it("should not allow to set block gas limit less than 100_000", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const blockGasLimit = 10_000;
 
                 await expect(
                     txPermission.connect(owner).setBlockGasLimit(blockGasLimit)
-                ).to.be.revertedWith('Block Gas limit gas price must be at minimum 1,000,000');
+                ).to.be.revertedWith('new value not within allowed range');
             });
 
             it("should set block gas limit", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
-                const blockGasLimit = 15_000_000;
+                const blockGasLimit = 200_000;
 
                 expect(await txPermission.connect(owner).setBlockGasLimit(blockGasLimit));
 
@@ -600,7 +599,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = 2;
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
@@ -609,7 +608,7 @@ describe('TxPermissionHbbft', () => {
                     sender.address,
                     ethers.ZeroAddress,
                     0,
-                    minGasPrice / 2,
+                    minGasPrice / BigInt(2),
                     EmptyBytes,
                 );
 
@@ -621,7 +620,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = 2;
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);

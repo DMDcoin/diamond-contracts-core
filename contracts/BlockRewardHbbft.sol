@@ -8,9 +8,11 @@ import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
+import { ValueGuards } from "./ValueGuards.sol";
+
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
-contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IBlockRewardHbbft {
+contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, ValueGuards, IBlockRewardHbbft {
     struct PotsShares {
         uint256 deltaPotAmount;
         uint256 reinsertPotAmount;
@@ -226,6 +228,45 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
         }
 
         // slither-disable-end reentrancy-eth
+    }
+
+    /**
+     * @dev Sets the value of the governancePotShareNominator variable.
+     * @param _shareNominator The new value for the governancePotShareNominator.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     * - The _shareNominator value must be within the allowed range.
+     */
+    function setGovernancePotShareNominator(
+        uint256 _shareNominator
+    ) public onlyOwner withinAllowedRange(_shareNominator) {
+        governancePotShareNominator = _shareNominator;
+    }
+
+    /**
+     * @dev Sets the allowed changeable parameter for a specific setter function.
+     * @param setter The name of the setter function.
+     * @param getter The name of the getter function.
+     * @param params The array of allowed parameter values.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function setAllowedChangeableParameter(
+        string memory setter,
+        string memory getter,
+        uint256[] memory params
+    ) public override onlyOwner {
+        super.setAllowedChangeableParameter(setter, getter, params);
+    }
+
+    /**
+     * @dev Removes the allowed changeable parameter for a given function selector.
+     * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
+        super.removeAllowedChangeableParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================

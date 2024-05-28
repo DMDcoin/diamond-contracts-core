@@ -12,7 +12,10 @@
         "flat": "bash scripts/make_flat.sh",
         "solidity-docgen": "rm -rf docs/docs/api* && npm i && npx hardhat docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol . contracts docs && node docs/website/sidebars-fix.js",
         "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
-        "clean": "rm -rf artifacts/ cache/ coverage/ typechain/ typechain-types/ src/ coverage.json"
+        "clean": "rm -rf artifacts/ cache/ coverage/ typechain/ typechain-types/ src/ coverage.json",
+        "testOnTestnet": "export CONTRACTS_NO_UPGRADE_PROXY=true && ./node_modules/.bin/truffle test  --network testNet test/KeyGenHistory.js test/mockContracts/BlockRewardHbbftMock.sol  test/mockContracts/RandomHbbftMock.sol test/mockContracts/ValidatorSetHbbftMock.sol test/mockContracts/StakingHbbftMock.sol",
+        "getFunctionSignatures": "node scripts/getFunctionSignatures.js",
+        "typechain": "npx typechain --target ethers-v5 --out-dir src/types 'artifacts/contracts/**/!(*.dbg).json'"
     },
     "repository": {
         "type": "git",

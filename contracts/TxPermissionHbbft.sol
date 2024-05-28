@@ -3,17 +3,18 @@ pragma solidity =0.8.17;
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+import { ValueGuards } from "./ValueGuards.sol";
 import { ICertifier } from "./interfaces/ICertifier.sol";
-import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { ITxPermission } from "./interfaces/ITxPermission.sol";
+import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
 /// protecting the network against "transaction spamming" by malicious validators.
 /// The protection logic is declared in the `allowedTxTypes` function.
-contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
+contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, ValueGuards {
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -49,6 +50,18 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     // ============================================== Events ==========================================================
 
     event gasPriceChanged(uint256 _value);
+    
+    /**
+     * @dev Emitted when the minimum gas price is updated.
+     * @param _minGasPrice The new minimum gas price.
+     */
+    event SetMinimumGasPrice(uint256 _minGasPrice);
+
+    /**
+     * @dev Emitted when the block gas limit is updated.
+     * @param _blockGasLimit The new block gas limit.
+     */
+    event SetBlockGasLimit(uint256 _blockGasLimit);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -93,7 +106,44 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
         minimumGasPrice = 1 gwei;
-        blockGasLimit = 1_000_000_000; // 1 giga gas block
+        blockGasLimit = 100_000; // 1 giga gas block
+
+        uint256[] memory minGasPriceAllowedParams = new uint256[](11);
+        minGasPriceAllowedParams[0] = 0.1 gwei;
+        minGasPriceAllowedParams[1] = 0.2 gwei;
+        minGasPriceAllowedParams[2] = 0.4 gwei;
+        minGasPriceAllowedParams[3] = 0.6 gwei;
+        minGasPriceAllowedParams[4] = 0.8 gwei;
+        minGasPriceAllowedParams[5] = 1 gwei;
+        minGasPriceAllowedParams[6] = 2 gwei;
+        minGasPriceAllowedParams[7] = 4 gwei;
+        minGasPriceAllowedParams[8] = 6 gwei;
+        minGasPriceAllowedParams[9] = 8 gwei;
+        minGasPriceAllowedParams[10] = 10 gwei;
+
+        setAllowedChangeableParameter(
+            "setMinimumGasPrice(uint256)",
+            "minimumGasPrice()",
+            minGasPriceAllowedParams
+        );
+
+        uint256[] memory blockGasLimitAllowedParams = new uint256[](10);
+        blockGasLimitAllowedParams[0] = 100000;
+        blockGasLimitAllowedParams[1] = 200000;
+        blockGasLimitAllowedParams[2] = 300000;
+        blockGasLimitAllowedParams[3] = 400000;
+        blockGasLimitAllowedParams[4] = 500000;
+        blockGasLimitAllowedParams[5] = 600000;
+        blockGasLimitAllowedParams[6] = 700000;
+        blockGasLimitAllowedParams[7] = 800000;
+        blockGasLimitAllowedParams[8] = 900000;
+        blockGasLimitAllowedParams[9] = 1000000;
+
+        setAllowedChangeableParameter(
+            "setBlockGasLimit(uint256)",
+            "blockGasLimit()",
+            blockGasLimitAllowedParams
+        );
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
@@ -131,31 +181,59 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
     /// before submitting it as contribution.
     /// The limit can be changed by the owner (typical the DAO)
     /// @param _value The new minimum gas price.
-    function setMinimumGasPrice(uint256 _value) public onlyOwner {
+    function setMinimumGasPrice(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // currently, we do not allow to set the minimum gas price to 0,
         // that would open pandoras box, and the consequences of doing that,
         // requires deeper research.
         require(_value > 0, "Minimum gas price must not be zero");
         emit gasPriceChanged(_value);
         minimumGasPrice = _value;
+        emit SetMinimumGasPrice(_value);
     }
 
     /// @dev set's the block gas limit.
     /// IN HBBFT, there must be consens about the block gas limit.
-    function setBlockGasLimit(uint256 _value) public onlyOwner {
+    function setBlockGasLimit(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // we make some check that the block gas limit can not be set to low,
         // to prevent the chain to be completly inoperatable.
         // this value is chosen arbitrarily
         require(
-            _value >= 1000000,
-            "Block Gas limit gas price must be at minimum 1,000,000"
+            _value >= 100000,
+            "Block Gas limit gas price must be at minimum 100,000"
         );
 
         blockGasLimit = _value;
+        emit SetBlockGasLimit(_value);
     }
 
     function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
+    }
+
+    /**
+     * @dev Sets the allowed changeable parameter for a specific setter function.
+     * @param setter The name of the setter function.
+     * @param getter The name of the getter function.
+     * @param params The array of allowed parameter values.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function setAllowedChangeableParameter(
+        string memory setter,
+        string memory getter,
+        uint256[] memory params
+    ) public override onlyOwner {
+        super.setAllowedChangeableParameter(setter, getter, params);
+    }
+
+    /**
+     * @dev Removes the allowed changeable parameter for a given function selector.
+     * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
+    function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
+        super.removeAllowedChangeableParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================
