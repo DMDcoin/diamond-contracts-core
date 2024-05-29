@@ -35,9 +35,9 @@ task("make_spec_hbbft", "used to make a spec file")
 
         //todo: sanitizing initialFundAddress
         if (taskArgs.initialFundAddress) {
-            spec.accounts[taskArgs.initialFundAddress] = 
-            { 
-                balance: "4380000000000000000000000" 
+            spec.accounts[taskArgs.initialFundAddress] =
+            {
+                balance: "4380000000000000000000000"
             };
         }
 
@@ -53,7 +53,6 @@ task("make_spec_hbbft", "used to make a spec file")
                 hre,
                 ProxyContractName,
                 initialContracts.core[i].implementationAddress!, // address _logic
-                initialContracts.admin!.address!,                // address _admin
                 initializerArgs                                  // bytes _data
             );
 

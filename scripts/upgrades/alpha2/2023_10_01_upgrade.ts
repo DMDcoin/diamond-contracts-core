@@ -1,14 +1,17 @@
 import { ethers } from "hardhat";
 import { upgradeProxy } from "../upgrades";
 
-
-
 async function deploy() {
     const [deployer] = await ethers.getSigners();
 
     console.log("Deploying from: ", deployer.address);
 
-    await upgradeProxy("StakingHbbft", '0x1100000000000000000000000000000000000001', 15);
+    await upgradeProxy(
+        deployer,
+        "StakingHbbft",
+        '0x1100000000000000000000000000000000000001',
+        15
+    );
 
     console.log("Done.");
 }

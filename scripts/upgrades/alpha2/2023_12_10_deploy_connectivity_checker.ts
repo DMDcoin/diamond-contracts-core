@@ -1,7 +1,7 @@
 import { ethers, upgrades } from "hardhat";
-import { ConnectivityTrackerHbbft } from "../../../src/types/contracts/ConnectivityTrackerHbbft";
 import { InitialContractsConfiguration } from "../../../tasks/types";
 import { upgradeProxy } from "../upgrades";
+import { BlockRewardHbbft, ConnectivityTrackerHbbft } from "../../../src/types";
 
 
 async function doUpgrade() {
@@ -30,17 +30,17 @@ async function doUpgrade() {
             minReportAgeBlocks,                         // uint256 _minReportAgeBlocks
         ],
         { initializer: 'initialize' }
-    ) as ConnectivityTrackerHbbft;
+    ) as unknown as ConnectivityTrackerHbbft;
 
-    await connectivityTrackerHbbft.deployed();
+    await connectivityTrackerHbbft.waitForDeployment();
 
     for (const contractName of ["BlockRewardHbbft", "TxPermissionHbbft"]) {
         console.log("Set ConnectivityTracker address in ", contractName);
 
         const factory = await ethers.getContractFactory(contractName);
-        const _contract = factory.attach(contracts.getAddress(contractName)!);
+        const _contract = factory.attach(contracts.getAddress(contractName)!) as BlockRewardHbbft;
 
-        await _contract.connect(deployer).setConnectivityTracker(connectivityTrackerHbbft.address);
+        await _contract.connect(deployer).setConnectivityTracker(await connectivityTrackerHbbft.getAddress());
     }
 }
 

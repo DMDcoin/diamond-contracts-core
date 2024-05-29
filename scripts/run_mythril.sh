@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-solc_default_version="0.8.17"
+solc_default_version="0.8.25"
 
 declare solc_version
 declare contracts_path

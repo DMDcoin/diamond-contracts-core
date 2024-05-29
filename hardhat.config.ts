@@ -157,6 +157,9 @@ const config: HardhatUserConfig = {
     mocha: {
         timeout: 100000000
     },
+    upgrades: {
+        
+    }
 };
 
 export default config;

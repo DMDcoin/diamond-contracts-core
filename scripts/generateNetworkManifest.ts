@@ -1,20 +1,33 @@
 
 import fs from 'fs';
+import path from 'path';
 import hre from 'hardhat';
 import { ethers, upgrades } from "hardhat";
 import { InitialContractsConfiguration } from '../tasks/types';
 
-async function deployLocally(initialContracts: InitialContractsConfiguration) {
+async function deployLocally(
+    initialContracts: InitialContractsConfiguration,
+    proxyAdminOwner: string,
+) {
     let replacementMap = new Map<string, string>();
-
-    await upgrades.deployProxyAdmin();
 
     for (let coreContract of initialContracts.core) {
         const contractFactory = await ethers.getContractFactory(coreContract.name!);
-        const contract = await upgrades.deployProxy(contractFactory, { initializer: false, usePlatformDeploy: false });
-        await contract.deployed();
+        const contract = await upgrades.deployProxy(
+            contractFactory,
+            {
+                initializer: false,
+                initialOwner: proxyAdminOwner,
+            }
+        );
+        await contract.waitForDeployment();
 
-        const proxyAddress = contract.address;
+        const proxyAddress = await contract.getAddress();
+        const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxyAddress);
+
+        console.log("proxy: ", proxyAddress);
+        console.log("admin: ", proxyAdmin);
+
         const implementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
 
         replacementMap.set(proxyAddress, coreContract.proxyAddress!);
@@ -24,23 +37,29 @@ async function deployLocally(initialContracts: InitialContractsConfiguration) {
     return replacementMap;
 }
 
+function getManifestFile(_path: string) {
+    const result = fs.readdirSync(_path);
+
+    return result.length == 1 ? path.join(_path, result[0]) : undefined;
+}
+
 async function generateNetworkManifest(
     networkId: string,
+    proxyAdminOwner: string,
     initialContracts: InitialContractsConfiguration
 ) {
-    const sourceManifest = `.openzeppelin/unknown-${hre.network.config.chainId}.json`;
+    const sourceManifestDir = `/tmp/openzeppelin-upgrades`;
     const resultingManifest = `.openzeppelin/unknown-${networkId}.json`;
 
-    if (fs.existsSync(sourceManifest)) {
-        fs.unlinkSync(sourceManifest);
-    }
+    fs.rmSync(sourceManifestDir, { recursive: true, force: true });
 
-    let replacementMap = await deployLocally(initialContracts);
+    let replacementMap = await deployLocally(initialContracts, proxyAdminOwner);
 
-    const rawdata = fs.readFileSync(sourceManifest);
+    const sourceManifest = getManifestFile(sourceManifestDir);
+
+    const rawdata = fs.readFileSync(sourceManifest!);
     let parsedData = JSON.parse(rawdata.toString());
 
-    parsedData.admin.address = initialContracts.admin!.address;
     for (let i = 0; i < parsedData.proxies.length; ++i) {
         const manifestProxyAddress = parsedData.proxies[i].address;
         parsedData.proxies[i].address = replacementMap.get(manifestProxyAddress);
@@ -52,7 +71,6 @@ async function generateNetworkManifest(
         parsedData.impls[implKey].address = replacementMap.get(manifestImplAddress);
     }
 
-    fs.unlinkSync(sourceManifest);
     fs.writeFileSync(resultingManifest, JSON.stringify(parsedData, null, 4));
 }
 
@@ -61,11 +79,19 @@ async function main() {
         throw new Error("Please set your NETWORK_ID in a .env file");
     }
 
+    if (!process.env.OWNER) {
+        throw new Error("Please set proxy admin OWNER address in a .env file");
+    }
+
     const networkId = process.env.NETWORK_ID;
+    const proxyAdminOwner = process.env.OWNER;
+
     console.log('networkId: ', networkId);
+    console.log('proxy admin owner: ', proxyAdminOwner);
+
     const initialContracts = InitialContractsConfiguration.fromFile("initial-contracts.json");
 
-    await generateNetworkManifest(networkId, initialContracts);
+    await generateNetworkManifest(networkId, proxyAdminOwner, initialContracts);
 }
 
 main()
