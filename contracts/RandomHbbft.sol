@@ -1,8 +1,9 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
+
+import { BitMaps } from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { BitMapsUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/structs/BitMapsUpgradeable.sol";
 
 import { IRandomHbbft } from "./interfaces/IRandomHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
@@ -12,7 +13,7 @@ import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
 /// @dev Stores and uppdates a random seed that is used to form a new validator set by the
 /// `ValidatorSetHbbft.newValidatorSet` function.
 contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
-    using BitMapsUpgradeable for BitMapsUpgradeable.BitMap;
+    using BitMaps for BitMaps.BitMap;
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -26,7 +27,7 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     /// blocknumber => random seed
     mapping(uint256 => uint256) private randomHistory;
 
-    BitMapsUpgradeable.BitMap private unhealthiness;
+    BitMaps.BitMap private unhealthiness;
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
@@ -52,8 +53,7 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
             revert ZeroAddress();
         }
 
-        __Ownable_init();
-        _transferOwnership(_contractOwner);
+        __Ownable_init(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }

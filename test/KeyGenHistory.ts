@@ -469,7 +469,7 @@ describe('KeyGenHistory', () => {
                 initializingMiningAddresses,
                 parts,
                 acks
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 

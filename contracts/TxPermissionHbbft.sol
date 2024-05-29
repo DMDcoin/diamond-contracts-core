@@ -1,4 +1,4 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -125,8 +125,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission {
             revert ZeroAddress();
         }
 
-        __Ownable_init();
-        _transferOwnership(_contractOwner);
+        __Ownable_init(_contractOwner);
 
         for (uint256 i = 0; i < _allowed.length; i++) {
             _addAllowedSender(_allowed[i]);

@@ -423,7 +423,7 @@ describe('BlockRewardHbbft', () => {
                 stubAddress,
                 stubAddress,
                 stubAddress,
-            )).to.be.revertedWith("Initializable: contract is already initialized");
+            )).to.be.revertedWithCustomError(blockReward, "InvalidInitialization");
         });
     });
 
@@ -432,7 +432,8 @@ describe('BlockRewardHbbft', () => {
             const caller = accounts[5];
 
             await expect(blockRewardHbbft.connect(caller).setdeltaPotPayoutFraction(1))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(blockRewardHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should not allow zero payout fraction', async () => {
@@ -459,7 +460,8 @@ describe('BlockRewardHbbft', () => {
             const caller = accounts[5];
 
             await expect(blockRewardHbbft.connect(caller).setReinsertPotPayoutFraction(1))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(blockRewardHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should not allow zero payout fraction', async () => {
@@ -486,7 +488,8 @@ describe('BlockRewardHbbft', () => {
             const caller = accounts[5];
 
             await expect(blockRewardHbbft.connect(caller).setConnectivityTracker(ethers.ZeroAddress))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(blockRewardHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should revert set zero address', async () => {

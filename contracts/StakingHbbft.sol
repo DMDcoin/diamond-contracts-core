@@ -1,10 +1,10 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
+
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
-import { EnumerableSetUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
@@ -15,18 +15,18 @@ import { TransferUtils } from "./utils/TransferUtils.sol";
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
 contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft {
-    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-    EnumerableSetUpgradeable.AddressSet private _pools;
-    EnumerableSetUpgradeable.AddressSet private _poolsInactive;
-    EnumerableSetUpgradeable.AddressSet private _poolsToBeRemoved;
+    EnumerableSet.AddressSet private _pools;
+    EnumerableSet.AddressSet private _poolsInactive;
+    EnumerableSet.AddressSet private _poolsToBeRemoved;
 
     address[] private _poolsToBeElected;
     uint256[] private _poolsLikelihood;
     uint256 private _poolsLikelihoodSum;
 
-    mapping(address => EnumerableSetUpgradeable.AddressSet) private _poolDelegators;
-    mapping(address => EnumerableSetUpgradeable.AddressSet) private _poolDelegatorsInactive;
+    mapping(address => EnumerableSet.AddressSet) private _poolDelegators;
+    mapping(address => EnumerableSet.AddressSet) private _poolDelegatorsInactive;
 
     mapping(address => mapping(address => mapping(uint256 => uint256))) private _stakeAmountByEpoch;
 
@@ -321,9 +321,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             revert InvalidIpAddressesCount();
         }
 
-        __Ownable_init();
+        __Ownable_init(_contractOwner);
         __ReentrancyGuard_init();
-        _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(stakingParams._validatorSetContract);
         address[] calldata initStakingAddresses = stakingParams._initialStakingAddresses;

@@ -1,8 +1,8 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
@@ -138,9 +138,8 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
             revert ZeroAddress();
         }
 
-        __Ownable_init();
+        __Ownable_init(_contractOwner);
         __ReentrancyGuard_init();
-        _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         connectivityTracker = _connectivityTracker;

@@ -415,7 +415,7 @@ describe('ValidatorSetHbbft', () => {
                 validatorInactivityThreshold,
                 initialValidators,
                 initialStakingAddresses,
-            )).to.be.revertedWith("Initializable: contract is already initialized");
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "InvalidInitialization");
         });
 
         it('should fail if the number of mining addresses is not the same as the number of staking ones', async () => {
@@ -605,7 +605,8 @@ describe('ValidatorSetHbbft', () => {
             let value30Days = 2592000;
 
             await expect(validatorSetHbbft.connect(nobody).setValidatorInactivityThreshold(value30Days))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(validatorSetHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(nobody.address);
         });
     });
 
@@ -1021,7 +1022,8 @@ describe('ValidatorSetHbbft', () => {
             const caller = accounts[5];
 
             await expect(validatorSetHbbft.connect(caller).setMaxValidators(0n))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(validatorSetHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it("should set max validators", async () => {
@@ -1043,7 +1045,8 @@ describe('ValidatorSetHbbft', () => {
             const caller = accounts[5];
 
             await expect(validatorSetHbbft.connect(caller).setBanDuration(0n))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(validatorSetHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it("should set ban duration", async () => {

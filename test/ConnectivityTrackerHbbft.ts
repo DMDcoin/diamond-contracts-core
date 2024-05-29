@@ -272,7 +272,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 stubAddress,
                 stubAddress,
                 minReportAgeBlocks
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 
@@ -283,7 +283,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             await expect(
                 connectivityTracker.connect(caller).setMinReportAge(100)
-            ).to.be.revertedWith("Ownable: caller is not the owner");
+            ).to.be.revertedWithCustomError(connectivityTracker, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it("should set min report age and emit event", async function () {
@@ -306,7 +307,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             await expect(
                 connectivityTracker.connect(caller).setEarlyEpochEndToleranceLevel(5)
-            ).to.be.revertedWith("Ownable: caller is not the owner");
+            ).to.be.revertedWithCustomError(connectivityTracker, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it("should set early epoch end tolerance level and emit event", async function () {

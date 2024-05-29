@@ -798,7 +798,7 @@ describe('StakingHbbft', () => {
                 stakingParams,
                 initialValidatorsPubKeysSplit, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
-            )).to.be.revertedWith("Initializable: contract is already initialized");
+            )).to.be.revertedWithCustomError(stakingHbbft, "InvalidInitialization");
         });
 
         it('should fail if stakingEpochDuration is 0', async () => {
@@ -2204,7 +2204,8 @@ describe('StakingHbbft', () => {
 
             const caller = accounts[5];
             await expect(stakingHbbft.connect(caller).setStakingTransitionTimeframeLength(300n))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should set staking transition time frame length', async () => {
@@ -2236,7 +2237,8 @@ describe('StakingHbbft', () => {
 
             const caller = accounts[5];
             await expect(stakingHbbft.connect(caller).setStakingFixedEpochDuration(600000n))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should set staking fixed epoch transition', async () => {
@@ -2261,7 +2263,8 @@ describe('StakingHbbft', () => {
 
             const caller = accounts[5];
             await expect(stakingHbbft.connect(caller).setCandidateMinStake(ethers.parseEther('10')))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should set candidate min stake', async () => {
@@ -2279,7 +2282,8 @@ describe('StakingHbbft', () => {
 
             const caller = accounts[5];
             await expect(stakingHbbft.connect(caller).setDelegatorMinStake(ethers.parseEther('10')))
-                .to.be.revertedWith("Ownable: caller is not the owner");
+                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should set delegator min stake', async () => {

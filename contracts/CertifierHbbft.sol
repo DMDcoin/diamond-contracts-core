@@ -1,4 +1,4 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -54,8 +54,7 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
             revert ZeroAddress();
         }
 
-        __Ownable_init();
-        _transferOwnership(_owner);
+        __Ownable_init(_owner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
 

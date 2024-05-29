@@ -1,5 +1,5 @@
 // solhint-disable one-contract-per-file
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
 import { TxPermissionHbbft } from "../TxPermissionHbbft.sol";

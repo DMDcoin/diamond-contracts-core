@@ -185,7 +185,7 @@ describe('RandomHbbft', () => {
             await expect(contract.initialize(
                 stubAddress,
                 stubAddress,
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 

@@ -1,4 +1,4 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -77,23 +77,17 @@ contract Registry is Ownable, IMetadataRegistry, IOwnerRegistry, IReverseRegistr
         _;
     }
 
-    constructor(address _certifierContract, address _contractOwner) {
-        if (_certifierContract == address(0)) {
+    constructor(address _certifierContract, address _contractOwner) Ownable(_contractOwner) {
+        if (_certifierContract == address(0) || _contractOwner == address(0)) {
             revert ZeroAddress();
         }
 
         bytes32 serviceTransactionChecker = keccak256("service_transaction_checker");
 
-        address entryOwner = msg.sender;
-        if (_contractOwner != address(0)) {
-            entryOwner = _contractOwner;
-            transferOwnership(_contractOwner);
-        }
-
-        entries[serviceTransactionChecker].owner = entryOwner;
+        entries[serviceTransactionChecker].owner = _contractOwner;
         entries[serviceTransactionChecker].data["A"] = bytes20(_certifierContract);
 
-        emit Reserved(serviceTransactionChecker, entryOwner);
+        emit Reserved(serviceTransactionChecker, _contractOwner);
         emit DataChanged(serviceTransactionChecker, "A", "A");
     }
 

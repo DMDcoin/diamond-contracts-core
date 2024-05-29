@@ -1,4 +1,4 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 import { ValidatorSetHbbft } from "../ValidatorSetHbbft.sol";
 import { IKeyGenHistory } from "../interfaces/IKeyGenHistory.sol";

@@ -364,7 +364,7 @@ describe('TxPermissionHbbft', () => {
                 stubAddress,
                 stubAddress,
                 owner.address
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 
@@ -395,7 +395,8 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(caller).addAllowedSender(caller.address)
-                ).to.be.revertedWith("Ownable: caller is not the owner");
+                ).to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
             it("should revert if sender address is 0", async function () {
@@ -441,7 +442,8 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(caller).removeAllowedSender(caller.address)
-                ).to.be.revertedWith("Ownable: caller is not the owner");
+                ).to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
             it("should revert calling if sender already removed", async function () {
@@ -480,7 +482,9 @@ describe('TxPermissionHbbft', () => {
 
                 const caller = accounts[1];
 
-                await expect(txPermission.connect(caller).setMinimumGasPrice(1)).to.be.revertedWith("Ownable: caller is not the owner");
+                await expect(txPermission.connect(caller).setMinimumGasPrice(1))
+                    .to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
             it("should not allow to set minimum gas price 0", async function () {
@@ -511,7 +515,9 @@ describe('TxPermissionHbbft', () => {
 
                 const caller = accounts[1];
 
-                await expect(txPermission.connect(caller).setBlockGasLimit(1)).to.be.revertedWith("Ownable: caller is not the owner");
+                await expect(txPermission.connect(caller).setBlockGasLimit(1))
+                    .to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
             it("should not allow to set block gas limit less than 1_000_000", async function () {
