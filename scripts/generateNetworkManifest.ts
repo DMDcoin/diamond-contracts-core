@@ -1,7 +1,5 @@
-
 import fs from 'fs';
 import path from 'path';
-import hre from 'hardhat';
 import { ethers, upgrades } from "hardhat";
 import { InitialContractsConfiguration } from '../tasks/types';
 
@@ -23,11 +21,6 @@ async function deployLocally(
         await contract.waitForDeployment();
 
         const proxyAddress = await contract.getAddress();
-        const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxyAddress);
-
-        console.log("proxy: ", proxyAddress);
-        console.log("admin: ", proxyAdmin);
-
         const implementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
 
         replacementMap.set(proxyAddress, coreContract.proxyAddress!);
@@ -72,6 +65,8 @@ async function generateNetworkManifest(
     }
 
     fs.writeFileSync(resultingManifest, JSON.stringify(parsedData, null, 4));
+
+    return resultingManifest
 }
 
 async function main() {
@@ -86,12 +81,14 @@ async function main() {
     const networkId = process.env.NETWORK_ID;
     const proxyAdminOwner = process.env.OWNER;
 
-    console.log('networkId: ', networkId);
-    console.log('proxy admin owner: ', proxyAdminOwner);
+    console.log('network id:', networkId);
+    console.log('proxy admin owner:', proxyAdminOwner);
 
     const initialContracts = InitialContractsConfiguration.fromFile("initial-contracts.json");
 
-    await generateNetworkManifest(networkId, proxyAdminOwner, initialContracts);
+    const manifestPath = await generateNetworkManifest(networkId, proxyAdminOwner, initialContracts);
+
+    console.log('manifest path:', manifestPath);
 }
 
 main()

@@ -31,8 +31,8 @@ export class NetworkConfiguration {
     public initialStakingAddresses?: string[];
     public permittedAddresses?: string[];
 
-    public parts?: Array<Buffer>;
-    public acks: any;
+    public parts?: any[];
+    public acks?: any[];
 
     public minimumBlockTime?: number;
     public maximumBlockTime?: number;
@@ -85,10 +85,21 @@ export class NetworkConfiguration {
             publicKeys[i] = publicKeys[i].trim();
         }
 
-        const newParts: Buffer[] = [];
+        const newParts = new Array<Uint8Array>();
         initData.parts.forEach((x: string) => {
-            newParts.push(Buffer.from(x));
+            newParts.push(new Uint8Array(Buffer.from(x)));
         });
+
+        const newAcks = new Array<Array<Uint8Array>>();
+        for (const ack of initData.acks) {
+            const ackResults = new Array<Uint8Array>();
+
+            ack.forEach((x: string) => {
+                ackResults.push(new Uint8Array(Buffer.from(x)));
+            })
+
+            newAcks.push(ackResults);
+        }
 
         instance.publicKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])(publicKeys);
         instance.initialMiningAddresses = initialValidators;
@@ -97,7 +108,7 @@ export class NetworkConfiguration {
         instance.permittedAddresses = [instance.owner];
 
         instance.parts = newParts;
-        instance.acks = initData.acks;
+        instance.acks = newAcks;
 
         const stakingEpochDuration = process.env.STAKING_EPOCH_DURATION;
         const stakeWithdrawDisallowPeriod = process.env.STAKE_WITHDRAW_DISALLOW_PERIOD;
@@ -198,15 +209,16 @@ export class CoreContract {
         hre: HardhatRuntimeEnvironment,
         proxyContractName: string,
         logicAddress: string,
+        ownerAddress: string,
         args: any[]
     ) {
         const proxyFactory = await hre.ethers.getContractFactory(proxyContractName);
         const contractFactory = await hre.ethers.getContractFactory(this.name!);
 
         const initializerData = getInitializerData(contractFactory.interface, args, 'initialize')
-        const tx = proxyFactory.getDeployTransaction(logicAddress, initializerData);
+        const tx = await proxyFactory.getDeployTransaction(logicAddress, ownerAddress, initializerData);
 
-        this.proxyBytecode = tx.data!.toString();
+        this.proxyBytecode = tx.data;
     }
 
     async compileContract(hre: HardhatRuntimeEnvironment) {
@@ -249,6 +261,10 @@ export class InitialContractsConfiguration {
         for (const [key, value] of Object.entries(json)) {
             if (key == 'core') {
                 instance[key] = (value as Array<any>).map(x => new CoreContract(...(Object.values(x as any) as [])));
+            }
+
+            if (key == 'registry') {
+                instance[key] = new SpecialContract(...(Object.values(value as any) as []));
             }
         }
 
