@@ -1,15 +1,15 @@
 import { ethers, upgrades } from "hardhat";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import * as helpers from "@nomicfoundation/hardhat-network-helpers";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 import { CertifierHbbft, ValidatorSetHbbftMock } from "../src/types";
 
 const validatorInactivityThreshold = 365 * 86400 // 1 year
 
 describe('CertifierHbbft contract', () => {
-    let accounts: SignerWithAddress[];
-    let owner: SignerWithAddress;
+    let accounts: HardhatEthersSigner[];
+    let owner: HardhatEthersSigner;
 
     let initialValidators: string[];
     let initialStakingAddresses: string[];
@@ -19,9 +19,9 @@ describe('CertifierHbbft contract', () => {
     async function deployContracts() {
         const stubAddress = accounts[1].address;
 
-        const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbft = await upgrades.deployProxy(
-            ValidatorSetFactory,
+        const validatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+        const validatorSetHbbftProxy = await upgrades.deployProxy(
+            validatorSetFactory,
             [
                 owner.address,
                 stubAddress,                  // _blockRewardContract
@@ -33,27 +33,33 @@ describe('CertifierHbbft contract', () => {
                 initialStakingAddresses,      // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        ) as ValidatorSetHbbftMock;
+        );
 
-        await validatorSetHbbft.deployed();
+        await validatorSetHbbftProxy.waitForDeployment();
 
-        const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifier = await upgrades.deployProxy(
-            CertifierFactory,
+        const certifierFactory = await ethers.getContractFactory("CertifierHbbft");
+        const certifierProxy = await upgrades.deployProxy(
+            certifierFactory,
             [
                 [owner.address],
-                validatorSetHbbft.address,
+                await validatorSetHbbftProxy.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        ) as CertifierHbbft;
+        );
 
-        await certifier.deployed();
+        await certifierProxy.waitForDeployment();
+
+        const validatorSetHbbft = validatorSetFactory.attach(
+            await validatorSetHbbftProxy.getAddress()
+        ) as ValidatorSetHbbftMock;
+
+        const certifier = certifierFactory.attach(await certifierProxy.getAddress()) as CertifierHbbft;
 
         return { certifier, validatorSetHbbft };
     }
 
-    before(async function() {
+    before(async function () {
         [owner, ...accounts] = await ethers.getSigners();
 
         accountAddresses = accounts.map(item => item.address);
@@ -68,7 +74,7 @@ describe('CertifierHbbft contract', () => {
                 contractFactory,
                 [
                     [],
-                    ethers.constants.AddressZero,
+                    ethers.ZeroAddress,
                     owner.address
                 ],
                 { initializer: 'initialize' }
@@ -82,7 +88,7 @@ describe('CertifierHbbft contract', () => {
                 [
                     [],
                     accounts[1].address,
-                    ethers.constants.AddressZero
+                    ethers.ZeroAddress
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWith('Owner address must not be 0');
@@ -100,7 +106,7 @@ describe('CertifierHbbft contract', () => {
                 { initializer: 'initialize' }
             );
 
-            expect(await contract.deployed());
+            expect(await contract.waitForDeployment());
 
             await expect(contract.initialize(
                 [],
@@ -111,8 +117,8 @@ describe('CertifierHbbft contract', () => {
     });
 
     describe('certification', async () => {
-        it('should restrict calling certify to contract owner', async function() {
-            const { certifier } = await helpers.loadFixture(deployContracts);
+        it('should restrict calling certify to contract owner', async function () {
+            const { certifier } = await loadFixture(deployContracts);
 
             const caller = accounts[5];
 
@@ -120,8 +126,8 @@ describe('CertifierHbbft contract', () => {
                 .to.be.revertedWith('Ownable: caller is not the owner');
         });
 
-        it('should restrict calling revoke to contract owner', async function() {
-            const { certifier } = await helpers.loadFixture(deployContracts);
+        it('should restrict calling revoke to contract owner', async function () {
+            const { certifier } = await loadFixture(deployContracts);
 
             const caller = accounts[5];
 
@@ -129,8 +135,8 @@ describe('CertifierHbbft contract', () => {
                 .to.be.revertedWith('Ownable: caller is not the owner');
         });
 
-        it("should sertify address", async function() {
-            const { certifier } = await helpers.loadFixture(deployContracts);
+        it("should sertify address", async function () {
+            const { certifier } = await loadFixture(deployContracts);
             const who = accounts[4];
 
             await expect(certifier.connect(owner).certify(who.address))
@@ -141,8 +147,8 @@ describe('CertifierHbbft contract', () => {
             expect(await certifier.certified(who.address)).to.be.true;
         });
 
-        it("should revoke cerification", async function() {
-            const { certifier } = await helpers.loadFixture(deployContracts);
+        it("should revoke cerification", async function () {
+            const { certifier } = await loadFixture(deployContracts);
             const who = accounts[6];
 
             await expect(certifier.connect(owner).certify(who.address))
@@ -155,12 +161,12 @@ describe('CertifierHbbft contract', () => {
                 .to.emit(certifier, "Revoked")
                 .withArgs(who.address);
 
-                expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
-                expect(await certifier.certified(who.address)).to.be.false;
+            expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
+            expect(await certifier.certified(who.address)).to.be.false;
         });
 
-        it("validator account should be certified by default", async function() {
-            const { certifier } = await helpers.loadFixture(deployContracts);
+        it("validator account should be certified by default", async function () {
+            const { certifier } = await loadFixture(deployContracts);
 
             expect(await certifier.certifiedExplicitly(initialValidators[0])).to.be.false;
             expect(await certifier.certified(initialValidators[0])).to.be.true;

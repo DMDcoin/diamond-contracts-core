@@ -1,6 +1,9 @@
 import { ethers, network, upgrades } from "hardhat";
-
+import { expect } from "chai";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
+import fp from "lodash/fp";
+import * as _ from "lodash";
 
 import {
     BlockRewardHbbftMock,
@@ -8,68 +11,68 @@ import {
     ValidatorSetHbbftMock,
     StakingHbbftMock,
     KeyGenHistory,
-    ConnectivityTrackerHbbftMock
 } from "../src/types";
 
-import fp from 'lodash/fp';
-import { BigNumber } from "ethers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { PromiseOrValue } from "../src/types/common";
-import { expect } from "chai";
-import exp from "constants";
-
-
-require('chai')
-    .use(require('chai-as-promised'))
-    .use(require('chai-bn')(BigNumber))
-    .should();
-
-//addresses
-let owner: SignerWithAddress;
-let candidateMiningAddress: SignerWithAddress;
-let candidateStakingAddress: SignerWithAddress;
-let accounts: SignerWithAddress[];
+import { getNValidatorsPartNAcks } from "./testhelpers/data";
 
 //consts
-const ERROR_MSG = 'VM Exception while processing transaction: revert';
+const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
+const ZeroPublicKey = ethers.zeroPadBytes("0x00", 64);
+const ZeroIpAddress = ethers.zeroPadBytes("0x00", 16);
 
 describe('StakingHbbft', () => {
+    let owner: HardhatEthersSigner;
+    let candidateMiningAddress: HardhatEthersSigner;
+    let candidateStakingAddress: HardhatEthersSigner;
+    let accounts: HardhatEthersSigner[];
+
     let initialValidators: string[];
     let initialStakingAddresses: string[];
     let initialValidatorsPubKeys: string[];
     let initialValidatorsPubKeysSplit: string[];
     let initialValidatorsIpAddresses: string[];
 
-    const minStake = BigNumber.from(ethers.utils.parseEther('1'));
-    const maxStake = BigNumber.from(ethers.utils.parseEther('100000'));
-    // one epoch in 1 day.
-    const stakingFixedEpochDuration = BigNumber.from(86400);
-
-    // the transition time window is 1 hour.
-    const stakingTransitionTimeframeLength = BigNumber.from(3600);
-
-    const stakingWithdrawDisallowPeriod = BigNumber.from(1);
+    const minStake = ethers.parseEther('1');
+    const maxStake = ethers.parseEther('100000');
 
     // the reward for the first epoch.
-    const epochReward = BigNumber.from(ethers.utils.parseEther('1'));
+    const epochReward = ethers.parseEther('1');
+
+    // one epoch in 1 day.
+    const stakingFixedEpochDuration = 86400n;
+
+    // the transition time window is 1 hour.
+    const stakingTransitionTimeframeLength = 3600n;
+    const stakingWithdrawDisallowPeriod = 1n;
 
     // the amount the deltaPot gets filled up.
     // this is 60-times more, since the deltaPot get's
     // drained each step by 60 by default.
-    const deltaPotFillupValue = epochReward.mul(BigNumber.from('60'));
+    const deltaPotFillupValue = epochReward * 60n;
 
-    const validatorInactivityThreshold = 365 * 86400 // 1 year
+    const validatorInactivityThreshold = 365n * 86400n // 1 year
+
+    async function impersonateAcc(accAddress: string) {
+        await helpers.impersonateAccount(accAddress);
+
+        await owner.sendTransaction({
+            to: accAddress,
+            value: ethers.parseEther('10'),
+        });
+
+        return await ethers.getSigner(accAddress);
+    }
 
     async function deployContractsFixture() {
         const stubAddress = owner.address;
 
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
-        const connectivityTracker = await upgrades.deployProxy(ConnectivityTrackerFactory) as ConnectivityTrackerHbbftMock;
-        await connectivityTracker.deployed();
+        const connectivityTracker = await ConnectivityTrackerFactory.deploy();
+        await connectivityTracker.waitForDeployment();
 
         // Deploy ValidatorSet contract
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbft = await upgrades.deployProxy(
+        const validatorSetHbbftProxy = await upgrades.deployProxy(
             ValidatorSetFactory,
             [
                 owner.address,
@@ -82,54 +85,61 @@ describe('StakingHbbft', () => {
                 initialStakingAddresses,      // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        ) as ValidatorSetHbbftMock;
+        );
+
+        await validatorSetHbbftProxy.waitForDeployment();
 
         // Deploy BlockRewardHbbft contract
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardHbbft = await upgrades.deployProxy(
+        const blockRewardHbbftProxy = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
                 owner.address,
-                validatorSetHbbft.address,
-                connectivityTracker.address
+                await validatorSetHbbftProxy.getAddress(),
+                await connectivityTracker.getAddress(),
             ],
             { initializer: 'initialize' }
-        ) as BlockRewardHbbftMock;
+        );
 
-        await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
+        await blockRewardHbbftProxy.waitForDeployment();
+
+        await validatorSetHbbftProxy.setBlockRewardContract(await blockRewardHbbftProxy.getAddress());
 
         const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-        const randomHbbft = await upgrades.deployProxy(
+        const randomHbbftProxy = await upgrades.deployProxy(
             RandomHbbftFactory,
             [
                 owner.address,
-                validatorSetHbbft.address
+                await validatorSetHbbftProxy.getAddress()
             ],
             { initializer: 'initialize' }
-        ) as RandomHbbft;
+        );
+
+        await randomHbbftProxy.waitForDeployment();
 
         //without that, the Time is 0,
         //meaning a lot of checks that expect time to have some value deliver incorrect results.
         // await increaseTime(1);
 
-        const parts = [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 181, 129, 31, 84, 186, 242, 5, 151, 59, 35, 196, 140, 106, 29, 40, 112, 142, 156, 132, 158, 47, 223, 253, 185, 227, 249, 190, 96, 5, 99, 239, 213, 127, 29, 136, 115, 71, 164, 202, 44, 6, 171, 131, 251, 147, 159, 54, 49, 1, 0, 0, 0, 0, 0, 0, 0, 153, 0, 0, 0, 0, 0, 0, 0, 4, 177, 133, 61, 18, 58, 222, 74, 65, 5, 126, 253, 181, 113, 165, 43, 141, 56, 226, 132, 208, 218, 197, 119, 179, 128, 30, 162, 251, 23, 33, 73, 38, 120, 246, 223, 233, 11, 104, 60, 154, 241, 182, 147, 219, 81, 45, 134, 239, 69, 169, 198, 188, 152, 95, 254, 170, 108, 60, 166, 107, 254, 204, 195, 170, 234, 154, 134, 26, 91, 9, 139, 174, 178, 248, 60, 65, 196, 218, 46, 163, 218, 72, 1, 98, 12, 109, 186, 152, 148, 159, 121, 254, 34, 112, 51, 70, 121, 51, 167, 35, 240, 5, 134, 197, 125, 252, 3, 213, 84, 70, 176, 160, 36, 73, 140, 104, 92, 117, 184, 80, 26, 240, 106, 230, 241, 26, 79, 46, 241, 195, 20, 106, 12, 186, 49, 254, 168, 233, 25, 179, 96, 62, 104, 118, 153, 95, 53, 127, 160, 237, 246, 41]];
-        const acks = [[[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]], [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]], [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 239, 1, 112, 13, 13, 251, 103, 186, 212, 78, 44, 47, 250, 221, 84, 118, 88, 7, 64, 206, 186, 11, 2, 8, 204, 140, 106, 179, 52, 251, 237, 19, 53, 74, 187, 217, 134, 94, 66, 68, 89, 42, 85, 207, 155, 220, 101, 223, 51, 199, 37, 38, 203, 132, 13, 77, 78, 114, 53, 219, 114, 93, 21, 25, 164, 12, 43, 252, 160, 16, 23, 111, 79, 230, 121, 95, 223, 174, 211, 172, 231, 0, 52, 25, 49, 152, 79, 128, 39, 117, 216, 85, 201, 237, 242, 151, 219, 149, 214, 77, 233, 145, 47, 10, 184, 175, 162, 174, 237, 177, 131, 45, 126, 231, 32, 147, 227, 170, 125, 133, 36, 123, 164, 232, 129, 135, 196, 136, 186, 45, 73, 226, 179, 169, 147, 42, 41, 140, 202, 191, 12, 73, 146, 2]]];
+        const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-        const keyGenHistory = await upgrades.deployProxy(
+        const keyGenHistoryProxy = await upgrades.deployProxy(
             KeyGenFactory,
             [
                 owner.address,
-                validatorSetHbbft.address,
+                await validatorSetHbbftProxy.getAddress(),
                 initialValidators,
                 parts,
                 acks
             ],
             { initializer: 'initialize' }
-        ) as KeyGenHistory;
+        );
+
+        await keyGenHistoryProxy.waitForDeployment();
 
         let stakingParams = {
-            _validatorSetContract: validatorSetHbbft.address,
+            _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: minStake,
             _candidateMinStake: minStake,
@@ -152,14 +162,10 @@ describe('StakingHbbft', () => {
             (initialValidatorsPubKeys);
 
         // The IP addresses are irrelevant for these unit test, just initialize them to 0.
-        initialValidatorsIpAddresses = [
-            '0x00000000000000000000000000000000',
-            '0x00000000000000000000000000000000',
-            '0x00000000000000000000000000000000'
-        ];
+        initialValidatorsIpAddresses = Array(initialValidators.length).fill(ZeroIpAddress);
 
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-        const stakingHbbft = await upgrades.deployProxy(
+        const stakingHbbftProxy = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
                 owner.address,
@@ -168,14 +174,31 @@ describe('StakingHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
+        );
+
+        await stakingHbbftProxy.waitForDeployment();
+
+        await validatorSetHbbftProxy.setRandomContract(await randomHbbftProxy.getAddress());
+        await validatorSetHbbftProxy.setStakingContract(await stakingHbbftProxy.getAddress());
+        await validatorSetHbbftProxy.setKeyGenHistoryContract(await keyGenHistoryProxy.getAddress());
+
+        const validatorSetHbbft = ValidatorSetFactory.attach(
+            await validatorSetHbbftProxy.getAddress()
+        ) as ValidatorSetHbbftMock;
+
+        const stakingHbbft = StakingHbbftFactory.attach(
+            await stakingHbbftProxy.getAddress()
         ) as StakingHbbftMock;
 
-        await validatorSetHbbft.setRandomContract(randomHbbft.address);
-        await validatorSetHbbft.setStakingContract(stakingHbbft.address);
-        await validatorSetHbbft.setKeyGenHistoryContract(keyGenHistory.address);
+        const blockRewardHbbft = BlockRewardHbbftFactory.attach(
+            await blockRewardHbbftProxy.getAddress()
+        ) as BlockRewardHbbftMock;
 
         const delegatorMinStake = await stakingHbbft.delegatorMinStake();
         const candidateMinStake = await stakingHbbft.candidateMinStake();
+
+        const randomHbbft = RandomHbbftFactory.attach(await randomHbbftProxy.getAddress()) as RandomHbbft;
+        const keyGenHistory = KeyGenFactory.attach(await keyGenHistoryProxy.getAddress()) as KeyGenHistory;
 
         return {
             validatorSetHbbft,
@@ -190,22 +213,23 @@ describe('StakingHbbft', () => {
 
     beforeEach(async () => {
         [owner, ...accounts] = await ethers.getSigners();
+
         const accountAddresses = accounts.map(item => item.address);
+
         initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
         initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
-        initialStakingAddresses.length.should.be.equal(3);
-        initialStakingAddresses[0].should.not.be.equal('0x0000000000000000000000000000000000000000');
-        initialStakingAddresses[1].should.not.be.equal('0x0000000000000000000000000000000000000000');
-        initialStakingAddresses[2].should.not.be.equal('0x0000000000000000000000000000000000000000');
+
+        expect(initialStakingAddresses).to.be.lengthOf(3);
+        expect(initialStakingAddresses[0]).to.not.be.equal(ethers.ZeroAddress);
+        expect(initialStakingAddresses[1]).to.not.be.equal(ethers.ZeroAddress);
+        expect(initialStakingAddresses[2]).to.not.be.equal(ethers.ZeroAddress);
     });
 
     describe('addPool()', async () => {
-        let candidateMiningAddress: SignerWithAddress;
-        let candidateStakingAddress: SignerWithAddress;
+        let candidateMiningAddress: HardhatEthersSigner;
+        let candidateStakingAddress: HardhatEthersSigner;
 
-        before(async () => {
-            [owner, ...accounts] = await ethers.getSigners();
-
+        beforeEach(async () => {
             candidateMiningAddress = accounts[7];
             candidateStakingAddress = accounts[8];
         });
@@ -214,7 +238,8 @@ describe('StakingHbbft', () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             for (let i = 0; i < initialStakingAddresses.length; i++) {
-                (await stakingHbbft.getPoolPublicKey(initialStakingAddresses[i])).should.be.deep.equal(initialValidatorsPubKeys[i]);
+                expect(await stakingHbbft.getPoolPublicKey(initialStakingAddresses[i]))
+                    .to.be.equal(initialValidatorsPubKeys[i]);
             }
         });
 
@@ -223,57 +248,58 @@ describe('StakingHbbft', () => {
 
             for (let i = 0; i < initialStakingAddresses.length; i++) {
                 let ip_result = (await stakingHbbft.getPoolInternetAddress(initialStakingAddresses[i]));
-                ip_result[0].should.be.deep.equal(initialValidatorsIpAddresses[i]);
+                expect(ip_result[0]).to.be.equal(initialValidatorsIpAddresses[i]);
             }
         });
 
         it('should create a new pool', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            false.should.be.equal(await stakingHbbft.isPoolActive(candidateStakingAddress.address));
+            expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.false;
+
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
-                '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000',
+                ZeroPublicKey,
+                ZeroIpAddress,
                 { value: minStake }
             );
 
-            const poolIsActiveNow = await stakingHbbft.isPoolActive(candidateStakingAddress.address);
-            true.should.be.equal(poolIsActiveNow);
+            expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.true;
         });
 
         it('should fail if created with overstaked pool', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            false.should.be.equal(await stakingHbbft.isPoolActive(candidateStakingAddress.address));
-            await stakingHbbft.connect(candidateStakingAddress).addPool(
+            expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.false;
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
-                '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000',
-                { value: maxStake.add(minStake) }
-            ).should.be.revertedWith('stake limit has been exceeded');
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: maxStake + minStake }
+            )).to.be.revertedWith('stake limit has been exceeded');
         });
 
         it('should fail if mining address is 0', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(candidateStakingAddress).addPool(
-                '0x0000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000',
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                ethers.ZeroAddress,
+                ZeroPublicKey,
+                ZeroIpAddress,
                 { value: minStake }
-            ).should.be.revertedWith("Mining address can't be 0");
+            )).to.be.revertedWith("Mining address can't be 0");
         });
 
         it('should fail if mining address is equal to staking', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(candidateStakingAddress).addPool(
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateStakingAddress.address,
-                '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000',
+                ZeroPublicKey,
+                ZeroIpAddress,
                 { value: minStake }
-            ).should.be.revertedWith("Mining address cannot be the same as the staking one");
+            )).to.be.revertedWith("Mining address cannot be the same as the staking one");
         });
 
         it('should fail if the pool with the same mining/staking address is already existing', async () => {
@@ -282,71 +308,144 @@ describe('StakingHbbft', () => {
             const candidateMiningAddress2 = accounts[9];
             const candidateStakingAddress2 = accounts[10];
 
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake });
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            );
 
-            await stakingHbbft.connect(candidateStakingAddress2).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Mining address already used as a mining one");
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress2.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Staking address already used as a staking one");
+            await expect(stakingHbbft.connect(candidateStakingAddress2).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Mining address already used as a mining one");
 
-            await stakingHbbft.connect(candidateMiningAddress2).addPool(candidateStakingAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Mining address already used as a staking one");
-            await stakingHbbft.connect(candidateMiningAddress).addPool(candidateStakingAddress2.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Staking address already used as a mining one");
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress2.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Staking address already used as a staking one");
 
-            await stakingHbbft.connect(candidateMiningAddress2).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Mining address already used as a mining one");
-            await stakingHbbft.connect(candidateMiningAddress).addPool(candidateMiningAddress2.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Staking address already used as a mining one");
+            await expect(stakingHbbft.connect(candidateMiningAddress2).addPool(
+                candidateStakingAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Mining address already used as a staking one");
 
-            await stakingHbbft.connect(candidateStakingAddress2).addPool(candidateStakingAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Mining address already used as a staking one");
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateStakingAddress2.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("Staking address already used as a staking one");
+            await expect(stakingHbbft.connect(candidateMiningAddress).addPool(
+                candidateStakingAddress2.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Staking address already used as a mining one");
 
-            await stakingHbbft.connect(candidateStakingAddress2).addPool(candidateMiningAddress2.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake });
+            await expect(stakingHbbft.connect(candidateMiningAddress2).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Mining address already used as a mining one");
+
+            await expect(stakingHbbft.connect(candidateMiningAddress).addPool(
+                candidateMiningAddress2.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Staking address already used as a mining one");
+
+            await expect(stakingHbbft.connect(candidateStakingAddress2).addPool(
+                candidateStakingAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Mining address already used as a staking one");
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateStakingAddress2.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("Staking address already used as a staking one");
+
+            expect(await stakingHbbft.connect(candidateStakingAddress2).addPool(
+                candidateMiningAddress2.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            ));
         });
 
         it('should fail if gasPrice is 0', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { gasPrice: 0, value: minStake }).should.be.rejectedWith("GasPrice is 0");
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { gasPrice: 0, value: minStake }
+            )).to.be.revertedWith("GasPrice is 0");
         });
 
         it('should fail if staking amount is 0', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: BigNumber.from(0) }).should.be.rejectedWith("Stake: stakingAmount is 0");
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: 0n }
+            )).to.be.revertedWith("Stake: stakingAmount is 0");
         });
 
-        // it('should fail if stacking time is inside disallowed range', async () => {
-        //   await stakingHbbft.addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-        //   '0x00000000000000000000000000000000', {connect(candidateStakingAddress).value: minStake}).should.be.rejectedWith("Stake: disallowed period");
-        //   await increaseTime(2);
-        //   await stakingHbbft.addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-        //   '0x00000000000000000000000000000000', {connect(candidateStakingAddress).value: minStake});
-        // });
+        it.skip('should fail if stacking time is inside disallowed range', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake },
+            )).to.be.revertedWith("Stake: disallowed period");
+
+            await helpers.time.increase(2);
+
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake },
+            );
+        });
 
         it('should fail if staking amount is less than CANDIDATE_MIN_STAKE', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake.div(BigNumber.from(2)) }).should.be.rejectedWith("Stake: candidateStake less than candidateMinStake");
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake / 2n }
+            )).to.be.revertedWith("Stake: candidateStake less than candidateMinStake");
         });
 
         it('stake amount should be increased', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const amount = minStake.mul(BigNumber.from(2));
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: amount });
-            amount.should.be.equal(await stakingHbbft.stakeAmount(candidateStakingAddress.address, candidateStakingAddress.address));
-            amount.should.be.equal(await stakingHbbft.stakeAmountByCurrentEpoch(candidateStakingAddress.address, candidateStakingAddress.address));
-            amount.should.be.equal(await stakingHbbft.stakeAmountTotal(candidateStakingAddress.address));
+            const amount = minStake * 2n;
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: amount }
+            );
+
+            expect(await stakingHbbft.stakeAmount(candidateStakingAddress.address, candidateStakingAddress.address)).to.equal(amount);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(candidateStakingAddress.address, candidateStakingAddress.address)).to.equal(amount);
+            expect(await stakingHbbft.stakeAmountTotal(candidateStakingAddress.address)).to.equal(amount);
         });
 
         it('should be able to add more than one pool', async () => {
@@ -356,31 +455,39 @@ describe('StakingHbbft', () => {
             const candidate1StakingAddress = candidateStakingAddress;
             const candidate2MiningAddress = accounts[9];
             const candidate2StakingAddress = accounts[10];
-            const amount1 = minStake.mul(BigNumber.from(2));
-            const amount2 = minStake.mul(BigNumber.from(3));
+
+            const amount1 = minStake * 2n;
+            const amount2 = minStake * 3n;
 
             // Add two new pools
-            (await stakingHbbft.isPoolActive(candidate1StakingAddress.address)).should.be.equal(false);
-            (await stakingHbbft.isPoolActive(candidate2StakingAddress.address)).should.be.equal(false);
-            await stakingHbbft.connect(candidate1StakingAddress).addPool(candidate1MiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: amount1 });
-            await stakingHbbft.connect(candidate2StakingAddress).addPool(candidate2MiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: amount2 });
-            (await stakingHbbft.isPoolActive(candidate1StakingAddress.address)).should.be.equal(true);
-            (await stakingHbbft.isPoolActive(candidate2StakingAddress.address)).should.be.equal(true);
+            expect(await stakingHbbft.isPoolActive(candidate1StakingAddress.address)).to.be.false;
+            expect(await stakingHbbft.isPoolActive(candidate2StakingAddress.address)).to.be.false;
 
-            // Check indexes (0...2 are busy by initial validators)
-            BigNumber.from(3).should.be.equal(await stakingHbbft.poolIndex(candidate1StakingAddress.address));
-            BigNumber.from(4).should.be.equal(await stakingHbbft.poolIndex(candidate2StakingAddress.address));
+            await stakingHbbft.connect(candidate1StakingAddress).addPool(
+                candidate1MiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: amount1 }
+            );
+
+            await stakingHbbft.connect(candidate2StakingAddress).addPool(
+                candidate2MiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: amount2 }
+            );
+
+            expect(await stakingHbbft.isPoolActive(candidate1StakingAddress.address)).to.be.true;
+            expect(await stakingHbbft.isPoolActive(candidate2StakingAddress.address)).to.be.true;
 
             // Check indexes in the `poolsToBeElected` list
-            BigNumber.from(0).should.be.equal(await stakingHbbft.poolToBeElectedIndex(candidate1StakingAddress.address));
-            BigNumber.from(1).should.be.equal(await stakingHbbft.poolToBeElectedIndex(candidate2StakingAddress.address));
+            expect(await stakingHbbft.poolToBeElectedIndex(candidate1StakingAddress.address)).to.equal(0n);
+            expect(await stakingHbbft.poolToBeElectedIndex(candidate2StakingAddress.address)).to.equal(1n);
 
             // Check pools' existence
             const validators = await validatorSetHbbft.getValidators();
 
-            (await stakingHbbft.getPools()).should.be.deep.equal([
+            expect(await stakingHbbft.getPools()).to.be.deep.equal([
                 await validatorSetHbbft.stakingByMiningAddress(validators[0]),
                 await validatorSetHbbft.stakingByMiningAddress(validators[1]),
                 await validatorSetHbbft.stakingByMiningAddress(validators[2]),
@@ -392,44 +499,44 @@ describe('StakingHbbft', () => {
         it("shouldn't allow adding more than MAX_CANDIDATES pools", async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            for (let p = initialValidators.length; p < 100; p++) {
-                // Generate new candidate staking address
-                let candidateStakingAddress = '0x';
-                for (let i = 0; i < 20; i++) {
-                    let randomByte = random(0, 255).toString(16);
-                    if (randomByte.length % 2) {
-                        randomByte = '0' + randomByte;
-                    }
-                    candidateStakingAddress += randomByte;
-                }
+            const maxCandidates = await stakingHbbft.getMaxCandidates();
 
+            for (let i = initialValidators.length; i < maxCandidates; ++i) {
                 // Add a new pool
-                await stakingHbbft.addPoolActiveMock(candidateStakingAddress);
-                BigNumber.from(p).should.be.equal(await stakingHbbft.poolIndex(candidateStakingAddress));
+                await stakingHbbft.addPoolActiveMock(ethers.Wallet.createRandom().address);
             }
 
             // Try to add a new pool outside of max limit, max limit is 100 in mock contract.
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake }).should.be.rejectedWith("MAX_CANDIDATES pools exceeded");
-            false.should.be.equal(await stakingHbbft.isPoolActive(candidateStakingAddress.address));
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.be.revertedWith("MAX_CANDIDATES pools exceeded");
+
+            expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.false;
         });
 
         it('should remove added pool from the list of inactive pools', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.addPoolInactiveMock(candidateStakingAddress.address);
-            (await stakingHbbft.getPoolsInactive()).should.be.deep.equal([candidateStakingAddress.address]);
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake });
-            true.should.be.equal(await stakingHbbft.isPoolActive(candidateStakingAddress.address));
-            (await stakingHbbft.getPoolsInactive()).length.should.be.equal(0);
+            expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([candidateStakingAddress.address]);
+
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            );
+
+            expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.true;
+            expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
         });
     });
 
     describe('contract balance', async () => {
         before(async () => {
-            [owner, ...accounts] = await ethers.getSigners();
-
             candidateMiningAddress = accounts[7];
             candidateStakingAddress = accounts[8];
         });
@@ -437,1293 +544,38 @@ describe('StakingHbbft', () => {
         it('cannot be increased by sending native coins', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await owner.sendTransaction({ to: stakingHbbft.address, value: 1 }).should.be.rejectedWith("Not payable");
-            await owner.sendTransaction({ to: accounts[1].address, value: 1 });
-            (await ethers.provider.getBalance(stakingHbbft.address)).should.be.equal('0');
+            await expect(owner.sendTransaction({ to: await stakingHbbft.getAddress(), value: 1n }))
+                .to.be.revertedWith("Not payable");
+
+            await owner.sendTransaction({ to: accounts[1].address, value: 1n });
+            expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(0n);
         });
 
         it('can be increased by sending coins to payable functions', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            (await ethers.provider.getBalance(stakingHbbft.address)).should.be.equal('0');
-            await stakingHbbft.connect(candidateStakingAddress).addPool(candidateMiningAddress.address, '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                '0x00000000000000000000000000000000', { value: minStake });
-            (BigNumber.from(await ethers.provider.getBalance(stakingHbbft.address))).should.be.equal(minStake);
-            await stakingHbbft.connect(candidateStakingAddress).stake(candidateStakingAddress.address, { value: minStake });
-            (BigNumber.from(await ethers.provider.getBalance(stakingHbbft.address))).should.be.equal(minStake.mul(BigNumber.from(2)));
-        });
-    });
-
-    describe('claimReward()', async () => {
-        let delegator: SignerWithAddress;
-        let delegatorMinStake: BigNumber;
-
-        let stakingHbbftContract: StakingHbbftMock;
-        let validatorSetContract: ValidatorSetHbbftMock;
-        let blockRewardContract: BlockRewardHbbftMock;
-
-        beforeEach(async () => {
-            const { stakingHbbft, validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            stakingHbbftContract = stakingHbbft;
-            validatorSetContract = validatorSetHbbft;
-            blockRewardContract = blockRewardHbbft;
-
-            // Staking epoch #0 starts on block #1
-            (await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(0));
-            //(await stakingHbbft.stakingEpochStartBlock()).should.be.equal(BigNumber.from(1));
-            //(await validatorSetHbbft.getCurrentBlockNumber()).should.be.equal(BigNumber.from(1));
-            //(await stakingHbbft.getCurrentBlockNumber()).should.be.equal(BigNumber.from(1));
-
-            // Validators place stakes during the epoch #0
-            const candidateMinStake = await stakingHbbft.candidateMinStake();
-            for (let i = 0; i < initialStakingAddresses.length; i++) {
-                // Validator places stake on themselves
-                await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[i])).stake(initialStakingAddresses[i], { value: candidateMinStake });
-            }
-
-            // The delegator places stake on the first validator
-            delegator = accounts[10];
-            delegatorMinStake = await stakingHbbft.delegatorMinStake();
-            await stakingHbbft.connect(delegator).stake(initialStakingAddresses[0], { value: delegatorMinStake });
-
-            // Epoch's fixed duration ends
-            //const stakingFixedEpochEndBlock = await stakingHbbft.stakingFixedEpochEndBlock();
-            //
-
-            await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-
-            // the pending validator set should be updated
-            (await validatorSetHbbft.getPendingValidators()).length.should.be.equal(3);
-
-            // Staking epoch #0 finishes
-            //const stakingEpochEndBlock = stakingFixedEpochEndBlock.add(keyGenerationDuration);
-
-            await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-            (await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(1));
-        });
-
-        async function _claimRewardStakeIncreasing(epochsPoolRewarded: number[], epochsStakeIncreased: number[]) {
-            const miningAddress = initialValidators[0];
-            const stakingAddress = initialStakingAddresses[0];
-            const epochPoolReward = BigNumber.from(ethers.utils.parseEther('1'));
-            const maxStakingEpoch = Math.max(Math.max.apply(null, epochsPoolRewarded), Math.max.apply(null, epochsStakeIncreased));
-
-            (await ethers.provider.getBalance(blockRewardContract.address)).should.be.equal('0');
-
-            // Emulate rewards for the pool
-            for (let i = 0; i < epochsPoolRewarded.length; i++) {
-                const stakingEpoch = epochsPoolRewarded[i];
-                await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            }
-
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(epochPoolReward.mul(BigNumber.from(epochsPoolRewarded.length)));
-
-            let prevStakingEpoch = 0;
-            const validatorStakeAmount = await stakingHbbftContract.stakeAmount(stakingAddress, stakingAddress);
-            let stakeAmount = await stakingHbbftContract.stakeAmount(stakingAddress, delegator.address);
-            let stakeAmountOnEpoch = [BigNumber.from(0)];
-
-            let s = 0;
-            for (let epoch = 1; epoch <= maxStakingEpoch; epoch++) {
-                const stakingEpoch = epochsStakeIncreased[s];
-
-                if (stakingEpoch == epoch) {
-                    const startBlock = BigNumber.from(120954 * stakingEpoch + 1);
-                    await stakingHbbftContract.setStakingEpoch(stakingEpoch);
-                    await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-                    //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-                    await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-
-
-                    // Emulate delegator's stake increasing
-                    await stakingHbbftContract.connect(delegator).stake(stakingAddress, { value: delegatorMinStake });
-
-                    for (let e = prevStakingEpoch + 1; e <= stakingEpoch; e++) {
-                        stakeAmountOnEpoch[e] = stakeAmount;
-                    }
-                    stakeAmount = await stakingHbbftContract.stakeAmount(stakingAddress, delegator.address);
-                    prevStakingEpoch = stakingEpoch;
-                    s++;
-                }
-
-                // Emulate snapshotting for the pool
-                await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, epoch + 1, miningAddress);
-            }
-
-            const lastEpochRewarded = epochsPoolRewarded[epochsPoolRewarded.length - 1];
-            await stakingHbbftContract.setStakingEpoch(lastEpochRewarded + 1);
-
-            if (prevStakingEpoch < lastEpochRewarded) {
-                for (let e = prevStakingEpoch + 1; e <= lastEpochRewarded; e++) {
-                    stakeAmountOnEpoch[e] = stakeAmount;
-                }
-            }
-
-            let delegatorRewardExpected = BigNumber.from(0);
-            let validatorRewardExpected = BigNumber.from(0);
-            for (let i = 0; i < epochsPoolRewarded.length; i++) {
-                const stakingEpoch = epochsPoolRewarded[i];
-                await blockRewardContract.setValidatorMinRewardPercent(stakingEpoch, 30);
-                const delegatorShare = await blockRewardContract.delegatorShare(
-                    stakingEpoch,
-                    stakeAmountOnEpoch[stakingEpoch],
-                    validatorStakeAmount,
-                    validatorStakeAmount.add(stakeAmountOnEpoch[stakingEpoch]),
-                    epochPoolReward
-                );
-                const validatorShare = await blockRewardContract.validatorShare(
-                    stakingEpoch,
-                    validatorStakeAmount,
-                    validatorStakeAmount.add(stakeAmountOnEpoch[stakingEpoch]),
-                    epochPoolReward
-                );
-                delegatorRewardExpected = delegatorRewardExpected.add(delegatorShare);
-                validatorRewardExpected = validatorRewardExpected.add(validatorShare);
-            }
-
-            return {
-                delegatorMinStake,
-                miningAddress,
-                stakingAddress,
-                epochPoolReward,
-                maxStakingEpoch,
-                delegatorRewardExpected,
-                validatorRewardExpected
-            };
-        }
-
-        async function _delegatorNeverStakedBefore() {
-            const miningAddress = initialValidators[0];
-            const stakingAddress = initialStakingAddresses[0];
-
-            const epochPoolReward = BigNumber.from(ethers.utils.parseEther('1'));
-            const deltaPotFillupValue = epochPoolReward.mul(BigNumber.from('60'));
-            //blockRewardHbbft.add
-            await blockRewardContract.addToDeltaPot({ value: deltaPotFillupValue });
-
-
-            // the beforeeach  alsready runs 1 epoch, so we expect to be in epoch 1 here.
-            (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(1));
-
-            //await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-            //(await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(2));
-
-            // the pending validator set should be empy
-            (await validatorSetContract.getPendingValidators()).length.should.be.equal(0);
-
-            // Staking epoch #1: Start
-            (await validatorSetContract.getValidators()).should.be.deep.equal(initialValidators);
-            (await stakingHbbftContract.areStakeAndWithdrawAllowed()).should.be.equal(true);
-            await stakingHbbftContract.connect(delegator).orderWithdraw(stakingAddress, delegatorMinStake);
-
-
-            (await validatorSetContract.getPendingValidators()).length.should.be.equal(0);
-
-            // Staking epoch #1: start of Transition Phase!
-            await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-
-            // the pending validator set should be updated
-            (await validatorSetContract.getPendingValidators()).length.should.be.equal(3);
-
-            //!!! here it failes for some reason
-            //Staking epoch #1: Epoch end block
-            await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-
-            // we restock this one epoch reward that got payed out.
-            // todo: think about: Maybe this restocking should happen in the timeTravelToEndEpoch function to have
-            // constant epoch payouts.
-            await blockRewardContract.addToDeltaPot({ value: epochPoolReward });
-
-            // now epoch #2 has started.
-            (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(2));
-
-            // the pending validator set should be empty
-            (await validatorSetContract.getPendingValidators()).length.should.be.equal(0);
-
-            // epoch #2: the delegator withdraws their stake
-            await stakingHbbftContract.connect(delegator).claimOrderedWithdraw(stakingAddress);
-
-            (await stakingHbbftContract.stakeAmount(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(0));
-            (await stakingHbbftContract.orderedWithdrawAmount(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(0));
-            (await stakingHbbftContract.stakeFirstEpoch(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(1));
-            (await stakingHbbftContract.stakeLastEpoch(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(2));
-
-            await stakingHbbftContract.setStakeFirstEpoch(stakingAddress, delegator.address, BigNumber.from(0));
-            await stakingHbbftContract.setStakeLastEpoch(stakingAddress, delegator.address, BigNumber.from(0));
-            await stakingHbbftContract.clearDelegatorStakeSnapshot(stakingAddress, delegator.address, BigNumber.from(1));
-            await stakingHbbftContract.clearDelegatorStakeSnapshot(stakingAddress, delegator.address, BigNumber.from(2));
-
-            // Staking epoch #2: end of fixed duration
-            await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-
-            // Staking epoch #2: Epoch end block
-            await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-
-            (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(3));
-            //(await stakingHbbft.stakingEpochStartBlock()).should.be.equal(stakingEpochEndBlock.add(BigNumber.from(1)));
-            return { miningAddress, stakingAddress, epochPoolReward };
-        }
-
-        async function testClaimRewardRandom(epochsPoolRewarded: number[], epochsStakeIncreased: number[]) {
-            const {
-                delegatorMinStake,
-                miningAddress,
-                stakingAddress,
-                epochPoolReward,
-                maxStakingEpoch,
-                delegatorRewardExpected,
-                validatorRewardExpected
-            } = await _claimRewardStakeIncreasing(
-                epochsPoolRewarded,
-                epochsStakeIncreased
+            expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(0n);
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
             );
 
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            let weiSpent = BigNumber.from(0);
-            let epochsPoolRewardedRandom = epochsPoolRewarded;
-            shuffle(epochsPoolRewardedRandom);
-            for (let i = 0; i < epochsPoolRewardedRandom.length; i++) {
-                const stakingEpoch = epochsPoolRewardedRandom[i];
-                let result = await stakingHbbftContract.connect(delegator).claimReward([stakingEpoch], stakingAddress);
-                let receipt = await ethers.provider.getTransactionReceipt(result.hash);
-                weiSpent = weiSpent.add((BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice)));
-                // Call once again to ensure the reward cannot be withdrawn twice
-                result = await stakingHbbftContract.connect(delegator).claimReward([stakingEpoch], stakingAddress);
-                receipt = await ethers.provider.getTransactionReceipt(result.hash);
-                weiSpent = weiSpent.add((BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice)));
-            }
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
+            expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.to.be.equal(minStake);
 
-            const validatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(stakingAddress));
-            weiSpent = BigNumber.from(0);
-            shuffle(epochsPoolRewardedRandom);
-            for (let i = 0; i < epochsPoolRewardedRandom.length; i++) {
-                const stakingEpoch = epochsPoolRewardedRandom[i];
-                const result = await stakingHbbftContract.connect(await ethers.getSigner(stakingAddress)).claimReward([stakingEpoch], stakingAddress);
-                let receipt = await ethers.provider.getTransactionReceipt(result.hash);
-                weiSpent = weiSpent.add((BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice)));
-            }
-            const validatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(stakingAddress));
-            validatorCoinsBalanceAfter.should.be.equal(validatorCoinsBalanceBefore.add(validatorRewardExpected).sub(weiSpent));
-
-            const blockRewardBalanceExpected = epochPoolReward.mul(BigNumber.from(epochsPoolRewarded.length)).sub(delegatorRewardExpected).sub(validatorRewardExpected);
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(blockRewardBalanceExpected);
-        }
-
-        async function testClaimRewardAfterStakeIncreasing(epochsPoolRewarded: number[], epochsStakeIncreased: number[]) {
-            const {
-                delegatorMinStake,
-                miningAddress,
-                stakingAddress,
-                epochPoolReward,
-                maxStakingEpoch,
-                delegatorRewardExpected,
-                validatorRewardExpected
-            } = await _claimRewardStakeIncreasing(
-                epochsPoolRewarded,
-                epochsStakeIncreased
+            await stakingHbbft.connect(candidateStakingAddress).stake(
+                candidateStakingAddress.address,
+                { value: minStake }
             );
 
-            let rewardAmountsCalculated = await stakingHbbftContract.getRewardAmount([], stakingAddress, delegator.address);
-            rewardAmountsCalculated.should.be.equal(delegatorRewardExpected);
-
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            const result = await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress);
-            const receipt = await result.wait();
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
-
-            rewardAmountsCalculated = await stakingHbbftContract.getRewardAmount([], stakingAddress, stakingAddress);
-            rewardAmountsCalculated.should.be.equal(validatorRewardExpected);
-
-            await stakingHbbftContract.connect(await ethers.getSigner(stakingAddress)).claimReward([], stakingAddress);
-
-            const blockRewardBalanceExpected = epochPoolReward.mul(BigNumber.from(epochsPoolRewarded.length)).sub(delegatorRewardExpected).sub(validatorRewardExpected);
-
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(blockRewardBalanceExpected);
-        }
-
-        async function testClaimRewardAfterStakeMovements(epochsPoolRewarded: number[], epochsStakeMovement: number[]) {
-            const miningAddress = initialValidators[0];
-            const stakingAddress = initialStakingAddresses[0];
-            const epochPoolReward = BigNumber.from(ethers.utils.parseEther('1'));
-
-            const deltaPotFillupValue = epochPoolReward.mul(BigNumber.from('60'));
-            //blockRewardHbbft.add
-            await blockRewardContract.addToDeltaPot({ value: deltaPotFillupValue });
-
-            const currentblockRewardHbbftBalance = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            currentblockRewardHbbftBalance.should.be.equal(deltaPotFillupValue);
-
-            for (let i = 0; i < epochsPoolRewarded.length; i++) {
-                const stakingEpoch = epochsPoolRewarded[i];
-
-                // Emulate snapshotting for the pool
-                await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch, miningAddress);
-
-                // Emulate rewards for the pool
-                await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            }
-
-            // initial validator got reward for epochsPoolRewarded
-            (await blockRewardContract.epochsPoolGotRewardFor(miningAddress)).length.should.be.equal(epochsPoolRewarded.length);
-
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(deltaPotFillupValue.add(epochPoolReward.mul(BigNumber.from(epochsPoolRewarded.length))));
-
-            for (let i = 0; i < epochsStakeMovement.length; i++) {
-                const stakingEpoch = epochsStakeMovement[i];
-
-                // Emulate delegator's stake movement
-                const startBlock = BigNumber.from(120954 * stakingEpoch + 1);
-                await stakingHbbftContract.setStakingEpoch(stakingEpoch);
-                await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-                //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-                await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-                await stakingHbbftContract.connect(delegator).orderWithdraw(stakingAddress, delegatorMinStake);
-                await stakingHbbftContract.connect(delegator).orderWithdraw(stakingAddress, BigNumber.from(0).sub(delegatorMinStake));
-            }
-
-            const stakeFirstEpoch = await stakingHbbftContract.stakeFirstEpoch(stakingAddress, delegator.address);
-            await stakingHbbftContract.setStakeFirstEpoch(stakingAddress, delegator.address, 0);
-            await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress).should.be.rejectedWith("Claim: first epoch can't be 0");
-            await stakingHbbftContract.setStakeFirstEpoch(stakingAddress, delegator.address, stakeFirstEpoch);
-
-            if (epochsPoolRewarded.length > 0) {
-                if (epochsPoolRewarded.length > 1) {
-                    const reversedEpochsPoolRewarded = [...epochsPoolRewarded].reverse();
-                    const currentEpoch = (await stakingHbbftContract.stakingEpoch()).toNumber();
-                    if (reversedEpochsPoolRewarded[0] < currentEpoch) {
-                        await stakingHbbftContract.connect(delegator).claimReward(reversedEpochsPoolRewarded, stakingAddress).should.be.rejectedWith("Claim: need strictly increasing order");
-                    } else {
-                        await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress).should.be.rejectedWith("Claim: only before current epoch");
-                    }
-                }
-
-                await stakingHbbftContract.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1]);
-                await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress).should.be.rejectedWith("Claim: only before current epoch");
-                await stakingHbbftContract.setStakingEpoch(epochsPoolRewarded[epochsPoolRewarded.length - 1] + 1);
-
-                if (epochsPoolRewarded.length == 1) {
-                    const validatorStakeAmount = await blockRewardContract.snapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress);
-                    await blockRewardContract.setSnapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress, 0);
-                    const result = await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress);
-                    const receipt = await result.wait();
-                    receipt.events?.length.should.be.equal(1);
-                    receipt.events?.[0].args?.nativeCoinsAmount.should.be.equal(BigNumber.from(0));
-                    await blockRewardContract.setSnapshotPoolValidatorStakeAmount(epochsPoolRewarded[0], miningAddress, validatorStakeAmount);
-                    await stakingHbbftContract.clearRewardWasTaken(stakingAddress, delegator.address, epochsPoolRewarded[0]);
-                }
-            }
-            //staked half the amount, hence .div(2)
-            const delegatorRewardExpected = epochPoolReward.mul(BigNumber.from(epochsPoolRewarded.length)).div(BigNumber.from(2));
-
-            const rewardAmountsCalculated = await stakingHbbftContract.getRewardAmount([], stakingAddress, delegator.address);
-            rewardAmountsCalculated.should.be.equal(delegatorRewardExpected);
-
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            let weiSpent = BigNumber.from(0);
-            for (let i = 0; i < 3; i++) {
-                // We call `claimReward` several times, but it withdraws the reward only once
-                const result = await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress);
-                const receipt = await result.wait();
-                weiSpent = weiSpent.add((BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice)));
-            }
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
-
-            for (let i = 0; i < 3; i++) {
-                // We call `claimReward` several times, but it withdraws the reward only once
-                const result = await stakingHbbftContract.connect(await ethers.getSigner(stakingAddress)).claimReward([], stakingAddress);
-                const receipt = await result.wait();
-                if (i == 0) {
-                    receipt.events?.length.should.be.equal(epochsPoolRewarded.length);
-                } else {
-                    receipt.events?.length.should.be.equal(0);
-                }
-            }
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(deltaPotFillupValue);
-        }
-
-        it('reward tries to be withdrawn before first stake', async () => {
-            const {
-                miningAddress,
-                stakingAddress,
-            } = await _delegatorNeverStakedBefore();
-
-            //const deltaPotFillupValue = BigNumber.from(web3.eth.toWei(60));
-            //await blockRewardHbbft.addToDeltaPot({value: deltaPotFillupValue});
-
-            // a fake epoch reward.
-            const epochPoolReward = '1000';
-
-            // Emulate snapshotting and rewards for the pool on the epoch #9
-            let stakingEpoch = 9;
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch, miningAddress);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (await blockRewardContract.epochPoolNativeReward(stakingEpoch, miningAddress)).should.be.equal(epochPoolReward);
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // Emulate the delegator's first stake on epoch #10
-            stakingEpoch = 10;
-
-            await stakingHbbftContract.setStakingEpoch(stakingEpoch);
-            await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-            //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-            await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-
-            await stakingHbbftContract.connect(delegator).stake(stakingAddress, { value: delegatorMinStake });
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (await blockRewardContract.epochPoolNativeReward(stakingEpoch, miningAddress)).should.be.equal(epochPoolReward);
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // // Emulate rewards for the pool on epoch #11
-            stakingEpoch = 11;
-            await stakingHbbftContract.setStakingEpoch(stakingEpoch);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (await blockRewardContract.epochPoolNativeReward(stakingEpoch, miningAddress)).should.be.equal(epochPoolReward);
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            await stakingHbbftContract.setStakingEpoch(12);
-
-            const rewardAmountsCalculated = await stakingHbbftContract.getRewardAmount([9, 10], stakingAddress, delegator.address);
-            rewardAmountsCalculated.should.be.equal(BigNumber.from(0));
-
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            let result = await stakingHbbftContract.connect(delegator).claimReward([9, 10], stakingAddress);
-            let receipt = await result.wait();
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            receipt.events?.length.should.be.equal(0);
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
-
-            const unclaimedEpochs = await blockRewardContract.epochsPoolGotRewardFor(miningAddress);
-
-            result = await stakingHbbftContract.connect(await ethers.getSigner(stakingAddress)).claimReward([], stakingAddress);
-            receipt = await result.wait();
-            //console.log('rewards for ', stakingAddress);
-            //console.log(result);
-            receipt.events?.length.should.be.equal(5);
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(1));
-            receipt.events?.[1].args?.stakingEpoch.should.be.equal(BigNumber.from(2));
-            receipt.events?.[2].args?.stakingEpoch.should.be.equal(BigNumber.from(9));
-            receipt.events?.[3].args?.stakingEpoch.should.be.equal(BigNumber.from(10));
-            receipt.events?.[4].args?.stakingEpoch.should.be.equal(BigNumber.from(11));
-
-            result = await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress);
-            receipt = await result.wait();
-            receipt.events?.length.should.be.equal(1);
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(11));
-
-            (await stakingHbbftContract.stakeFirstEpoch(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(11));
-            (await stakingHbbftContract.stakeLastEpoch(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(0));
-        });
-
-        it('delegator stakes and withdraws at the same epoch', async () => {
-            const {
-                miningAddress,
-                stakingAddress
-            } = await _delegatorNeverStakedBefore();
-
-            const epochPoolReward = '1000';
-
-            // Emulate snapshotting and rewards for the pool on the epoch #9
-            let stakingEpoch = 9;
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch, miningAddress);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (await blockRewardContract.epochPoolNativeReward(stakingEpoch, miningAddress)).should.be.equal(epochPoolReward);
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // Emulate the delegator's first stake and withdrawal on epoch #10
-            stakingEpoch = 10;
-            const startBlock = BigNumber.from(120954 * stakingEpoch + 1);
-            await stakingHbbftContract.setStakingEpoch(stakingEpoch);
-            await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-            //await stakingHbbftContract.setStakingEpochStartBlock(startBlock);
-            await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-
-            await stakingHbbftContract.connect(delegator).stake(stakingAddress, { value: delegatorMinStake });
-            await stakingHbbftContract.connect(delegator).withdraw(stakingAddress, delegatorMinStake);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // Emulate rewards for the pool on epoch #11
-            stakingEpoch = 11;
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            await stakingHbbftContract.setStakingEpoch(12);
-
-            const rewardAmountsCalculated = await stakingHbbftContract.getRewardAmount([], stakingAddress, delegator.address);
-            rewardAmountsCalculated.should.be.equal(BigNumber.from(0));
-
-
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            let result = await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress);
-            let receipt = await result.wait();
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            receipt.events?.length.should.be.equal(0);
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
-
-            result = await stakingHbbftContract.connect(await ethers.getSigner(stakingAddress)).claimReward([], stakingAddress);
-            receipt = await result.wait();
-            receipt.events?.length.should.be.equal(5);
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(1));
-            receipt.events?.[1].args?.stakingEpoch.should.be.equal(BigNumber.from(2));
-            receipt.events?.[2].args?.stakingEpoch.should.be.equal(BigNumber.from(9));
-            receipt.events?.[3].args?.stakingEpoch.should.be.equal(BigNumber.from(10));
-            receipt.events?.[4].args?.stakingEpoch.should.be.equal(BigNumber.from(11));
-
-            (await stakingHbbftContract.stakeFirstEpoch(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(11));
-            (await stakingHbbftContract.stakeLastEpoch(stakingAddress, delegator.address)).should.be.equal(BigNumber.from(11));
-        });
-
-        it('non-rewarded epochs are passed', async () => {
-            const miningAddress = initialValidators[0];
-            const stakingAddress = initialStakingAddresses[0];
-            const epochPoolReward = BigNumber.from(ethers.utils.parseEther('1'));
-
-            const epochsPoolRewarded = [10, 20, 30, 40, 50];
-            for (let i = 0; i < epochsPoolRewarded.length; i++) {
-                const stakingEpoch = epochsPoolRewarded[i];
-
-                // Emulate snapshotting for the pool
-                await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch, miningAddress);
-
-                // Emulate rewards for the pool
-                await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            }
-            // initial validator got reward for epochs: [10, 20, 30, 40, 50]
-            (await blockRewardContract.epochsPoolGotRewardFor(miningAddress)).length.should.be.equal(5);
-
-            await stakingHbbftContract.setStakingEpoch(51);
-
-            const epochsToWithdrawFrom = [15, 25, 35, 45];
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            const result = await stakingHbbftContract.connect(delegator).claimReward(epochsToWithdrawFrom, stakingAddress);
-            const receipt = await result.wait();
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            receipt.events?.length.should.be.equal(epochsToWithdrawFrom.length);
-            for (let i = 0; i < epochsToWithdrawFrom.length; i++) {
-                receipt.events?.[i].args?.stakingEpoch.should.be.equal(BigNumber.from(epochsToWithdrawFrom[i]));
-                receipt.events?.[i].args?.nativeCoinsAmount.should.be.equal(BigNumber.from(0));
-            }
-
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
-        });
-
-        it('stake movements 1', async () => {
-            await testClaimRewardAfterStakeMovements(
-                [5, 15, 25, 35],
-                [10, 20, 30]
-            );
-        });
-
-        it('stake movements 2', async () => {
-            await testClaimRewardAfterStakeMovements(
-                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                [1, 2, 3, 4, 5, 6, 7, 8, 9]
-            );
-        });
-
-        it('stake movements 3', async () => {
-            await testClaimRewardAfterStakeMovements(
-                [1, 3, 6, 10],
-                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-            );
-        });
-
-        it('stake movements 4', async () => {
-            await testClaimRewardAfterStakeMovements(
-                [],
-                [1, 2, 3]
-            );
-        });
-
-        it('stake movements 5', async () => {
-            await testClaimRewardAfterStakeMovements(
-                [2],
-                [1, 2, 3]
-            );
-        });
-
-        it('stake increasing 1', async () => {
-            await testClaimRewardAfterStakeIncreasing(
-                [5, 15, 25, 35],
-                [4, 14, 24, 34]
-            );
-        });
-
-        it('stake increasing 2', async () => {
-            await testClaimRewardAfterStakeIncreasing(
-                [5, 15, 25, 35],
-                [10, 20, 30]
-            );
-        });
-
-        it('stake increasing 3', async () => {
-            await testClaimRewardAfterStakeIncreasing(
-                [1, 2, 3, 4, 5, 6],
-                [1, 2, 3, 4, 5]
-            );
-        });
-
-        it('stake increasing 4', async () => {
-            await testClaimRewardAfterStakeIncreasing(
-                [1, 3, 6, 10],
-                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-            );
-        });
-
-        it('stake increasing 5', async () => {
-            await testClaimRewardAfterStakeIncreasing(
-                [5, 15, 25],
-                [5, 15, 25]
-            );
-        });
-
-        it('stake increasing', async () => {
-            await testClaimRewardAfterStakeIncreasing(
-                [5, 7, 9],
-                [6, 8, 10]
-            );
-        });
-
-        it('random withdrawal 1', async () => {
-            await testClaimRewardRandom(
-                [5, 15, 25, 35],
-                [4, 14, 24, 34]
-            );
-        });
-
-        it('random withdrawal 2', async () => {
-            await testClaimRewardRandom(
-                [5, 15, 25, 35],
-                [10, 20, 30]
-            );
-        });
-
-        it('random withdrawal 3', async () => {
-            await testClaimRewardRandom(
-                [1, 2, 3, 4, 5, 6],
-                [1, 2, 3, 4, 5]
-            );
-        });
-
-        it('random withdrawal 4', async () => {
-            await testClaimRewardRandom(
-                [1, 3, 6, 10],
-                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-            );
-        });
-
-        it('random withdrawal 5', async () => {
-            await testClaimRewardRandom(
-                [5, 15, 25],
-                [5, 15, 25]
-            );
-        });
-
-        it('random withdrawal 6', async () => {
-            await testClaimRewardRandom(
-                [5, 7, 9],
-                [6, 8, 10]
-            );
-        });
-
-        it('reward got from the first epoch', async () => {
-            await testClaimRewardAfterStakeMovements([1], []);
-        });
-
-        it('stake is withdrawn forever 1', async () => {
-            const miningAddress = initialValidators[0];
-            const stakingAddress = initialStakingAddresses[0];
-            const epochPoolReward = BigNumber.from(ethers.utils.parseEther('1'));
-
-            (await ethers.provider.getBalance(blockRewardContract.address)).should.be.equal('0');
-
-            let stakingEpoch;
-
-            // Emulate snapshotting and rewards for the pool
-            stakingEpoch = 9;
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch, miningAddress);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(epochPoolReward);
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // Emulate delegator's stake withdrawal
-            stakingEpoch = 10;
-            //const stakingEpochStartBlock = BigNumber.from(120954 * stakingEpoch + 1);
-            await stakingHbbftContract.setStakingEpoch(stakingEpoch);
-            await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-            //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock);
-            await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-
-            await stakingHbbftContract.connect(delegator).orderWithdraw(stakingAddress, delegatorMinStake);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(epochPoolReward.mul(BigNumber.from(2)));
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // Emulate rewards for the pool
-            stakingEpoch = 11;
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(epochPoolReward.mul(BigNumber.from(3)));
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            await stakingHbbftContract.setStakingEpoch(12);
-
-            const delegatorRewardExpected = epochPoolReward.mul(BigNumber.from(2)).div(BigNumber.from(2));
-
-            const rewardAmountsCalculated = await stakingHbbftContract.getRewardAmount([], stakingAddress, delegator.address);
-            rewardAmountsCalculated.should.be.equal(delegatorRewardExpected);
-
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            let result = await stakingHbbftContract.connect(delegator).claimReward([], stakingAddress);
-            let receipt = await result.wait();
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            receipt.events?.length.should.be.equal(2);
-            receipt.events?.[0].event?.should.be.equal("ClaimedReward");
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(9));
-            receipt.events?.[0].args?.nativeCoinsAmount.should.be.equal(epochPoolReward.div(BigNumber.from(2)));
-            receipt.events?.[1].event?.should.be.equal("ClaimedReward");
-            receipt.events?.[1].args?.stakingEpoch.should.be.equal(BigNumber.from(10));
-            receipt.events?.[1].args?.nativeCoinsAmount.should.be.equal(epochPoolReward.div(BigNumber.from(2)));
-
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(delegatorRewardExpected).sub(weiSpent));
-
-            result = await stakingHbbftContract.connect(await ethers.getSigner(stakingAddress)).claimReward([], stakingAddress);
-            receipt = await result.wait();
-            receipt.events?.length.should.be.equal(3);
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(9));
-            receipt.events?.[1].args?.stakingEpoch.should.be.equal(BigNumber.from(10));
-            receipt.events?.[2].args?.stakingEpoch.should.be.equal(BigNumber.from(11));
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(BigNumber.from(0));
-        });
-
-        it('stake is withdrawn forever 2', async () => {
-            const miningAddress = initialValidators[0];
-            const stakingAddress = initialStakingAddresses[0];
-            const epochPoolReward = BigNumber.from(ethers.utils.parseEther('1'));
-
-            (await ethers.provider.getBalance(blockRewardContract.address)).should.be.equal('0');
-
-            let stakingEpoch;
-
-            // Emulate snapshotting and rewards for the pool
-            stakingEpoch = 9;
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch, miningAddress);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(epochPoolReward);
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // Emulate delegator's stake withdrawal
-            stakingEpoch = 10;
-            //const stakingEpochStartBlock = BigNumber.from(120954 * stakingEpoch + 1);
-            await stakingHbbftContract.setStakingEpoch(stakingEpoch);
-            await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-            //await stakingHbbft.setStakingEpochStartBlock(stakingEpochStartBlock);
-            await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-
-            await stakingHbbftContract.connect(delegator).orderWithdraw(stakingAddress, delegatorMinStake);
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(epochPoolReward.mul(BigNumber.from(2)));
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            // Emulate rewards for the pool
-            stakingEpoch = 11;
-            await blockRewardContract.setEpochPoolReward(stakingEpoch, miningAddress, { value: epochPoolReward });
-            (BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address))).should.be.equal(epochPoolReward.mul(BigNumber.from(3)));
-            await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch + 1, miningAddress);
-
-            await stakingHbbftContract.setStakingEpoch(12);
-
-            const rewardAmountsCalculated = await stakingHbbftContract.getRewardAmount([11], stakingAddress, delegator.address);
-            rewardAmountsCalculated.should.be.equal(BigNumber.from(0));
-
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            const result = await stakingHbbftContract.connect(delegator).claimReward([11], stakingAddress);
-            const receipt = await result.wait();
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            receipt.events?.length.should.be.equal(0);
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.sub(weiSpent));
-        });
-
-        it('gas consumption for one staking epoch is OK', async () => {
-            const stakingEpoch = 2600;
-
-            await blockRewardContract.addToDeltaPot({ value: deltaPotFillupValue });
-
-            for (let i = 0; i < initialValidators.length; i++) {
-                await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, stakingEpoch, initialValidators[i]);
-            }
-
-            await stakingHbbftContract.setStakingEpoch(stakingEpoch - 1);
-
-            await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-            //await stakingHbbftContract.setStakingEpochStartBlock(epochStartBlock);
-            await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-            // new validatorSet at the end of fixed epoch duration
-
-            await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-            await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-
-            (await validatorSetContract.getValidators()).should.be.deep.equal(initialValidators);
-            (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(stakingEpoch));
-
-
-            let blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-            for (let i = 0; i < initialValidators.length; i++) {
-                (await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i])).should.be.equal(BigNumber.from(0));
-            }
-
-            await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-            await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-
-            (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(stakingEpoch + 1));
-            //epochStartBlock = await stakingHbbftContract.stakingEpochStartBlock();
-            //epochStartBlock.should.be.equal(BigNumber.from(120954 * (stakingEpoch + 1) + 2 + 2 + 1)); // +2 for kegen duration
-
-            let distributedCoinsAmount = BigNumber.from(0);
-            for (let i = 0; i < initialValidators.length; i++) {
-                const epochPoolNativeReward = await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i]);
-                epochPoolNativeReward.should.be.above(BigNumber.from(0));
-                distributedCoinsAmount = distributedCoinsAmount.add(epochPoolNativeReward);
-            }
-
-            // const blockRewardContract.maintenanceFundAddress();
-            // console.log('DAO Coin amount');
-            // distributedCoinsAmount
-
-            let blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.add(distributedCoinsAmount));
-
-            // The delegator claims their rewards
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-            blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-            const expectedClaimRewardAmounts = (await stakingHbbftContract.getRewardAmount([stakingEpoch], initialStakingAddresses[0], delegator.address));
-
-            const result = await stakingHbbftContract.connect(delegator).claimReward([stakingEpoch], initialStakingAddresses[0]);
-
-            let receipt = await result.wait();
-
-            receipt.events?.[0].event?.should.be.equal("ClaimedReward");
-            receipt.events?.[0].args?.fromPoolStakingAddress.should.be.equal(initialStakingAddresses[0]);
-            receipt.events?.[0].args?.staker.should.be.equal(delegator.address);
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(stakingEpoch));
-
-            const claimedCoinsAmount = receipt.events?.[0].args?.nativeCoinsAmount;
-            expectedClaimRewardAmounts.should.be.equal(claimedCoinsAmount);
-
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-
-            if (!!process.env.SOLIDITY_COVERAGE !== true) {
-                // receipt.gasUsed.should.be.below(1700000);
-                receipt.gasUsed.should.be.below(3120000); // for Istanbul
-            }
-
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(claimedCoinsAmount).sub(weiSpent));
-            blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.sub(claimedCoinsAmount));
-        });
-
-        it('gas consumption for 20 staking epochs is OK', async () => {
-            const maxStakingEpoch = 20;
-            maxStakingEpoch.should.be.above(2);
-
-            await blockRewardContract.addToDeltaPot({ value: deltaPotFillupValue });
-
-            // Loop of staking epochs
-            for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
-                // Finalize change i.e. finalize pending validators, increase epoch and set stakingEpochStartBlock
-                if (stakingEpoch == 1) {
-                    await stakingHbbftContract.setStakingEpoch(1);
-
-                    await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-                    //await stakingHbbftContract.setStakingEpochStartBlock(startBlock);
-                    await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-                }
-
-                (await validatorSetContract.getValidators()).should.be.deep.equal(initialValidators);
-                (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(stakingEpoch));
-
-                // await timeTravelToTransition(validatorSetContract, blockRewardContract, stakingHbbftContract);
-                // await timeTravelToEndEpoch(validatorSetContract, blockRewardContract, stakingHbbftContract);
-
-                const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                for (let i = 0; i < initialValidators.length; i++) {
-                    (await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i])).should.be.equal(BigNumber.from(0));
-                }
-
-                await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-                await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-
-                let distributedCoinsAmount = BigNumber.from(0);
-                for (let i = 0; i < initialValidators.length; i++) {
-                    const epochPoolNativeReward = await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i]);
-                    epochPoolNativeReward.should.be.above(BigNumber.from(0));
-                    distributedCoinsAmount = distributedCoinsAmount.add(epochPoolNativeReward);
-                }
-                const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.add(distributedCoinsAmount));
-            }
-
-            // The delegator claims their rewards
-            let initialGasConsumption = BigNumber.from(0);
-            let startGasConsumption = BigNumber.from(0);
-            let endGasConsumption = BigNumber.from(0);
-            let blockRewardCoinsBalanceTotalBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-            let coinsDelegatorGotForAllEpochs = BigNumber.from(0);
-            for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
-                const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-
-                const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-                const expectedClaimRewardAmounts = (await stakingHbbftContract.getRewardAmount([stakingEpoch], initialStakingAddresses[0], delegator.address));
-
-                let result = await stakingHbbftContract.connect(delegator).claimReward([stakingEpoch], initialStakingAddresses[0]);
-                let receipt = await result.wait();
-                receipt.events?.[0].event?.should.be.equal("ClaimedReward");
-                receipt.events?.[0].args?.fromPoolStakingAddress.should.be.equal(initialStakingAddresses[0]);
-                receipt.events?.[0].args?.staker.should.be.equal(delegator.address);
-                receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(stakingEpoch));
-
-                const claimedCoinsAmount = receipt.events?.[0].args?.nativeCoinsAmount;
-
-                expectedClaimRewardAmounts.should.be.equal(claimedCoinsAmount);
-
-                receipt = await result.wait();
-                const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-
-                if (stakingEpoch == 1) {
-                    initialGasConsumption = BigNumber.from(receipt.gasUsed);
-                } else if (stakingEpoch == 2) {
-                    startGasConsumption = BigNumber.from(receipt.gasUsed);
-                } else if (stakingEpoch == maxStakingEpoch) {
-                    endGasConsumption = BigNumber.from(receipt.gasUsed);
-                }
-
-                const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-                const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(claimedCoinsAmount).sub(weiSpent));
-                blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.sub(claimedCoinsAmount));
-
-                coinsDelegatorGotForAllEpochs = coinsDelegatorGotForAllEpochs.add(claimedCoinsAmount);
-
-                // console.log(`stakingEpoch = ${stakingEpoch}, gasUsed = ${receipt.gasUsed}, cumulativeGasUsed = ${receipt.cumulativeGasUsed}`);
-            }
-
-            if (!!process.env.SOLIDITY_COVERAGE !== true) {
-                const perEpochGasConsumption = endGasConsumption.sub(startGasConsumption).div(BigNumber.from(maxStakingEpoch - 2));
-                // perEpochGasConsumption.should.be.equal(BigNumber.from(509));
-                perEpochGasConsumption.should.be.equal(BigNumber.from(1159)); // for Istanbul
-
-                // Check gas consumption for the case when the delegator didn't touch their
-                // stake for 50 years (2600 staking epochs)
-                const maxGasConsumption = initialGasConsumption.sub(perEpochGasConsumption).add(perEpochGasConsumption.mul(BigNumber.from(2600)));
-                // maxGasConsumption.should.be.below(BigNumber.from(1700000));
-                maxGasConsumption.should.be.below(BigNumber.from(3120000)); // for Istanbul
-            }
-
-            let blockRewardCoinsBalanceTotalAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-            blockRewardCoinsBalanceTotalAfter.should.be.equal(blockRewardCoinsBalanceTotalBefore.sub(coinsDelegatorGotForAllEpochs));
-
-            // The validators claim their rewards
-            let coinsValidatorsGotForAllEpochs = BigNumber.from(0);
-            for (let v = 0; v < initialStakingAddresses.length; v++) {
-                for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
-                    const validator = initialStakingAddresses[v];
-                    const validatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(validator));
-                    const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-                    const expectedClaimRewardAmounts = (await stakingHbbftContract.getRewardAmount([stakingEpoch], validator, validator));
-
-                    let result = await stakingHbbftContract.connect(await ethers.getSigner(validator)).claimReward([stakingEpoch], validator);
-                    let receipt = await result.wait()
-                    receipt.events?.[0].event?.should.be.equal("ClaimedReward");
-                    receipt.events?.[0].args?.fromPoolStakingAddress.should.be.equal(validator);
-                    receipt.events?.[0].args?.staker.should.be.equal(validator);
-                    receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(stakingEpoch));
-
-                    const claimedCoinsAmount = receipt.events?.[0].args?.nativeCoinsAmount;
-
-                    expectedClaimRewardAmounts.should.be.equal(claimedCoinsAmount);
-
-                    receipt = await result.wait();
-                    const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-
-                    const validatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(validator));
-                    const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-                    validatorCoinsBalanceAfter.should.be.equal(validatorCoinsBalanceBefore.add(claimedCoinsAmount).sub(weiSpent));
-                    blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.sub(claimedCoinsAmount));
-
-                    coinsValidatorsGotForAllEpochs = coinsValidatorsGotForAllEpochs.add(claimedCoinsAmount);
-                }
-            }
-
-            blockRewardCoinsBalanceTotalAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            blockRewardCoinsBalanceTotalAfter.should.be.equal(blockRewardCoinsBalanceTotalBefore.sub(coinsDelegatorGotForAllEpochs).sub(coinsValidatorsGotForAllEpochs));
-            blockRewardCoinsBalanceTotalAfter.should.be.gte(BigNumber.from(0));
-        });
-
-        it('gas consumption for 52 staking epochs is OK 1', async () => {
-            const maxStakingEpoch = 52;
-
-            await blockRewardContract.addToDeltaPot({ value: deltaPotFillupValue });
-
-            // Loop of staking epochs
-            for (let stakingEpoch = 1; stakingEpoch <= maxStakingEpoch; stakingEpoch++) {
-                if (stakingEpoch == 1) {
-                    await stakingHbbftContract.setStakingEpoch(1);
-                    //const startBlock = BigNumber.from(120954 + 2 + 1);
-
-                    await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-                    //await stakingHbbft.setStakingEpochStartBlock(startBlock);
-                    await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-                }
-
-                (await validatorSetContract.getValidators()).should.be.deep.equal(initialValidators);
-                (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(stakingEpoch));
-
-                await callReward(blockRewardContract, false);
-
-                const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                for (let i = 0; i < initialValidators.length; i++) {
-                    (await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i])).should.be.equal(BigNumber.from(0));
-                }
-
-                await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-                await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-
-                let distributedCoinsAmount = BigNumber.from(0);
-                for (let i = 0; i < initialValidators.length; i++) {
-                    const epochPoolNativeReward = await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i]);
-                    epochPoolNativeReward.should.be.above(BigNumber.from(0));
-                    distributedCoinsAmount = distributedCoinsAmount.add(epochPoolNativeReward);
-                }
-                const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.add(distributedCoinsAmount));
-            }
-
-            // The delegator claims their rewards
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            const blockRewardCoinsBalanceTotalBefore = blockRewardCoinsBalanceBefore;
-
-            const expectedClaimRewardAmounts = (await stakingHbbftContract.getRewardAmount([], initialStakingAddresses[0], delegator.address));
-
-            const result = await stakingHbbftContract.connect(delegator).claimReward([], initialStakingAddresses[0]);
-            let receipt = await result.wait();
-
-            let coinsDelegatorGotForAllEpochs = BigNumber.from(0);
-            for (let i = 0; i < maxStakingEpoch; i++) {
-                receipt.events?.[i].event?.should.be.equal("ClaimedReward");
-                receipt.events?.[i].args?.fromPoolStakingAddress.should.be.equal(initialStakingAddresses[0]);
-                receipt.events?.[i].args?.staker.should.be.equal(delegator.address);
-                receipt.events?.[i].args?.stakingEpoch.should.be.equal(BigNumber.from(i + 1));
-                coinsDelegatorGotForAllEpochs = coinsDelegatorGotForAllEpochs.add(receipt.events?.[i].args?.nativeCoinsAmount);
-            }
-
-            expectedClaimRewardAmounts.should.be.equal(coinsDelegatorGotForAllEpochs);
-
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-
-            // console.log(`gasUsed = ${receipt.gasUsed}, cumulativeGasUsed = ${receipt.cumulativeGasUsed}`);
-
-            if (!!process.env.SOLIDITY_COVERAGE !== true) {
-                // receipt.gasUsed.should.be.below(1710000);
-                receipt.gasUsed.should.be.below(2100000); // for Istanbul
-            }
-
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-            coinsDelegatorGotForAllEpochs.should.be.gte(BigNumber.from(0));
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(coinsDelegatorGotForAllEpochs).sub(weiSpent));
-            blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.sub(coinsDelegatorGotForAllEpochs));
-
-            // The validators claim their rewards
-            let coinsValidatorsGotForAllEpochs = BigNumber.from(0);
-            for (let v = 0; v < initialStakingAddresses.length; v++) {
-                const validator = initialStakingAddresses[v];
-                const validatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(validator));
-                const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                const expectedClaimRewardAmounts = (await stakingHbbftContract.getRewardAmount([], validator, validator));
-                const result = await stakingHbbftContract.connect(await ethers.getSigner(validator)).claimReward([], validator);
-                const receipt = await result.wait();
-
-                let claimedCoinsAmount = BigNumber.from(0);
-                for (let i = 0; i < maxStakingEpoch; i++) {
-                    receipt.events?.[i].event?.should.be.equal("ClaimedReward");
-                    receipt.events?.[i].args?.fromPoolStakingAddress.should.be.equal(validator);
-                    receipt.events?.[i].args?.staker.should.be.equal(validator);
-                    receipt.events?.[i].args?.stakingEpoch.should.be.equal(BigNumber.from(i + 1));
-                    claimedCoinsAmount = claimedCoinsAmount.add(receipt.events?.[i].args?.nativeCoinsAmount);
-                }
-
-                expectedClaimRewardAmounts.should.be.equal(claimedCoinsAmount);
-
-                const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-
-                const validatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(validator));
-                const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-                claimedCoinsAmount.should.be.gte(BigNumber.from(0));
-                validatorCoinsBalanceAfter.should.be.equal(validatorCoinsBalanceBefore.add(claimedCoinsAmount).sub(weiSpent));
-                blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.sub(claimedCoinsAmount));
-                coinsValidatorsGotForAllEpochs = coinsValidatorsGotForAllEpochs.add(claimedCoinsAmount);
-            }
-
-            const blockRewardCoinsBalanceTotalAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            blockRewardCoinsBalanceTotalAfter.should.be.equal(blockRewardCoinsBalanceTotalBefore.sub(coinsDelegatorGotForAllEpochs).sub(coinsValidatorsGotForAllEpochs));
-            blockRewardCoinsBalanceTotalAfter.should.be.gte(BigNumber.from(0));
-        });
-
-        it('gas consumption for 52 staking epochs (including gaps ~ 10 years) is OK', async () => {
-            const maxStakingEpochs = 52;
-            const gapSize = 10;
-
-            await blockRewardContract.addToDeltaPot({ value: deltaPotFillupValue });
-
-            // Loop of staking epochs
-            for (let s = 0; s < maxStakingEpochs; s++) {
-                if (s == 0) {
-                    await stakingHbbftContract.setStakingEpoch(1);
-                    await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-                    await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-                }
-
-                const stakingEpoch = (await stakingHbbftContract.stakingEpoch()).toNumber();
-
-                (await validatorSetContract.getValidators()).should.be.deep.equal(initialValidators);
-                (await stakingHbbftContract.stakingEpoch()).should.be.equal(BigNumber.from(stakingEpoch));
-
-                const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                for (let i = 0; i < initialValidators.length; i++) {
-                    (await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i])).should.be.equal(BigNumber.from(0));
-                }
-
-                await timeTravelToTransition(blockRewardContract, stakingHbbftContract);
-                await timeTravelToEndEpoch(blockRewardContract, stakingHbbftContract);
-
-                let distributedCoinsAmount = BigNumber.from(0);
-                for (let i = 0; i < initialValidators.length; i++) {
-                    const epochPoolNativeReward = await blockRewardContract.epochPoolNativeReward(stakingEpoch, initialValidators[i]);
-                    epochPoolNativeReward.should.be.above(BigNumber.from(0));
-                    distributedCoinsAmount = distributedCoinsAmount.add(epochPoolNativeReward);
-                }
-                const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.add(distributedCoinsAmount));
-
-                const nextStakingEpoch = stakingEpoch + gapSize; // jump through a few epochs
-                await stakingHbbftContract.setStakingEpoch(nextStakingEpoch);
-                await stakingHbbftContract.setValidatorMockSetAddress(owner.address);
-                //await stakingHbbft.setStakingEpochStartBlock((120954 + 2) * nextStakingEpoch + 1);
-                await stakingHbbftContract.setValidatorMockSetAddress(validatorSetContract.address);
-                for (let i = 0; i < initialValidators.length; i++) {
-                    await blockRewardContract.snapshotPoolStakeAmounts(stakingHbbftContract.address, nextStakingEpoch, initialValidators[i]);
-                }
-            }
-
-            const epochsPoolGotRewardFor = await blockRewardContract.epochsPoolGotRewardFor(initialValidators[0]);
-
-            // The delegator claims their rewards
-            const delegatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            const blockRewardCoinsBalanceTotalBefore = blockRewardCoinsBalanceBefore;
-
-            const expectedClaimRewardAmounts = (await stakingHbbftContract.getRewardAmount([], initialStakingAddresses[0], delegator.address));
-
-            const result = await stakingHbbftContract.connect(delegator).claimReward([], initialStakingAddresses[0]);
-            const receipt = await result.wait();
-
-            let coinsDelegatorGotForAllEpochs = BigNumber.from(0);
-            for (let i = 0; i < maxStakingEpochs; i++) {
-                receipt.events?.[i].event?.should.be.equal("ClaimedReward");
-                receipt.events?.[i].args?.fromPoolStakingAddress.should.be.equal(initialStakingAddresses[0]);
-                receipt.events?.[i].args?.staker.should.be.equal(delegator.address);
-                receipt.events?.[i].args?.stakingEpoch.should.be.equal(epochsPoolGotRewardFor[i]);
-                coinsDelegatorGotForAllEpochs = coinsDelegatorGotForAllEpochs.add(receipt.events?.[i].args?.nativeCoinsAmount);
-            }
-
-            expectedClaimRewardAmounts.should.be.equal(coinsDelegatorGotForAllEpochs);
-
-            const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-
-            // console.log(`gasUsed = ${receipt.gasUsed}, cumulativeGasUsed = ${receipt.cumulativeGasUsed}`);
-
-            if (!!process.env.SOLIDITY_COVERAGE !== true) {
-                // receipt.gasUsed.should.be.below(2000000);
-                receipt.gasUsed.should.be.below(2610000); // for Istanbul
-            }
-
-            const delegatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(delegator.address));
-            const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-            coinsDelegatorGotForAllEpochs.should.be.gte(BigNumber.from(0));
-            delegatorCoinsBalanceAfter.should.be.equal(delegatorCoinsBalanceBefore.add(coinsDelegatorGotForAllEpochs).sub(weiSpent));
-            blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.sub(coinsDelegatorGotForAllEpochs));
-
-            // The validators claim their rewards
-            let coinsValidatorsGotForAllEpochs = BigNumber.from(0);
-            for (let v = 0; v < initialStakingAddresses.length; v++) {
-                const validator = initialStakingAddresses[v];
-                const validatorCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(validator));
-                const blockRewardCoinsBalanceBefore = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-                const expectedClaimRewardAmounts = (await stakingHbbftContract.getRewardAmount([], validator, validator));
-                const result = await stakingHbbftContract.connect(await ethers.getSigner(validator)).claimReward([], validator);
-                const receipt = await result.wait();
-
-                let claimedCoinsAmount = BigNumber.from(0);
-                for (let i = 0; i < maxStakingEpochs; i++) {
-                    receipt.events?.[i].event?.should.be.equal("ClaimedReward");
-                    receipt.events?.[i].args?.fromPoolStakingAddress.should.be.equal(validator);
-                    receipt.events?.[i].args?.staker.should.be.equal(validator);
-                    receipt.events?.[i].args?.stakingEpoch.should.be.equal(epochsPoolGotRewardFor[i]);
-                    claimedCoinsAmount = claimedCoinsAmount.add(receipt.events?.[i].args?.nativeCoinsAmount);
-                }
-
-                expectedClaimRewardAmounts.should.be.equal(claimedCoinsAmount);
-
-                const weiSpent = (BigNumber.from(receipt.gasUsed)).mul(BigNumber.from(result.gasPrice));
-
-                const validatorCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(validator));
-                const blockRewardCoinsBalanceAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-
-                claimedCoinsAmount.should.be.gte(BigNumber.from(0));
-                validatorCoinsBalanceAfter.should.be.equal(validatorCoinsBalanceBefore.add(claimedCoinsAmount).sub(weiSpent));
-                blockRewardCoinsBalanceAfter.should.be.equal(blockRewardCoinsBalanceBefore.sub(claimedCoinsAmount));
-                coinsValidatorsGotForAllEpochs = coinsValidatorsGotForAllEpochs.add(claimedCoinsAmount);
-            }
-
-            const blockRewardCoinsBalanceTotalAfter = BigNumber.from(await ethers.provider.getBalance(blockRewardContract.address));
-            blockRewardCoinsBalanceTotalAfter.should.be.equal(blockRewardCoinsBalanceTotalBefore.sub(coinsDelegatorGotForAllEpochs).sub(coinsValidatorsGotForAllEpochs));
-            blockRewardCoinsBalanceTotalAfter.should.be.gte(BigNumber.from(0));
+            expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(minStake * 2n);
         });
     });
 
     describe('incrementStakingEpoch()', async () => {
         let stakingContract: StakingHbbftMock;
-        let validatorSetContract: SignerWithAddress;
+        let validatorSetContract: HardhatEthersSigner;
 
         beforeEach(async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
@@ -1731,25 +583,26 @@ describe('StakingHbbft', () => {
             stakingContract = stakingHbbft;
             validatorSetContract = accounts[7];
 
-            await stakingHbbft.setValidatorMockSetAddress(validatorSetContract.address);
+            await stakingHbbft.setValidatorMockSetAddress(await validatorSetContract.getAddress());
         });
 
         it('should increment if called by the ValidatorSet', async () => {
-            (await stakingContract.stakingEpoch()).should.be.equal(BigNumber.from(0));
+            expect(await stakingContract.stakingEpoch()).to.be.equal(0n);
             await stakingContract.connect(validatorSetContract).incrementStakingEpoch();
-            (await stakingContract.stakingEpoch()).should.be.equal(BigNumber.from(1));
+
+            expect(await stakingContract.stakingEpoch()).to.be.equal(1n);
         });
 
         it('can only be called by ValidatorSet contract', async () => {
-            await stakingContract.connect(accounts[8]).incrementStakingEpoch().should.be.rejectedWith("Only ValidatorSet");
+            await expect(stakingContract.connect(accounts[8]).incrementStakingEpoch())
+                .to.be.revertedWith("Only ValidatorSet");
         });
     });
-
 
     describe('initialize()', async () => {
         const validatorSetContract = '0x1000000000000000000000000000000000000001';
 
-        beforeEach(async() => {
+        beforeEach(async () => {
             // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
             // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
             // Public keys corresponding to the three private keys above.
@@ -1764,9 +617,9 @@ describe('StakingHbbft', () => {
 
             // The IP addresses are irrelevant for these unit test, just initialize them to 0.
             initialValidatorsIpAddresses = [
-                '0x00000000000000000000000000000000',
-                '0x00000000000000000000000000000000',
-                '0x00000000000000000000000000000000'
+                ZeroIpAddress,
+                ZeroIpAddress,
+                ZeroIpAddress
             ];
         });
 
@@ -1792,45 +645,53 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            ) as StakingHbbftMock;
-
-            stakingFixedEpochDuration.should.be.equal(
-                await stakingHbbft.stakingFixedEpochDuration()
-            );
-            stakingWithdrawDisallowPeriod.should.be.equal(
-                await stakingHbbft.stakingWithdrawDisallowPeriod()
             );
 
-            validatorSetContract.should.be.equal(
-                await stakingHbbft.validatorSetContract()
-            );
+            await stakingHbbft.waitForDeployment();
 
-            for (let i = 0; i < initialStakingAddresses.length; i++) {
-                BigNumber.from(i).should.be.equal(
-                    await stakingHbbft.poolIndex(initialStakingAddresses[i])
-                );
-                true.should.be.equal(
-                    await stakingHbbft.isPoolActive(initialStakingAddresses[i])
-                );
-                BigNumber.from(i).should.be.equal(
-                    await stakingHbbft.poolToBeRemovedIndex(initialStakingAddresses[i])
-                );
+            expect(await stakingHbbft.stakingFixedEpochDuration()).to.be.equal(stakingFixedEpochDuration);
+            expect(await stakingHbbft.stakingWithdrawDisallowPeriod()).to.be.equal(stakingWithdrawDisallowPeriod);
+            expect(await stakingHbbft.validatorSetContract()).to.be.equal(validatorSetContract)
+
+            for (const stakingAddress of initialStakingAddresses) {
+                expect(await stakingHbbft.isPoolActive(stakingAddress)).to.be.true;
+                expect(await stakingHbbft.getPools()).to.include(stakingAddress);
+                expect(await stakingHbbft.getPoolsToBeRemoved()).to.include(stakingAddress);
             }
 
-            (await stakingHbbft.getPools()).should.be.deep.equal(initialStakingAddresses);
+            expect(await stakingHbbft.getPools()).to.be.deep.equal(initialStakingAddresses);
+            expect(await stakingHbbft.delegatorMinStake()).to.be.equal(ethers.parseEther('1'));
+            expect(await stakingHbbft.candidateMinStake()).to.be.equal(ethers.parseEther('1'))
+        });
 
-            BigNumber.from(ethers.utils.parseEther('1')).should.be.equal(
-                await stakingHbbft.delegatorMinStake()
-            );
+        it('should fail if owner = address(0)', async () => {
+            let stakingParams = {
+                _validatorSetContract: validatorSetContract,
+                _initialStakingAddresses: initialStakingAddresses,
+                _delegatorMinStake: minStake,
+                _candidateMinStake: minStake,
+                _maxStake: maxStake,
+                _stakingFixedEpochDuration: stakingFixedEpochDuration,
+                _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
+                _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            };
 
-            BigNumber.from(ethers.utils.parseEther('1')).should.be.equal(
-                await stakingHbbft.candidateMinStake()
-            );
+            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
+            await expect(upgrades.deployProxy(
+                StakingHbbftFactory,
+                [
+                    ethers.ZeroAddress,
+                    stakingParams,
+                    initialValidatorsPubKeysSplit, // _publicKeys
+                    initialValidatorsIpAddresses // _internetAddresses
+                ],
+                { initializer: 'initialize' }
+            )).to.be.revertedWith("Owner address cannot be 0");
         });
 
         it('should fail if ValidatorSet contract address is zero', async () => {
             let stakingParams = {
-                _validatorSetContract: ethers.constants.AddressZero,
+                _validatorSetContract: ethers.ZeroAddress,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -1927,7 +788,7 @@ describe('StakingHbbft', () => {
                 { initializer: 'initialize' }
             );
 
-            expect(await stakingHbbft.deployed());
+            await stakingHbbft.waitForDeployment();
 
             await expect(stakingHbbft.initialize(
                 owner.address,
@@ -1971,7 +832,7 @@ describe('StakingHbbft', () => {
                 _maxStake: maxStake,
                 _stakingFixedEpochDuration: stakingFixedEpochDuration,
                 _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
-                _stakingWithdrawDisallowPeriod: 0
+                _stakingWithdrawDisallowPeriod: 0n
             };
 
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
@@ -1996,7 +857,7 @@ describe('StakingHbbft', () => {
                 _maxStake: maxStake,
                 _stakingFixedEpochDuration: stakingFixedEpochDuration,
                 _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
-                _stakingWithdrawDisallowPeriod: 120954
+                _stakingWithdrawDisallowPeriod: 120954n
             };
 
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
@@ -2013,7 +874,7 @@ describe('StakingHbbft', () => {
         });
 
         it('should fail if some staking address is 0', async () => {
-            initialStakingAddresses[0] = '0x0000000000000000000000000000000000000000';
+            initialStakingAddresses[0] = ethers.ZeroAddress;
 
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
@@ -2087,14 +948,13 @@ describe('StakingHbbft', () => {
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWith("The transition timeframe must be shorter then the epoch duration");
-
         });
     });
 
     describe('moveStake()', async () => {
-        let delegatorAddress: SignerWithAddress;
+        let delegatorAddress: HardhatEthersSigner;
         let stakingContract: StakingHbbftMock;
-        const stakeAmount = minStake.mul(BigNumber.from(2));
+        const stakeAmount = minStake * 2n;
 
         beforeEach(async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
@@ -2112,19 +972,21 @@ describe('StakingHbbft', () => {
             // we can move the stake, since the staking address is not part of the active validator set,
             // since we never did never a time travel.
             // If we do, the stakingAddresses are blocked to withdraw without an orderwithdraw.
-            (await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).should.be.equal(stakeAmount);
-            (await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+
             await stakingContract.connect(delegatorAddress).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount);
-            (await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            (await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(stakeAmount);
         });
 
         it('should move part of the stake', async () => {
-            (await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).should.be.equal(stakeAmount);
-            (await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+
             await stakingContract.connect(delegatorAddress).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], minStake);
-            (await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).should.be.equal(minStake);
-            (await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(minStake);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[0], delegatorAddress.address)).to.be.equal(minStake);
+            expect(await stakingContract.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(minStake);
         });
 
         it('should move part of the stake', async () => {
@@ -2133,27 +995,40 @@ describe('StakingHbbft', () => {
             const sourcePool = initialStakingAddresses[0];
             const targetPool = initialStakingAddresses[1];
 
-            (await stakingContract.stakeAmount(sourcePool, delegatorAddress.address)).should.be.equal(stakeAmount);
-            (await stakingContract.stakeAmount(targetPool, delegatorAddress.address)).should.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(sourcePool, delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingContract.stakeAmount(targetPool, delegatorAddress.address)).to.be.equal(stakeAmount);
 
-            const moveAmount = minStake.div(BigNumber.from(2));
-            moveAmount.should.be.below(await stakingContract.delegatorMinStake());
+            const moveAmount = minStake / 2n;
+            expect(moveAmount).to.be.below(await stakingContract.delegatorMinStake());
 
             await stakingContract.connect(delegatorAddress).moveStake(sourcePool, targetPool, moveAmount);
-            (await stakingContract.stakeAmount(sourcePool, delegatorAddress.address)).should.be.equal(stakeAmount.sub(moveAmount));
-            (await stakingContract.stakeAmount(targetPool, delegatorAddress.address)).should.be.equal(stakeAmount.add(moveAmount));
+            expect(await stakingContract.stakeAmount(sourcePool, delegatorAddress.address)).to.be.equal(stakeAmount - moveAmount);
+            expect(await stakingContract.stakeAmount(targetPool, delegatorAddress.address)).to.be.equal(stakeAmount + moveAmount);
         });
 
         it('should fail for zero gas price', async () => {
-            await stakingContract.connect(delegatorAddress).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount, { gasPrice: 0 }).should.be.rejectedWith("GasPrice is 0");
+            await expect(stakingContract.connect(delegatorAddress).moveStake(
+                initialStakingAddresses[0],
+                initialStakingAddresses[1],
+                stakeAmount,
+                { gasPrice: 0 }
+            )).to.be.revertedWith("GasPrice is 0");
         });
 
         it('should fail if the source and destination addresses are the same', async () => {
-            await stakingContract.connect(delegatorAddress).moveStake(initialStakingAddresses[0], initialStakingAddresses[0], stakeAmount).should.be.rejectedWith("MoveStake: src and dst pool is the same");
+            await expect(stakingContract.connect(delegatorAddress).moveStake(
+                initialStakingAddresses[0],
+                initialStakingAddresses[0],
+                stakeAmount
+            )).to.be.revertedWith("MoveStake: src and dst pool is the same");
         });
 
         it('should fail if the staker tries to move more than they have', async () => {
-            await stakingContract.connect(delegatorAddress).moveStake(initialStakingAddresses[0], initialStakingAddresses[1], stakeAmount.mul(BigNumber.from(2))).should.be.rejectedWith("Withdraw: maxWithdrawAllowed exceeded");
+            await expect(stakingContract.connect(delegatorAddress).moveStake(
+                initialStakingAddresses[0],
+                initialStakingAddresses[1],
+                stakeAmount * 2n
+            )).to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
         });
 
         it('should fail if the staker tries to overstake by moving stake.', async () => {
@@ -2162,19 +1037,24 @@ describe('StakingHbbft', () => {
             const sourcePool = initialStakingAddresses[0];
             const targetPool = initialStakingAddresses[1];
 
-            let currentSourceStake = BigNumber.from(await stakingContract.stakeAmountTotal(sourcePool));
-            const totalStakeableSource = maxStake.sub(currentSourceStake);
+            let currentSourceStake = await stakingContract.stakeAmountTotal(sourcePool);
+            const totalStakeableSource = maxStake - currentSourceStake;
             await stakingContract.connect(delegatorAddress).stake(sourcePool, { value: totalStakeableSource });
-            let currentTargetStake = BigNumber.from(await stakingContract.stakeAmountTotal(targetPool));
-            const totalStakeableTarget = maxStake.sub(currentTargetStake);
+
+            let currentTargetStake = await stakingContract.stakeAmountTotal(targetPool);
+            const totalStakeableTarget = maxStake - currentTargetStake;
             await stakingContract.connect(delegatorAddress).stake(targetPool, { value: totalStakeableTarget });
             // source is at max stake now, now tip it over.
-            await stakingContract.connect(delegatorAddress).moveStake(sourcePool, targetPool, BigNumber.from(1)).should.be.rejectedWith("stake limit has been exceeded");
+            await expect(stakingContract.connect(delegatorAddress).moveStake(
+                sourcePool,
+                targetPool,
+                1n
+            )).to.be.revertedWith("stake limit has been exceeded");
         });
     });
 
     describe('stake()', async () => {
-        let delegatorAddress: SignerWithAddress;
+        let delegatorAddress: HardhatEthersSigner;
 
         beforeEach(async () => {
             delegatorAddress = accounts[7];
@@ -2183,43 +1063,62 @@ describe('StakingHbbft', () => {
         it('should be zero initially', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
         });
 
         it('should place a stake', async () => {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.equal(candidateMinStake);
-            const result = await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            let receipt = await result.wait()
-            receipt.events?.[0].event?.should.be.equal("PlacedStake");
-            receipt.events?.[0].args?.toPoolStakingAddress.should.be.equal(initialStakingAddresses[1]);
-            receipt.events?.[0].args?.staker.should.be.equal(delegatorAddress.address);
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(0));
-            receipt.events?.[0].args?.amount.should.be.equal(delegatorMinStake);
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(delegatorMinStake);
-            (await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).should.be.equal(candidateMinStake.add(delegatorMinStake));
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+            expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.be.equal(candidateMinStake);
+
+            await expect(stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake }))
+                .to.emit(stakingHbbft, "PlacedStake")
+                .withArgs(
+                    pool.address,
+                    delegatorAddress.address,
+                    0n,
+                    delegatorMinStake
+                );
+
+            expect(await stakingHbbft.stakeAmount(pool.address, delegatorAddress.address)).to.be.equal(delegatorMinStake);
+            expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(candidateMinStake + delegatorMinStake);
         });
 
         it('should fail for zero gas price', async () => {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake, gasPrice: 0 }).should.be.rejectedWith("GasPrice is 0");
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await expect(stakingHbbft.connect(pool).stake(
+                pool.address,
+                { value: candidateMinStake, gasPrice: 0 }
+            )).to.be.revertedWith("GasPrice is 0");
+        });
+
+        it('should fail for a zero staking pool address', async () => {
+            const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.connect(delegatorAddress).stake(ethers.ZeroAddress, { value: delegatorMinStake }))
+                .to.be.revertedWith("Stake: stakingAddress is 0");
         });
 
         it('should fail for a non-existing pool', async () => {
             const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(delegatorAddress).stake(accounts[10].address, { value: delegatorMinStake }).should.be.rejectedWith("Pool does not exist. miningAddress for that staking address is 0");
-            await stakingHbbft.connect(delegatorAddress).stake('0x0000000000000000000000000000000000000000', { value: delegatorMinStake }).should.be.rejectedWith("Pool does not exist. miningAddress for that staking address is 0");
+            await expect(stakingHbbft.connect(delegatorAddress).stake(accounts[10].address, { value: delegatorMinStake }))
+                .to.be.revertedWith("Pool does not exist. miningAddress for that staking address is 0");
         });
 
         it('should fail for a zero amount', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: 0 }).should.be.rejectedWith("Stake: stakingAmount is 0");
+            await expect(stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: 0 }))
+                .to.be.revertedWith("Stake: stakingAmount is 0");
         });
 
         it('should fail for a banned validator', async () => {
@@ -2230,120 +1129,246 @@ describe('StakingHbbft', () => {
                 delegatorMinStake
             } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
             await validatorSetHbbft.setSystemAddress(owner.address);
             await validatorSetHbbft.connect(owner).removeMaliciousValidators([initialValidators[1]]);
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake }).should.be.rejectedWith("Stake: Mining address is banned");
+
+            await expect(stakingHbbft.connect(delegatorAddress).stake(
+                pool.address,
+                { value: delegatorMinStake }
+            )).to.be.revertedWith("Stake: Mining address is banned");
         });
 
-        // it('should only success in the allowed staking window', async () => {
-        //   //await stakingHbbft.setCurrentBlockNumber(117000);
-        //   await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: candidateMinStake}).should.be.rejectedWith("Stake: disallowed period");
-        // });
+        it.skip('should only success in the allowed staking window', async () => {
+            const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await expect(stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake }))
+                .to.be.revertedWith("Stake: disallowed period");
+        });
 
         it('should fail if a candidate stakes less than CANDIDATE_MIN_STAKE', async () => {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            const halfOfCandidateMinStake = candidateMinStake.div(BigNumber.from(2));
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: halfOfCandidateMinStake }).should.be.rejectedWith("Stake: candidateStake less than candidateMinStake");
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            const halfOfCandidateMinStake = candidateMinStake / 2n;
+            await expect(stakingHbbft.connect(pool).stake(
+                pool.address,
+                { value: halfOfCandidateMinStake }
+            )).to.be.revertedWith("Stake: candidateStake less than candidateMinStake");
         });
 
         it('should fail if a delegator stakes less than DELEGATOR_MIN_STAKE', async () => {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            const halfOfDelegatorMinStake = delegatorMinStake.div(BigNumber.from(2));
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: halfOfDelegatorMinStake }).should.be.rejectedWith("Stake: delegatorStake is less than delegatorMinStake");
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            const halfOfDelegatorMinStake = delegatorMinStake / 2n;
+
+            await expect(stakingHbbft.connect(delegatorAddress).stake(
+                pool.address,
+                { value: halfOfDelegatorMinStake }
+            )).to.be.revertedWith("Stake: delegatorStake is less than delegatorMinStake");
         });
 
         it('should fail if a delegator stakes more than maxStake', async () => {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: maxStake.add(BigNumber.from(1)) }).should.be.rejectedWith("stake limit has been exceeded");
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            await expect(stakingHbbft.connect(delegatorAddress).stake(
+                pool.address,
+                { value: maxStake + 1n }
+            )).to.be.revertedWith("stake limit has been exceeded");
         });
 
         it('should fail if a delegator stakes into an empty pool', async () => {
             const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.equal(BigNumber.from(0));
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake }).should.be.rejectedWith("Stake: can't delegate in empty pool");
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.be.equal(0n);
+            await expect(stakingHbbft.connect(delegatorAddress).stake(
+                pool.address,
+                { value: delegatorMinStake }
+            )).to.be.revertedWith("Stake: can't delegate in empty pool");
         });
 
         it('should increase a stake amount', async () => {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(delegatorMinStake);
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(delegatorMinStake.mul(BigNumber.from(2)));
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegatorAddress.address)).to.be.equal(0n);
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegatorAddress.address)).to.be.equal(delegatorMinStake);
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegatorAddress.address)).to.be.equal(delegatorMinStake * 2n);
         });
 
         it('should increase the stakeAmountByCurrentEpoch', async () => {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(delegatorMinStake);
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(delegatorMinStake.mul(BigNumber.from(2)));
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, delegatorAddress.address)).to.be.equal(0n);
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, delegatorAddress.address)).to.be.equal(delegatorMinStake);
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, delegatorAddress.address)).to.be.equal(delegatorMinStake * 2n);
         });
 
         it('should increase a total stake amount', async () => {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            (await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).should.be.equal(candidateMinStake);
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            (await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).should.be.equal(candidateMinStake.add(delegatorMinStake));
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            (await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).should.be.equal(candidateMinStake.add(delegatorMinStake.mul(BigNumber.from(2))));
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(candidateMinStake);
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(candidateMinStake + delegatorMinStake);
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(candidateMinStake + delegatorMinStake * 2n);
         });
 
         it('should add a delegator to the pool', async () => {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            (await stakingHbbft.poolDelegators(initialStakingAddresses[1])).length.should.be.equal(0);
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
-            (await stakingHbbft.poolDelegators(initialStakingAddresses[1])).should.be.deep.equal([delegatorAddress.address]);
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            expect(await stakingHbbft.poolDelegators(pool.address)).to.be.empty;
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
+
+            expect(await stakingHbbft.poolDelegators(pool.address)).to.be.deep.equal([delegatorAddress.address]);
         });
 
         it("should update pool's likelihood", async () => {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
             let likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
-            likelihoodInfo.likelihoods.length.should.be.equal(0);
-            likelihoodInfo.sum.should.be.equal(BigNumber.from(0));
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
+            expect(likelihoodInfo.likelihoods).to.be.empty;
+            expect(likelihoodInfo.sum).to.be.equal(0n);
 
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
-            likelihoodInfo.likelihoods[0].should.be.equal(candidateMinStake);
-            likelihoodInfo.sum.should.be.equal(candidateMinStake);
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
+            expect(likelihoodInfo.likelihoods[0]).to.be.equal(candidateMinStake);
+            expect(likelihoodInfo.sum).to.be.equal(candidateMinStake);
 
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
-            likelihoodInfo.likelihoods[0].should.be.equal(candidateMinStake.add(delegatorMinStake));
-            likelihoodInfo.sum.should.be.equal(candidateMinStake.add(delegatorMinStake));
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: delegatorMinStake });
+            expect(likelihoodInfo.likelihoods[0]).to.be.equal(candidateMinStake + delegatorMinStake);
+            expect(likelihoodInfo.sum).to.be.equal(candidateMinStake + delegatorMinStake);
 
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: delegatorMinStake });
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
-            likelihoodInfo.likelihoods[0].should.be.equal(candidateMinStake.add(delegatorMinStake.mul(BigNumber.from(2))));
-            likelihoodInfo.sum.should.be.equal(candidateMinStake.add(delegatorMinStake.mul(BigNumber.from(2))));
+            expect(likelihoodInfo.likelihoods[0]).to.be.equal(candidateMinStake + delegatorMinStake * 2n);
+            expect(likelihoodInfo.sum).to.be.equal(candidateMinStake + delegatorMinStake * 2n);
         });
 
         it('should decrease the balance of the staker and increase the balance of the Staking contract', async () => {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
-            (await ethers.provider.getBalance(stakingHbbft.address)).should.be.equal('0');
-            const initialBalance = BigNumber.from(await ethers.provider.getBalance(initialStakingAddresses[1]));
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: candidateMinStake });
-            (BigNumber.from(await ethers.provider.getBalance(initialStakingAddresses[1]))).should.be.below(initialBalance.sub(candidateMinStake));
-            (BigNumber.from(await ethers.provider.getBalance(stakingHbbft.address))).should.be.equal(candidateMinStake);
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(0n);
+
+            const initialBalance = await ethers.provider.getBalance(pool.address);
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+            expect(await ethers.provider.getBalance(pool.address)).to.be.below(initialBalance - candidateMinStake);
+            expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(candidateMinStake);
+        });
+
+        it('should not create stake snapshot on epoch 0', async () => {
+            const {
+                stakingHbbft,
+                validatorSetHbbft,
+                candidateMinStake,
+                delegatorMinStake,
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+            const mining = initialValidators[1];
+            const delegator = accounts[11];
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.be.equal(candidateMinStake);
+
+            let stakingEpoch = await stakingHbbft.stakingEpoch();
+            expect(stakingEpoch).to.equal(0n);
+
+            await stakingHbbft.connect(delegator).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegator.address)).to.be.equal(delegatorMinStake);
+            expect(await stakingHbbft.getDelegatorStakeSnapshot(pool.address, delegator.address, stakingEpoch))
+                .to.be.equal(0n);
+            expect(await stakingHbbft.getStakeSnapshotLastEpoch(pool.address, delegator.address))
+                .to.be.equal(0n);
+
+            expect(await validatorSetHbbft.isValidatorOrPending(mining)).to.be.true;
+
+            await stakingHbbft.connect(delegator).stake(pool.address, { value: delegatorMinStake * 2n });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegator.address)).to.be.equal(delegatorMinStake * 3n);
+            expect(await stakingHbbft.getDelegatorStakeSnapshot(pool.address, delegator.address, stakingEpoch))
+                .to.be.equal(0n);
+            expect(await stakingHbbft.getStakeSnapshotLastEpoch(pool.address, delegator.address))
+                .to.be.equal(0n);
+        });
+
+        it('should create stake snapshot if staking on an active validator', async () => {
+            const {
+                stakingHbbft,
+                validatorSetHbbft,
+                blockRewardHbbft,
+                candidateMinStake,
+                delegatorMinStake,
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+            const mining = initialValidators[1];
+            const delegator = accounts[11];
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+            expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.be.equal(candidateMinStake);
+
+            let stakingEpoch = await stakingHbbft.stakingEpoch();
+            await stakingHbbft.connect(delegator).stake(pool.address, { value: delegatorMinStake });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegator.address)).to.be.equal(delegatorMinStake);
+            expect(await stakingHbbft.getDelegatorStakeSnapshot(pool.address, delegator.address, stakingEpoch))
+                .to.be.equal(0n);
+            expect(await stakingHbbft.getStakeSnapshotLastEpoch(pool.address, delegator.address))
+                .to.be.equal(0n);
+
+            await callReward(blockRewardHbbft, true);
+
+            expect(await validatorSetHbbft.isValidatorOrPending(mining)).to.be.true;
+            expect(await stakingHbbft.stakingEpoch()).to.be.gt(0n);
+
+            stakingEpoch = await stakingHbbft.stakingEpoch();
+            await stakingHbbft.connect(delegator).stake(pool.address, { value: delegatorMinStake * 2n });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegator.address)).to.be.equal(delegatorMinStake * 3n);
+            expect(await stakingHbbft.getDelegatorStakeSnapshot(pool.address, delegator.address, stakingEpoch))
+                .to.be.equal(delegatorMinStake);
+            expect(await stakingHbbft.getStakeSnapshotLastEpoch(pool.address, delegator.address))
+                .to.be.equal(stakingEpoch);
         });
     });
 
@@ -2351,71 +1376,78 @@ describe('StakingHbbft', () => {
         it('should remove a pool', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            (await stakingHbbft.getPools()).should.be.deep.equal(initialStakingAddresses);
+            expect(await stakingHbbft.getPools()).to.be.deep.equal(initialStakingAddresses);
+
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
-            (await stakingHbbft.getPools()).should.be.deep.equal([
+
+            expect(await stakingHbbft.getPools()).to.be.deep.equal([
                 initialStakingAddresses[2],
                 initialStakingAddresses[1]
             ]);
-            (await stakingHbbft.getPoolsInactive()).length.should.be.equal(0);
+
+            expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
         });
 
         it('can only be called by the ValidatorSetHbbft contract', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
-            await stakingHbbft.connect(accounts[8]).removePool(initialStakingAddresses[0]).should.be.rejectedWith("Only ValidatorSet");
+            await expect(stakingHbbft.connect(accounts[8]).removePool(initialStakingAddresses[0]))
+                .to.be.revertedWith("Only ValidatorSet");
         });
 
         it("shouldn't fail when removing a nonexistent pool", async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            (await stakingHbbft.getPools()).should.be.deep.equal(initialStakingAddresses);
+            expect(await stakingHbbft.getPools()).to.be.deep.equal(initialStakingAddresses);
+
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).removePool(accounts[10].address);
-            (await stakingHbbft.getPools()).should.be.deep.equal(initialStakingAddresses);
-        });
 
-        it('should reset pool index', async () => {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            (await stakingHbbft.poolIndex(initialStakingAddresses[1])).should.be.equal(BigNumber.from(1));
-            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
-            await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[1]);
-            (await stakingHbbft.poolIndex(initialStakingAddresses[1])).should.be.equal(BigNumber.from(0));
+            expect(await stakingHbbft.getPools()).to.be.deep.equal(initialStakingAddresses);
         });
 
         it('should add/remove a pool to/from the utility lists', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             // The first validator places stake for themselves
-            (await stakingHbbft.getPoolsToBeElected()).length.should.be.deep.equal(0);
-            (await stakingHbbft.getPoolsToBeRemoved()).should.be.deep.equal(initialStakingAddresses);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).stake(initialStakingAddresses[0], { value: minStake });
-            (await stakingHbbft.stakeAmountTotal(initialStakingAddresses[0])).should.be.equal(minStake);
-            (await stakingHbbft.getPoolsToBeElected()).should.be.deep.equal([initialStakingAddresses[0]]);
-            (await stakingHbbft.getPoolsToBeRemoved()).should.be.deep.equal([
+            expect(await stakingHbbft.getPoolsToBeElected()).to.be.lengthOf(0);
+            expect(await stakingHbbft.getPoolsToBeRemoved()).to.be.deep.equal(initialStakingAddresses);
+
+            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).stake(
+                initialStakingAddresses[0],
+                { value: minStake }
+            );
+
+            expect(await stakingHbbft.stakeAmountTotal(initialStakingAddresses[0])).to.be.equal(minStake);
+            expect(await stakingHbbft.getPoolsToBeElected()).to.be.deep.equal([initialStakingAddresses[0]]);
+            expect(await stakingHbbft.getPoolsToBeRemoved()).to.be.deep.equal([
                 initialStakingAddresses[2],
                 initialStakingAddresses[1]
             ]);
 
             // Remove the pool
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
-            (await stakingHbbft.poolInactiveIndex(initialStakingAddresses[0])).should.be.equal(BigNumber.from(0));
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
-            (await stakingHbbft.getPoolsInactive()).should.be.deep.equal([initialStakingAddresses[0]]);
-            (await stakingHbbft.poolInactiveIndex(initialStakingAddresses[0])).should.be.equal(BigNumber.from(0));
+            expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([initialStakingAddresses[0]]);
 
-            await stakingHbbft.setStakeAmountTotal(initialStakingAddresses[0], 0);
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[0]);
-            (await stakingHbbft.getPoolsInactive()).length.should.be.equal(0);
-            (await stakingHbbft.getPoolsToBeElected()).length.should.be.deep.equal(0);
+            expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([initialStakingAddresses[0]]);
 
-            (await stakingHbbft.poolToBeRemovedIndex(initialStakingAddresses[1])).should.be.equal(BigNumber.from(1));
             await stakingHbbft.connect(accounts[7]).removePool(initialStakingAddresses[1]);
-            (await stakingHbbft.getPoolsToBeRemoved()).should.be.deep.equal([initialStakingAddresses[2]]);
-            (await stakingHbbft.poolToBeRemovedIndex(initialStakingAddresses[1])).should.be.equal(BigNumber.from(0));
+            expect(await stakingHbbft.getPoolsToBeRemoved()).to.be.deep.equal([initialStakingAddresses[2]]);
+        });
+
+    });
+
+    describe('removePools()', async () => {
+        it('should restrict calling removePools to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).removePools())
+                .to.be.revertedWith("Only ValidatorSet")
         });
     });
 
@@ -2425,27 +1457,32 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
-            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({ gasPrice: 0 }).should.be.rejectedWith("GasPrice is 0");
+            await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
+            await expect(stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({ gasPrice: 0n }))
+                .to.be.rejectedWith("GasPrice is 0");
         });
 
         it('should fail for initial validator during the initial staking epoch', async () => {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            (await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(0));
-            (await validatorSetHbbft.isValidator(initialValidators[0])).should.be.equal(true);
-            (await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[0])).should.be.equal(initialValidators[0]);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({}).should.be.rejectedWith("Can't remove pool during 1st staking epoch");
+            expect(await stakingHbbft.stakingEpoch()).to.be.equal(0n);
+            expect(await validatorSetHbbft.isValidator(initialValidators[0])).to.be.true;
+            expect(await validatorSetHbbft.miningByStakingAddress(initialStakingAddresses[0])).to.be.equal(initialValidators[0]);
+
+            await expect(stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({}))
+                .to.be.revertedWith("Can't remove pool during 1st staking epoch");
+
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
             await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
-            await stakingHbbft.setValidatorMockSetAddress(validatorSetHbbft.address);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({}).should.be.fulfilled
+            await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
+
+            await expect(stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).removeMyPool({})).to.be.fulfilled
         });
     });
 
     describe('withdraw()', async () => {
-        const stakeAmount = minStake.mul(BigNumber.from(2));
-        let delegatorAddress: SignerWithAddress;
+        const stakeAmount = minStake * 2n;
+        let delegatorAddress: HardhatEthersSigner;
 
         beforeEach(async () => {
             delegatorAddress = accounts[7];
@@ -2454,106 +1491,174 @@ describe('StakingHbbft', () => {
         it('should withdraw a stake', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], initialStakingAddresses[1])).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.equal(stakeAmount);
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], initialStakingAddresses[1])).should.be.equal(stakeAmount);
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], initialStakingAddresses[1])).to.be.equal(stakeAmount);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], initialStakingAddresses[1])).to.be.equal(stakeAmount);
 
             await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: stakeAmount });
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(stakeAmount);
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(stakeAmount);
-            (await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).should.be.equal(stakeAmount.mul(BigNumber.from(2)));
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).to.be.equal(stakeAmount * 2n);
 
-            const result = await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount);
-            let receipt = await result.wait();
-            receipt.events?.[0].event?.should.be.equal("WithdrewStake");
-            receipt.events?.[0].args?.fromPoolStakingAddress.should.be.equal(initialStakingAddresses[1]);
-            receipt.events?.[0].args?.staker.should.be.equal(delegatorAddress.address);
-            receipt.events?.[0].args?.stakingEpoch.should.be.equal(BigNumber.from(0));
-            receipt.events?.[0].args?.amount.should.be.equal(stakeAmount);
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).should.be.equal(stakeAmount);
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount))
+                .to.emit(stakingHbbft, "WithdrewStake")
+                .withArgs(
+                    initialStakingAddresses[1],
+                    delegatorAddress.address,
+                    0n,
+                    stakeAmount
+                );
+
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmountTotal(initialStakingAddresses[1])).to.be.equal(stakeAmount);
         });
 
         it('should fail for zero gas price', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount, { gasPrice: 0 }).should.be.rejectedWith("GasPrice is 0");
+            const staker = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(staker).stake(staker.address, { value: stakeAmount });
+            await expect(stakingHbbft.connect(staker).withdraw(
+                staker.address,
+                stakeAmount,
+                { gasPrice: 0 }
+            )).to.be.revertedWith("GasPrice is 0");
         });
 
         it('should fail for a zero pool address', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw('0x0000000000000000000000000000000000000000', stakeAmount).should.be.rejectedWith(ERROR_MSG);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount);
+            const staker = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(staker).stake(staker.address, { value: stakeAmount });
+            await expect(stakingHbbft.connect(staker).withdraw(ethers.ZeroAddress, stakeAmount))
+                .to.be.revertedWith("Withdraw pool staking address must not be null");
+
+            await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
         });
 
         it('should fail for a zero amount', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], BigNumber.from(0)).should.be.rejectedWith(ERROR_MSG);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount);
+            const staker = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(staker).stake(staker.address, { value: stakeAmount });
+            await expect(stakingHbbft.connect(staker).withdraw(staker.address, 0n))
+                .to.be.revertedWith("amount to withdraw must not be 0");
+
+            await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
         });
 
         it("shouldn't allow withdrawing from a banned pool", async () => {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: stakeAmount });
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: stakeAmount });
+
             await validatorSetHbbft.setBannedUntil(initialValidators[1], '0xffffffffffffffff');
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount).should.be.rejectedWith(ERROR_MSG);
-            await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount).should.be.rejectedWith(ERROR_MSG);
-            await validatorSetHbbft.setBannedUntil(initialValidators[1], 0);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount);
-            await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount);
+            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount))
+                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount))
+                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+
+            await validatorSetHbbft.setBannedUntil(initialValidators[1], 0n);
+            await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
+            await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount);
         });
 
-        // it('shouldn\'t allow withdrawing during the stakingWithdrawDisallowPeriod', async () => {
-        //   await stakingHbbft.stake(initialStakingAddresses[1], {from: initialStakingAddresses[1], value: stakeAmount});
-        //   //await stakingHbbft.setCurrentBlockNumber(117000);
-        //   //await validatorSetHbbft.setCurrentBlockNumber(117000);
-        //   await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]}).should.be.rejectedWith(ERROR_MSG);
-        //   //await stakingHbbft.setCurrentBlockNumber(116000);
-        //   //await validatorSetHbbft.setCurrentBlockNumber(116000);
-        //   await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, {from: initialStakingAddresses[1]});
-        // });
+        it.skip("shouldn't allow withdrawing during the stakingWithdrawDisallowPeriod", async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.stake(initialStakingAddresses[1], { from: initialStakingAddresses[1], value: stakeAmount });
+
+            //await stakingHbbft.setCurrentBlockNumber(117000);
+            //await validatorSetHbbft.setCurrentBlockNumber(117000);
+            await expect(stakingHbbft.withdraw(
+                initialStakingAddresses[1],
+                stakeAmount,
+                { from: initialStakingAddresses[1] }
+            )).to.be.revertedWith("Stake: disallowed period");
+
+            //await stakingHbbft.setCurrentBlockNumber(116000);
+            //await validatorSetHbbft.setCurrentBlockNumber(116000);
+
+            await stakingHbbft.withdraw(initialStakingAddresses[1], stakeAmount, { from: initialStakingAddresses[1] });
+        });
 
         it('should fail if non-zero residue is less than CANDIDATE_MIN_STAKE', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const candidateMinStake = await stakingHbbft.candidateMinStake();
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount.sub(candidateMinStake).add(BigNumber.from(1))).should.be.rejectedWith(ERROR_MSG);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount.sub(candidateMinStake));
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], candidateMinStake);
+            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
+            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount - candidateMinStake + 1n))
+                .to.be.revertedWith("newStake amount must be greater equal than the min stake.");
+
+            await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount - candidateMinStake);
+            await stakingHbbft.connect(pool).withdraw(pool.address, candidateMinStake);
         });
 
         it('should fail if non-zero residue is less than DELEGATOR_MIN_STAKE', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const delegatorMinStake = await stakingHbbft.delegatorMinStake();
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount.sub(delegatorMinStake).add(BigNumber.from(1))).should.be.rejectedWith(ERROR_MSG);
-            await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount.sub(delegatorMinStake));
-            await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], delegatorMinStake);
+            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: stakeAmount });
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount - delegatorMinStake + 1n))
+                .to.be.revertedWith("newStake amount must be greater equal than the min stake.");
+            await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount - delegatorMinStake);
+            await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, delegatorMinStake);
         });
 
         it('should fail if withdraw more than staked', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount.add(BigNumber.from(1))).should.be.rejectedWith(ERROR_MSG);
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount);
+            const pool = await ethers.getSigner(initialStakingAddresses[1]);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
+            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount + 1n))
+                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+            await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
+        });
+
+        it('should revert orderWithdraw with gasPrice = 0', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.orderWithdraw(
+                initialStakingAddresses[1],
+                ethers.parseEther('1'),
+                { gasPrice: 0n },
+            )).to.be.revertedWith("GasPrice is 0");
+        });
+
+        it('should revert orderWithdraw with pool = address(0)', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.orderWithdraw(
+                ethers.ZeroAddress,
+                ethers.parseEther('1'),
+            )).to.be.revertedWith("poolStakingAddress must not be 0x0");
+        });
+
+        it('should revert orderWithdraw with amount = 0', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.orderWithdraw(
+                initialStakingAddresses[1],
+                0n,
+            )).to.be.revertedWith("ordered withdraw amount must not be 0");
         });
 
         it('should fail if withdraw already ordered amount', async () => {
@@ -2562,82 +1667,89 @@ describe('StakingHbbft', () => {
             await validatorSetHbbft.setSystemAddress(owner.address);
 
             // Place a stake during the initial staking epoch
-            (await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(0));
+            expect(await stakingHbbft.stakingEpoch()).to.be.equal(0n);
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[0])).stake(initialStakingAddresses[0], { value: stakeAmount });
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[2])).stake(initialStakingAddresses[2], { value: stakeAmount });
             await stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: stakeAmount });
 
             // Finalize a new validator set and change staking epoch
-            await validatorSetHbbft.setStakingContract(stakingHbbft.address);
+            await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
+
             // Set BlockRewardContract
             await validatorSetHbbft.setBlockRewardContract(accounts[7].address);
             await validatorSetHbbft.connect(accounts[7]).newValidatorSet();
-            await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
+            await validatorSetHbbft.setBlockRewardContract(await blockRewardHbbft.getAddress());
             // (increases staking epoch)
             await timeTravelToTransition(blockRewardHbbft, stakingHbbft);
             await timeTravelToEndEpoch(blockRewardHbbft, stakingHbbft);
 
-            (await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(1));
+            expect(await stakingHbbft.stakingEpoch()).to.be.equal(1n);
             // Order withdrawal
-            const orderedAmount = stakeAmount.div(BigNumber.from(4));
+            const orderedAmount = stakeAmount / 4n;
             await stakingHbbft.connect(delegatorAddress).orderWithdraw(initialStakingAddresses[1], orderedAmount);
+
             // The second validator removes their pool
-            (await validatorSetHbbft.isValidator(initialValidators[1])).should.be.equal(true);
-            (await stakingHbbft.getPoolsInactive()).length.should.be.equal(0);
+            expect(await validatorSetHbbft.isValidator(initialValidators[1])).to.be.true;
+            expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
+
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).removeMyPool();
-            (await stakingHbbft.getPoolsInactive()).should.be.deep.equal([initialStakingAddresses[1]]);
+            expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([initialStakingAddresses[1]]);
 
             // Finalize a new validator set, change staking epoch and enqueue pending validators
             await validatorSetHbbft.setBlockRewardContract(accounts[7].address);
             await validatorSetHbbft.connect(accounts[7]).newValidatorSet();
-            await validatorSetHbbft.setBlockRewardContract(blockRewardHbbft.address);
+            await validatorSetHbbft.setBlockRewardContract(await blockRewardHbbft.getAddress());
 
             await timeTravelToTransition(blockRewardHbbft, stakingHbbft);
             await timeTravelToEndEpoch(blockRewardHbbft, stakingHbbft);
 
-            (await stakingHbbft.stakingEpoch()).should.be.equal(BigNumber.from(2));
-            (await validatorSetHbbft.isValidator(initialValidators[1])).should.be.equal(false);
+            expect(await stakingHbbft.stakingEpoch()).to.be.equal(2n);
+            expect(await validatorSetHbbft.isValidator(initialValidators[1])).to.be.false;
 
             // Check withdrawal for a delegator
-            const restOfAmount = stakeAmount.mul(BigNumber.from(3)).div(BigNumber.from(4));
-            (await stakingHbbft.poolDelegators(initialStakingAddresses[1])).should.be.deep.equal([delegatorAddress.address]);
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(restOfAmount);
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount).should.be.rejectedWith(ERROR_MSG);
-            await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], restOfAmount.add(BigNumber.from(1))).should.be.rejectedWith(ERROR_MSG);
+            const restOfAmount = stakeAmount * 3n / 4n;
+
+            expect(await stakingHbbft.poolDelegators(initialStakingAddresses[1])).to.be.deep.equal([delegatorAddress.address]);
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(restOfAmount);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], stakeAmount))
+                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+            await expect(stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], restOfAmount + 1n))
+                .to.be.revertedWith("Withdraw: maxWithdrawAllowed exceeded");
+
             await stakingHbbft.connect(delegatorAddress).withdraw(initialStakingAddresses[1], restOfAmount);
-            (await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(BigNumber.from(0));
-            (await stakingHbbft.orderedWithdrawAmount(initialStakingAddresses[1], delegatorAddress.address)).should.be.equal(orderedAmount);
-            (await stakingHbbft.poolDelegators(initialStakingAddresses[1])).length.should.be.equal(0);
-            (await stakingHbbft.poolDelegatorsInactive(initialStakingAddresses[1])).should.be.deep.equal([delegatorAddress.address]);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingHbbft.orderedWithdrawAmount(initialStakingAddresses[1], delegatorAddress.address)).to.be.equal(orderedAmount);
+            expect(await stakingHbbft.poolDelegators(initialStakingAddresses[1])).to.be.empty;
+            expect(await stakingHbbft.poolDelegatorsInactive(initialStakingAddresses[1])).to.be.deep.equal([delegatorAddress.address]);
         });
 
         it('should decrease likelihood', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             let likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
-            likelihoodInfo.sum.should.be.equal(BigNumber.from(0));
+            expect(likelihoodInfo.sum).to.be.equal(0n);
 
             await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).stake(initialStakingAddresses[1], { value: stakeAmount });
 
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
-            likelihoodInfo.likelihoods[0].should.be.equal(stakeAmount);
-            likelihoodInfo.sum.should.be.equal(stakeAmount);
+            expect(likelihoodInfo.likelihoods[0]).to.be.equal(stakeAmount);
+            expect(likelihoodInfo.sum).to.be.equal(stakeAmount);
 
-            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount.div(BigNumber.from(2)));
+            await stakingHbbft.connect(await ethers.getSigner(initialStakingAddresses[1])).withdraw(initialStakingAddresses[1], stakeAmount / 2n);
 
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
-            likelihoodInfo.likelihoods[0].should.be.equal(stakeAmount.div(BigNumber.from(2)));
-            likelihoodInfo.sum.should.be.equal(stakeAmount.div(BigNumber.from(2)));
+            expect(likelihoodInfo.likelihoods[0]).to.be.equal(stakeAmount / 2n);
+            expect(likelihoodInfo.sum).to.be.equal(stakeAmount / 2n);
         });
-        // TODO: add unit tests for native coin withdrawal
     });
 
     describe('recoverAbandonedStakes()', async () => {
-        let stakingPool: SignerWithAddress;
-        let stakers: SignerWithAddress[];
+        let stakingPool: HardhatEthersSigner;
+        let stakers: HardhatEthersSigner[];
 
         beforeEach(async () => {
             stakingPool = await ethers.getSigner(initialStakingAddresses[0]);
@@ -2648,8 +1760,8 @@ describe('StakingHbbft', () => {
         async function stake(
             stakingContract: StakingHbbftMock,
             poolAddress: string,
-            amount: BigNumber,
-            stakers: SignerWithAddress[]
+            amount: bigint,
+            stakers: HardhatEthersSigner[]
         ) {
             for (let staker of stakers) {
                 expect(await stakingContract.connect(staker).stake(poolAddress, { value: amount }));
@@ -2668,8 +1780,15 @@ describe('StakingHbbft', () => {
 
             const poolsInactive = await stakingContract.getPoolsInactive();
 
-            expect(poolsInactive.includes(poolAddress)).to.be.true;
+            expect(poolsInactive).to.include(poolAddress);
         }
+
+        it("should revert with invalid gas price", async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.recoverAbandonedStakes({ gasPrice: 0n }))
+                .to.be.revertedWith("GasPrice is 0");
+        });
 
         it("should revert if there is no inactive pools", async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
@@ -2686,7 +1805,7 @@ describe('StakingHbbft', () => {
                 delegatorMinStake
             } = await helpers.loadFixture(deployContractsFixture);
 
-            const expectedTotalStakes = candidateMinStake.add(delegatorMinStake.mul(stakers.length));
+            const expectedTotalStakes = candidateMinStake + delegatorMinStake * BigInt(stakers.length);
 
             await stake(stakingHbbft, stakingPool.address, candidateMinStake, [stakingPool])
             await stake(stakingHbbft, stakingPool.address, delegatorMinStake, stakers);
@@ -2711,11 +1830,11 @@ describe('StakingHbbft', () => {
             await blockRewardHbbft.setGovernanceAddress(owner.address);
 
             const governanceAddress = await blockRewardHbbft.governancePotAddress();
-            const reinsertAddress = blockRewardHbbft.address;
+            const reinsertAddress = await blockRewardHbbft.getAddress();
 
             expect(governanceAddress).to.equal(owner.address);
 
-            const expectedTotalStakes = candidateMinStake.add(delegatorMinStake.mul(stakers.length));
+            const expectedTotalStakes = candidateMinStake + delegatorMinStake * BigInt(stakers.length);
             const caller = accounts[5];
 
             await stake(stakingHbbft, stakingPool.address, candidateMinStake, [stakingPool])
@@ -2723,23 +1842,25 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(expectedTotalStakes);
 
             await setValidatorInactive(stakingHbbft, validatorSetHbbft, stakingPool.address);
-            await helpers.time.increase(validatorInactivityThreshold + 3600);
+            await helpers.time.increase(validatorInactivityThreshold + 3600n);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
-            const expectedGovernanceShare = expectedTotalStakes.div(2);
-            const expectedReinsertShare = expectedTotalStakes.sub(expectedGovernanceShare);
+            const expectedGovernanceShare = expectedTotalStakes / 2n;
+            const expectedReinsertShare = expectedTotalStakes - expectedGovernanceShare;
 
-            await expect(stakingHbbft.connect(caller).recoverAbandonedStakes())
+            const tx = stakingHbbft.connect(caller).recoverAbandonedStakes();
+
+            await expect(tx)
                 .to.emit(stakingHbbft, "GatherAbandonedStakes")
                 .withArgs(caller.address, stakingPool.address, expectedTotalStakes)
                 .and
                 .to.emit(stakingHbbft, "RecoverAbandonedStakes")
                 .withArgs(caller.address, expectedReinsertShare, expectedGovernanceShare)
-                .and
-                .to.changeEtherBalances(
-                    [stakingHbbft.address, reinsertAddress, governanceAddress],
-                    [expectedTotalStakes.mul(-1), expectedReinsertShare, expectedGovernanceShare]
-                );
+
+            await expect(tx).to.changeEtherBalances(
+                [await stakingHbbft.getAddress(), reinsertAddress, governanceAddress],
+                [-expectedTotalStakes, expectedReinsertShare, expectedGovernanceShare]
+            );
 
             expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(0);
         });
@@ -2757,15 +1878,13 @@ describe('StakingHbbft', () => {
 
             await setValidatorInactive(stakingHbbft, validatorSetHbbft, stakingPool.address);
 
-            await helpers.time.increase(validatorInactivityThreshold + 3600);
+            await helpers.time.increase(validatorInactivityThreshold + 3600n);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
                 .to.emit(stakingHbbft, "RecoverAbandonedStakes");
 
-            const inactivePools = await stakingHbbft.getPoolsInactive();
-
-            expect(inactivePools.includes(stakingPool.address)).to.be.false;
+            expect(await stakingHbbft.getPoolsInactive()).to.not.include(stakingPool.address);
             expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
         });
 
@@ -2782,7 +1901,7 @@ describe('StakingHbbft', () => {
 
             await setValidatorInactive(stakingHbbft, validatorSetHbbft, stakingPool.address);
 
-            await helpers.time.increase(validatorInactivityThreshold + 3600);
+            await helpers.time.increase(validatorInactivityThreshold + 3600n);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
@@ -2808,7 +1927,7 @@ describe('StakingHbbft', () => {
 
             await setValidatorInactive(stakingHbbft, validatorSetHbbft, stakingPool.address);
 
-            await helpers.time.increase(validatorInactivityThreshold + 3600);
+            await helpers.time.increase(validatorInactivityThreshold + 3600n);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
@@ -2834,7 +1953,7 @@ describe('StakingHbbft', () => {
 
             await setValidatorInactive(stakingHbbft, validatorSetHbbft, stakingPool.address);
 
-            await helpers.time.increase(validatorInactivityThreshold + 3600);
+            await helpers.time.increase(validatorInactivityThreshold + 3600n);
             expect(await validatorSetHbbft.isValidatorAbandoned(stakingPool.address)).to.be.true;
 
             await expect(stakingHbbft.recoverAbandonedStakes())
@@ -2852,70 +1971,419 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('setStakingTransitionTimeframeLength()', async () => { 
-        it('should set staking transition time frame length', async () => { 
-            const {
-                stakingHbbft,
-            } = await helpers.loadFixture(deployContractsFixture);
-            
-            // this should succeed.
-            await stakingHbbft.setStakingTransitionTimeframeLength('300');
-            (await stakingHbbft.stakingTransitionTimeframeLength()).should.be.equal('300');
+    describe('restake()', async () => {
+        it('should allow calling only to BlockReward contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+            await expect(stakingHbbft.connect(caller).restake(ethers.ZeroAddress, 0n))
+                .to.be.revertedWith("Only BlockReward");
         });
 
-        it('should not set staking transition time frame length to low value', async () => { 
-            const {
-                stakingHbbft,
-            } = await helpers.loadFixture(deployContractsFixture);
-            await expect(stakingHbbft.setStakingTransitionTimeframeLength('9')).be.revertedWith("The transition timeframe must be longer than 10");
+        it('should do nothing if zero value provided', async () => {
+            const { stakingHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = await impersonateAcc(await blockRewardHbbft.getAddress());
+
+            await expect(stakingHbbft.connect(caller).restake(
+                initialStakingAddresses[1],
+                0n,
+                { value: 0n }
+            )).to.not.emit(stakingHbbft, "RestakeReward");
         });
 
-        it('should not set staking transition time frame length to high value', async () => { 
+        it('should restake all rewards to validator without delegators', async () => {
             const {
                 stakingHbbft,
+                blockRewardHbbft,
+                validatorSetHbbft,
+                candidateMinStake
             } = await helpers.loadFixture(deployContractsFixture);
-            await expect(stakingHbbft.setStakingTransitionTimeframeLength('100000')).be.revertedWith("The transition timeframe must be smaller than the epoch duration");
+
+            expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
+
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+
+                await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+            }
+
+            let systemSigner = await impersonateAcc(SystemAccountAddress);
+
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+            await helpers.mine(1);
+
+            const deltaPotValue = ethers.parseEther('50');
+            await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+            expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+
+            const validators = await validatorSetHbbft.getValidators();
+            const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+
+            const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+            const poolReward = validatorRewards / BigInt(validators.length);
+
+            systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+
+                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake + poolReward);
+            }
+        });
+
+        it('should restake delegators rewards according to stakes', async () => {
+            const {
+                stakingHbbft,
+                blockRewardHbbft,
+                validatorSetHbbft,
+                candidateMinStake,
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
+
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+
+                await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+            }
+
+            let systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            interface StakeRecord {
+                delegator: string;
+                pool: string;
+                stake: bigint;
+            }
+
+            const delegators = accounts.slice(15, 20);
+            const stakeRecords = new Array<StakeRecord>();
+            const poolTotalStakes = new Map<string, bigint>();
+
+            for (const _pool of initialStakingAddresses) {
+                let _poolTotalStake = candidateMinStake;
+
+                for (const _delegator of delegators) {
+                    const stake = ethers.parseEther(_.random(1, 10).toString());
+
+                    stakeRecords.push({ delegator: _delegator.address, pool: _pool, stake: stake });
+
+                    _poolTotalStake += stake;
+
+                    await stakingHbbft.connect(_delegator).stake(_pool, { value: stake });
+                    expect(await stakingHbbft.stakeAmount(_pool, _delegator.address)).to.equal(stake);
+                }
+
+                poolTotalStakes.set(_pool, _poolTotalStake);
+
+                expect(await stakingHbbft.stakeAmountTotal(_pool)).to.be.eq(_poolTotalStake);
+            }
+
+            systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+            await helpers.mine(1);
+
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            const deltaPotValue = ethers.parseEther('10');
+            await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+            expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+
+            const validators = await validatorSetHbbft.getValidators();
+            const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+
+            const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+            const poolReward = validatorRewards / BigInt(validators.length);
+
+            systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            const validatorMinRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
+
+            for (const _stakeRecord of stakeRecords) {
+                let validatorShare = 0n;
+                let delegatorShare = 0n;
+
+                const poolTotalStake = poolTotalStakes.get(_stakeRecord.pool)!;
+                const delegatorsStake = poolTotalStake - candidateMinStake;
+
+                const minRewardPercentExceeded = candidateMinStake * (100n - validatorMinRewardPercent)
+                    > delegatorsStake * validatorMinRewardPercent;
+
+                if (minRewardPercentExceeded) {
+                    validatorShare = (poolReward * candidateMinStake) / poolTotalStake;
+                    delegatorShare = (poolReward * _stakeRecord.stake) / poolTotalStake;
+                } else {
+                    validatorShare = (poolReward * validatorMinRewardPercent) / 100n;
+                    delegatorShare = (poolReward * _stakeRecord.stake * (100n - validatorMinRewardPercent))
+                        / (delegatorsStake * 100n);
+                }
+
+                expect(
+                    await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.pool)
+                ).to.be.closeTo(candidateMinStake + validatorShare, 100n);
+
+                expect(
+                    await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.delegator)
+                ).to.be.closeTo(_stakeRecord.stake + delegatorShare, 100n);
+            }
+        });
+    });
+
+    describe('setStakingTransitionTimeframeLength()', async () => {
+        it('should allow calling only to contract owner', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+            await expect(stakingHbbft.connect(caller).setStakingTransitionTimeframeLength(300n))
+                .to.be.revertedWith("Ownable: caller is not the owner");
+        });
+
+        it('should set staking transition time frame length', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.setStakingTransitionTimeframeLength(300n);
+            expect(await stakingHbbft.stakingTransitionTimeframeLength()).to.be.equal(300n);
+        });
+
+        it('should not set staking transition time frame length to low value', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.setStakingTransitionTimeframeLength(9n))
+                .to.be.revertedWith("The transition timeframe must be longer than 10");
+        });
+
+        it('should not set staking transition time frame length to high value', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await expect(stakingHbbft.setStakingTransitionTimeframeLength(100000n))
+                .to.be.revertedWith("The transition timeframe must be smaller than the epoch duration");
         });
 
     });
-    
 
+    describe('setStakingFixedEpochDuration()', async () => {
+        it('should allow calling only to contract owner', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-    describe('setStakingFixedEpochDuration()', async () => { 
-        it('should set staking fixed epoch transition', async () => { 
-            const {
-                stakingHbbft,
-            } = await helpers.loadFixture(deployContractsFixture);
-            
-            // this should succeed.
-            await stakingHbbft.setStakingFixedEpochDuration('600000');
-            (await stakingHbbft.stakingFixedEpochDuration()).should.be.equal('600000');
+            const caller = accounts[5];
+            await expect(stakingHbbft.connect(caller).setStakingFixedEpochDuration(600000n))
+                .to.be.revertedWith("Ownable: caller is not the owner");
         });
 
-        it('should not set staking transition time frame length to low value', async () => { 
-            const {
-                stakingHbbft,
-            } = await helpers.loadFixture(deployContractsFixture);
+        it('should set staking fixed epoch transition', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.setStakingFixedEpochDuration(600000n);
+            expect(await stakingHbbft.stakingFixedEpochDuration()).to.be.equal(600000n);
+        });
+
+        it('should not set staking transition time frame length to low value', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             let tranitionTimeFrame = await stakingHbbft.stakingTransitionTimeframeLength();
-            await expect(stakingHbbft.setStakingFixedEpochDuration(tranitionTimeFrame)).be.revertedWith("The fixed epoch duration timeframe must be greater than the transition timeframe length");
+            await expect(stakingHbbft.setStakingFixedEpochDuration(tranitionTimeFrame))
+                .to.be.revertedWith("The fixed epoch duration timeframe must be greater than the transition timeframe length");
         });
     });
 
-    // TODO: ...add other tests...
+    describe('setCandidateMinStake()', async () => {
+        it('should allow calling only to contract owner', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+            await expect(stakingHbbft.connect(caller).setCandidateMinStake(ethers.parseEther('10')))
+                .to.be.revertedWith("Ownable: caller is not the owner");
+        });
+
+        it('should set candidate min stake', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const minStakeValue = ethers.parseEther('15')
+            await stakingHbbft.setCandidateMinStake(minStakeValue);
+            expect(await stakingHbbft.candidateMinStake()).to.be.equal(minStakeValue);
+        });
+    });
+
+    describe('setDelegatorMinStake()', async () => {
+        it('should allow calling only to contract owner', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+            await expect(stakingHbbft.connect(caller).setDelegatorMinStake(ethers.parseEther('10')))
+                .to.be.revertedWith("Ownable: caller is not the owner");
+        });
+
+        it('should set delegator min stake', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const minStakeValue = ethers.parseEther('15')
+            await stakingHbbft.setDelegatorMinStake(minStakeValue);
+            expect(await stakingHbbft.delegatorMinStake()).to.be.equal(minStakeValue);
+        });
+    });
+
+    describe('snapshotPoolStakeAmounts()', async () => {
+        it('should allow calling only by BlockReward contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const caller = accounts[5];
+            await expect(stakingHbbft.connect(caller).snapshotPoolStakeAmounts(0n, initialStakingAddresses[1]))
+                .to.be.revertedWith("Only BlockReward");
+        });
+
+        it('should create validator stake snapshot after epoch close', async () => {
+            const {
+                stakingHbbft,
+                blockRewardHbbft,
+                candidateMinStake,
+                delegatorMinStake
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            const delegator = accounts[10];
+
+            let stakingEpoch = await stakingHbbft.stakingEpoch();
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                const stakeAmount = BigInt(i + 1) * delegatorMinStake;
+
+                await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+                await stakingHbbft.connect(delegator).stake(pool, { value: stakeAmount });
+                expect(await stakingHbbft.stakeAmountTotal(pool)).to.be.equal(candidateMinStake + stakeAmount);
+                expect(await stakingHbbft.snapshotPoolTotalStakeAmount(stakingEpoch, pool)).to.be.eq(0n);
+                expect(await stakingHbbft.snapshotPoolValidatorStakeAmount(stakingEpoch, pool.address)).to.be.eq(0n);
+            }
+
+            await callReward(blockRewardHbbft, true);
+            stakingEpoch = await stakingHbbft.stakingEpoch();
+
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                const stakeAmount = BigInt(i + 1) * delegatorMinStake;
+
+                expect(await stakingHbbft.stakeAmountTotal(pool)).to.be.equal(candidateMinStake + stakeAmount);
+                expect(await stakingHbbft.snapshotPoolTotalStakeAmount(stakingEpoch, pool)).to.be.eq(candidateMinStake + stakeAmount);
+                expect(await stakingHbbft.getPoolValidatorStakeAmount(stakingEpoch, pool.address)).to.be.eq(candidateMinStake);
+            }
+        });
+    });
+
+    describe('other functions', async () => {
+        it('should restrict calling notifyKeyGenFailed to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifyKeyGenFailed())
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling notifyNetworkOfftimeDetected to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifyNetworkOfftimeDetected(0n))
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling notifyAvailability to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifyAvailability(initialStakingAddresses[1]))
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling setStakingEpochStartTime to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).setStakingEpochStartTime(0n))
+                .to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should restrict calling setValidatorInternetAddress to validator set contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).setValidatorInternetAddress(
+                ethers.ZeroAddress,
+                ZeroIpAddress,
+                '0x6987',
+            )).to.be.revertedWith("Only ValidatorSet");
+        });
+
+        it('should update validator ip:port using setValidatorInternetAddress', async () => {
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[1];
+            const ipAddress = ethers.zeroPadBytes("0xfe", 16);
+            const port = '0x6987';
+
+            const validatorSetSigner = await impersonateAcc(await validatorSetHbbft.getAddress());
+            expect(await stakingHbbft.connect(validatorSetSigner).setValidatorInternetAddress(validator, ipAddress, port));
+            await helpers.stopImpersonatingAccount(validatorSetSigner.address);
+
+            const poolInfo = await stakingHbbft.poolInfo(validator);
+            expect(poolInfo.internetAddress).to.equal(ipAddress);
+            expect(poolInfo.port).to.equal(port);
+        });
+
+        it('should update own pool info using setPoolInfo', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = await ethers.getSigner(initialValidators[1]);
+            const publicKey = ethers.zeroPadBytes("0xdeadbeef", 64);
+            const ipAddress = ethers.zeroPadBytes("0xfe", 16);
+            const port = '0x6987';
+
+            expect(await stakingHbbft.connect(validator).setPoolInfo(
+                publicKey,
+                ipAddress,
+                port,
+            ));
+
+            const poolInfo = await stakingHbbft.poolInfo(validator);
+            expect(poolInfo.publicKey).to.equal(publicKey);
+            expect(poolInfo.internetAddress).to.equal(ipAddress);
+            expect(poolInfo.port).to.equal(port);
+        });
+    });
 
     async function callReward(blockRewardContract: BlockRewardHbbftMock, isEpochEndBlock: boolean) {
-        await blockRewardContract.setSystemAddress(owner.address);
+        const systemSigner = await impersonateAcc(SystemAccountAddress);
 
-        const { events } = await (await blockRewardContract.connect(owner).reward(isEpochEndBlock)).wait();
-        if (events!.length > 0) {
+        const tx = await blockRewardContract.connect(systemSigner).reward(isEpochEndBlock);
+        const receipt = await tx.wait();
+
+        await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+        if (receipt!.logs.length > 0) {
             // Emulate minting native coins
-            events?.[0].event?.should.be.equal("CoinsRewarded");
-            const totalReward = events?.[0].args?.rewards;
+            const event = blockRewardContract.interface.parseLog(receipt!.logs[0]);
+
+            expect(event!.name).to.be.equal("CoinsRewarded");
+
+            const totalReward = event!.args.rewards;
             await blockRewardContract.connect(owner).sendCoins({ value: totalReward });
         }
-
-        await blockRewardContract.setSystemAddress('0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE');
     }
 
     // time travels forward to the beginning of the next transition,
@@ -2939,7 +2407,7 @@ describe('StakingHbbft', () => {
         // console.log('tsBefore:', tsBeforeTimeTravel.toString());
         // console.log('endTimeOfCurrentEpoch:', endTimeOfCurrentEpoch.toString());
 
-        if (endTimeOfCurrentEpoch.lt(tsBeforeTimeTravel)) {
+        if (endTimeOfCurrentEpoch < tsBeforeTimeTravel) {
             console.error('Trying to timetravel back in time !!');
         }
 
@@ -2947,10 +2415,6 @@ describe('StakingHbbft', () => {
         await callReward(blockRewardContract, true);
     }
 });
-
-function random(low: number, high: number) {
-    return Math.floor(Math.random() * (high - low) + low);
-}
 
 function shuffle(a: number[]) {
     var j, x, i;

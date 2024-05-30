@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
 
 import { InitialContractsConfiguration, NetworkConfiguration } from './types';

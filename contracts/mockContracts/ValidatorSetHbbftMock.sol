@@ -52,6 +52,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _isFullHealth = _healthy;
     }
 
+    function forceFinalizeNewValidators() external {
+        _finalizeNewValidators();
+    }
+
     // =============================================== Getters ========================================================
 
     function getRandomIndex(
