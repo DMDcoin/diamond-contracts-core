@@ -60,7 +60,15 @@
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run-script", "make_spec_test"]
-    }
+    },
+    {
+      "name": "hardhat makespec",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["hardhat", "make_spec_hbbft", "--init-contracts", "initial-contracts.json", "--initial-fund-address", "0x32c5f14302d4Dd973e0040a5d7Eda97222A928D1", "--use-upgrade-proxy", "/home/sn/dmd/diamond-node/crates/ethcore/src/engines/hbbft/hbbft_config_generator/keygen_history.json"]
+    },
     {
       "name": "npm run testDev",
       "type": "node",
