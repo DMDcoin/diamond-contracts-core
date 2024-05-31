@@ -15,9 +15,12 @@ import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 
+
 /// @dev Implements staking and withdrawal logic.
 contract StakingHbbft is Initializable, OwnableUpgradeable, ValueGuards, IStakingHbbft {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+
+// =============================================== Storage ========================================================
 
     EnumerableSetUpgradeable.AddressSet private _pools;
     EnumerableSetUpgradeable.AddressSet private _poolsInactive;
