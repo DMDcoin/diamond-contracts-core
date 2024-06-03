@@ -494,7 +494,7 @@ describe('TxPermissionHbbft', () => {
             it("should set minimum gas price", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
-                const minGasPrice = ethers.utils.parseUnits('0.8', 'gwei');
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(minGasPrice)
                 ).to.emit(txPermission, "gasPriceChanged")
@@ -599,7 +599,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = ethers.utils.parseUnits('0.8', 'gwei');
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
@@ -608,8 +608,8 @@ describe('TxPermissionHbbft', () => {
                     sender.address,
                     ethers.ZeroAddress,
                     0,
-                    Number(minGasPrice) / 2,
-                    '0x00',
+                    minGasPrice / BigInt(2),
+                    EmptyBytes,
                 );
 
                 expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
@@ -620,7 +620,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = ethers.utils.parseUnits('0.8', 'gwei');
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);

@@ -1,12 +1,5 @@
 pragma solidity =0.8.17;
 
-<<<<<<< HEAD
-import "./base/BlockRewardHbbftBase.sol";
-import { ValueGuards } from "./ValueGuards.sol";
-import "./interfaces/IBlockRewardHbbftCoins.sol";
-
-contract BlockRewardHbbft is BlockRewardHbbftBase, IBlockRewardHbbftCoins, ValueGuards {
-=======
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -15,9 +8,11 @@ import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
+import { ValueGuards } from "./ValueGuards.sol";
+
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
-contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IBlockRewardHbbft {
+contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, ValueGuards, IBlockRewardHbbft {
     struct PotsShares {
         uint256 deltaPotAmount;
         uint256 reinsertPotAmount;
@@ -117,7 +112,6 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
         _disableInitializers();
     }
 
->>>>>>> dmd/dev
     // =============================================== Setters ========================================================
 
     /// @dev Receive function. Prevents direct sending native coins to this contract.
