@@ -493,7 +493,6 @@ describe('TxPermissionHbbft', () => {
 
             it("should set minimum gas price", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
-
                 const minGasPrice = ethers.parseUnits('0.8', 'gwei');
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(minGasPrice)

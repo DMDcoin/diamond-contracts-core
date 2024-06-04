@@ -269,6 +269,7 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
         super.removeAllowedChangeableParameter(funcSelector);
     }
 
+
     // =============================================== Getters ========================================================
     function getGovernanceAddress() external view returns (address) {
         return governancePotAddress;
