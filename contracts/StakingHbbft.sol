@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.17;
 
-import "./base/StakingHbbftBase.sol";
 
-contract Sacrifice2 {
-    constructor(address payable _recipient) payable {
-        selfdestruct(_recipient);
-    }
-}
 
 /// @dev Implements staking and withdrawal logic.
 contract StakingHbbft is StakingHbbftBase {
@@ -23,7 +17,7 @@ contract StakingHbbft is StakingHbbftBase {
         address indexed fromPoolStakingAddress,
         address indexed staker,
         uint256 indexed stakingEpoch,
-        uint256 nativeCoinsAmount
+        uint256 amount
     );
 
     // =============================================== Setters ========================================================
@@ -247,7 +241,110 @@ contract StakingHbbft is StakingHbbftBase {
             _removePool(poolsToRemove[i]);
         }
 
-        blockRewardContract.transferReward(rewardSum, staker);
+        _setLikelihood(_poolStakingAddress);
+
+        emit OrderedWithdrawal(_poolStakingAddress, staker, stakingEpoch, _amount);
+    }
+
+    /// @dev Withdraws the staking coins from the specified pool ordered during the previous staking epochs with
+    /// the `orderWithdraw` function. The ordered amount can be retrieved by the `orderedWithdrawAmount` getter.
+    /// @param _poolStakingAddress The staking address of the pool from which the ordered coins are withdrawn.
+    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid {
+        address payable staker = payable(msg.sender);
+
+        require(
+            stakingEpoch > orderWithdrawEpoch[_poolStakingAddress][staker],
+            "cannot claim ordered withdraw in the same epoch it was ordered."
+        );
+        require(
+            _isWithdrawAllowed(
+                validatorSetContract.miningByStakingAddress(_poolStakingAddress),
+                staker != _poolStakingAddress
+            ),
+            "ClaimOrderedWithdraw: Withdraw not allowed"
+        );
+
+        uint256 claimAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
+        require(claimAmount != 0, "claim amount must not be 0");
+
+        orderedWithdrawAmount[_poolStakingAddress][staker] = 0;
+        orderedWithdrawAmountTotal[_poolStakingAddress] = orderedWithdrawAmountTotal[_poolStakingAddress] - claimAmount;
+
+        if (stakeAmount[_poolStakingAddress][staker] == 0) {
+            _withdrawCheckPool(_poolStakingAddress, staker);
+        }
+
+        TransferUtils.transferNativeEnsure(staker, claimAmount);
+
+        emit ClaimedOrderedWithdrawal(_poolStakingAddress, staker, stakingEpoch, claimAmount);
+    }
+
+    /// @dev Distribute abandoned stakes among Reinsert and Governance pots.
+    /// 50% goes to reinsert and 50% to governance pot.
+    /// Coins are considered abandoned if they were staked on a validator inactive for 10 years.
+    function recoverAbandonedStakes() external gasPriceIsValid {
+        uint256 totalAbandonedAmount = 0;
+
+        address[] memory inactivePools = _poolsInactive.values();
+        require(inactivePools.length != 0, "nothing to recover");
+
+        for (uint256 i = 0; i < inactivePools.length; ++i) {
+            address stakingAddress = inactivePools[i];
+
+            if (_isPoolEmpty(stakingAddress) || !validatorSetContract.isValidatorAbandoned(stakingAddress)) {
+                continue;
+            }
+
+            _poolsInactive.remove(stakingAddress);
+            abandonedAndRemoved[stakingAddress] = true;
+
+            uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
+            stakeAmountTotal[stakingAddress] = 0;
+
+            address[] memory delegators = poolDelegators(stakingAddress);
+            for (uint256 j = 0; j < delegators.length; ++j) {
+                address delegator = delegators[j];
+
+                stakeAmount[stakingAddress][delegator] = 0;
+                _removePoolDelegator(stakingAddress, delegator);
+            }
+
+            totalAbandonedAmount += gatheredPerStakingAddress;
+
+            emit GatherAbandonedStakes(msg.sender, stakingAddress, gatheredPerStakingAddress);
+        }
+
+        require(totalAbandonedAmount != 0, "nothing to recover");
+
+        uint256 governanceShare = totalAbandonedAmount / 2;
+        uint256 reinsertShare = totalAbandonedAmount - governanceShare;
+
+        IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
+        address governanceAddress = blockRewardHbbft.getGovernanceAddress();
+
+        // slither-disable-next-line arbitrary-send-eth
+        blockRewardHbbft.addToReinsertPot{ value: reinsertShare }();
+        TransferUtils.transferNative(governanceAddress, governanceShare);
+
+        emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
+    }
+
+    /// @dev Makes snapshots of total amount staked into the specified pool
+    /// before the specified staking epoch. Used by the `reward` function.
+    /// @param _epoch The number of upcoming staking epoch.
+    /// @param _stakingPool The staking address of the pool.
+    function snapshotPoolStakeAmounts(uint256 _epoch, address _stakingPool) external onlyBlockRewardContract {
+        if (snapshotPoolTotalStakeAmount[_epoch][_stakingPool] != 0) {
+            return;
+        }
+
+        uint256 totalAmount = stakeAmountTotal[_stakingPool];
+        if (totalAmount == 0) {
+            return;
+        }
+
+        snapshotPoolTotalStakeAmount[_epoch][_stakingPool] = totalAmount;
+        snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] = stakeAmount[_stakingPool][_stakingPool];
     }
 
     // =============================================== Getters ========================================================
