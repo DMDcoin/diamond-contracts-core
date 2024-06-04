@@ -1,10 +1,140 @@
-// SPDX-License-Identifier: MIT
 pragma solidity =0.8.17;
 
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+import {
+    EnumerableSetUpgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
+
+import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
+import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
+import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { TransferUtils } from "./utils/TransferUtils.sol";
 
 /// @dev Implements staking and withdrawal logic.
-contract StakingHbbft is StakingHbbftBase {
+contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
+    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+
+    EnumerableSetUpgradeable.AddressSet private _pools;
+    EnumerableSetUpgradeable.AddressSet private _poolsInactive;
+    EnumerableSetUpgradeable.AddressSet private _poolsToBeRemoved;
+
+    address[] private _poolsToBeElected;
+    uint256[] private _poolsLikelihood;
+    uint256 private _poolsLikelihoodSum;
+
+    mapping(address => EnumerableSetUpgradeable.AddressSet) private _poolDelegators;
+    mapping(address => EnumerableSetUpgradeable.AddressSet) private _poolDelegatorsInactive;
+
+    mapping(address => mapping(address => mapping(uint256 => uint256))) private _stakeAmountByEpoch;
+
+    /// @dev The limit of the minimum candidate stake (CANDIDATE_MIN_STAKE).
+    uint256 public candidateMinStake;
+
+    /// @dev The limit of the minimum delegator stake (DELEGATOR_MIN_STAKE).
+    uint256 public delegatorMinStake;
+
+    /// @dev The current amount of staking coins ordered for withdrawal from the specified
+    /// pool by the specified staker. Used by the `orderWithdraw`, `claimOrderedWithdraw` and other functions.
+    /// The first parameter is the pool staking address, the second one is the staker address.
+    mapping(address => mapping(address => uint256)) public orderedWithdrawAmount;
+
+    /// @dev The current total amount of staking coins ordered for withdrawal from
+    /// the specified pool by all of its stakers. Pool staking address is accepted as a parameter.
+    mapping(address => uint256) public orderedWithdrawAmountTotal;
+
+    /// @dev The number of the staking epoch during which the specified staker ordered
+    /// the latest withdraw from the specified pool. Used by the `claimOrderedWithdraw` function
+    /// to allow the ordered amount to be claimed only in future staking epochs. The first parameter
+    /// is the pool staking address, the second one is the staker address.
+    mapping(address => mapping(address => uint256)) public orderWithdrawEpoch;
+
+    /// @dev The pool's index in the array returned by the `getPoolsToBeElected` getter.
+    /// Used by the `_deletePoolToBeElected` and `_isPoolToBeElected` internal functions.
+    /// The pool staking address is accepted as a parameter.
+    /// If the value is zero, it may mean the array doesn't contain the address.
+    /// Check the address is in the array using the `getPoolsToBeElected` getter.
+    mapping(address => uint256) public poolToBeElectedIndex;
+
+    /// @dev The amount of coins currently staked into the specified pool by the specified
+    /// staker. Doesn't include the amount ordered for withdrawal.
+    /// The first parameter is the pool staking address, the second one is the staker address.
+    mapping(address => mapping(address => uint256)) public stakeAmount;
+
+    /// @dev The duration period (in blocks) at the end of staking epoch during which
+    /// participants are not allowed to stake/withdraw/order/claim their staking coins.
+    uint256 public stakingWithdrawDisallowPeriod;
+
+    /// @dev The serial number of the current staking epoch.
+    uint256 public stakingEpoch;
+
+    /// @dev The fixed duration of each staking epoch before KeyGen starts i.e.
+    /// before the upcoming ("pending") validators are selected.
+    uint256 public stakingFixedEpochDuration;
+
+    /// @dev Length of the timeframe in seconds for the transition to the new validator set.
+    uint256 public stakingTransitionTimeframeLength;
+
+    /// @dev The timestamp of the last block of the the previous epoch.
+    /// The timestamp of the current epoch must be '>=' than this.
+    uint256 public stakingEpochStartTime;
+
+    /// @dev the blocknumber of the first block in this epoch.
+    /// this is mainly used for a historic lookup in the key gen history to read out the
+    /// ACKS and PARTS so a client is able to verify an epoch, even in the case that
+    /// the transition to the next epoch has already started,
+    /// and the information of the old keys is not available anymore.
+    uint256 public stakingEpochStartBlock;
+
+    /// @dev the extra time window pending validators have to write
+    /// to write their honey badger key shares.
+    /// this value is increased in response to a failed key generation event,
+    /// if one or more validators miss out writing their key shares.
+    uint256 public currentKeyGenExtraTimeWindow;
+
+    /// @dev Returns the total amount of staking coins currently staked into the specified pool.
+    /// Doesn't include the amount ordered for withdrawal.
+    /// The pool staking address is accepted as a parameter.
+    mapping(address => uint256) public stakeAmountTotal;
+
+    /// @dev The address of the `ValidatorSetHbbft` contract.
+    IValidatorSetHbbft public validatorSetContract;
+
+    struct PoolInfo {
+        bytes publicKey;
+        bytes16 internetAddress;
+        bytes2 port;
+    }
+
+    mapping(address => PoolInfo) public poolInfo;
+
+    /// @dev current limit of how many funds can
+    /// be staked on a single validator.
+    uint256 public maxStakeAmount;
+
+    mapping(address => bool) public abandonedAndRemoved;
+
+    /// @dev The total amount staked into the specified pool (staking address)
+    /// before the specified staking epoch. Filled by the `_snapshotPoolStakeAmounts` function.
+    mapping(uint256 => mapping(address => uint256)) public snapshotPoolTotalStakeAmount;
+
+    /// @dev The validator's amount staked into the specified pool (staking address)
+    /// before the specified staking epoch. Filled by the `_snapshotPoolStakeAmounts` function.
+    mapping(uint256 => mapping(address => uint256)) public snapshotPoolValidatorStakeAmount;
+
+    /// @dev The delegator's staked amount snapshot for specified epoch
+    /// pool => delegator => epoch => stake amount
+    mapping(address => mapping(address => mapping(uint256 => uint256))) internal _delegatorStakeSnapshot;
+
+    /// @dev Number of last epoch when stake snapshot was taken. pool => delegator => epoch
+    mapping(address => mapping(address => uint256)) internal _stakeSnapshotLastEpoch;
+
+    // ============================================== Constants =======================================================
+
+    /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
+    uint256 public constant MAX_CANDIDATES = 3000;
+
     // ================================================ Events ========================================================
 
     /// @dev Emitted by the `claimOrderedWithdraw` function to signal the staker withdrew the specified
@@ -12,13 +142,103 @@ contract StakingHbbft is StakingHbbftBase {
     /// @param fromPoolStakingAddress The pool from which the `staker` withdrew the `amount`.
     /// @param staker The address of the staker that withdrew the `amount`.
     /// @param stakingEpoch The serial number of the staking epoch during which the claim was made.
-    /// @param nativeCoinsAmount The withdrawal amount.
+    /// @param amount The withdrawal amount.
     event ClaimedOrderedWithdrawal(
         address indexed fromPoolStakingAddress,
         address indexed staker,
         uint256 indexed stakingEpoch,
         uint256 amount
     );
+
+    /// @dev Emitted by the `moveStake` function to signal the staker moved the specified
+    /// amount of stake from one pool to another during the specified staking epoch.
+    /// @param fromPoolStakingAddress The pool from which the `staker` moved the stake.
+    /// @param toPoolStakingAddress The destination pool where the `staker` moved the stake.
+    /// @param staker The address of the staker who moved the `amount`.
+    /// @param stakingEpoch The serial number of the staking epoch during which the `amount` was moved.
+    /// @param amount The stake amount which was moved.
+    event MovedStake(
+        address fromPoolStakingAddress,
+        address indexed toPoolStakingAddress,
+        address indexed staker,
+        uint256 indexed stakingEpoch,
+        uint256 amount
+    );
+
+    /// @dev Emitted by the `orderWithdraw` function to signal the staker ordered the withdrawal of the
+    /// specified amount of their stake from the specified pool during the specified staking epoch.
+    /// @param fromPoolStakingAddress The pool from which the `staker` ordered a withdrawal of the `amount`.
+    /// @param staker The address of the staker that ordered the withdrawal of the `amount`.
+    /// @param stakingEpoch The serial number of the staking epoch during which the order was made.
+    /// @param amount The ordered withdrawal amount. Can be either positive or negative.
+    /// See the `orderWithdraw` function.
+    event OrderedWithdrawal(
+        address indexed fromPoolStakingAddress,
+        address indexed staker,
+        uint256 indexed stakingEpoch,
+        int256 amount
+    );
+
+    /// @dev Emitted by the `stake` function to signal the staker placed a stake of the specified
+    /// amount for the specified pool during the specified staking epoch.
+    /// @param toPoolStakingAddress The pool in which the `staker` placed the stake.
+    /// @param staker The address of the staker that placed the stake.
+    /// @param stakingEpoch The serial number of the staking epoch during which the stake was made.
+    /// @param amount The stake amount.
+    event PlacedStake(
+        address indexed toPoolStakingAddress,
+        address indexed staker,
+        uint256 indexed stakingEpoch,
+        uint256 amount
+    );
+
+    /// @dev Emitted by the `withdraw` function to signal the staker withdrew the specified
+    /// amount of a stake from the specified pool during the specified staking epoch.
+    /// @param fromPoolStakingAddress The pool from which the `staker` withdrew the `amount`.
+    /// @param staker The address of staker that withdrew the `amount`.
+    /// @param stakingEpoch The serial number of the staking epoch during which the withdrawal was made.
+    /// @param amount The withdrawal amount.
+    event WithdrewStake(
+        address indexed fromPoolStakingAddress,
+        address indexed staker,
+        uint256 indexed stakingEpoch,
+        uint256 amount
+    );
+
+    event GatherAbandonedStakes(address indexed caller, address indexed stakingAddress, uint256 gatheredFunds);
+
+    event RecoverAbandonedStakes(address indexed caller, uint256 reinsertShare, uint256 governanceShare);
+
+    /// @dev Emitted by the `restake` function to signal the epoch reward was restaked to the pool.
+    /// @param poolStakingAddress The pool for which the restake will be performed.
+    /// @param stakingEpoch The serial number of the staking epoch during which the restake was made.
+    /// @param validatorReward The amount of tokens restaked for the validator.
+    /// @param delegatorsReward The total amount of tokens restaked for the `poolStakingAddress` delegators.
+    event RestakeReward(
+        address indexed poolStakingAddress,
+        uint256 indexed stakingEpoch,
+        uint256 validatorReward,
+        uint256 delegatorsReward
+    );
+
+    // ============================================== Modifiers =======================================================
+
+    /// @dev Ensures the transaction gas price is not zero.
+    modifier gasPriceIsValid() {
+        require(tx.gasprice != 0, "GasPrice is 0");
+        _;
+    }
+
+    /// @dev Ensures the caller is the ValidatorSetHbbft contract address.
+    modifier onlyValidatorSetContract() virtual {
+        require(msg.sender == address(validatorSetContract), "Only ValidatorSet");
+        _;
+    }
+
+    modifier onlyBlockRewardContract() {
+        require(msg.sender == validatorSetContract.blockRewardContract(), "Only BlockReward");
+        _;
+    }
 
     // =============================================== Setters ========================================================
 
@@ -240,123 +460,52 @@ contract StakingHbbft is StakingHbbftBase {
         for (uint256 i = 0; i < poolsToRemove.length; i++) {
             _removePool(poolsToRemove[i]);
         }
-
-        _setLikelihood(_poolStakingAddress);
-
-        emit OrderedWithdrawal(_poolStakingAddress, staker, stakingEpoch, _amount);
     }
 
-    /// @dev Withdraws the staking coins from the specified pool ordered during the previous staking epochs with
-    /// the `orderWithdraw` function. The ordered amount can be retrieved by the `orderedWithdrawAmount` getter.
-    /// @param _poolStakingAddress The staking address of the pool from which the ordered coins are withdrawn.
-    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid {
+    /// @dev Moves the specified amount of staking coins from the staker's address to the staking address of
+    /// the specified pool. Actually, the amount is stored in a balance of this StakingHbbft contract.
+    /// A staker calls this function when they want to make a stake into a pool.
+    /// @param _toPoolStakingAddress The staking address of the pool where the coins should be staked.
+    function stake(address _toPoolStakingAddress) external payable gasPriceIsValid {
+        address staker = msg.sender;
+        uint256 amount = msg.value;
+        _stake(_toPoolStakingAddress, staker, amount);
+
+        emit PlacedStake(_toPoolStakingAddress, staker, stakingEpoch, amount);
+    }
+
+    /// @dev Moves the specified amount of staking coins from the staking address of
+    /// the specified pool to the staker's address. A staker calls this function when they want to withdraw
+    /// their coins.
+    /// @param _fromPoolStakingAddress The staking address of the pool from which the coins should be withdrawn.
+    /// @param _amount The amount of coins to be withdrawn. The amount cannot exceed the value returned
+    /// by the `maxWithdrawAllowed` getter.
+    function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid {
         address payable staker = payable(msg.sender);
-
-        require(
-            stakingEpoch > orderWithdrawEpoch[_poolStakingAddress][staker],
-            "cannot claim ordered withdraw in the same epoch it was ordered."
-        );
-        require(
-            _isWithdrawAllowed(
-                validatorSetContract.miningByStakingAddress(_poolStakingAddress),
-                staker != _poolStakingAddress
-            ),
-            "ClaimOrderedWithdraw: Withdraw not allowed"
-        );
-
-        uint256 claimAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
-        require(claimAmount != 0, "claim amount must not be 0");
-
-        orderedWithdrawAmount[_poolStakingAddress][staker] = 0;
-        orderedWithdrawAmountTotal[_poolStakingAddress] = orderedWithdrawAmountTotal[_poolStakingAddress] - claimAmount;
-
-        if (stakeAmount[_poolStakingAddress][staker] == 0) {
-            _withdrawCheckPool(_poolStakingAddress, staker);
-        }
-
-        TransferUtils.transferNativeEnsure(staker, claimAmount);
-
-        emit ClaimedOrderedWithdrawal(_poolStakingAddress, staker, stakingEpoch, claimAmount);
+        _withdraw(_fromPoolStakingAddress, staker, _amount);
+        TransferUtils.transferNativeEnsure(staker, _amount);
+        emit WithdrewStake(_fromPoolStakingAddress, staker, stakingEpoch, _amount);
     }
 
-    /// @dev Distribute abandoned stakes among Reinsert and Governance pots.
-    /// 50% goes to reinsert and 50% to governance pot.
-    /// Coins are considered abandoned if they were staked on a validator inactive for 10 years.
-    function recoverAbandonedStakes() external gasPriceIsValid {
-        uint256 totalAbandonedAmount = 0;
-
-        address[] memory inactivePools = _poolsInactive.values();
-        require(inactivePools.length != 0, "nothing to recover");
-
-        for (uint256 i = 0; i < inactivePools.length; ++i) {
-            address stakingAddress = inactivePools[i];
-
-            if (_isPoolEmpty(stakingAddress) || !validatorSetContract.isValidatorAbandoned(stakingAddress)) {
-                continue;
-            }
-
-            _poolsInactive.remove(stakingAddress);
-            abandonedAndRemoved[stakingAddress] = true;
-
-            uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
-            stakeAmountTotal[stakingAddress] = 0;
-
-            address[] memory delegators = poolDelegators(stakingAddress);
-            for (uint256 j = 0; j < delegators.length; ++j) {
-                address delegator = delegators[j];
-
-                stakeAmount[stakingAddress][delegator] = 0;
-                _removePoolDelegator(stakingAddress, delegator);
-            }
-
-            totalAbandonedAmount += gatheredPerStakingAddress;
-
-            emit GatherAbandonedStakes(msg.sender, stakingAddress, gatheredPerStakingAddress);
-        }
-
-        require(totalAbandonedAmount != 0, "nothing to recover");
-
-        uint256 governanceShare = totalAbandonedAmount / 2;
-        uint256 reinsertShare = totalAbandonedAmount - governanceShare;
-
-        IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
-        address governanceAddress = blockRewardHbbft.getGovernanceAddress();
-
-        // slither-disable-next-line arbitrary-send-eth
-        blockRewardHbbft.addToReinsertPot{ value: reinsertShare }();
-        TransferUtils.transferNative(governanceAddress, governanceShare);
-
-        emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
+    /// @dev Moves staking coins from one pool to another. A staker calls this function when they want
+    /// to move their coins from one pool to another without withdrawing their coins.
+    /// @param _fromPoolStakingAddress The staking address of the source pool.
+    /// @param _toPoolStakingAddress The staking address of the target pool.
+    /// @param _amount The amount of staking coins to be moved. The amount cannot exceed the value returned
+    /// by the `maxWithdrawAllowed` getter.
+    function moveStake(
+        address _fromPoolStakingAddress,
+        address _toPoolStakingAddress,
+        uint256 _amount
+    ) external gasPriceIsValid {
+        require(_fromPoolStakingAddress != _toPoolStakingAddress, "MoveStake: src and dst pool is the same");
+        address staker = msg.sender;
+        _withdraw(_fromPoolStakingAddress, staker, _amount);
+        _stake(_toPoolStakingAddress, staker, _amount);
+        emit MovedStake(_fromPoolStakingAddress, _toPoolStakingAddress, staker, stakingEpoch, _amount);
     }
 
-    /// @dev Makes snapshots of total amount staked into the specified pool
-    /// before the specified staking epoch. Used by the `reward` function.
-    /// @param _epoch The number of upcoming staking epoch.
-    /// @param _stakingPool The staking address of the pool.
-    function snapshotPoolStakeAmounts(uint256 _epoch, address _stakingPool) external onlyBlockRewardContract {
-        if (snapshotPoolTotalStakeAmount[_epoch][_stakingPool] != 0) {
-            return;
-        }
-
-        uint256 totalAmount = stakeAmountTotal[_stakingPool];
-        if (totalAmount == 0) {
-            return;
-        }
-
-        snapshotPoolTotalStakeAmount[_epoch][_stakingPool] = totalAmount;
-        snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] = stakeAmount[_stakingPool][_stakingPool];
-    }
-
-    // =============================================== Getters ========================================================
-
-    /// @dev Returns reward amount in native coins for the specified pool, the specified staking epochs,
-    /// and the specified staker address (delegator or validator).
-    /// @param _stakingEpochs The list of staking epochs in ascending order.
-    /// If the list is empty, it is taken with `BlockRewardHbbft.epochsPoolGotRewardFor` getter.
-    /// @param _poolStakingAddress The staking address of the pool for which the amounts need to be returned.
-    /// @param _staker The staker address (validator's staking address or delegator's address).
-    function getRewardAmount(
-        uint256[] memory _stakingEpochs,
+    function restake(
         address _poolStakingAddress,
         uint256 _validatorMinRewardPercent
     ) external payable onlyBlockRewardContract {
@@ -615,49 +764,6 @@ contract StakingHbbft is StakingHbbftBase {
 
         snapshotPoolTotalStakeAmount[_epoch][_stakingPool] = totalAmount;
         snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] = stakeAmount[_stakingPool][_stakingPool];
-    }
-
-    /**
-     * @dev Sets the minimum stake required for delegators.
-     * @param _minStake The new minimum stake amount.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     * - The stake amount must be within the allowed range.
-     */
-    function setDelegatorMinStake(uint256 _minStake)
-        override
-        external
-        onlyOwner
-        withinAllowedRange(_minStake)
-    {
-        delegatorMinStake = _minStake;
-        emit SetDelegatorMinStake(_minStake);
-    }
-
-    /**
-     * @dev Sets the allowed changeable parameter for a specific setter function.
-     * @param setter The name of the setter function.
-     * @param getter The name of the getter function.
-     * @param params The array of allowed parameter values.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     */
-    function setAllowedChangeableParameter(
-        string memory setter,
-        string memory getter,
-        uint256[] memory params
-    ) public override onlyOwner {
-        super.setAllowedChangeableParameter(setter, getter, params);
-    }
-
-    /**
-     * @dev Removes the allowed changeable parameter for a given function selector.
-     * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     */
-    function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
-        super.removeAllowedChangeableParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================
