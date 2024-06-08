@@ -106,7 +106,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
         minimumGasPrice = 1 gwei;
-        blockGasLimit = 100_000; // 1 giga gas block
+        blockGasLimit = 1_000_000_000; // 1 giga gas block
 
         uint256[] memory minGasPriceAllowedParams = new uint256[](11);
         minGasPriceAllowedParams[0] = 0.1 gwei;
@@ -128,16 +128,16 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         );
 
         uint256[] memory blockGasLimitAllowedParams = new uint256[](10);
-        blockGasLimitAllowedParams[0] = 100000;
-        blockGasLimitAllowedParams[1] = 200000;
-        blockGasLimitAllowedParams[2] = 300000;
-        blockGasLimitAllowedParams[3] = 400000;
-        blockGasLimitAllowedParams[4] = 500000;
-        blockGasLimitAllowedParams[5] = 600000;
-        blockGasLimitAllowedParams[6] = 700000;
-        blockGasLimitAllowedParams[7] = 800000;
-        blockGasLimitAllowedParams[8] = 900000;
-        blockGasLimitAllowedParams[9] = 1000000;
+        blockGasLimitAllowedParams[0] = 100_000_000;
+        blockGasLimitAllowedParams[1] = 200_000_000;
+        blockGasLimitAllowedParams[2] = 300_000_000;
+        blockGasLimitAllowedParams[3] = 400_000_000;
+        blockGasLimitAllowedParams[4] = 500_000_000;
+        blockGasLimitAllowedParams[5] = 600_000_000;
+        blockGasLimitAllowedParams[6] = 700_000_000;
+        blockGasLimitAllowedParams[7] = 800_000_000;
+        blockGasLimitAllowedParams[8] = 900_000_000;
+        blockGasLimitAllowedParams[9] = 1000_000_000;
 
         setAllowedChangeableParameter(
             "setBlockGasLimit(uint256)",
@@ -208,32 +208,6 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
     function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
-    }
-
-    /**
-     * @dev Sets the allowed changeable parameter for a specific setter function.
-     * @param setter The name of the setter function.
-     * @param getter The name of the getter function.
-     * @param params The array of allowed parameter values.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     */
-    function setAllowedChangeableParameter(
-        string memory setter,
-        string memory getter,
-        uint256[] memory params
-    ) public override onlyOwner {
-        super.setAllowedChangeableParameter(setter, getter, params);
-    }
-
-    /**
-     * @dev Removes the allowed changeable parameter for a given function selector.
-     * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     */
-    function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
-        super.removeAllowedChangeableParameter(funcSelector);
     }
 
     // =============================================== Getters ========================================================
