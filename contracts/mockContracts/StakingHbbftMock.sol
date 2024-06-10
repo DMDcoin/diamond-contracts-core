@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
 import { StakingHbbft } from "../StakingHbbft.sol";
