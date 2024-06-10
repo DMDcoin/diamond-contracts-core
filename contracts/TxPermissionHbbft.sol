@@ -149,8 +149,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
-        minimumGasPrice = 1 gwei;
-        blockGasLimit = 1_000_000_000; // 1 giga gas block
+        minimumGasPrice = DEFAULT_GAS_PRICE;
+        blockGasLimit = DEFAULT_BLOCK_GAS_LIMIT;
 
         uint256[] memory minGasPriceAllowedParams = new uint256[](11);
         minGasPriceAllowedParams[0] = 0.1 gwei;
