@@ -35,9 +35,9 @@ task("make_spec_hbbft", "used to make a spec file")
 
         //todo: sanitizing initialFundAddress
         if (taskArgs.initialFundAddress) {
-            spec.accounts[taskArgs.initialFundAddress] = 
-            { 
-                balance: "4380000000000000000000000" 
+            spec.accounts[taskArgs.initialFundAddress] =
+            {
+                balance: "4380000000000000000000000"
             };
         }
 
@@ -52,8 +52,8 @@ task("make_spec_hbbft", "used to make a spec file")
             await initialContracts.core[i].compileProxy(
                 hre,
                 ProxyContractName,
-                initialContracts.core[i].implementationAddress!, // address _logic
-                initialContracts.admin!.address!,                // address _admin
+                initialContracts.core[i].implementationAddress!, // address _logic,
+                networkConfig.owner!,                            // contract initial owner
                 initializerArgs                                  // bytes _data
             );
 
@@ -71,7 +71,7 @@ task("make_spec_hbbft", "used to make a spec file")
         spec.params.transactionPermissionContractTransition = '0x0';
         spec.params.registrar = initialContracts.registry?.address;
 
-        await initialContracts.admin!.compileContract(hre, [networkConfig.owner]);
+
         await initialContracts.registry!.compileContract(
             hre,
             [
@@ -82,7 +82,6 @@ task("make_spec_hbbft", "used to make a spec file")
 
         spec.accounts = {
             ...spec.accounts,
-            ...initialContracts.admin?.toSpecAccount(0),
             ...initialContracts.registry?.toSpecAccount(0)
         };
 

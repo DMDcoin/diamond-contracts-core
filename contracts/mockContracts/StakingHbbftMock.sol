@@ -1,18 +1,25 @@
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
-import "../StakingHbbft.sol";
+import { StakingHbbft } from "../StakingHbbft.sol";
+import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
+import { Unauthorized } from "../lib/Errors.sol";
 
 contract StakingHbbftMock is StakingHbbft {
     IValidatorSetHbbft private validatorSetContractMock;
 
     modifier onlyValidatorSetContract() virtual override {
-        require(
-            msg.sender == address(validatorSetContract) || msg.sender == address(validatorSetContractMock),
-            "Only ValidatorSet"
-        );
+        if (msg.sender != address(validatorSetContract) && msg.sender != address(validatorSetContractMock)) {
+            revert Unauthorized();
+        }
         _;
     }
     // =============================================== Setters ========================================================
+
+    // Some unit tests requires impersonating staking contract, therefore
+    // we need a way to add balance to staking contract address not using `receive` func.
+    function addBalance() public payable {
+        return;
+    }
 
     function addPoolActiveMock(address _stakingAddress) public {
         _addPoolActive(_stakingAddress, true);

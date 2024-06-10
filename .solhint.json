@@ -1,8 +1,10 @@
 {
-  "extends": "solhint:default",
+  "extends": "solhint:recommended",
   "plugins": [],
   "rules": {
-    "code-complexity": ["warn", 20],
-    "function-max-lines": ["warn", 137]
+    "code-complexity": ["warn", 25],
+    "function-max-lines": ["warn", 160],
+    "func-visibility": ["warn", { "ignoreConstructors": true }],
+    "max-states-count": ["warn", 32]
   }
 }

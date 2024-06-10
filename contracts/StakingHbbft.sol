@@ -1,32 +1,33 @@
 // SPDX-License-Identifier: Apache 2.0
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
+
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
-import {
-    EnumerableSetUpgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { Unauthorized, ZeroAddress, ZeroGasPrice } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 
 /// @dev Implements staking and withdrawal logic.
-contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
-    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+// slither-disable-start unused-return
+contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft {
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-    EnumerableSetUpgradeable.AddressSet private _pools;
-    EnumerableSetUpgradeable.AddressSet private _poolsInactive;
-    EnumerableSetUpgradeable.AddressSet private _poolsToBeRemoved;
+    EnumerableSet.AddressSet private _pools;
+    EnumerableSet.AddressSet private _poolsInactive;
+    EnumerableSet.AddressSet private _poolsToBeRemoved;
 
     address[] private _poolsToBeElected;
     uint256[] private _poolsLikelihood;
     uint256 private _poolsLikelihoodSum;
 
-    mapping(address => EnumerableSetUpgradeable.AddressSet) private _poolDelegators;
-    mapping(address => EnumerableSetUpgradeable.AddressSet) private _poolDelegatorsInactive;
+    mapping(address => EnumerableSet.AddressSet) private _poolDelegators;
+    mapping(address => EnumerableSet.AddressSet) private _poolDelegatorsInactive;
 
     mapping(address => mapping(address => mapping(uint256 => uint256))) private _stakeAmountByEpoch;
 
@@ -222,22 +223,56 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         uint256 delegatorsReward
     );
 
+    error CannotClaimWithdrawOrderYet(address pool, address staker);
+    error MaxPoolsCountExceeded();
+    error MaxAllowedWithdrawExceeded(uint256 allowed, uint256 desired);
+    error NoStakesToRecover();
+    error NotPayable();
+    error PoolAbandoned(address pool);
+    error PoolCannotBeRemoved(address pool);
+    error PoolEmpty(address pool);
+    error PoolMiningBanned(address pool);
+    error PoolNotExist(address pool);
+    error PoolStakeLimitExceeded(address pool, address delegator);
+    error InitialStakingPoolsListEmpty();
+    error InsufficientStakeAmount(address pool, address delegator);
+    error InvalidFixedEpochDuration();
+    error InvalidInitialStakeAmount(uint256 candidateStake, uint256 delegatorStake);
+    error InvalidIpAddressesCount();
+    error InvalidMaxStakeAmount();
+    error InvalidMoveStakePoolsAddress();
+    error InvalidOrderWithdrawAmount(address pool, address delegator, int256 amount);
+    error InvalidPublicKeysCount();
+    error InvalidStakingTransitionTimeframe();
+    error InvalidStakingFixedEpochDuration();
+    error InvalidTransitionTimeFrame();
+    error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
+    error WithdrawNotAllowed();
+    error ZeroWidthrawAmount();
+    error ZeroWidthrawDisallowPeriod();
+
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the transaction gas price is not zero.
     modifier gasPriceIsValid() {
-        require(tx.gasprice != 0, "GasPrice is 0");
+        if (tx.gasprice == 0) {
+            revert ZeroGasPrice();
+        }
         _;
     }
 
     /// @dev Ensures the caller is the ValidatorSetHbbft contract address.
     modifier onlyValidatorSetContract() virtual {
-        require(msg.sender == address(validatorSetContract), "Only ValidatorSet");
+        if (msg.sender != address(validatorSetContract)) {
+            revert Unauthorized();
+        }
         _;
     }
 
     modifier onlyBlockRewardContract() {
-        require(msg.sender == validatorSetContract.blockRewardContract(), "Only BlockReward");
+        if (msg.sender != validatorSetContract.blockRewardContract()) {
+            revert Unauthorized();
+        }
         _;
     }
 
@@ -251,7 +286,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
 
     /// @dev Fallback function. Prevents direct sending native coins to this contract.
     receive() external payable {
-        revert("Not payable");
+        revert NotPayable();
     }
 
     /// @dev Initializes the network parameters.
@@ -273,52 +308,64 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         bytes32[] calldata _publicKeys,
         bytes16[] calldata _internetAddresses
     ) external initializer {
-        require(_contractOwner != address(0), "Owner address cannot be 0");
+        if (_contractOwner == address(0)) {
+            revert ZeroAddress();
+        }
 
-        require(stakingParams._stakingFixedEpochDuration != 0, "FixedEpochDuration is 0");
-        require(
-            stakingParams._stakingFixedEpochDuration > stakingParams._stakingWithdrawDisallowPeriod,
-            "FixedEpochDuration must be longer than withdrawDisallowPeriod"
-        );
-        require(stakingParams._stakingWithdrawDisallowPeriod != 0, "WithdrawDisallowPeriod is 0");
-        require(stakingParams._stakingTransitionTimeframeLength != 0, "The transition timeframe must be longer than 0");
-        require(
-            stakingParams._stakingTransitionTimeframeLength < stakingParams._stakingFixedEpochDuration,
-            "The transition timeframe must be shorter then the epoch duration"
-        );
+        _validateStakingParams(stakingParams);
 
-        __Ownable_init();
-        _transferOwnership(_contractOwner);
+        if (stakingParams._initialStakingAddresses.length * 2 != _publicKeys.length) {
+            revert InvalidPublicKeysCount();
+        }
 
-        _initialize(
-            stakingParams._validatorSetContract,
-            stakingParams._initialStakingAddresses,
-            stakingParams._delegatorMinStake,
-            stakingParams._candidateMinStake,
-            stakingParams._maxStake,
-            _publicKeys,
-            _internetAddresses
-        );
+        if (stakingParams._initialStakingAddresses.length != _internetAddresses.length) {
+            revert InvalidIpAddressesCount();
+        }
+
+        __Ownable_init(_contractOwner);
+        __ReentrancyGuard_init();
+
+        validatorSetContract = IValidatorSetHbbft(stakingParams._validatorSetContract);
+        address[] calldata initStakingAddresses = stakingParams._initialStakingAddresses;
+
+        for (uint256 i = 0; i < initStakingAddresses.length; ++i) {
+            if (initStakingAddresses[i] == address(0)) {
+                revert ZeroAddress();
+            }
+
+            _addPoolActive(initStakingAddresses[i], false);
+            _addPoolToBeRemoved(initStakingAddresses[i]);
+
+            poolInfo[initStakingAddresses[i]].publicKey = abi.encodePacked(_publicKeys[i * 2], _publicKeys[i * 2 + 1]);
+            poolInfo[initStakingAddresses[i]].internetAddress = _internetAddresses[i];
+        }
+
+        delegatorMinStake = stakingParams._delegatorMinStake;
+        candidateMinStake = stakingParams._candidateMinStake;
+
+        maxStakeAmount = stakingParams._maxStake;
 
         stakingFixedEpochDuration = stakingParams._stakingFixedEpochDuration;
         stakingWithdrawDisallowPeriod = stakingParams._stakingWithdrawDisallowPeriod;
-        //note: this might be still 0 when created in the genesis block.
+
+        // note: this might be still 0 when created in the genesis block.
         stakingEpochStartTime = block.timestamp;
         stakingTransitionTimeframeLength = stakingParams._stakingTransitionTimeframeLength;
     }
 
     function setStakingTransitionTimeframeLength(uint256 _value) external onlyOwner {
-        require(_value > 10, "The transition timeframe must be longer than 10");
-        require(_value < stakingFixedEpochDuration, "The transition timeframe must be smaller than the epoch duration");
+        if (_value <= 10 || _value >= stakingFixedEpochDuration) {
+            revert InvalidStakingTransitionTimeframe();
+        }
 
         stakingTransitionTimeframeLength = _value;
     }
 
     function setStakingFixedEpochDuration(uint256 _value) external onlyOwner {
-        require(
-            _value > stakingTransitionTimeframeLength,
-            "The fixed epoch duration timeframe must be greater than the transition timeframe length"
-        );
+        if (_value <= stakingTransitionTimeframeLength) {
+            revert InvalidStakingFixedEpochDuration();
+        }
+
         stakingFixedEpochDuration = _value;
     }
 
@@ -422,11 +469,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     function removeMyPool() external gasPriceIsValid {
         address stakingAddress = msg.sender;
         address miningAddress = validatorSetContract.miningByStakingAddress(stakingAddress);
+
         // initial validator cannot remove their pool during the initial staking epoch
-        require(
-            stakingEpoch > 0 || !validatorSetContract.isValidator(miningAddress),
-            "Can't remove pool during 1st staking epoch"
-        );
+        if (stakingEpoch == 0 && validatorSetContract.isValidator(miningAddress)) {
+            revert PoolCannotBeRemoved(stakingAddress);
+        }
+
         _removePool(stakingAddress);
     }
 
@@ -481,10 +529,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// @param _fromPoolStakingAddress The staking address of the pool from which the coins should be withdrawn.
     /// @param _amount The amount of coins to be withdrawn. The amount cannot exceed the value returned
     /// by the `maxWithdrawAllowed` getter.
-    function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid {
+    function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid nonReentrant {
         address payable staker = payable(msg.sender);
         _withdraw(_fromPoolStakingAddress, staker, _amount);
-        TransferUtils.transferNativeEnsure(staker, _amount);
+        TransferUtils.transferNative(staker, _amount);
         emit WithdrewStake(_fromPoolStakingAddress, staker, stakingEpoch, _amount);
     }
 
@@ -499,10 +547,14 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         address _toPoolStakingAddress,
         uint256 _amount
     ) external gasPriceIsValid {
-        require(_fromPoolStakingAddress != _toPoolStakingAddress, "MoveStake: src and dst pool is the same");
+        if (_fromPoolStakingAddress == _toPoolStakingAddress) {
+            revert InvalidMoveStakePoolsAddress();
+        }
+
         address staker = msg.sender;
         _withdraw(_fromPoolStakingAddress, staker, _amount);
         _stake(_toPoolStakingAddress, staker, _amount);
+
         emit MovedStake(_fromPoolStakingAddress, _toPoolStakingAddress, staker, stakingEpoch, _amount);
     }
 
@@ -573,18 +625,24 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// withdrawal amount that was previously set. The amount cannot exceed the value returned by the
     /// `maxWithdrawOrderAllowed` getter.
     function orderWithdraw(address _poolStakingAddress, int256 _amount) external gasPriceIsValid {
-        require(_poolStakingAddress != address(0), "poolStakingAddress must not be 0x0");
-        require(_amount != 0, "ordered withdraw amount must not be 0");
+        if (_poolStakingAddress == address(0)) {
+            revert ZeroAddress();
+        }
+
+        if (_amount == 0) {
+            revert ZeroWidthrawAmount();
+        }
 
         address staker = msg.sender;
 
-        require(
-            _isWithdrawAllowed(
+        if (
+            !_isWithdrawAllowed(
                 validatorSetContract.miningByStakingAddress(_poolStakingAddress),
                 staker != _poolStakingAddress
-            ),
-            "OrderWithdraw: not allowed"
-        );
+            )
+        ) {
+            revert WithdrawNotAllowed();
+        }
 
         uint256 newOrderedAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
         uint256 newOrderedAmountTotal = orderedWithdrawAmountTotal[_poolStakingAddress];
@@ -594,10 +652,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
             uint256 amount = uint256(_amount);
 
             // How much can `staker` order for withdrawal from `_poolStakingAddress` at the moment?
-            require(
-                amount <= maxWithdrawOrderAllowed(_poolStakingAddress, staker),
-                "OrderWithdraw: maxWithdrawOrderAllowed exceeded"
-            );
+            uint256 allowedWithdraw = maxWithdrawOrderAllowed(_poolStakingAddress, staker);
+            if (amount > allowedWithdraw) {
+                revert MaxAllowedWithdrawExceeded(allowedWithdraw, amount);
+            }
 
             newOrderedAmount = newOrderedAmount + amount;
             newOrderedAmountTotal = newOrderedAmountTotal + amount;
@@ -619,10 +677,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         if (staker == _poolStakingAddress) {
             // The amount to be withdrawn must be the whole staked amount or
             // must not exceed the diff between the entire amount and `candidateMinStake`
-            require(
-                newStakeAmount == 0 || newStakeAmount >= candidateMinStake,
-                "newStake Amount must be greater than the min stake."
-            );
+            if (newStakeAmount != 0 && newStakeAmount < candidateMinStake) {
+                revert InvalidOrderWithdrawAmount(_poolStakingAddress, staker, _amount);
+            }
 
             if (_amount > 0) {
                 // if the validator orders the `_amount` for withdrawal
@@ -639,10 +696,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         } else {
             // The amount to be withdrawn must be the whole staked amount or
             // must not exceed the diff between the entire amount and `delegatorMinStake`
-            require(
-                newStakeAmount == 0 || newStakeAmount >= delegatorMinStake,
-                "newStake Amount must be greater than the min stake."
-            );
+            if (newStakeAmount != 0 && newStakeAmount < delegatorMinStake) {
+                revert InvalidOrderWithdrawAmount(_poolStakingAddress, staker, _amount);
+            }
 
             if (_amount > 0) {
                 // if the delegator orders the `_amount` for withdrawal
@@ -669,23 +725,26 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// @dev Withdraws the staking coins from the specified pool ordered during the previous staking epochs with
     /// the `orderWithdraw` function. The ordered amount can be retrieved by the `orderedWithdrawAmount` getter.
     /// @param _poolStakingAddress The staking address of the pool from which the ordered coins are withdrawn.
-    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid {
+    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid nonReentrant {
         address payable staker = payable(msg.sender);
 
-        require(
-            stakingEpoch > orderWithdrawEpoch[_poolStakingAddress][staker],
-            "cannot claim ordered withdraw in the same epoch it was ordered."
-        );
-        require(
-            _isWithdrawAllowed(
+        if (stakingEpoch <= orderWithdrawEpoch[_poolStakingAddress][staker]) {
+            revert CannotClaimWithdrawOrderYet(_poolStakingAddress, staker);
+        }
+
+        if (
+            !_isWithdrawAllowed(
                 validatorSetContract.miningByStakingAddress(_poolStakingAddress),
                 staker != _poolStakingAddress
-            ),
-            "ClaimOrderedWithdraw: Withdraw not allowed"
-        );
+            )
+        ) {
+            revert WithdrawNotAllowed();
+        }
 
         uint256 claimAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
-        require(claimAmount != 0, "claim amount must not be 0");
+        if (claimAmount == 0) {
+            revert ZeroWidthrawAmount();
+        }
 
         orderedWithdrawAmount[_poolStakingAddress][staker] = 0;
         orderedWithdrawAmountTotal[_poolStakingAddress] = orderedWithdrawAmountTotal[_poolStakingAddress] - claimAmount;
@@ -694,7 +753,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
             _withdrawCheckPool(_poolStakingAddress, staker);
         }
 
-        TransferUtils.transferNativeEnsure(staker, claimAmount);
+        TransferUtils.transferNative(staker, claimAmount);
 
         emit ClaimedOrderedWithdrawal(_poolStakingAddress, staker, stakingEpoch, claimAmount);
     }
@@ -706,7 +765,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         uint256 totalAbandonedAmount = 0;
 
         address[] memory inactivePools = _poolsInactive.values();
-        require(inactivePools.length != 0, "nothing to recover");
+        if (inactivePools.length == 0) {
+            revert NoStakesToRecover();
+        }
 
         for (uint256 i = 0; i < inactivePools.length; ++i) {
             address stakingAddress = inactivePools[i];
@@ -734,7 +795,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
             emit GatherAbandonedStakes(msg.sender, stakingAddress, gatheredPerStakingAddress);
         }
 
-        require(totalAbandonedAmount != 0, "nothing to recover");
+        if (totalAbandonedAmount == 0) {
+            revert NoStakesToRecover();
+        }
 
         uint256 governanceShare = totalAbandonedAmount / 2;
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
@@ -959,51 +1022,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
             (stakingFixedEpochDuration == 0 ? 0 : 1);
     }
 
-    // ============================================== Internal ========================================================
-    /// @dev Initializes the network parameters. Used by the `initialize` function.
-    /// @param _validatorSetContract The address of the `ValidatorSetHbbft` contract.
-    /// @param _initialStakingAddresses The array of initial validators' staking addresses.
-    /// @param _delegatorMinStake The minimum allowed amount of delegator stake in Wei.
-    /// @param _candidateMinStake The minimum allowed amount of candidate/validator stake in Wei.
-    function _initialize(
-        address _validatorSetContract,
-        address[] memory _initialStakingAddresses,
-        uint256 _delegatorMinStake,
-        uint256 _candidateMinStake,
-        uint256 _maxStake,
-        bytes32[] memory _publicKeys,
-        bytes16[] memory _internetAddresses
-    ) internal {
-        require(_validatorSetContract != address(0), "ValidatorSet can't be 0");
-        require(_initialStakingAddresses.length > 0, "Must provide initial mining addresses");
-        require(_initialStakingAddresses.length * 2 == _publicKeys.length, "Must provide correct number of publicKeys");
-        require(
-            _initialStakingAddresses.length == _internetAddresses.length,
-            "Must provide correct number of IP adresses"
-        );
-        require(_delegatorMinStake != 0, "DelegatorMinStake is 0");
-        require(_candidateMinStake != 0, "CandidateMinStake is 0");
-        require(_maxStake > _candidateMinStake, "maximum stake must be greater then minimum stake.");
-
-        validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
-
-        for (uint256 i = 0; i < _initialStakingAddresses.length; i++) {
-            require(_initialStakingAddresses[i] != address(0), "InitialStakingAddresses can't be 0");
-            _addPoolActive(_initialStakingAddresses[i], false);
-            _addPoolToBeRemoved(_initialStakingAddresses[i]);
-            poolInfo[_initialStakingAddresses[i]].publicKey = abi.encodePacked(
-                _publicKeys[i * 2],
-                _publicKeys[i * 2 + 1]
-            );
-            poolInfo[_initialStakingAddresses[i]].internetAddress = _internetAddresses[i];
-        }
-
-        delegatorMinStake = _delegatorMinStake;
-        candidateMinStake = _candidateMinStake;
-
-        maxStakeAmount = _maxStake;
-    }
-
     /// @dev Adds the specified staking address to the array of active pools returned by
     /// the `getPools` getter. Used by the `stake`, `addPool`, and `orderWithdraw` functions.
     /// @param _stakingAddress The pool added to the array of active pools.
@@ -1012,7 +1030,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     function _addPoolActive(address _stakingAddress, bool _toBeElected) internal {
         if (!isPoolActive(_stakingAddress)) {
             _pools.add(_stakingAddress);
-            require(_pools.length() <= _getMaxCandidates(), "MAX_CANDIDATES pools exceeded");
+
+            if (_pools.length() > _getMaxCandidates()) {
+                revert MaxPoolsCountExceeded();
+            }
         }
 
         _poolsInactive.remove(_stakingAddress);
@@ -1107,6 +1128,42 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         _deletePoolToBeRemoved(_stakingAddress);
     }
 
+    function _validateStakingParams(StakingParams calldata params) private pure {
+        if (
+            params._stakingFixedEpochDuration == 0 ||
+            params._stakingFixedEpochDuration <= params._stakingWithdrawDisallowPeriod
+        ) {
+            revert InvalidFixedEpochDuration();
+        }
+
+        if (params._stakingWithdrawDisallowPeriod == 0) {
+            revert ZeroWidthrawDisallowPeriod();
+        }
+
+        if (
+            params._stakingTransitionTimeframeLength == 0 ||
+            params._stakingTransitionTimeframeLength >= params._stakingFixedEpochDuration
+        ) {
+            revert InvalidTransitionTimeFrame();
+        }
+
+        if (params._validatorSetContract == address(0)) {
+            revert ZeroAddress();
+        }
+
+        if (params._initialStakingAddresses.length == 0) {
+            revert InitialStakingPoolsListEmpty();
+        }
+
+        if (params._delegatorMinStake == 0 || params._candidateMinStake == 0) {
+            revert InvalidInitialStakeAmount(params._candidateMinStake, params._delegatorMinStake);
+        }
+
+        if (params._maxStake <= params._candidateMinStake) {
+            revert InvalidMaxStakeAmount();
+        }
+    }
+
     /// @dev Returns the max number of candidates (including validators). See the MAX_CANDIDATES constant.
     /// Needed mostly for unit tests.
     function _getMaxCandidates() internal pure virtual returns (uint256) {
@@ -1181,32 +1238,53 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// @param _staker The staker's address.
     /// @param _amount The amount of coins to be staked.
     function _stake(address _poolStakingAddress, address _staker, uint256 _amount) private {
-        require(_poolStakingAddress != address(0), "Stake: stakingAddress is 0");
+        if (_poolStakingAddress == address(0)) {
+            revert ZeroAddress();
+        }
 
         address poolMiningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
-        require(poolMiningAddress != address(0), "Pool does not exist. miningAddress for that staking address is 0");
-        require(_amount != 0, "Stake: stakingAmount is 0");
-        require(!validatorSetContract.isValidatorBanned(poolMiningAddress), "Stake: Mining address is banned");
+        if (poolMiningAddress == address(0)) {
+            revert PoolNotExist(_poolStakingAddress);
+        }
 
-        require(!abandonedAndRemoved[_poolStakingAddress], "Stake: pool abandoned");
+        if (_amount == 0) {
+            revert InsufficientStakeAmount(_poolStakingAddress, _staker);
+        }
+
+        if (validatorSetContract.isValidatorBanned(poolMiningAddress)) {
+            revert PoolMiningBanned(_poolStakingAddress);
+        }
+
+        if (abandonedAndRemoved[_poolStakingAddress]) {
+            revert PoolAbandoned(_poolStakingAddress);
+        }
+
         //require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
 
         bool selfStake = _staker == _poolStakingAddress;
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker] + _amount;
 
+        uint256 requiredStakeAmount;
+
         if (selfStake) {
-            // The staked amount must be at least CANDIDATE_MIN_STAKE
-            require(newStakeAmount >= candidateMinStake, "Stake: candidateStake less than candidateMinStake");
+            requiredStakeAmount = candidateMinStake;
         } else {
-            // The staked amount must be at least DELEGATOR_MIN_STAKE
-            require(newStakeAmount >= delegatorMinStake, "Stake: delegatorStake is less than delegatorMinStake");
+            requiredStakeAmount = delegatorMinStake;
 
             // The delegator cannot stake into the pool of the candidate which hasn't self-staked.
             // Also, that candidate shouldn't want to withdraw all their funds.
-            require(stakeAmount[_poolStakingAddress][_poolStakingAddress] != 0, "Stake: can't delegate in empty pool");
+            if (stakeAmount[_poolStakingAddress][_poolStakingAddress] == 0) {
+                revert PoolEmpty(_poolStakingAddress);
+            }
         }
 
-        require(stakeAmountTotal[_poolStakingAddress] + _amount <= maxStakeAmount, "stake limit has been exceeded");
+        if (newStakeAmount < requiredStakeAmount) {
+            revert InsufficientStakeAmount(_poolStakingAddress, _staker);
+        }
+
+        if (stakeAmountTotal[_poolStakingAddress] + _amount > maxStakeAmount) {
+            revert PoolStakeLimitExceeded(_poolStakingAddress, _staker);
+        }
 
         _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch] += _amount;
         stakeAmountTotal[_poolStakingAddress] += _amount;
@@ -1215,7 +1293,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
             // `staker` places a stake for himself and becomes a candidate
             // Add `_poolStakingAddress` to the array of pools
             _addPoolActive(_poolStakingAddress, true);
-
         } else {
             // Add `_staker` to the array of pool's delegators
             _addPoolDelegator(_poolStakingAddress, _staker);
@@ -1235,21 +1312,28 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
     /// @param _staker The staker's address.
     /// @param _amount The amount of coins to be withdrawn.
     function _withdraw(address _poolStakingAddress, address _staker, uint256 _amount) private {
-        require(_poolStakingAddress != address(0), "Withdraw pool staking address must not be null");
-        require(_amount != 0, "amount to withdraw must not be 0");
+        if (_poolStakingAddress == address(0)) {
+            revert ZeroAddress();
+        }
+
+        if (_amount == 0) {
+            revert ZeroWidthrawAmount();
+        }
 
         // How much can `staker` withdraw from `_poolStakingAddress` at the moment?
-        require(_amount <= maxWithdrawAllowed(_poolStakingAddress, _staker), "Withdraw: maxWithdrawAllowed exceeded");
+        uint256 allowedMaxWithdraw = maxWithdrawAllowed(_poolStakingAddress, _staker);
+        if (_amount > allowedMaxWithdraw) {
+            revert MaxAllowedWithdrawExceeded(allowedMaxWithdraw, _amount);
+        }
 
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker] - _amount;
 
         // The amount to be withdrawn must be the whole staked amount or
         // must not exceed the diff between the entire amount and MIN_STAKE
         uint256 minAllowedStake = (_poolStakingAddress == _staker) ? candidateMinStake : delegatorMinStake;
-        require(
-            newStakeAmount == 0 || newStakeAmount >= minAllowedStake,
-            "newStake amount must be greater equal than the min stake."
-        );
+        if (newStakeAmount != 0 && newStakeAmount < minAllowedStake) {
+            revert InvalidWithdrawAmount(_poolStakingAddress, _staker, _amount);
+        }
 
         if (_staker != _poolStakingAddress) {
             address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
@@ -1291,11 +1375,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         }
     }
 
-    function _snapshotDelegatorStake(
-        address _stakingAddress,
-        address _miningAddress,
-        address _delegator
-    ) private {
+    function _snapshotDelegatorStake(address _stakingAddress, address _miningAddress, address _delegator) private {
         if (!validatorSetContract.isValidatorOrPending(_miningAddress) || stakingEpoch == 0) {
             return;
         }
@@ -1303,8 +1383,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         uint256 lastSnapshotEpochNumber = _stakeSnapshotLastEpoch[_stakingAddress][_delegator];
 
         if (lastSnapshotEpochNumber < stakingEpoch) {
-            _delegatorStakeSnapshot[_stakingAddress][_delegator][stakingEpoch] =
-                stakeAmount[_stakingAddress][_delegator];
+            _delegatorStakeSnapshot[_stakingAddress][_delegator][stakingEpoch] = stakeAmount[_stakingAddress][
+                _delegator
+            ];
             _stakeSnapshotLastEpoch[_stakingAddress][_delegator] = stakingEpoch;
         }
     }
@@ -1421,3 +1502,5 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, IStakingHbbft {
         }
     }
 }
+
+// slither-disable-end unused-return

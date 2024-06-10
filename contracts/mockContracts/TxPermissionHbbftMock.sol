@@ -1,7 +1,8 @@
-pragma solidity =0.8.17;
+// solhint-disable one-contract-per-file
+pragma solidity =0.8.25;
 
-import "../../contracts/interfaces/IValidatorSetHbbft.sol";
-import "../../contracts/TxPermissionHbbft.sol";
+import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
+import { TxPermissionHbbft } from "../TxPermissionHbbft.sol";
 
 contract MockStaking {
     uint256 public stakingEpoch;

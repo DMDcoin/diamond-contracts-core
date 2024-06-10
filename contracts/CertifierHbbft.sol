@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache 2.0
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import "./interfaces/ICertifier.sol";
-import "./interfaces/IStakingHbbft.sol";
-import "./interfaces/IValidatorSetHbbft.sol";
+import { ICertifier } from "./interfaces/ICertifier.sol";
+import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { ZeroAddress } from "./lib/Errors.sol";
 
 /// @dev Allows validators to use a zero gas price for their service transactions
 /// (see https://wiki.parity.io/Permissioning.html#gas-price for more info).
@@ -51,11 +51,11 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
         address _validatorSet,
         address _owner
     ) external initializer {
-        require(_owner != address(0), "Owner address must not be 0");
-        require(_validatorSet != address(0), "Validatorset must not be 0");
+        if (_owner == address(0) || _validatorSet == address(0)) {
+            revert ZeroAddress();
+        }
 
-        __Ownable_init();
-        _transferOwnership(_owner);
+        __Ownable_init(_owner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
 
@@ -123,7 +123,10 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
     /// @dev An internal function for the `certify` and `initialize` functions.
     /// @param _who The address for which transactions with a zero gas price must be allowed.
     function _certify(address _who) internal {
-        require(_who != address(0), "certifier must not be address 0");
+        if (_who == address(0)) {
+            revert ZeroAddress();
+        }
+
         _certified[_who] = true;
         emit Confirmed(_who);
     }

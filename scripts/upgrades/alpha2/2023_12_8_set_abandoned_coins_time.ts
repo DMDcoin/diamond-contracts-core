@@ -1,7 +1,7 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "hardhat";
 
 // second step of contract upgade:
-// setStakingTransitionTimeframeLength to 300 seconds. 
+// setStakingTransitionTimeframeLength to 300 seconds.
 
 async function upgrade() {
 

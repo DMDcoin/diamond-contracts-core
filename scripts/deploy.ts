@@ -5,10 +5,11 @@ async function deployValidatorSetHbbft() {
     const ValidatorSetHbbft = await ethers.getContractFactory('ValidatorSetHbbft')
     console.log('starting deploying token...')
     const validator = await ValidatorSetHbbft.deploy() as ValidatorSetHbbft
-    console.log('ValidatorSetHbbft deployed with address: ' + validator.address)
+    console.log('ValidatorSetHbbft deployed with address: ' + await validator.getAddress())
     console.log('wait of deploying...')
-    await validator.deployed()
+    await validator.waitForDeployment()
     console.log('wait of delay...')
+
     // await delay(25000)
     // console.log('starting verify token...')
     // try {
