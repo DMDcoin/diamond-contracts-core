@@ -219,7 +219,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     /// before submitting it as contribution.
     /// The limit can be changed by the owner (typical the DAO)
     /// @param _value The new minimum gas price.
-    function setMinimumGasPrice(uint256 _value) public onlyOwner {
+    function setMinimumGasPrice(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // currently, we do not allow to set the minimum gas price to 0,
         // that would open pandoras box, and the consequences of doing that,
         // requires deeper research.
@@ -234,7 +234,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
     /// @dev set's the block gas limit.
     /// IN HBBFT, there must be consens about the block gas limit.
-    function setBlockGasLimit(uint256 _value) public onlyOwner {
+    function setBlockGasLimit(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // we make some check that the block gas limit can not be set to low,
         // to prevent the chain to be completly inoperatable.
         // this value is chosen arbitrarily
