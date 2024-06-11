@@ -10,11 +10,7 @@ contract ValueGuards {
      * @param getter The address of the getter.
      * @param params An array of uint256 values representing the parameters.
      */
-    event SetChangeAbleParameter(
-        string setter,
-        string getter,
-        uint256[] params
-    );
+    event SetChangeAbleParameter(string setter, string getter, uint256[] params);
 
     /**
      * @dev Emitted when changeable parameters are removed.
@@ -49,10 +45,7 @@ contract ValueGuards {
      * will revert with an error message.
      */
     modifier withinAllowedRange(uint256 newVal) {
-        require(
-            isWithinAllowedRange(msg.sig, newVal),
-            "new value not within allowed range"
-        );
+        require(isWithinAllowedRange(msg.sig, newVal), "new value not within allowed range");
         _;
     }
 
@@ -64,9 +57,9 @@ contract ValueGuards {
      * @param newVal The new value to be checked.
      * @return A boolean indicating whether the `newVal` is within the allowed range.
      */
-    function isWithinAllowedRange(bytes4 funcSelector, uint256 newVal) public view returns(bool) {
+    function isWithinAllowedRange(bytes4 funcSelector, uint256 newVal) public view returns (bool) {
         ParameterRange memory allowedRange = allowedParameterRange[funcSelector];
-        if(allowedRange.range.length == 0) return false;
+        if (allowedRange.range.length == 0) return false;
         uint256[] memory range = allowedRange.range;
         uint256 currVal = _getValueWithSelector(allowedRange.getter);
         bool currValFound;
@@ -86,6 +79,7 @@ contract ValueGuards {
     function getAllowedParamsRange(string memory _selector) external view returns (ParameterRange memory) {
         return allowedParameterRange[bytes4(keccak256(bytes(_selector)))];
     }
+
     // =============================================== Setters ========================================================
 
     /**

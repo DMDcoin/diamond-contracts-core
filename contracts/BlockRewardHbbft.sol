@@ -13,9 +13,14 @@ import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol
 import { TransferUtils } from "./utils/TransferUtils.sol";
 import { ValueGuards } from "./ValueGuards.sol";
 
-
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
-contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, ValueGuards, IBlockRewardHbbft {
+contract BlockRewardHbbft is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    ValueGuards,
+    IBlockRewardHbbft
+{
     struct PotsShares {
         uint256 deltaPotAmount;
         uint256 reinsertPotAmount;
@@ -285,7 +290,6 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
     function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
         super.removeAllowedChangeableParameter(funcSelector);
     }
-
 
     // =============================================== Getters ========================================================
     function getGovernanceAddress() external view returns (address) {

@@ -91,7 +91,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     error SenderNotAllowed();
     error AlreadyExist(address _value);
     error NotExist(address _value);
-    
+
     /**
      * @dev Emitted when the minimum gas price is updated.
      * @param _minGasPrice The new minimum gas price.
@@ -165,11 +165,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         minGasPriceAllowedParams[9] = 8 gwei;
         minGasPriceAllowedParams[10] = 10 gwei;
 
-        setAllowedChangeableParameter(
-            "setMinimumGasPrice(uint256)",
-            "minimumGasPrice()",
-            minGasPriceAllowedParams
-        );
+        setAllowedChangeableParameter("setMinimumGasPrice(uint256)", "minimumGasPrice()", minGasPriceAllowedParams);
 
         uint256[] memory blockGasLimitAllowedParams = new uint256[](10);
         blockGasLimitAllowedParams[0] = 100_000_000;
@@ -183,11 +179,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         blockGasLimitAllowedParams[8] = 900_000_000;
         blockGasLimitAllowedParams[9] = 1000_000_000;
 
-        setAllowedChangeableParameter(
-            "setBlockGasLimit(uint256)",
-            "blockGasLimit()",
-            blockGasLimitAllowedParams
-        );
+        setAllowedChangeableParameter("setBlockGasLimit(uint256)", "blockGasLimit()", blockGasLimitAllowedParams);
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.

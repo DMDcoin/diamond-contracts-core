@@ -91,9 +91,7 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
             return true;
         }
 
-        address stakingAddress = validatorSetContract.stakingByMiningAddress(
-            _who
-        );
+        address stakingAddress = validatorSetContract.stakingByMiningAddress(_who);
         if (stakingAddress == address(0)) {
             //if there is no staking address registered to this pool
             return false;
