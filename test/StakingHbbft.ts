@@ -33,6 +33,7 @@ describe('StakingHbbft', () => {
     let initialValidatorsIpAddresses: string[];
 
     const minStake = ethers.parseEther('1');
+    const minStakeDelegators = ethers.parseEther('100');
     const maxStake = ethers.parseEther('100000');
 
     // the reward for the first epoch.
@@ -141,7 +142,7 @@ describe('StakingHbbft', () => {
         let stakingParams = {
             _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
             _initialStakingAddresses: initialStakingAddresses,
-            _delegatorMinStake: minStake,
+            _delegatorMinStake: minStakeDelegators,
             _candidateMinStake: minStake,
             _maxStake: maxStake,
             _stakingFixedEpochDuration: stakingFixedEpochDuration,
@@ -2257,25 +2258,6 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('setCandidateMinStake()', async () => {
-        it('should allow calling only to contract owner', async () => {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[5];
-            await expect(stakingHbbft.connect(caller).setCandidateMinStake(ethers.parseEther('10')))
-                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should set candidate min stake', async () => {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const minStakeValue = ethers.parseEther('15')
-            await stakingHbbft.setCandidateMinStake(minStakeValue);
-            expect(await stakingHbbft.candidateMinStake()).to.be.equal(minStakeValue);
-        });
-    });
-
     describe('setDelegatorMinStake()', async () => {
         it('should allow calling only to contract owner', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
@@ -2289,7 +2271,8 @@ describe('StakingHbbft', () => {
         it('should set delegator min stake', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const minStakeValue = ethers.parseEther('15')
+            console.log("mim stake: ", await stakingHbbft.delegatorMinStake());
+            const minStakeValue = ethers.parseEther('150')
             await stakingHbbft.setDelegatorMinStake(minStakeValue);
             expect(await stakingHbbft.delegatorMinStake()).to.be.equal(minStakeValue);
         });

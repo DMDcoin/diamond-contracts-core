@@ -7,6 +7,7 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
+import { ValueGuards } from "./ValueGuards.sol";
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
@@ -15,7 +16,7 @@ import { TransferUtils } from "./utils/TransferUtils.sol";
 
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
-contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft {
+contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft, ValueGuards {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     EnumerableSet.AddressSet private _pools;
@@ -223,6 +224,14 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 delegatorsReward
     );
 
+
+    /**
+     * @dev Emitted when the minimum stake for a delegator is updated.
+     * @param minStake The new minimum stake value.
+     */
+    event SetDelegatorMinStake(uint256 minStake);
+
+// ============================================== Errors =======================================================
     error CannotClaimWithdrawOrderYet(address pool, address staker);
     error MaxPoolsCountExceeded();
     error MaxAllowedWithdrawExceeded(uint256 allowed, uint256 desired);
@@ -340,6 +349,20 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             poolInfo[initStakingAddresses[i]].internetAddress = _internetAddresses[i];
         }
 
+
+        uint256[] memory delegatorMinStakeAllowedParams = new uint256[](5);
+        delegatorMinStakeAllowedParams[0] = 50 ether;
+        delegatorMinStakeAllowedParams[1] = 100 ether;
+        delegatorMinStakeAllowedParams[2] = 150 ether;
+        delegatorMinStakeAllowedParams[3] = 200 ether;
+        delegatorMinStakeAllowedParams[4] = 250 ether;
+
+        setAllowedChangeableParameter(
+            "setDelegatorMinStake(uint256)",
+            "delegatorMinStake()",
+            delegatorMinStakeAllowedParams
+        );
+        
         delegatorMinStake = stakingParams._delegatorMinStake;
         candidateMinStake = stakingParams._candidateMinStake;
 
@@ -369,18 +392,20 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         stakingFixedEpochDuration = _value;
     }
 
-    /// @dev Sets (updates) the limit of the minimum candidate stake (CANDIDATE_MIN_STAKE).
-    /// Can only be called by the `owner`.
-    /// @param _minStake The value of a new limit in Wei.
-    function setCandidateMinStake(uint256 _minStake) external onlyOwner {
-        candidateMinStake = _minStake;
-    }
-
-    /// @dev Sets (updates) the limit of the minimum delegator stake (DELEGATOR_MIN_STAKE).
-    /// Can only be called by the `owner`.
-    /// @param _minStake The value of a new limit in Wei.
-    function setDelegatorMinStake(uint256 _minStake) external onlyOwner {
+    /**
+     * @dev Sets the minimum stake required for delegators.
+     * @param _minStake The new minimum stake amount.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     * - The stake amount must be within the allowed range.
+     */
+    function setDelegatorMinStake(uint256 _minStake)
+        public
+        onlyOwner
+        withinAllowedRange(_minStake)
+    {
         delegatorMinStake = _minStake;
+        emit SetDelegatorMinStake(_minStake);
     }
 
     /// @dev Sets the timetamp of the current epoch's last block as the start time of the upcoming staking epoch.
