@@ -32,9 +32,9 @@ describe('StakingHbbft', () => {
     let initialValidatorsPubKeysSplit: string[];
     let initialValidatorsIpAddresses: string[];
 
-    const minStake = ethers.parseEther('1');
+    const minStake = ethers.parseEther('10000');
     const minStakeDelegators = ethers.parseEther('100');
-    const maxStake = ethers.parseEther('100000');
+    const maxStake = ethers.parseEther('50000');
 
     // the reward for the first epoch.
     const epochReward = ethers.parseEther('1');
@@ -629,7 +629,7 @@ describe('StakingHbbft', () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
                 _initialStakingAddresses: initialStakingAddresses,
-                _delegatorMinStake: minStake,
+                _delegatorMinStake: minStakeDelegators,
                 _candidateMinStake: minStake,
                 _maxStake: maxStake,
                 _stakingFixedEpochDuration: stakingFixedEpochDuration,
@@ -662,8 +662,8 @@ describe('StakingHbbft', () => {
             }
 
             expect(await stakingHbbft.getPools()).to.be.deep.equal(initialStakingAddresses);
-            expect(await stakingHbbft.delegatorMinStake()).to.be.equal(ethers.parseEther('1'));
-            expect(await stakingHbbft.candidateMinStake()).to.be.equal(ethers.parseEther('1'))
+            expect(await stakingHbbft.delegatorMinStake()).to.be.equal(minStakeDelegators);
+            expect(await stakingHbbft.candidateMinStake()).to.be.equal(minStake)
         });
 
         it('should fail if owner = address(0)', async () => {
@@ -1002,7 +1002,7 @@ describe('StakingHbbft', () => {
             expect(await stakingContract.stakeAmount(sourcePool, delegator.address)).to.be.equal(stakeAmount);
             expect(await stakingContract.stakeAmount(targetPool, delegator.address)).to.be.equal(stakeAmount);
 
-            const moveAmount = minStake / 2n;
+            const moveAmount = minStakeDelegators / 2n;
             expect(moveAmount).to.be.below(await stakingContract.delegatorMinStake());
 
             await stakingContract.connect(delegator).moveStake(sourcePool, targetPool, moveAmount);
@@ -2127,9 +2127,11 @@ describe('StakingHbbft', () => {
             for (const _pool of initialStakingAddresses) {
                 let _poolTotalStake = candidateMinStake;
 
+                // first delegator will stake minimum, 2nd = 2x, 3rd = 3x ....
+                let stake = BigInt(0); 
                 for (const _delegator of delegators) {
-                    const stake = ethers.parseEther(_.random(1, 10).toString());
-
+                    
+                    stake += minStakeDelegators;
                     stakeRecords.push({ delegator: _delegator.address, pool: _pool, stake: stake });
 
                     _poolTotalStake += stake;

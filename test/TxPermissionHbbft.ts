@@ -492,7 +492,7 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(0)
-                ).to.be.revertedWithCustomError(txPermission, "InvalidMinGasPrice");
+                ).to.be.revertedWithCustomError(txPermission, "NewValueOutOfRange");
             });
 
             it("should set minimum gas price", async function () {
@@ -525,13 +525,13 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setBlockGasLimit(blockGasLimit)
-                ).to.be.revertedWithCustomError(txPermission, "InvalidBlockGasLimit");
+                ).to.be.revertedWithCustomError(txPermission, "NewValueOutOfRange");
             });
 
             it("should set block gas limit", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
-                const blockGasLimit = 900_000_000
+                const blockGasLimit = 200_000_000
 
                 expect(await txPermission.connect(owner).setBlockGasLimit(blockGasLimit));
 

@@ -21,6 +21,7 @@ const STAKING_TRANSITION_WINDOW_LENGTH = 3600n;
 
 const STAKE_WITHDRAW_DISALLOW_PERIOD = 2n; // one less than EPOCH DURATION, therefore it meets the conditions.
 const MIN_STAKE = ethers.parseEther('1');
+const DELEGATOR_MIN_STAKE = ethers.parseEther('100');
 const MAX_STAKE = ethers.parseEther('100000');
 
 const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
@@ -186,7 +187,7 @@ describe('BlockRewardHbbft', () => {
         let structure = {
             _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
             _initialStakingAddresses: initialStakingAddresses,
-            _delegatorMinStake: MIN_STAKE,
+            _delegatorMinStake: DELEGATOR_MIN_STAKE,
             _candidateMinStake: MIN_STAKE,
             _maxStake: MAX_STAKE,
             _stakingFixedEpochDuration: STAKING_FIXED_EPOCH_DURATION,

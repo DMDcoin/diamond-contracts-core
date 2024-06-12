@@ -8,7 +8,7 @@ import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
 import { IRandomHbbft } from "./interfaces/IRandomHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { MIN_VALIDATOR_INACTIVITY_TIME, SYSTEM_ADDRESS } from "./lib/Constants.sol";
+import {  SYSTEM_ADDRESS } from "./lib/Constants.sol";
 import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
@@ -275,7 +275,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         // if you want smaller values for tests,
         // the contract can be deployed with a smaller value
         // (no restriction there)
-        if (_seconds < MIN_VALIDATOR_INACTIVITY_TIME) {
+        if (_seconds < 1 weeks) {
             revert InvalidInactivityThreshold();
         }
 

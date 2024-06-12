@@ -35,6 +35,9 @@ contract ValueGuards {
      */
     mapping(bytes4 => ParameterRange) public allowedParameterRange;
 
+    // ============================================== Errors ==========================================================
+    error NewValueOutOfRange(uint256 _newVal);
+
     // ============================================== Modifiers =======================================================
 
     /**
@@ -45,7 +48,9 @@ contract ValueGuards {
      * will revert with an error message.
      */
     modifier withinAllowedRange(uint256 newVal) {
-        require(isWithinAllowedRange(msg.sig, newVal), "new value not within allowed range");
+        if( !isWithinAllowedRange(msg.sig, newVal)) {
+            revert NewValueOutOfRange(newVal);
+        } 
         _;
     }
 
