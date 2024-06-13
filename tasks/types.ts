@@ -254,7 +254,7 @@ export class CoreContract {
 }
 
 export class InitialContractsConfiguration {
-    public core: CoreContract[];
+    public core: CoreContract[] = [];
     public registry?: SpecialContract;
 
     static fromJSON(json: any): InitialContractsConfiguration {
@@ -269,6 +269,7 @@ export class InitialContractsConfiguration {
                 instance[key] = new SpecialContract(...(Object.values(value as any) as []));
             }
         }
+
 
         return instance;
     }
