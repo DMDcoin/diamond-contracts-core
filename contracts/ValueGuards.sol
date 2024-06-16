@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-contract ValueGuards {
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+contract ValueGuards is OwnableUpgradeable {
     // ============================================== Events ==========================================================
 
     /**
@@ -51,9 +53,9 @@ contract ValueGuards {
      * will revert with an error message.
      */
     modifier withinAllowedRange(uint256 newVal) {
-        if( !isWithinAllowedRange(msg.sig, newVal)) {
+        if (!isWithinAllowedRange(msg.sig, newVal)) {
             revert NewValueOutOfRange(newVal);
-        } 
+        }
         _;
     }
 
@@ -100,7 +102,7 @@ contract ValueGuards {
         string memory setter,
         string memory getter,
         uint256[] memory params
-    ) public virtual {
+    ) public virtual onlyOwner {
         allowedParameterRange[bytes4(keccak256(bytes(setter)))] = ParameterRange(
             bytes4(keccak256(bytes(getter))),
             params
@@ -112,7 +114,7 @@ contract ValueGuards {
      * @dev Removes the allowed changeable parameter for a given function selector.
      * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
      */
-    function removeAllowedChangeableParameter(string memory funcSelector) public virtual {
+    function removeAllowedChangeableParameter(string memory funcSelector) public virtual onlyOwner {
         delete allowedParameterRange[bytes4(keccak256(bytes(funcSelector)))];
         emit RemoveChangeAbleParameter(funcSelector);
     }
