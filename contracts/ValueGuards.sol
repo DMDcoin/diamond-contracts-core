@@ -18,6 +18,9 @@ contract ValueGuards {
      */
     event RemoveChangeAbleParameter(string funcSelector);
 
+    // =============================================== Events ========================================================
+    error GetterCallFailed();
+
     // =============================================== Storage ========================================================
 
     /**
@@ -124,7 +127,9 @@ contract ValueGuards {
     function _getValueWithSelector(bytes4 getterSelector) private view returns (uint256) {
         bytes memory payload = abi.encodeWithSelector(getterSelector);
         (bool success, bytes memory result) = address(this).staticcall(payload);
-        require(success, "Getter call failed");
+        if (!success) {
+            revert GetterCallFailed();
+        }
         return abi.decode(result, (uint256));
     }
 }
