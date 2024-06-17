@@ -265,32 +265,6 @@ contract BlockRewardHbbft is
         governancePotShareNominator = _shareNominator;
     }
 
-    /**
-     * @dev Sets the allowed changeable parameter for a specific setter function.
-     * @param setter The name of the setter function.
-     * @param getter The name of the getter function.
-     * @param params The array of allowed parameter values.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     */
-    function setAllowedChangeableParameter(
-        string memory setter,
-        string memory getter,
-        uint256[] memory params
-    ) public override onlyOwner {
-        super.setAllowedChangeableParameter(setter, getter, params);
-    }
-
-    /**
-     * @dev Removes the allowed changeable parameter for a given function selector.
-     * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     */
-    function removeAllowedChangeableParameter(string memory funcSelector) public override onlyOwner {
-        super.removeAllowedChangeableParameter(funcSelector);
-    }
-
     // =============================================== Getters ========================================================
     function getGovernanceAddress() external view returns (address) {
         return governancePotAddress;
