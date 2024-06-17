@@ -72,18 +72,15 @@ contract ValueGuards is OwnableUpgradeable {
         if (allowedRange.range.length == 0) return false;
         uint256[] memory range = allowedRange.range;
         uint256 currVal = _getValueWithSelector(allowedRange.getter);
-        bool currValFound = false;
 
         for (uint256 i = 0; i < range.length; i++) {
             if (range[i] == currVal) {
-                currValFound = true;
                 uint256 leftVal = (i > 0) ? range[i - 1] : range[0];
                 uint256 rightVal = (i < range.length - 1) ? range[i + 1] : range[range.length - 1];
-                if (newVal != leftVal && newVal != rightVal) return false;
-                break;
+                return !(newVal != leftVal && newVal != rightVal);
             }
         }
-        return currValFound;
+        return false;
     }
 
     function getAllowedParamsRange(string memory _selector) external view returns (ParameterRange memory) {
