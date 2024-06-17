@@ -72,7 +72,7 @@ contract ValueGuards is OwnableUpgradeable {
         if (allowedRange.range.length == 0) return false;
         uint256[] memory range = allowedRange.range;
         uint256 currVal = _getValueWithSelector(allowedRange.getter);
-        bool currValFound;
+        bool currValFound = false;
 
         for (uint256 i = 0; i < range.length; i++) {
             if (range[i] == currVal) {
