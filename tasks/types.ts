@@ -31,8 +31,8 @@ export class NetworkConfiguration {
     public initialStakingAddresses?: string[];
     public permittedAddresses?: string[];
 
-    public parts: Array<string> = [];
-    public acks: Array<Array<string>> = [];
+    public parts?: any[];
+    public acks?: any[];
 
     public minimumBlockTime?: number;
     public maximumBlockTime?: number;
@@ -169,7 +169,7 @@ export class SpecialContract {
         const factory = await hre.ethers.getContractFactory(this.name!);
         const tx = await factory.getDeployTransaction(...args);
 
-        this.bytecode = tx.data!.toString();
+        this.bytecode = tx.data;
     }
 
     toSpecAccount(balance: number) {
@@ -211,16 +211,16 @@ export class CoreContract {
         hre: HardhatRuntimeEnvironment,
         proxyContractName: string,
         logicAddress: string,
-        adminAddress: string,
+        ownerAddress: string,
         args: any[]
     ) {
         const proxyFactory = await hre.ethers.getContractFactory(proxyContractName);
         const contractFactory = await hre.ethers.getContractFactory(this.name!);
 
         const initializerData = getInitializerData(contractFactory.interface, args, 'initialize')
-        const tx = await proxyFactory.getDeployTransaction(logicAddress, adminAddress, initializerData);
+        const tx = await proxyFactory.getDeployTransaction(logicAddress, ownerAddress, initializerData);
 
-        this.proxyBytecode = tx.data!.toString();
+        this.proxyBytecode = tx.data;
     }
 
     async compileContract(hre: HardhatRuntimeEnvironment) {
@@ -255,7 +255,6 @@ export class CoreContract {
 
 export class InitialContractsConfiguration {
     public core: CoreContract[] = [];
-    public admin?: SpecialContract;
     public registry?: SpecialContract;
 
     static fromJSON(json: any): InitialContractsConfiguration {
@@ -266,10 +265,11 @@ export class InitialContractsConfiguration {
                 instance[key] = (value as Array<any>).map(x => new CoreContract(...(Object.values(x as any) as [])));
             }
 
-            if (key == 'admin' || key == 'registry') {
+            if (key == 'registry') {
                 instance[key] = new SpecialContract(...(Object.values(value as any) as []));
             }
         }
+
 
         return instance;
     }

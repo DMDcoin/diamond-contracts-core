@@ -113,7 +113,6 @@ describe('RandomHbbft', () => {
             await stakingHbbftProxy.getAddress()
         ) as StakingHbbftMock;
 
-        await validatorSetHbbft.setSystemAddress(owner.address);
         await validatorSetHbbft.setRandomContract(await randomHbbft.getAddress());
         await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
 
@@ -155,7 +154,7 @@ describe('RandomHbbft', () => {
                     ethers.ZeroAddress
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('ValidatorSet must not be 0');
+            )).to.be.revertedWithCustomError(RandomHbbftFactory, "ZeroAddress");
         });
 
         it("should revert initialization with owner = address(0)", async () => {
@@ -167,7 +166,7 @@ describe('RandomHbbft', () => {
                     stubAddress,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Owner address must not be 0');
+            )).to.be.revertedWithCustomError(RandomHbbftFactory, "ZeroAddress");
         });
 
         it("should not allow initialization if initialized contract", async () => {
@@ -186,7 +185,7 @@ describe('RandomHbbft', () => {
             await expect(contract.initialize(
                 stubAddress,
                 stubAddress,
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 
@@ -194,7 +193,8 @@ describe('RandomHbbft', () => {
         it('setCurrentSeed must revert if called by non-owner', async () => {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
-            await expect(randomHbbft.setCurrentSeed(100n)).to.be.revertedWith('Must be executed by System');
+            await expect(randomHbbft.setCurrentSeed(100n))
+                .to.be.revertedWithCustomError(randomHbbft, "Unauthorized");
         });
 
         it('should set current seed by system', async function () {

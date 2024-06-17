@@ -263,7 +263,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Certifier address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with ValidatorSet = address(0)", async () => {
@@ -281,7 +281,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('ValidatorSet address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with KeyGenHistory = address(0)", async () => {
@@ -299,7 +299,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('KeyGenHistory address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with ConnectivityTracker = address(0)", async () => {
@@ -317,7 +317,7 @@ describe('TxPermissionHbbft', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('ConnectivityTracker address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should revert initialization with owner = address(0)", async () => {
@@ -335,7 +335,7 @@ describe('TxPermissionHbbft', () => {
                     ethers.ZeroAddress,
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Owner address must not be 0');
+            )).to.be.revertedWithCustomError(TxPermissionFactory, "ZeroAddress");
         });
 
         it("should not allow initialization if initialized contract", async () => {
@@ -364,7 +364,7 @@ describe('TxPermissionHbbft', () => {
                 stubAddress,
                 stubAddress,
                 owner.address
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 
@@ -395,7 +395,8 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(caller).addAllowedSender(caller.address)
-                ).to.be.revertedWith("Ownable: caller is not the owner");
+                ).to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
             it("should revert if sender address is 0", async function () {
@@ -441,7 +442,8 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(caller).removeAllowedSender(caller.address)
-                ).to.be.revertedWith("Ownable: caller is not the owner");
+                ).to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
             it("should revert calling if sender already removed", async function () {
@@ -480,7 +482,9 @@ describe('TxPermissionHbbft', () => {
 
                 const caller = accounts[1];
 
-                await expect(txPermission.connect(caller).setMinimumGasPrice(1)).to.be.revertedWith("Ownable: caller is not the owner");
+                await expect(txPermission.connect(caller).setMinimumGasPrice(1))
+                    .to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
             it("should not allow to set minimum gas price 0", async function () {
@@ -488,17 +492,15 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(0)
-                ).to.be.revertedWith('Minimum gas price must not be zero');
+                ).to.be.revertedWithCustomError(txPermission, "NewValueOutOfRange");
             });
 
             it("should set minimum gas price", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
-
-                const minGasPrice = 123;
-
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(minGasPrice)
-                ).to.emit(txPermission, "gasPriceChanged")
+                ).to.emit(txPermission, "GasPriceChanged")
                     .withArgs(minGasPrice);
 
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
@@ -511,23 +513,25 @@ describe('TxPermissionHbbft', () => {
 
                 const caller = accounts[1];
 
-                await expect(txPermission.connect(caller).setBlockGasLimit(1)).to.be.revertedWith("Ownable: caller is not the owner");
+                await expect(txPermission.connect(caller).setBlockGasLimit(1))
+                    .to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
             });
 
-            it("should not allow to set block gas limit less than 1_000_000", async function () {
+            it("should not allow to set block gas limit less than 100_000", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const blockGasLimit = 10_000;
 
                 await expect(
                     txPermission.connect(owner).setBlockGasLimit(blockGasLimit)
-                ).to.be.revertedWith('Block Gas limit gas price must be at minimum 1,000,000');
+                ).to.be.revertedWithCustomError(txPermission, "NewValueOutOfRange");
             });
 
             it("should set block gas limit", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
-                const blockGasLimit = 15_000_000;
+                const blockGasLimit = 200_000_000
 
                 expect(await txPermission.connect(owner).setBlockGasLimit(blockGasLimit));
 
@@ -600,7 +604,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = 2;
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
@@ -609,7 +613,7 @@ describe('TxPermissionHbbft', () => {
                     sender.address,
                     ethers.ZeroAddress,
                     0,
-                    minGasPrice / 2,
+                    minGasPrice / BigInt(2),
                     EmptyBytes,
                 );
 
@@ -621,7 +625,7 @@ describe('TxPermissionHbbft', () => {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[10];
-                const minGasPrice = 2;
+                const minGasPrice = ethers.parseUnits('0.8', 'gwei');
 
                 await txPermission.connect(owner).setMinimumGasPrice(minGasPrice);
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);

@@ -33,3 +33,4 @@ src
 .env*
 
 .vscode/
+/mythril

@@ -369,7 +369,7 @@ describe('KeyGenHistory', () => {
         expect(validators).to.be.deep.equal(initializingMiningAddresses);
     });
 
-    describe('Deployment', async () => {
+    describe('initialize', async () => {
         it('should revert initialization with owner = address(0)', async () => {
             const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
             await expect(upgrades.deployProxy(
@@ -382,7 +382,7 @@ describe('KeyGenHistory', () => {
                     acks
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Owner address must not be 0');
+            )).to.be.revertedWithCustomError(KeyGenFactory, "ZeroAddress");
         });
 
         it('should revert initialization with validator contract address = address(0)', async () => {
@@ -397,7 +397,7 @@ describe('KeyGenHistory', () => {
                     acks
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Validator contract address cannot be 0.');
+            )).to.be.revertedWithCustomError(KeyGenFactory, "ZeroAddress");
         });
 
         it('should revert initialization with empty validators array', async () => {
@@ -412,7 +412,7 @@ describe('KeyGenHistory', () => {
                     acks
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Validators must be more than 0.');
+            )).to.be.revertedWithCustomError(KeyGenFactory, "ValidatorsListEmpty");
         });
 
         it('should revert initialization with wrong number of parts', async () => {
@@ -428,7 +428,7 @@ describe('KeyGenHistory', () => {
                     acks
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Wrong number of Parts!');
+            )).to.be.revertedWithCustomError(KeyGenFactory, "WrongPartsNumber");
         });
 
         it('should revert initialization with wrong number of acks', async () => {
@@ -444,10 +444,10 @@ describe('KeyGenHistory', () => {
                     []
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Wrong number of Acks!');
+            )).to.be.revertedWithCustomError(KeyGenFactory, "WrongAcksNumber");
         });
 
-        it('should not allow initialization if initialized contract', async () => {
+        it('should not allow reinitialization', async () => {
             const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
             const contract = await upgrades.deployProxy(
                 KeyGenFactory,
@@ -469,27 +469,97 @@ describe('KeyGenHistory', () => {
                 initializingMiningAddresses,
                 parts,
                 acks
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
+    });
 
+    describe('contract functions', async () => {
         it('should restrict calling clearPrevKeyGenState to ValidatorSet contract', async function () {
             const caller = accounts[5];
             await expect(keyGenHistory.connect(caller).clearPrevKeyGenState([]))
-                .to.be.revertedWith("Must by executed by validatorSetContract");
+                .to.be.revertedWithCustomError(keyGenHistory, "Unauthorized");
         });
 
         it('should restrict calling notifyNewEpoch to ValidatorSet contract', async function () {
             const caller = accounts[5];
 
             await expect(keyGenHistory.connect(caller).notifyNewEpoch())
-                .to.be.revertedWith("Must by executed by validatorSetContract");
+                .to.be.revertedWithCustomError(keyGenHistory, "Unauthorized");
         });
 
         it('should restrict calling notifyKeyGenFailed to ValidatorSet contract', async function () {
             const caller = accounts[5];
 
             await expect(keyGenHistory.connect(caller).notifyKeyGenFailed())
-                .to.be.revertedWith("Must by executed by validatorSetContract");
+                .to.be.revertedWithCustomError(keyGenHistory, "Unauthorized");
+        });
+
+        it('should revert writePart for wrong epoch', async () => {
+            const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
+
+            const caller = await ethers.getSigner(miningAddresses[0]);
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            await expect(keyGenHistory.connect(caller).writePart(epoch, roundCounter, parts[0]))
+                .to.be.revertedWithCustomError(keyGenHistory, "IncorrectEpoch");
+        });
+
+        it('should revert writePart for wrong round', async () => {
+            const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
+
+            const caller = await ethers.getSigner(miningAddresses[0]);
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            const wrongRound = roundCounter + 1n;
+
+            await expect(keyGenHistory.connect(caller).writePart(epoch + 1n, wrongRound, parts[0]))
+                .to.be.revertedWithCustomError(keyGenHistory, "IncorrectRound")
+                .withArgs(roundCounter, wrongRound);
+        });
+
+        it('should revert writePart by non-pending validator', async () => {
+            const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
+
+            const caller = await ethers.getSigner(miningAddresses[0]);
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            await expect(keyGenHistory.connect(caller).writePart(epoch + 1n, roundCounter, parts[0]))
+                .to.be.revertedWithCustomError(keyGenHistory, "NotPendingValidator")
+                .withArgs(caller.address);
+        });
+
+        it('should revert writeAcks for wrong epoch', async () => {
+            const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
+
+            const caller = await ethers.getSigner(miningAddresses[0]);
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            await expect(keyGenHistory.connect(caller).writeAcks(epoch, roundCounter, acks[0]))
+                .to.be.revertedWithCustomError(keyGenHistory, "IncorrectEpoch");
+        });
+
+        it('should revert writeAcks for wrong round', async () => {
+            const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
+
+            const caller = await ethers.getSigner(miningAddresses[0]);
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            const wrongRound = roundCounter + 1n;
+
+            await expect(keyGenHistory.connect(caller).writeAcks(epoch + 1n, wrongRound, acks[0]))
+                .to.be.revertedWithCustomError(keyGenHistory, "IncorrectRound")
+                .withArgs(roundCounter, wrongRound);
+        });
+
+        it('should revert writeAcks by non-pending validator', async () => {
+            const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
+
+            const caller = await ethers.getSigner(miningAddresses[0]);
+            const epoch = await stakingHbbft.stakingEpoch();
+
+            await expect(keyGenHistory.connect(caller).writeAcks(epoch + 1n, roundCounter, acks[0]))
+                .to.be.revertedWithCustomError(keyGenHistory, "NotPendingValidator")
+                .withArgs(caller.address);
         });
 
         it('failed KeyGeneration, availability.', async () => {
@@ -594,6 +664,16 @@ describe('KeyGenHistory', () => {
             await writePart('2', '1', parts[0], newPoolMiningAddress);
             await writeAcks('2', '1', acks[0], newPoolMiningAddress);
 
+            const newPoolSigner = await ethers.getSigner(newPoolMiningAddress);
+
+            await expect(
+                keyGenHistory.connect(newPoolSigner).writePart(2n, 1n, parts[0])
+            ).to.be.revertedWithCustomError(keyGenHistory, "PartsAlreadySubmitted");
+
+            await expect(
+                keyGenHistory.connect(newPoolSigner).writeAcks(2n, 1n, acks[0])
+            ).to.be.revertedWithCustomError(keyGenHistory, "AcksAlreadySubmitted");
+
             // it's now job of the current validators to verify the correct write of the PARTS and ACKS
             // (this is simulated by the next call)
             await timeTravelToEndEpoch();
@@ -692,7 +772,7 @@ describe('KeyGenHistory', () => {
 
         it("Shouldn't be able to certify zero address", async () => {
             await expect(certifier.connect(owner).certify(ethers.ZeroAddress))
-                .to.be.revertedWith("certifier must not be address 0");
+                .to.be.revertedWithCustomError(certifier, "ZeroAddress");
         })
     })
 });

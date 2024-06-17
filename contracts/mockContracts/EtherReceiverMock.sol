@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 contract EtherReceiverMock {
     bool public allowReceive;
+
+    error ReceiveDisabled();
 
     constructor() {
         allowReceive = true;
@@ -10,7 +12,7 @@ contract EtherReceiverMock {
 
     receive() external payable {
         if (!allowReceive) {
-            revert();
+            revert ReceiveDisabled();
         }
     }
 

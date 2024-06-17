@@ -2,7 +2,6 @@ import fs from "fs";
 import { ethers } from "ethers";
 import { HardhatUserConfig } from "hardhat/config";
 
-import "hardhat-tracer"
 import 'dotenv/config'
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-ethers";
@@ -11,7 +10,6 @@ import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "hardhat-contract-sizer";
 import 'solidity-docgen';
-import 'hardhat-tracer';
 
 import './tasks/make_spec';
 
@@ -138,13 +136,8 @@ const config: HardhatUserConfig = {
         tests: "./test",
     },
     solidity: {
-        version: "0.8.17",
+        version: "0.8.25",
         settings: {
-            // metadata: {
-            //     // Not including the metadata hash
-            //     // https://github.com/paulrberg/hardhat-template/issues/31
-            //     bytecodeHash: "none",
-            // },
             // Disable the optimizer when debugging
             // https://hardhat.org/hardhat-network/#solidity-optimizer-support
             optimizer: {
@@ -164,6 +157,9 @@ const config: HardhatUserConfig = {
     mocha: {
         timeout: 100000000
     },
+    upgrades: {
+        
+    }
 };
 
 export default config;

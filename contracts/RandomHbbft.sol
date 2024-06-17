@@ -1,16 +1,20 @@
-pragma solidity =0.8.17;
+// SPDX-License-Identifier: Apache 2.0
+pragma solidity =0.8.25;
+
+import { BitMaps } from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { BitMapsUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/structs/BitMapsUpgradeable.sol";
 
-import "./interfaces/IRandomHbbft.sol";
-import "./interfaces/IValidatorSetHbbft.sol";
+import { IRandomHbbft } from "./interfaces/IRandomHbbft.sol";
+import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
+import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
 
 /// @dev Stores and uppdates a random seed that is used to form a new validator set by the
 /// `ValidatorSetHbbft.newValidatorSet` function.
 contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
-    using BitMapsUpgradeable for BitMapsUpgradeable.BitMap;
+    using BitMaps for BitMaps.BitMap;
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -24,7 +28,7 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     /// blocknumber => random seed
     mapping(uint256 => uint256) private randomHistory;
 
-    BitMapsUpgradeable.BitMap private unhealthiness;
+    BitMaps.BitMap private unhealthiness;
 
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
@@ -33,10 +37,9 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
     modifier onlySystem() virtual {
-        require(
-            msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE,
-            "Must be executed by System"
-        );
+        if (msg.sender != SYSTEM_ADDRESS) {
+            revert Unauthorized();
+        }
         _;
     }
 
@@ -47,11 +50,11 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     }
 
     function initialize(address _contractOwner, address _validatorSet) external initializer {
-        require(_validatorSet != address(0), "ValidatorSet must not be 0");
-        require(_contractOwner != address(0), "Owner address must not be 0");
+        if (_validatorSet == address(0) || _contractOwner == address(0)) {
+            revert ZeroAddress();
+        }
 
-        __Ownable_init();
-        _transferOwnership(_contractOwner);
+        __Ownable_init(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
     }
@@ -81,11 +84,7 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     }
 
     ///@dev returns an array of seeds from requested blocknumbers
-    function getSeedsHistoric(uint256[] calldata _blocknumbers)
-        external
-        view
-        returns (uint256[] memory)
-    {
+    function getSeedsHistoric(uint256[] calldata _blocknumbers) external view returns (uint256[] memory) {
         uint256 len = _blocknumbers.length;
         uint256[] memory output = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
@@ -97,11 +96,7 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     }
 
     ///@dev returns an seed from requested blocknumber
-    function getSeedHistoric(uint256 _blocknumber)
-        external
-        view
-        returns (uint256)
-    {
+    function getSeedHistoric(uint256 _blocknumber) external view returns (uint256) {
         return randomHistory[_blocknumber];
     }
 
@@ -109,19 +104,11 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
         return validatorSetContract.isFullHealth();
     }
 
-    function isFullHealthHistoric(uint256 _blocknumber)
-        external
-        view
-        returns (bool)
-    {
+    function isFullHealthHistoric(uint256 _blocknumber) external view returns (bool) {
         return !unhealthiness.get(_blocknumber);
     }
 
-    function isFullHealthsHistoric(uint256[] calldata _blocknumbers)
-        external
-        view
-        returns (bool[] memory)
-    {
+    function isFullHealthsHistoric(uint256[] calldata _blocknumbers) external view returns (bool[] memory) {
         uint256 len = _blocknumbers.length;
         bool[] memory output = new bool[](len);
         for (uint256 i = 0; i < len; ) {

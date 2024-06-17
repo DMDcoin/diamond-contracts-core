@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: Apache 2.0
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
+
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {
-    EnumerableSetUpgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 
-contract ConnectivityTrackerHbbft is
-    Initializable,
-    OwnableUpgradeable,
-    IConnectivityTrackerHbbft
-{
-    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft {
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     IValidatorSetHbbft public validatorSetContract;
     IStakingHbbft public stakingContract;
@@ -28,26 +23,15 @@ contract ConnectivityTrackerHbbft is
 
     mapping(uint256 => bool) public isEarlyEpochEnd;
 
-    mapping(uint256 => EnumerableSetUpgradeable.AddressSet) private _flaggedValidators;
-    mapping(uint256 => mapping(address => EnumerableSetUpgradeable.AddressSet)) private _reporters;
+    mapping(uint256 => EnumerableSet.AddressSet) private _flaggedValidators;
+    mapping(uint256 => mapping(address => EnumerableSet.AddressSet)) private _reporters;
 
     event SetMinReportAgeBlocks(uint256 _minReportAge);
     event SetEarlyEpochEndToleranceLevel(uint256 _level);
-    event ReportMissingConnectivity(
-        address indexed reporter,
-        address indexed validator,
-        uint256 indexed blockNumber
-    );
+    event ReportMissingConnectivity(address indexed reporter, address indexed validator, uint256 indexed blockNumber);
 
-    event ReportReconnect(
-        address indexed reporter,
-        address indexed validator,
-        uint256 indexed blockNumber
-    );
-    event NotifyEarlyEpochEnd(
-        uint256 indexed epoch,
-        uint256 indexed blockNumber
-    );
+    event ReportReconnect(address indexed reporter, address indexed validator, uint256 indexed blockNumber);
+    event NotifyEarlyEpochEnd(uint256 indexed epoch, uint256 indexed blockNumber);
 
     error AlreadyReported(address reporter, address validator);
     error CannotReportByFlaggedValidator(address reporter);
@@ -79,8 +63,7 @@ contract ConnectivityTrackerHbbft is
             revert InvalidAddress();
         }
 
-        __Ownable_init();
-        _transferOwnership(_contractOwner);
+        __Ownable_init(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
         stakingContract = IStakingHbbft(_stakingContract);
@@ -104,17 +87,8 @@ contract ConnectivityTrackerHbbft is
         emit SetEarlyEpochEndToleranceLevel(_level);
     }
 
-    function reportMissingConnectivity(
-        address validator,
-        uint256 blockNumber,
-        bytes32 blockHash
-    ) external {
-        checkReportMissingConnectivityCallable(
-            msg.sender,
-            validator,
-            blockNumber,
-            blockHash
-        );
+    function reportMissingConnectivity(address validator, uint256 blockNumber, bytes32 blockHash) external {
+        checkReportMissingConnectivityCallable(msg.sender, validator, blockNumber, blockHash);
 
         uint256 epoch = currentEpoch();
         uint256 currentScore = getValidatorConnectivityScore(epoch, validator);
@@ -131,17 +105,8 @@ contract ConnectivityTrackerHbbft is
         emit ReportMissingConnectivity(msg.sender, validator, blockNumber);
     }
 
-    function reportReconnect(
-        address validator,
-        uint256 blockNumber,
-        bytes32 blockHash
-    ) external {
-        checkReportReconnectCallable(
-            msg.sender,
-            validator,
-            blockNumber,
-            blockHash
-        );
+    function reportReconnect(address validator, uint256 blockNumber, bytes32 blockHash) external {
+        checkReportReconnectCallable(msg.sender, validator, blockNumber, blockHash);
 
         uint256 epoch = currentEpoch();
         uint256 currentScore = getValidatorConnectivityScore(epoch, validator);
@@ -161,19 +126,12 @@ contract ConnectivityTrackerHbbft is
         emit ReportReconnect(msg.sender, validator, blockNumber);
     }
 
-    function getValidatorConnectivityScore(
-        uint256 epoch,
-        address validator
-    ) public view returns (uint256) {
+    function getValidatorConnectivityScore(uint256 epoch, address validator) public view returns (uint256) {
         return _reporters[epoch][validator].length();
     }
 
     /// @dev Returns true if the specified validator was reported by the specified reporter at the given epoch.
-    function isReported(
-        uint256 epoch,
-        address validator,
-        address reporter
-    ) external view returns (bool) {
+    function isReported(uint256, address validator, address reporter) external view returns (bool) {
         return _reporters[currentEpoch()][validator].contains(reporter);
     }
 
@@ -217,8 +175,7 @@ contract ConnectivityTrackerHbbft is
     }
 
     function earlyEpochEndThreshold() public view returns (uint256) {
-        uint256 networkSize = IValidatorSetHbbft(validatorSetContract)
-            .getCurrentValidatorsCount();
+        uint256 networkSize = IValidatorSetHbbft(validatorSetContract).getCurrentValidatorsCount();
         uint256 hbbftFaultTolerance = networkSize / 3;
 
         if (hbbftFaultTolerance <= earlyEpochEndToleranceLevel) {
@@ -228,31 +185,22 @@ contract ConnectivityTrackerHbbft is
         }
     }
 
-    function countFaultyValidators(uint256 epoch)
-    public view returns (uint256) {
+    function countFaultyValidators(uint256 epoch) public view returns (uint256) {
         return _countFaultyValidators(epoch);
     }
 
-    function _countFaultyValidators(
-        uint256 epoch
-    ) private view returns (uint256) {
+    function _countFaultyValidators(uint256 epoch) private view returns (uint256) {
         address[] memory flaggedValidators = getFlaggedValidators();
 
-        uint256 unflaggedValidatorsCount = validatorSetContract
-            .getCurrentValidatorsCount() - flaggedValidators.length; // 16 - 4 = 12
+        uint256 unflaggedValidatorsCount = validatorSetContract.getCurrentValidatorsCount() - flaggedValidators.length; // 16 - 4 = 12
 
-            
-
-        uint256 reportersThreshold = (2 * unflaggedValidatorsCount) / 3 + 1;  // 24 / 3  + 1 = 9    
+        uint256 reportersThreshold = (2 * unflaggedValidatorsCount) / 3 + 1; // 24 / 3  + 1 = 9
         uint256 result = 0;
 
         for (uint256 i = 0; i < flaggedValidators.length; ++i) {
             address validator = flaggedValidators[i];
 
-            if (
-                getValidatorConnectivityScore(epoch, validator) >=
-                reportersThreshold
-            ) {
+            if (getValidatorConnectivityScore(epoch, validator) >= reportersThreshold) {
                 ++result;
             }
         }
@@ -260,12 +208,7 @@ contract ConnectivityTrackerHbbft is
         return result;
     }
 
-    function _validateParams(
-        uint256 epoch,
-        address caller,
-        uint256 blockNumber,
-        bytes32 blockHash
-    ) private view {
+    function _validateParams(uint256 epoch, address caller, uint256 blockNumber, bytes32 blockHash) private view {
         if (!validatorSetContract.isValidator(caller)) {
             revert OnlyValidator();
         }

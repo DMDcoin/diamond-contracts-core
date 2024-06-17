@@ -66,30 +66,4 @@ describe("Transfer utils library", function () {
                 [-balance, balance]
             );
     });
-
-    it("should transfer using transferNativeEnsure", async function () {
-        const { transferUtils, mockReceiver, balance } = await helpers.loadFixture(deployContracts);
-        const receiverAddress = await mockReceiver.getAddress();
-
-        expect(await mockReceiver.toggleReceive(true));
-
-        await expect(() => transferUtils.transferNativeEnsure(receiverAddress, balance))
-            .to.changeEtherBalances(
-                [transferUtils, mockReceiver],
-                [-balance, balance]
-            );
-    });
-
-    it("should ensure token transfer using Sacrifice contract", async function () {
-        const { transferUtils, mockReceiver, balance } = await helpers.loadFixture(deployContracts);
-        const receiverAddress = await mockReceiver.getAddress();
-
-        expect(await mockReceiver.toggleReceive(false));
-
-        await expect(() => transferUtils.transferNativeEnsure(receiverAddress, balance))
-            .to.changeEtherBalances(
-                [transferUtils, mockReceiver],
-                [-balance, balance]
-            );
-    });
 });

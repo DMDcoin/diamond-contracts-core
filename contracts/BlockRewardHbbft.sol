@@ -1,16 +1,26 @@
-pragma solidity =0.8.17;
+// SPDX-License-Identifier: Apache 2.0
+pragma solidity =0.8.25;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
+import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
+import { ValueGuards } from "./ValueGuards.sol";
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
-contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IBlockRewardHbbft {
+contract BlockRewardHbbft is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    ValueGuards,
+    IBlockRewardHbbft
+{
     struct PotsShares {
         uint256 deltaPotAmount;
         uint256 reinsertPotAmount;
@@ -90,17 +100,23 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// @param _fraction New reinsert pot payout fraction value.
     event SetReinsertPotPayoutFraction(uint256 _fraction);
 
+    error ZeroPayoutFraction();
+
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Block-Reward-Contract.html
     modifier onlySystem() virtual {
-        require(msg.sender == 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE);
+        if (msg.sender != SYSTEM_ADDRESS) {
+            revert Unauthorized();
+        }
         _;
     }
 
     /// @dev Ensures the caller is the ConnectivityTracker contract address.
     modifier onlyConnectivityTracker() {
-        require(msg.sender == connectivityTracker);
+        if (msg.sender != connectivityTracker) {
+            revert Unauthorized();
+        }
         _;
     }
 
@@ -126,13 +142,12 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
         address _validatorSet,
         address _connectivityTracker
     ) external initializer {
-        require(_contractOwner != address(0), "Owner address must not be 0");
-        require(_validatorSet != address(0), "ValidatorSet must not be 0");
-        require(_connectivityTracker != address(0), "ConnectivityTracker must not be 0");
+        if (_contractOwner == address(0) || _validatorSet == address(0) || _connectivityTracker == address(0)) {
+            revert ZeroAddress();
+        }
 
-        __Ownable_init();
+        __Ownable_init(_contractOwner);
         __ReentrancyGuard_init();
-        _transferOwnership(_contractOwner);
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         connectivityTracker = _connectivityTracker;
@@ -171,7 +186,10 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// a fraction of the delta pot is payed out.
     /// Only theOwner, the DAO is allowed to set the delta pot payout fraction.
     function setdeltaPotPayoutFraction(uint256 _value) external onlyOwner {
-        require(_value != 0, "Payout fraction must not be 0");
+        if (_value == 0) {
+            revert ZeroPayoutFraction();
+        }
+
         deltaPotPayoutFraction = _value;
 
         emit SetDeltaPotPayoutFraction(_value);
@@ -183,14 +201,20 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// (same logic than in the reinsert pot.)
     /// Only theOwner, the DAO is allowed to set the reinsert pot payout fraction.
     function setReinsertPotPayoutFraction(uint256 _value) external onlyOwner {
-        require(_value != 0, "Payout fraction must not be 0");
+        if (_value == 0) {
+            revert ZeroPayoutFraction();
+        }
+
         reinsertPotPayoutFraction = _value;
 
         emit SetReinsertPotPayoutFraction(_value);
     }
 
     function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
-        require(_connectivityTracker != address(0), "ConnectivityTracker must not be 0");
+        if (_connectivityTracker == address(0)) {
+            revert ZeroAddress();
+        }
+
         connectivityTracker = _connectivityTracker;
 
         emit SetConnectivityTracker(_connectivityTracker);
@@ -228,6 +252,19 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
         // slither-disable-end reentrancy-eth
     }
 
+    /**
+     * @dev Sets the value of the governancePotShareNominator variable.
+     * @param _shareNominator The new value for the governancePotShareNominator.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     * - The _shareNominator value must be within the allowed range.
+     */
+    function setGovernancePotShareNominator(
+        uint256 _shareNominator
+    ) public onlyOwner withinAllowedRange(_shareNominator) {
+        governancePotShareNominator = _shareNominator;
+    }
+
     // =============================================== Getters ========================================================
     function getGovernanceAddress() external view returns (address) {
         return governancePotAddress;
@@ -263,7 +300,9 @@ contract BlockRewardHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardU
         address[] memory validators = validatorSetContract.getValidators();
 
         uint256 numValidators = validators.length;
-        require(numValidators != 0, "Empty Validator list");
+        if (numValidators == 0) {
+            revert ValidatorsListEmpty();
+        }
 
         PotsShares memory shares = _getPotsShares(numValidators);
 
