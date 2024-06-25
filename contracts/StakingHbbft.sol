@@ -357,7 +357,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         delegatorMinStakeAllowedParams[3] = 200 ether;
         delegatorMinStakeAllowedParams[4] = 250 ether;
 
-        setAllowedChangeableParameter(
+        initAllowedChangeableParameter(
             "setDelegatorMinStake(uint256)",
             "delegatorMinStake()",
             delegatorMinStakeAllowedParams
