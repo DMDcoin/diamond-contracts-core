@@ -99,7 +99,7 @@ contract ValueGuards is OwnableUpgradeable {
         string memory setter,
         string memory getter,
         uint256[] memory params
-    ) public virtual onlyOwner {
+    ) public onlyOwner {
         allowedParameterRange[bytes4(keccak256(bytes(setter)))] = ParameterRange(
             bytes4(keccak256(bytes(getter))),
             params
@@ -111,9 +111,30 @@ contract ValueGuards is OwnableUpgradeable {
      * @dev Removes the allowed changeable parameter for a given function selector.
      * @param funcSelector The function selector for which the allowed changeable parameter should be removed.
      */
-    function removeAllowedChangeableParameter(string memory funcSelector) public virtual onlyOwner {
+    function removeAllowedChangeableParameter(string memory funcSelector) public onlyOwner{
         delete allowedParameterRange[bytes4(keccak256(bytes(funcSelector)))];
         emit RemoveChangeAbleParameter(funcSelector);
+    }
+
+    // =============================================== Initializers ====================================================
+
+    
+    /**
+     * @dev Inits the allowed changeable parameter for a specific setter function.
+     * @param setter The name of the setter function.
+     * @param getter The name of the getter function.
+     * @param params The array of allowed parameter values.
+     */
+    function initAllowedChangeableParameter(
+        string memory setter,
+        string memory getter,
+        uint256[] memory params
+    ) public onlyInitializing {
+        allowedParameterRange[bytes4(keccak256(bytes(setter)))] = ParameterRange(
+            bytes4(keccak256(bytes(getter))),
+            params
+        );
+        emit SetChangeAbleParameter(setter, getter, params);
     }
 
     // =============================================== Internal ========================================================
