@@ -61,6 +61,16 @@ const config: HardhatUserConfig = {
                     browserURL: "http://explorer.uniq.diamonds",
                 },
             },
+            {
+                network: "alpha3",
+                chainId: 777016,
+                urls: {
+                    apiURL: "http://185.187.170.209:4000/api",
+                    browserURL: "http://185.187.170.209:4000/",
+                },
+            },
+
+                        
         ],
     },
     contractSizer: {
@@ -119,6 +129,17 @@ const config: HardhatUserConfig = {
         },
         alpha2: {
             url: "http://rpc.uniq.diamonds",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+        },
+        alpha3: {
+            url: "http://185.187.170.209:38000",
             accounts: {
                 mnemonic: getMnemonic(),
                 path: "m/44'/60'/0'/0",
