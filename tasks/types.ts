@@ -207,6 +207,7 @@ export class CoreContract {
         return this.proxyAddress !== '';
     }
 
+    // returns hex encoded initializer data.
     async compileProxy(
         hre: HardhatRuntimeEnvironment,
         proxyContractName: string,
@@ -221,6 +222,8 @@ export class CoreContract {
         const tx = await proxyFactory.getDeployTransaction(logicAddress, ownerAddress, initializerData);
 
         this.proxyBytecode = tx.data;
+
+        return initializerData;
     }
 
     async compileContract(hre: HardhatRuntimeEnvironment) {

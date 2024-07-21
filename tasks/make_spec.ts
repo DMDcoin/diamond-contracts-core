@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { task } from "hardhat/config";
-
 import { InitialContractsConfiguration, NetworkConfiguration } from './types';
 
 const ProxyContractName = "TransparentUpgradeableProxy";
@@ -16,6 +15,8 @@ task("make_spec_hbbft", "used to make a spec file")
         console.log("Using initial data file: ", taskArgs.initDataFile);
         console.log("initial funding address: ", taskArgs.initialFundAddress);
         console.log("Using initial contracts file: ", taskArgs.initContracts);
+
+        let blocscoutVerificationScript = "#!/bin/sh\n\n#Set Pipefail, so all contracts get a chance to be verified, even if one failes\nset -o pipefail\n";
 
         const initialContracts = InitialContractsConfiguration.fromFile(taskArgs.initContracts);
         const networkConfig = NetworkConfiguration.create(taskArgs.initDataFile);
@@ -49,13 +50,23 @@ task("make_spec_hbbft", "used to make a spec file")
             const initializerArgs = initialContracts.getContractInitializerArgs(contractName, networkConfig);
 
             await initialContracts.core[i].compileContract(hre);
-            await initialContracts.core[i].compileProxy(
+            let initializerDataHex = await initialContracts.core[i].compileProxy(
                 hre,
                 ProxyContractName,
                 initialContracts.core[i].implementationAddress!, // address _logic,
                 networkConfig.owner!,                            // contract initial owner
                 initializerArgs                                  // bytes _data
             );
+
+            // example: 
+            // npx hardhat verify --network alpha3  0x1000000000000000000000000000000000000000
+            let implementationAddress = initialContracts.core[i].implementationAddress
+            let proxyAddress = initialContracts.core[i].proxyAddress;
+            blocscoutVerificationScript += `### ${contractName} ###\n`;
+            blocscoutVerificationScript += `echo "verifying ${contractName} on ${implementationAddress}"\n`;
+            blocscoutVerificationScript += `npx hardhat verify --network alpha3 ${implementationAddress}\n`;            
+            blocscoutVerificationScript += `echo "verifying proxy for ${contractName} on ${proxyAddress}"\n`;
+            blocscoutVerificationScript += `npx hardhat verify --network alpha3 ${proxyAddress} ${implementationAddress} ${networkConfig.owner} ${initializerDataHex}\n`;
 
             const contractSpec = initialContracts.core[i].toSpecAccount(taskArgs.useUpgradeProxy, 0);
 
@@ -89,7 +100,9 @@ task("make_spec_hbbft", "used to make a spec file")
         console.log('Saving spec_hbbft.json file ...');
 
         fs.writeFileSync(path.join(__dirname, '..', 'spec_hbbft.json'), JSON.stringify(spec, null, '  '), 'utf-8');
-
+        let blockscoutVerifyFile = path.join(__dirname, '..', 'blockscout_verify.sh')
+        console.log("Storing batch file for blockscout verification: ", blockscoutVerifyFile);
+        fs.writeFileSync(blockscoutVerifyFile, blocscoutVerificationScript, "utf-8");
         console.log('Done');
     });
 
