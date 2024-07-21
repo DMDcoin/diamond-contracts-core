@@ -16,7 +16,7 @@ task("make_spec_hbbft", "used to make a spec file")
         console.log("initial funding address: ", taskArgs.initialFundAddress);
         console.log("Using initial contracts file: ", taskArgs.initContracts);
 
-        let blocscoutVerificationScript = "#!/bin/sh\n";
+        let blocscoutVerificationScript = "#!/bin/sh\n\n#Set Pipefail, so all contracts get a chance to be verified, even if one failes\nset -o pipefail\n";
 
         const initialContracts = InitialContractsConfiguration.fromFile(taskArgs.initContracts);
         const networkConfig = NetworkConfiguration.create(taskArgs.initDataFile);
