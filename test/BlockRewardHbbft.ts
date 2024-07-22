@@ -30,6 +30,8 @@ const GovernanceAddress = '0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0';
 const addToDeltaPotValue = ethers.parseEther('60');
 const validatorInactivityThreshold = 365n * 86400n // 1 year
 
+let contractDeployCounter = 0;
+
 describe('BlockRewardHbbft', () => {
     let owner: HardhatEthersSigner;
     let accounts: HardhatEthersSigner[];
@@ -80,15 +82,21 @@ describe('BlockRewardHbbft', () => {
     async function deployContractsFixture() {
         const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
 
-        // we fake the deployment of a governance contract here.
-        const DaoMockFactory = await ethers.getContractFactory("DaoMock");
-        let deployedDaoMock = await (await DaoMockFactory.deploy()).waitForDeployment();
-        let daoMockBytecode =  await deployedDaoMock.getDeployedCode();
-        
-        await network.provider.send("hardhat_setCode", [
-            GovernanceAddress,
-            daoMockBytecode!,
-          ]);
+        contractDeployCounter = contractDeployCounter + 1;
+
+        // every second deployment we add the DAOMock contract, 
+        // so we also cover the possibility that no contract was deployed.
+        if (contractDeployCounter % 2 == 0) {
+            // we fake the deployment of a governance contract here.
+            const DaoMockFactory = await ethers.getContractFactory("DaoMock");
+            let deployedDaoMock = await (await DaoMockFactory.deploy()).waitForDeployment();
+            let daoMockBytecode =  await deployedDaoMock.getDeployedCode();
+            
+            await network.provider.send("hardhat_setCode", [
+                GovernanceAddress,
+                daoMockBytecode!,
+                ]); 
+        }
 
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
         const connectivityTrackerContract = await ConnectivityTrackerFactory.deploy();
