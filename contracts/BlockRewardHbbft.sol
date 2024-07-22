@@ -8,6 +8,7 @@ import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { IGovernancePot } from "./interfaces/IGovernancePot.sol";
 import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
 import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
@@ -441,6 +442,16 @@ contract BlockRewardHbbft is
             validatorSetContract.newValidatorSet();
         } else if (block.timestamp >= stakingContract.stakingFixedEpochEndTime()) {
             validatorSetContract.handleFailedKeyGeneration();
+        }
+
+        // on closing a block, the governance pot is able to execute functions.
+        // those calls are able to fail.
+        // more details: https://github.com/DMDcoin/diamond-contracts-core/issues/231
+        if (governancePotAddress.code.length > 0 ) {
+            IGovernancePot governancePot = IGovernancePot(governancePotAddress);
+            try governancePot.switchPhase() {
+            } catch {
+            }
         }
     }
 
