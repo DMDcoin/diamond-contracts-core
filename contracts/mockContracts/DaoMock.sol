@@ -6,7 +6,8 @@ import { IGovernancePot } from "../interfaces/IGovernancePot.sol";
 
 contract DaoMock is IGovernancePot {
 
-    uint256 phaseCounter;
+    uint256 public phaseCounter;
+    
     error SwitchPhaseReverted();
 
     function switchPhase() external {
