@@ -80,6 +80,16 @@ describe('BlockRewardHbbft', () => {
     async function deployContractsFixture() {
         const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
 
+        // we fake the deployment of a governance contract here.
+        const DaoMockFactory = await ethers.getContractFactory("DaoMock");
+        let deployedDaoMock = await (await DaoMockFactory.deploy()).waitForDeployment();
+        let daoMockBytecode =  await deployedDaoMock.getDeployedCode();
+        
+        await network.provider.send("hardhat_setCode", [
+            GovernanceAddress,
+            daoMockBytecode!,
+          ]);
+
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
         const connectivityTrackerContract = await ConnectivityTrackerFactory.deploy();
         await connectivityTrackerContract.waitForDeployment();
