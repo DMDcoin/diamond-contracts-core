@@ -449,9 +449,16 @@ contract BlockRewardHbbft is
         // more details: https://github.com/DMDcoin/diamond-contracts-core/issues/231
         if (governancePotAddress.code.length > 0 ) {
             IGovernancePot governancePot = IGovernancePot(governancePotAddress);
+            
+            // solhint-disable no-empty-blocks
             try governancePot.switchPhase() {
+                // all good
             } catch {
+                // we got an error on switch phase.
+                // phase switching currently not working in an automated way.
+                // This is a problem in the DAO, but closing blocks should still work as expected.
             }
+            // solhint-enable no-empty-blocks
         }
     }
 
