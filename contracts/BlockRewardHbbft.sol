@@ -8,6 +8,7 @@ import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { IGovernancePot } from "./interfaces/IGovernancePot.sol";
 import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
 import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
@@ -442,6 +443,21 @@ contract BlockRewardHbbft is
         } else if (block.timestamp >= stakingContract.stakingFixedEpochEndTime()) {
             validatorSetContract.handleFailedKeyGeneration();
         }
+
+        // on closing a block, the governance pot is able to execute functions.
+        // those calls are able to fail.
+        // more details: https://github.com/DMDcoin/diamond-contracts-core/issues/231
+        IGovernancePot governancePot = IGovernancePot(governancePotAddress);
+        
+        // solhint-disable no-empty-blocks
+        try governancePot.switchPhase() {
+            // all good, we just wanted to catch.
+        } catch {
+            // we got an error on switch phase.
+            // phase switching currently not working in an automated way.
+            // This is a problem in the DAO, but closing blocks should still work as expected.
+        }
+        // solhint-enable no-empty-blocks
     }
 
     function _markRewardedValidators(

@@ -12,6 +12,7 @@ import {
 } from "../src/types";
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
+import { GovernanceAddress, deployDao } from "./testhelpers/daoDeployment";
 
 // one epoch in 1 day.
 const STAKING_FIXED_EPOCH_DURATION = 86400n;
@@ -25,10 +26,12 @@ const DELEGATOR_MIN_STAKE = ethers.parseEther('100');
 const MAX_STAKE = ethers.parseEther('100000');
 
 const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
-const GovernanceAddress = '0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0';
+
 
 const addToDeltaPotValue = ethers.parseEther('60');
 const validatorInactivityThreshold = 365n * 86400n // 1 year
+
+let contractDeployCounter = 0;
 
 describe('BlockRewardHbbft', () => {
     let owner: HardhatEthersSigner;
@@ -80,6 +83,12 @@ describe('BlockRewardHbbft', () => {
     async function deployContractsFixture() {
         const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
 
+        contractDeployCounter = contractDeployCounter + 1;
+
+        // every second deployment we add the DAOMock contract, 
+        // so we also cover the possibility that no contract was deployed.
+        await deployDao();
+        
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
         const connectivityTrackerContract = await ConnectivityTrackerFactory.deploy();
         await connectivityTrackerContract.waitForDeployment();
