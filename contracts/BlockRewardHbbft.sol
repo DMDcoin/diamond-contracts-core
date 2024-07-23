@@ -447,19 +447,17 @@ contract BlockRewardHbbft is
         // on closing a block, the governance pot is able to execute functions.
         // those calls are able to fail.
         // more details: https://github.com/DMDcoin/diamond-contracts-core/issues/231
-        if (governancePotAddress.code.length > 0 ) {
-            IGovernancePot governancePot = IGovernancePot(governancePotAddress);
-            
-            // solhint-disable no-empty-blocks
-            try governancePot.switchPhase() {
-                // all good
-            } catch {
-                // we got an error on switch phase.
-                // phase switching currently not working in an automated way.
-                // This is a problem in the DAO, but closing blocks should still work as expected.
-            }
-            // solhint-enable no-empty-blocks
+        IGovernancePot governancePot = IGovernancePot(governancePotAddress);
+        
+        // solhint-disable no-empty-blocks
+        try governancePot.switchPhase() {
+            // all good, we just wanted to catch.
+        } catch {
+            // we got an error on switch phase.
+            // phase switching currently not working in an automated way.
+            // This is a problem in the DAO, but closing blocks should still work as expected.
         }
+        // solhint-enable no-empty-blocks
     }
 
     function _markRewardedValidators(
