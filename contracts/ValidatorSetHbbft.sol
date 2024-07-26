@@ -244,9 +244,8 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     }
 
     /// @dev Called by the system when a pending validator set is ready to be activated.
-    /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
     /// After this function is called, the `getValidators` getter returns the new validator set.
-    /// If this function finalizes a new validator set formed by the `newValidatorSet` function,
+    /// If this function finalizes, a new validator set is created by the `newValidatorSet` function.
     /// an old validator set is also stored and can be read by the `getPreviousValidators` getter.
     function finalizeChange() external onlyBlockRewardContract {
         if (_pendingValidators.length != 0) {
@@ -270,7 +269,11 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         _newValidatorSet(new address[](0));
     }
 
+    /// @dev Inactive validators and their stakers loose there stake after a certain period of time.
+    /// This function defines the lenght of this time window. 
+    /// @param _seconds new value in seconds. 
     function setValidatorInactivityThreshold(uint256 _seconds) external onlyOwner {
+        
         // chosen abritary minimum value of a week.
         // if you want smaller values for tests,
         // the contract can be deployed with a smaller value

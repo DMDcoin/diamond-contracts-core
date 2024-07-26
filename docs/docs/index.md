@@ -21,8 +21,6 @@ POSDAO smart contracts are located in the contracts directory, which contains th
 
 - **RandomHbbft:**  stores random numbers that the engine generates and sends, used for the validator selection. 
 
-- **Registry:** stores human-readable keys associated with addresses (see [Parity Wiki](https://wiki.parity.io/Parity-name-registry.html)). Used primarily to store the address of the `Certifier` contract (see [Parity Wiki](https://wiki.parity.io/Permissioning.html#gas-price) for details).
-
 - **StakingHbbft:** contains the contract staking logic for candidates, delegators and validators.
 
 - **TxPermission:** controls the use of a zero gas price by validators in service transactions, protecting the network against "transaction spamming" by malicious validators. 
