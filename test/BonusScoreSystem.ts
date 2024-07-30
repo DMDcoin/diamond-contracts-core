@@ -4,7 +4,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 import fp from "lodash/fp";
 
-import { BonusScoreSystem, StakingHbbft } from "../src/types";
+import { BonusScoreSystem, StakingHbbft, ValidatorSetHbbftMock } from "../src/types";
 
 // one epoch in 12 hours.
 const STAKING_FIXED_EPOCH_DURATION = 43200n;
@@ -12,12 +12,26 @@ const STAKING_FIXED_EPOCH_DURATION = 43200n;
 // the transition time window is 30 minutes.
 const STAKING_TRANSITION_WINDOW_LENGTH = 1800n;
 
+const MIN_SCORE = 1n;
+const MAX_SCORE = 1000n;
+const STAND_BY_BONUS = 15n;
+const STAND_BY_PENALTY = 15n;
+const NO_KEY_WRITE_PENALTY = 100n;
+const BAD_PERFORMANCE_PENALTY = 100n;
+
 enum ScoringFactor {
     StandByBonus,
     NoStandByPenalty,
     NoKeyWritePenalty,
     BadPerformancePenalty
 }
+
+const ScoringFactors = [
+    { factor: ScoringFactor.StandByBonus, value: STAND_BY_BONUS },
+    { factor: ScoringFactor.NoStandByPenalty, value: STAND_BY_PENALTY },
+    { factor: ScoringFactor.NoKeyWritePenalty, value: NO_KEY_WRITE_PENALTY },
+    { factor: ScoringFactor.BadPerformancePenalty, value: BAD_PERFORMANCE_PENALTY },
+];
 
 describe("BonusScoreSystem", function () {
     let users: HardhatEthersSigner[];
@@ -50,8 +64,31 @@ describe("BonusScoreSystem", function () {
         // The IP addresses are irrelevant for these unit test, just initialize them to 0.
         initialValidatorsIpAddresses = Array(initialValidators.length).fill(ethers.zeroPadBytes("0x00", 16));
 
-        let structure = {
-            _validatorSetContract: stubAddress,
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: stubAddress,
+            validatorInactivityThreshold: 86400,
+        }
+
+        const validatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+        const validatorSetHbbft = await upgrades.deployProxy(
+            validatorSetFactory,
+            [
+                owner.address,
+                validatorSetParams,       // _params
+                initialValidators,        // _initialMiningAddresses
+                initialStakingAddresses,  // _initialStakingAddresses
+            ],
+            { initializer: 'initialize' }
+        ) as unknown as ValidatorSetHbbftMock;
+
+        await validatorSetHbbft.waitForDeployment();
+
+        let stakingParams = {
+            _validatorSetContract: await validatorSetHbbft.getAddress(),
             _bonusScoreContract: stubAddress,
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: ethers.parseEther('100'),
@@ -67,7 +104,7 @@ describe("BonusScoreSystem", function () {
             StakingHbbftFactory,
             [
                 owner.address,
-                structure, // initializer structure
+                stakingParams, // initializer structure
                 initialValidatorsPubKeys, // _publicKeys
                 initialValidatorsIpAddresses // _internetAddresses
             ],
@@ -82,9 +119,9 @@ describe("BonusScoreSystem", function () {
             bonusScoreSystemFactory,
             [
                 owner.address,
-                randomWallet(),                  // _validatorSetHbbft
-                randomWallet(),                  // _connectivityTracker
-                await stakingHbbft.getAddress(), // _stakingContract
+                await validatorSetHbbft.getAddress(), // _validatorSetHbbft
+                randomWallet(),                       // _connectivityTracker
+                await stakingHbbft.getAddress(),      // _stakingContract
             ],
             { initializer: 'initialize' }
         ) as unknown as BonusScoreSystem;
@@ -92,8 +129,69 @@ describe("BonusScoreSystem", function () {
         await bonusScoreSystem.waitForDeployment();
 
         await stakingHbbft.setBonusScoreContract(await bonusScoreSystem.getAddress());
+        await validatorSetHbbft.setBonusScoreSystemAddress(await bonusScoreSystem.getAddress());
 
-        return { bonusScoreSystem, stakingHbbft };
+        return { bonusScoreSystem, stakingHbbft, validatorSetHbbft };
+    }
+
+    async function impersonateAcc(accAddress: string) {
+        await helpers.impersonateAccount(accAddress);
+
+        await owner.sendTransaction({
+            to: accAddress,
+            value: ethers.parseEther('10'),
+        });
+
+        return await ethers.getSigner(accAddress);
+    }
+
+    async function getPoolLikelihood(
+        stakingHbbft: StakingHbbft,
+        stakingAddress: string
+    ): Promise<bigint> {
+        const poolsToBeElected = await stakingHbbft.getPoolsToBeElected();
+        const poolsLikelihood = (await stakingHbbft.getPoolsLikelihood()).likelihoods;
+
+        const index = Number(await stakingHbbft.poolToBeElectedIndex(stakingAddress));
+        if (poolsToBeElected.length <= index || poolsToBeElected[index] != stakingAddress) {
+            throw new Error("pool not found");
+        }
+
+        return poolsLikelihood[index];
+    }
+
+    async function increaseScore(
+        bonusScoreContract: BonusScoreSystem,
+        validator: string,
+        score: bigint
+    ) {
+        const timeToGetScorePoint = await bonusScoreContract.getTimePerScorePoint(ScoringFactor.StandByBonus);
+        const timeToGetFullBonus = timeToGetScorePoint * STAND_BY_BONUS;
+
+        const validatorSetAddress = await bonusScoreContract.validatorSetHbbft();
+        const validatorSet = await impersonateAcc(validatorSetAddress);
+
+        let currentScore = await bonusScoreContract.getValidatorScore(validator);
+
+        while (currentScore < score) {
+            let scoreDiff = score - currentScore;
+            let timeInterval = scoreDiff < STAND_BY_BONUS
+                ? scoreDiff * timeToGetScorePoint
+                : timeToGetFullBonus;
+
+            const block = await ethers.provider.getBlock("latest");
+
+            await helpers.time.increase(timeInterval + 1n);
+            await bonusScoreContract.connect(validatorSet).rewardStandBy(validator, block?.timestamp!);
+
+            currentScore = await bonusScoreContract.getValidatorScore(validator);
+
+            if (currentScore == MAX_SCORE) {
+                break;
+            }
+        }
+
+        await helpers.stopImpersonatingAccount(validatorSet.address);
     }
 
     describe('Initializer', async () => {
@@ -103,13 +201,6 @@ describe("BonusScoreSystem", function () {
             [randomWallet(), randomWallet(), ethers.ZeroAddress, randomWallet()],
             [randomWallet(), randomWallet(), randomWallet(), ethers.ZeroAddress],
         ];
-
-        let InitialScoringFactors = [
-            { factor: ScoringFactor.StandByBonus, initValue: 15 },
-            { factor: ScoringFactor.NoStandByPenalty, initValue: 15 },
-            { factor: ScoringFactor.NoKeyWritePenalty, initValue: 100 },
-            { factor: ScoringFactor.BadPerformancePenalty, initValue: 100 },
-        ]
 
         InitializeCases.forEach((args, index) => {
             it(`should revert initialization with zero address argument, test #${index + 1}`, async function () {
@@ -140,7 +231,7 @@ describe("BonusScoreSystem", function () {
             ).to.be.revertedWithCustomError(bonusScoreSystem, "InvalidInitialization");
         });
 
-        InitialScoringFactors.forEach((args) => {
+        ScoringFactors.forEach((args) => {
             it(`should set initial scoring factor ${ScoringFactor[args.factor]}`, async () => {
                 const bonusScoreSystemFactory = await ethers.getContractFactory("BonusScoreSystem");
                 const bonusScoreSystem = await upgrades.deployProxy(
@@ -151,7 +242,7 @@ describe("BonusScoreSystem", function () {
 
                 await bonusScoreSystem.waitForDeployment();
 
-                expect(await bonusScoreSystem.getScoringFactorValue(args.factor)).to.equal(args.initValue);
+                expect(await bonusScoreSystem.getScoringFactorValue(args.factor)).to.equal(args.value);
             });
         });
     });
@@ -171,6 +262,13 @@ describe("BonusScoreSystem", function () {
             await expect(bonusScoreSystem.connect(caller).updateScoringFactor(ScoringFactor.StandByBonus, 1))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "OwnableUnauthorizedAccount")
                 .withArgs(caller.address);
+        });
+
+        it('should not allow zero factor value', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.updateScoringFactor(ScoringFactor.StandByBonus, 0))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "ZeroFactorValue");
         });
 
         TestCases.forEach((args) => {
@@ -290,10 +388,32 @@ describe("BonusScoreSystem", function () {
 
         it('should get scoring factor value', async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const _connectivityTracker = randomWallet();
 
             expect(await bonusScoreSystem.getScoringFactorValue(ScoringFactor.BadPerformancePenalty))
                 .to.equal(await bonusScoreSystem.DEFAULT_BAD_PERF_FACTOR());
+        });
+    });
+
+    describe('getTimePerScorePoint', async () => {
+        ScoringFactors.forEach((args) => {
+            it(`should get time per ${ScoringFactor[args.factor]} factor point`, async () => {
+                const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+                const fixedEpochDuration = await stakingHbbft.stakingFixedEpochDuration();
+
+                const expected = fixedEpochDuration / args.value;
+
+                expect(await bonusScoreSystem.getTimePerScorePoint(args.factor)).to.equal(expected);
+            });
+        });
+    });
+
+    describe('getValidatorScore', async () => {
+        it('should return MIN_SCORE if not previously recorded', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = ethers.Wallet.createRandom().address;
+
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(MIN_SCORE);
         });
     });
 
@@ -305,6 +425,148 @@ describe("BonusScoreSystem", function () {
             await expect(bonusScoreSystem.connect(caller).rewardStandBy(randomWallet(), 100))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "Unauthorized");
         });
+
+        it('should revert for availability timestamp in the future', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const availableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            await expect(bonusScoreSystem.connect(validatorSet).rewardStandBy(validator, availableSince + 5))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "InvalidIntervalStartTimestamp");
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should increase validator score depending on stand by interval', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const availableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(MIN_SCORE);
+
+            const standByTime = 6n * 60n * 60n // 6 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.StandByBonus);
+            const expectedScore = standByTime / timePerPoint + MIN_SCORE;
+
+            await helpers.time.increase(standByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).rewardStandBy(validator, availableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(expectedScore);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should emit event', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const availableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(MIN_SCORE);
+
+            const standByTime = 1n * 60n * 60n // 1 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.StandByBonus);
+            const expectedScore = standByTime / timePerPoint + MIN_SCORE;
+
+            await helpers.time.increase(standByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            await expect(bonusScoreSystem.connect(validatorSet).rewardStandBy(validator, availableSince))
+                .to.emit(bonusScoreSystem, "ValidatorScoreChanged")
+                .withArgs(validator, ScoringFactor.StandByBonus, expectedScore);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should not exceed MAX_SCORE', async function () {
+            const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const availableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+
+            const initialScore = MAX_SCORE - 2n;
+            await increaseScore(bonusScoreSystem, validator, initialScore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(initialScore);
+
+            const standByTime = await stakingHbbft.stakingFixedEpochDuration();
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+
+            await helpers.time.increase(standByTime + 1n);
+
+            expect(await bonusScoreSystem.connect(validatorSet).rewardStandBy(validator, availableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(MAX_SCORE);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should use last score change timestamp if its higher than availability timestamp', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const availableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(MIN_SCORE);
+
+            let standByTime = 6n * 60n * 60n // 6 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.StandByBonus);
+            const expectedScore = standByTime / timePerPoint + MIN_SCORE;
+
+            await helpers.time.increase(standByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).rewardStandBy(validator, availableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(expectedScore);
+
+            const additionalPoints = 5n;
+            standByTime = timePerPoint * additionalPoints; // time to accumulate 5 stand by points
+
+            await helpers.time.increase(standByTime);
+            expect(await bonusScoreSystem.connect(validatorSet).rewardStandBy(validator, availableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(expectedScore + additionalPoints);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should increase pool likelihood', async function () {
+            const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const staking = await ethers.getSigner(initialStakingAddresses[0]);
+            const canidateStake = await stakingHbbft.candidateMinStake();
+
+            const availableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+
+            expect(await bonusScoreSystem.getValidatorScore(mining.address)).to.equal(MIN_SCORE);
+
+            await stakingHbbft.connect(staking).stake(staking.address, {
+                value: canidateStake
+            });
+
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(canidateStake);
+
+            const standByTime = 1n * 60n * 60n // 1 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.StandByBonus);
+            const expectedScore = standByTime / timePerPoint + MIN_SCORE;
+
+            await helpers.time.increase(standByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).rewardStandBy(mining.address, availableSince));
+            expect(await bonusScoreSystem.getValidatorScore(mining.address)).to.equal(expectedScore);
+
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(canidateStake * expectedScore);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
     });
 
     describe('penaliseNoStandBy', async () => {
@@ -314,6 +576,151 @@ describe("BonusScoreSystem", function () {
 
             await expect(bonusScoreSystem.connect(caller).penaliseNoStandBy(randomWallet(), 100))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "Unauthorized");
+        });
+
+        it('should revert for availability timestamp in the future', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const availableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            await expect(bonusScoreSystem.connect(validatorSet).penaliseNoStandBy(validator, availableSince + 5))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "InvalidIntervalStartTimestamp");
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should decrease validator score depending on no stand by interval', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 110n;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const unavailableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+            const noStandByTime = 6n * 60n * 60n // 6 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.NoStandByPenalty);
+            const scorePenalty = noStandByTime / timePerPoint;
+
+            await helpers.time.increase(noStandByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoStandBy(validator, unavailableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore - scorePenalty);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should emit event', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const scoreBefore = 110n;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const unavailableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+            const noStandByTime = 1n * 60n * 60n // 1 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.NoStandByPenalty);
+            const scoreAfter = scoreBefore - noStandByTime / timePerPoint;
+
+            await helpers.time.increase(noStandByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            await expect(bonusScoreSystem.connect(validatorSet).penaliseNoStandBy(validator, unavailableSince))
+                .to.emit(bonusScoreSystem, "ValidatorScoreChanged")
+                .withArgs(validator, ScoringFactor.NoStandByPenalty, scoreAfter);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should not decrease below MIN_SCORE', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const initialScore = MIN_SCORE + 1n;
+            await increaseScore(bonusScoreSystem, validator, initialScore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(initialScore);
+
+            const unavailableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+            const noStandByTime = 12n * 60n * 60n // 12 hours
+
+            await helpers.time.increase(noStandByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoStandBy(validator, unavailableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(MIN_SCORE);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should use last score change timestamp if its higher than availability timestamp', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const initialScore = 250n;
+            await increaseScore(bonusScoreSystem, validator, initialScore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(initialScore);
+
+            const unavailableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+            let noStandByTime = 10n * 60n * 60n // 10 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.NoStandByPenalty);
+            const expectedScore = initialScore - noStandByTime / timePerPoint;
+
+            await helpers.time.increase(noStandByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoStandBy(validator, unavailableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(expectedScore);
+
+            const additionalPenatlies = 5n;
+            noStandByTime = timePerPoint * additionalPenatlies; // time to accumulate 5 no stand by points
+
+            await helpers.time.increase(noStandByTime);
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoStandBy(validator, unavailableSince));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(expectedScore - additionalPenatlies);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should decrease pool likelihood', async function () {
+            const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const staking = await ethers.getSigner(initialStakingAddresses[0]);
+            const canidateStake = await stakingHbbft.candidateMinStake();
+
+            await stakingHbbft.connect(staking).stake(staking.address, {
+                value: canidateStake
+            });
+
+            const initialScore = 250n;
+            await increaseScore(bonusScoreSystem, mining.address, initialScore);
+            expect(await bonusScoreSystem.getValidatorScore(mining.address)).to.equal(initialScore);
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(canidateStake * initialScore);
+
+            const unavailableSince = (await ethers.provider.getBlock('latest'))?.timestamp!;
+            const noStandByTime = 10n * 60n * 60n // 10 hours
+
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.NoStandByPenalty);
+            const expectedScore = initialScore - noStandByTime / timePerPoint;
+
+            await helpers.time.increase(noStandByTime);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoStandBy(mining.address, unavailableSince));
+            expect(await bonusScoreSystem.getValidatorScore(mining.address)).to.equal(expectedScore);
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(canidateStake * expectedScore);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
         });
     });
 
@@ -325,6 +732,87 @@ describe("BonusScoreSystem", function () {
             await expect(bonusScoreSystem.connect(caller).penaliseNoKeyWrite(randomWallet()))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "Unauthorized");
         });
+
+        it('should decrease validator score', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 110n;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const expectedScore = scoreBefore - NO_KEY_WRITE_PENALTY;
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoKeyWrite(validator));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(expectedScore);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should not decrease below MIN_SCORE', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 100n;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoKeyWrite(validator));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(MIN_SCORE);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should emit event', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 110n;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const expectedScore = scoreBefore - NO_KEY_WRITE_PENALTY;
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+
+            await expect(bonusScoreSystem.connect(validatorSet).penaliseNoKeyWrite(validator))
+                .to.emit(bonusScoreSystem, "ValidatorScoreChanged")
+                .withArgs(validator, ScoringFactor.NoKeyWritePenalty, expectedScore);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should decrease pool likelihood', async function () {
+            const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const staking = await ethers.getSigner(initialStakingAddresses[0]);
+            const canidateStake = await stakingHbbft.candidateMinStake();
+
+            await stakingHbbft.connect(staking).stake(staking.address, {
+                value: canidateStake
+            });
+
+            const bonusScoreBefore = 110n;
+            const bonusScoreAfter = bonusScoreBefore - NO_KEY_WRITE_PENALTY;
+            await increaseScore(bonusScoreSystem, mining.address, bonusScoreBefore);
+
+            expect(await bonusScoreSystem.getValidatorScore(mining.address)).to.equal(bonusScoreBefore);
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(canidateStake * bonusScoreBefore);
+
+            const validatorSet = await impersonateAcc(await bonusScoreSystem.validatorSetHbbft());
+            expect(await bonusScoreSystem.connect(validatorSet).penaliseNoKeyWrite(mining.address));
+
+            const stakeAmount = await stakingHbbft.stakeAmountTotal(staking.address);
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(stakeAmount * bonusScoreAfter);
+
+            await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
     });
 
     describe('penaliseBadPerformance', async () => {
@@ -334,6 +822,89 @@ describe("BonusScoreSystem", function () {
 
             await expect(bonusScoreSystem.connect(caller).penaliseBadPerformance(randomWallet(), 100))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "Unauthorized");
+        });
+
+        it('should decrease validator score depending on disconnect interval', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 150n;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const lostPoints = 60n;
+            const timePerPoint = await bonusScoreSystem.getTimePerScorePoint(ScoringFactor.BadPerformancePenalty);
+            const disconnectInterval = lostPoints * timePerPoint;
+
+            const connectivityTracker = await impersonateAcc(await bonusScoreSystem.connectivityTracker());
+            expect(await bonusScoreSystem.connect(connectivityTracker).penaliseBadPerformance(validator, disconnectInterval));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore - lostPoints);
+
+            await helpers.stopImpersonatingAccount(connectivityTracker.address);
+        });
+
+        it('should fully penalise for bad performance', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 150n;
+            const scoreAfter = scoreBefore - BAD_PERFORMANCE_PENALTY;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const connectivityTracker = await impersonateAcc(await bonusScoreSystem.connectivityTracker());
+            expect(await bonusScoreSystem.connect(connectivityTracker).penaliseBadPerformance(validator, 0));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreAfter);
+
+            await helpers.stopImpersonatingAccount(connectivityTracker.address);
+        });
+
+        it('should emit event', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 150n;
+            const scoreAfter = scoreBefore - BAD_PERFORMANCE_PENALTY;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const connectivityTracker = await impersonateAcc(await bonusScoreSystem.connectivityTracker());
+            await expect(bonusScoreSystem.connect(connectivityTracker).penaliseBadPerformance(validator, 0))
+                .to.emit(bonusScoreSystem, "ValidatorScoreChanged")
+                .withArgs(validator, ScoringFactor.BadPerformancePenalty, scoreAfter);
+
+
+            await helpers.stopImpersonatingAccount(connectivityTracker.address);
+        });
+
+        it('should decrease pool likelihood', async function () {
+            const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const staking = await ethers.getSigner(initialStakingAddresses[0]);
+            const canidateStake = await stakingHbbft.candidateMinStake();
+
+            await stakingHbbft.connect(staking).stake(staking.address, {
+                value: canidateStake
+            });
+
+            const bonusScoreBefore = 210n;
+            const bonusScoreAfter = bonusScoreBefore - BAD_PERFORMANCE_PENALTY;
+            await increaseScore(bonusScoreSystem, mining.address, bonusScoreBefore);
+
+            expect(await bonusScoreSystem.getValidatorScore(mining.address)).to.equal(bonusScoreBefore);
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(canidateStake * bonusScoreBefore);
+
+            const connectivityTracker = await impersonateAcc(await bonusScoreSystem.connectivityTracker());
+            expect(await bonusScoreSystem.connect(connectivityTracker).penaliseBadPerformance(mining.address, 0));
+
+            const stakeAmount = await stakingHbbft.stakeAmountTotal(staking.address);
+            expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(stakeAmount * bonusScoreAfter);
+
+            await helpers.stopImpersonatingAccount(connectivityTracker.address);
         });
     });
 });
