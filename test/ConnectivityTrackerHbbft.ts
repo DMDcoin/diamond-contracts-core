@@ -861,7 +861,6 @@ describe('ConnectivityTrackerHbbft', () => {
             }
 
             const signer = await impersonateAcc(await blockRewardHbbft.getAddress());
-
             expect(await connectivityTracker.connect(signer).penaliseFaultyValidators(epoch));
 
             for (const badValidator of badValidators) {
