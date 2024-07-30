@@ -85,9 +85,38 @@ export class NetworkConfiguration {
             publicKeys[i] = publicKeys[i].trim();
         }
 
+        // ethers v6 working solution
+        // const newParts = new Array<Uint8Array>();
+        // initData.parts.forEach((x: string) => {
+        //     newParts.push(new Uint8Array(Buffer.from(x)));
+        // });
+
+        // const newAcks = new Array<Array<Uint8Array>>();
+        // for (const ack of initData.acks) {
+        //     const ackResults = new Array<Uint8Array>();
+
+        //     ack.forEach((x: string) => {
+        //         ackResults.push(new Uint8Array(Buffer.from(x)));
+        //     })
+
+        //     newAcks.push(ackResults);
+        // }
+
+        // not working with ethers v6
         const newParts: string[] = [];
         initData.parts.forEach((x: string) => {
             newParts.push( '0x' + x);
+        });
+
+        let newAcks: Array<Array<string>> = [];
+
+        // initData.acks
+        initData.acks.forEach((acksValidator: Array<string>) => {
+            let acks: Array<string> = [];
+            acksValidator.forEach((ack: string) => {
+                acks.push('0x' + ack);
+            });
+            newAcks.push(acks);
         });
 
         instance.publicKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])(publicKeys);
@@ -97,17 +126,6 @@ export class NetworkConfiguration {
         instance.permittedAddresses = [instance.owner];
 
         instance.parts = newParts;
-        let newAcks : Array<Array<string>> = [];
-
-        // initData.acks
-        initData.acks.forEach((acksValidator: Array<string>) => {
-            let acks : Array<string> = [];
-            acksValidator.forEach((ack: string) => {
-                acks.push( '0x' + ack);
-            });
-            newAcks.push(acks);
-        });
-
         instance.acks = newAcks;
 
         const stakingEpochDuration = process.env.STAKING_EPOCH_DURATION;
@@ -117,7 +135,6 @@ export class NetworkConfiguration {
         const stakingMinStakeForDelegatorString = process.env.STAKING_MIN_STAKE_FOR_DELEGATOR;
         const validatorInactivityThresholdString = process.env.VALIDATOR_INACTIVITY_THRESHOLD;
 
-        
         let stakingMinStakeForValidator = ethers.parseEther('1');
         if (stakingMinStakeForValidatorString) {
             stakingMinStakeForValidator = ethers.parseEther(stakingMinStakeForValidatorString);
@@ -135,7 +152,6 @@ export class NetworkConfiguration {
 
         let stakingMaxStakeForValidator = ethers.parseEther('50000');
 
-        
         instance.stakingParams = new StakingParams({
             _initialStakingAddresses: instance.initialStakingAddresses,
             _delegatorMinStake: stakingMinStakeForDelegator,
@@ -233,7 +249,7 @@ export class CoreContract {
     }
 
     toSpecAccount(useUpgradeProxy: boolean, initialBalance: number) {
-        let spec : { [id: string] : any; } = {};
+        let spec: { [id: string]: any; } = {};
 
         if (useUpgradeProxy) {
             spec[this.implementationAddress!] = {
@@ -287,7 +303,7 @@ export class InitialContractsConfiguration {
     getAddress(name: string): string | undefined {
         const found = this.core.find(obj => obj.name === name);
 
-        
+
         return found ? found.proxyAddress : ethers.ZeroAddress;
     }
 
@@ -299,11 +315,14 @@ export class InitialContractsConfiguration {
             case 'ValidatorSetHbbft':
                 return [
                     config.owner,
-                    this.getAddress('BlockRewardHbbft'),
-                    this.getAddress('RandomHbbft'),
-                    this.getAddress('StakingHbbft'),
-                    this.getAddress('KeyGenHistory'),
-                    config.validatorInactivityThreshold,
+                    {
+                        blockRewardContract: this.getAddress('BlockRewardHbbft'),
+                        randomContract: this.getAddress('RandomHbbft'),
+                        stakingContract: this.getAddress('StakingHbbft'),
+                        keyGenHistoryContract: this.getAddress('KeyGenHistory'),
+                        bonusScoreContract: this.getAddress('BonusScoreSystem'),
+                        validatorInactivityThreshold: config.validatorInactivityThreshold,
+                    },
                     config.initialMiningAddresses,
                     config.initialStakingAddresses
                 ];
@@ -346,6 +365,7 @@ export class InitialContractsConfiguration {
                     config.owner,
                     {
                         _validatorSetContract: this.getAddress('ValidatorSetHbbft'),
+                        _bonusScoreContract: this.getAddress('BonusScoreSystem'),
                         ...config.stakingParams
                     },
                     config.publicKeys,
@@ -357,7 +377,15 @@ export class InitialContractsConfiguration {
                     this.getAddress('ValidatorSetHbbft'),
                     this.getAddress('StakingHbbft'),
                     this.getAddress('BlockRewardHbbft'),
+                    this.getAddress('BonusScoreSystem'),
                     config.minReportAgeBlocks
+                ];
+            case 'BonusScoreSystem':
+                return [
+                    config.owner,
+                    this.getAddress('ValidatorSetHbbft'),
+                    this.getAddress('ConnectivityTrackerHbbft'),
+                    this.getAddress('StakingHbbft'),
                 ];
             case 'Registry':
                 return [

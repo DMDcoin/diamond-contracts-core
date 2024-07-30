@@ -10,7 +10,8 @@ import {
     StakingHbbftMock,
     TxPermissionHbbftMock,
     ValidatorSetHbbftMock,
-    ConnectivityTrackerHbbft
+    ConnectivityTrackerHbbft,
+    BlockRewardHbbftMock
 } from "../src/types";
 
 import { getTestPartNAcks } from './testhelpers/data';
@@ -56,26 +57,36 @@ describe('TxPermissionHbbft', () => {
 
         const { parts, acks } = getTestPartNAcks();
 
+        const bonusScoreContractMockFactory = await ethers.getContractFactory("BonusScoreSystemMock");
+        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy();
+        await bonusScoreContractMock.waitForDeployment();
+
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            validatorInactivityThreshold: validatorInactivityThreshold,
+        }
+
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbftProxy = await upgrades.deployProxy(
+        const validatorSetHbbft = await upgrades.deployProxy(
             ValidatorSetFactory,
             [
                 owner.address,
-                stubAddress,                   // _blockRewardContract
-                stubAddress,                   // _randomContract
-                stubAddress,                   // _stakingContract
-                stubAddress,                   // _keyGenHistoryContract
-                validatorInactivityThreshold,  // _validatorInactivityThreshold
-                initialValidators,             // _initialMiningAddresses
-                initialStakingAddresses,       // _initialStakingAddresses
+                validatorSetParams,      // _params
+                initialValidators,       // _initialMiningAddresses
+                initialStakingAddresses, // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as ValidatorSetHbbftMock;
 
-        await validatorSetHbbftProxy.waitForDeployment();
+        await validatorSetHbbft.waitForDeployment();
 
         let stakingParams = {
-            _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
+            _validatorSetContract: await validatorSetHbbft.getAddress(),
+            _bonusScoreContract: await bonusScoreContractMock.getAddress(),
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: ethers.parseEther('1'),
             _candidateMinStake: ethers.parseEther('1'),
@@ -98,7 +109,7 @@ describe('TxPermissionHbbft', () => {
 
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
         //Deploy StakingHbbft contract
-        const stakingHbbftProxy = await upgrades.deployProxy(
+        const stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
                 owner.address,
@@ -107,101 +118,86 @@ describe('TxPermissionHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as StakingHbbftMock;
 
-        await stakingHbbftProxy.waitForDeployment();
+        await stakingHbbft.waitForDeployment();
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-        const keyGenHistoryProxy = await upgrades.deployProxy(
+        const keyGenHistory = await upgrades.deployProxy(
             KeyGenFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 initialValidators,
                 parts,
                 acks
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as KeyGenHistory;
 
-        await keyGenHistoryProxy.waitForDeployment();
+        await keyGenHistory.waitForDeployment();
 
         const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifierProxy = await upgrades.deployProxy(
+        const certifier = await upgrades.deployProxy(
             CertifierFactory,
             [
                 [owner.address],
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as CertifierHbbft;
 
-        await certifierProxy.waitForDeployment();
+        await certifier.waitForDeployment();
 
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardHbbftProxy = await upgrades.deployProxy(
+        const blockRewardHbbft = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 stubAddress
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as BlockRewardHbbftMock;
 
-        await blockRewardHbbftProxy.waitForDeployment();
+        await blockRewardHbbft.waitForDeployment();
 
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
-        const connectivityTrackerProxy = await upgrades.deployProxy(
+        const connectivityTracker = await upgrades.deployProxy(
             ConnectivityTrackerFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
-                await stakingHbbftProxy.getAddress(),
-                await blockRewardHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
+                await stakingHbbft.getAddress(),
+                await blockRewardHbbft.getAddress(),
+                await bonusScoreContractMock.getAddress(),
                 minReportAgeBlocks,
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as ConnectivityTrackerHbbft;
 
-        await connectivityTrackerProxy.waitForDeployment();
+        await connectivityTracker.waitForDeployment();
 
         const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
-        const txPermissionProxy = await upgrades.deployProxy(
+        const txPermission = await upgrades.deployProxy(
             TxPermissionFactory,
             [
                 allowedSenders,
-                await certifierProxy.getAddress(),
-                await validatorSetHbbftProxy.getAddress(),
-                await keyGenHistoryProxy.getAddress(),
-                await connectivityTrackerProxy.getAddress(),
+                await certifier.getAddress(),
+                await validatorSetHbbft.getAddress(),
+                await keyGenHistory.getAddress(),
+                await connectivityTracker.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as TxPermissionHbbftMock;
 
-        await txPermissionProxy.waitForDeployment();
+        await txPermission.waitForDeployment();
 
-        const txPermission = TxPermissionFactory.attach(await txPermissionProxy.getAddress()) as TxPermissionHbbftMock;
-        const keyGenHistory = KeyGenFactory.attach(await keyGenHistoryProxy.getAddress()) as KeyGenHistory;
-        const certifier = CertifierFactory.attach(await certifierProxy.getAddress()) as CertifierHbbft;
-
-        const validatorSetHbbft = ValidatorSetFactory.attach(
-            await validatorSetHbbftProxy.getAddress()
-        ) as ValidatorSetHbbftMock;
-
-        const stakingHbbft = StakingHbbftFactory.attach(
-            await stakingHbbftProxy.getAddress()
-        ) as StakingHbbftMock;
-
-        const connectivityTracker = ConnectivityTrackerFactory.attach(
-            await connectivityTrackerProxy.getAddress()
-        ) as ConnectivityTrackerHbbft;
-
-        await blockRewardHbbftProxy.setConnectivityTracker(await connectivityTrackerProxy.getAddress());
-        await validatorSetHbbftProxy.setKeyGenHistoryContract(await keyGenHistoryProxy.getAddress());
-        await validatorSetHbbftProxy.setStakingContract(await stakingHbbftProxy.getAddress());
+        await blockRewardHbbft.setConnectivityTracker(await connectivityTracker.getAddress());
+        await validatorSetHbbft.setKeyGenHistoryContract(await keyGenHistory.getAddress());
+        await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
 
         return { txPermission, validatorSetHbbft, certifier, keyGenHistory, stakingHbbft, connectivityTracker };
     }

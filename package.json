@@ -18,6 +18,8 @@
         "solhint:ci": "./node_modules/.bin/solhint --disc --max-warnings 0 -f compact 'contracts/**/*.sol' > /dev/null",
         "solhint:sarif-report": "./node_modules/.bin/solhint --disc -f sarif 'contracts/**/*.sol' > solhint_report.sarif",
         "getFunctionSignatures": "node scripts/getFunctionSignatures.js",
+        "oz-manifest": "npx hardhat run --network hardhat scripts/generateNetworkManifest.ts",
+        "spec": "npm run oz-manifest && npx hardhat make_spec_hbbft --init-contracts initial-contracts.json --use-upgrade-proxy init-data.json",
         "typechain": "npx typechain --target ethers-v5 --out-dir src/types 'artifacts/contracts/**/!(*.dbg).json'"
     },
     "repository": {

@@ -10,6 +10,9 @@ import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbf
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
+import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
+
+import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
 
 contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -26,6 +29,11 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
     mapping(uint256 => EnumerableSet.AddressSet) private _flaggedValidators;
     mapping(uint256 => mapping(address => EnumerableSet.AddressSet)) private _reporters;
 
+    mapping(address => uint256) private _disconnectTimestamp;
+    mapping(uint256 => bool) private _epochPenaltiesSent;
+
+    IBonusScoreSystem public bonusScoreContract;
+
     event SetMinReportAgeBlocks(uint256 _minReportAge);
     event SetEarlyEpochEndToleranceLevel(uint256 _level);
     event ReportMissingConnectivity(address indexed reporter, address indexed validator, uint256 indexed blockNumber);
@@ -35,11 +43,11 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
 
     error AlreadyReported(address reporter, address validator);
     error CannotReportByFlaggedValidator(address reporter);
-    error InvalidAddress();
     error InvalidBlock();
     error OnlyValidator();
     error ReportTooEarly();
     error UnknownReconnectReporter(address reporter, address validator);
+    error EpochPenaltiesAlreadySent(uint256 epoch);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -47,20 +55,29 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         _disableInitializers();
     }
 
+    modifier onlyBlockRewardContract() {
+        if (msg.sender != address(blockRewardContract)) {
+            revert Unauthorized();
+        }
+        _;
+    }
+
     function initialize(
         address _contractOwner,
         address _validatorSetContract,
         address _stakingContract,
         address _blockRewardContract,
+        address _bonusScoreContract,
         uint256 _minReportAgeBlocks
     ) external initializer {
         if (
             _contractOwner == address(0) ||
             _validatorSetContract == address(0) ||
             _stakingContract == address(0) ||
-            _blockRewardContract == address(0)
+            _blockRewardContract == address(0) ||
+            _bonusScoreContract == address(0)
         ) {
-            revert InvalidAddress();
+            revert ZeroAddress();
         }
 
         __Ownable_init(_contractOwner);
@@ -68,6 +85,7 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         validatorSetContract = IValidatorSetHbbft(_validatorSetContract);
         stakingContract = IStakingHbbft(_stakingContract);
         blockRewardContract = IBlockRewardHbbft(_blockRewardContract);
+        bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
 
         minReportAgeBlocks = _minReportAgeBlocks;
         earlyEpochEndToleranceLevel = 2;
@@ -100,6 +118,10 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         // slither-disable-next-line unused-return
         _reporters[epoch][validator].add(msg.sender);
 
+        if (isFaultyValidator(validator, epoch)) {
+            _disconnectTimestamp[validator] = block.timestamp;
+        }
+
         _decideEarlyEpochEndNeeded(epoch);
 
         emit ReportMissingConnectivity(msg.sender, validator, blockNumber);
@@ -114,10 +136,20 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         if (currentScore != 0) {
             // slither-disable-next-line unused-return
             _reporters[epoch][validator].remove(msg.sender);
+        }
 
-            if (currentScore == 1) {
-                // slither-disable-next-line unused-return
-                _flaggedValidators[epoch].remove(validator);
+        if (currentScore == 1) {
+            // slither-disable-next-line unused-return
+            _flaggedValidators[epoch].remove(validator);
+
+            // All reporters confirmed that this validator reconnected,
+            // decrease validator bonus score for bad performance based on disconnect time interval.
+            if (_disconnectTimestamp[validator] != 0) {
+                uint256 disconnectPeriod = block.timestamp - _disconnectTimestamp[validator];
+
+                bonusScoreContract.penaliseBadPerformance(validator, disconnectPeriod);
+
+                delete _disconnectTimestamp[validator];
             }
         }
 
@@ -126,13 +158,35 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         emit ReportReconnect(msg.sender, validator, blockNumber);
     }
 
-    function getValidatorConnectivityScore(uint256 epoch, address validator) public view returns (uint256) {
-        return _reporters[epoch][validator].length();
+    function penaliseFaultyValidators(uint256 epoch) external onlyBlockRewardContract {
+        if (_epochPenaltiesSent[epoch]) {
+            revert EpochPenaltiesAlreadySent(epoch);
+        }
+
+        _epochPenaltiesSent[epoch] = true;
+
+        address[] memory flaggedValidators = getFlaggedValidatorsByEpoch(epoch);
+
+        for (uint256 i = 0; i < flaggedValidators.length; ++i) {
+            if (!isFaultyValidator(flaggedValidators[i], epoch)) {
+                continue;
+            }
+
+            bonusScoreContract.penaliseBadPerformance(flaggedValidators[i], 0);
+        }
     }
 
     /// @dev Returns true if the specified validator was reported by the specified reporter at the given epoch.
     function isReported(uint256, address validator, address reporter) external view returns (bool) {
         return _reporters[currentEpoch()][validator].contains(reporter);
+    }
+
+    function getValidatorConnectivityScore(uint256 epoch, address validator) public view returns (uint256) {
+        return _reporters[epoch][validator].length();
+    }
+
+    function isFaultyValidator(address validator, uint256 epoch) public view returns (bool) {
+        return getValidatorConnectivityScore(epoch, validator) >= _getReportersThreshold(epoch);
     }
 
     function checkReportMissingConnectivityCallable(
@@ -166,8 +220,16 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         }
     }
 
+    function getFlaggedValidatorsByEpoch(uint256 epoch) public view returns (address[] memory) {
+        return _flaggedValidators[epoch].values();
+    }
+
     function getFlaggedValidators() public view returns (address[] memory) {
-        return _flaggedValidators[currentEpoch()].values();
+        return getFlaggedValidatorsByEpoch(currentEpoch());
+    }
+
+    function getFlaggedValidatorsCount(uint256 epoch) public view returns (uint256) {
+        return _flaggedValidators[epoch].length();
     }
 
     function currentEpoch() public view returns (uint256) {
@@ -189,13 +251,38 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         return _countFaultyValidators(epoch);
     }
 
+    function _decideEarlyEpochEndNeeded(uint256 epoch) private {
+        // skip checks since notification has already been sent
+        if (isEarlyEpochEnd[epoch]) {
+            return;
+        }
+
+        uint256 threshold = earlyEpochEndThreshold();
+        uint256 faultyValidatorsCount = _countFaultyValidators(epoch);
+
+        // threshold has not been passed
+        if (faultyValidatorsCount < threshold) {
+            return;
+        }
+
+        isEarlyEpochEnd[epoch] = true;
+        blockRewardContract.notifyEarlyEpochEnd();
+
+        emit NotifyEarlyEpochEnd(epoch, block.number);
+    }
+
+    function _getReportersThreshold(uint256 epoch) private view returns (uint256) {
+        uint256 unflaggedValidatorsCount = validatorSetContract.getCurrentValidatorsCount() -
+            getFlaggedValidatorsCount(epoch);
+
+        return (2 * unflaggedValidatorsCount) / 3 + 1;
+    }
+
     function _countFaultyValidators(uint256 epoch) private view returns (uint256) {
-        address[] memory flaggedValidators = getFlaggedValidators();
-
-        uint256 unflaggedValidatorsCount = validatorSetContract.getCurrentValidatorsCount() - flaggedValidators.length; // 16 - 4 = 12
-
-        uint256 reportersThreshold = (2 * unflaggedValidatorsCount) / 3 + 1; // 24 / 3  + 1 = 9
+        uint256 reportersThreshold = _getReportersThreshold(epoch);
         uint256 result = 0;
+
+        address[] memory flaggedValidators = getFlaggedValidatorsByEpoch(epoch);
 
         for (uint256 i = 0; i < flaggedValidators.length; ++i) {
             address validator = flaggedValidators[i];
@@ -225,19 +312,5 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         if (block.number < epochStartBlock + minReportAgeBlocks) {
             revert ReportTooEarly();
         }
-    }
-
-    function _decideEarlyEpochEndNeeded(uint256 epoch) private {
-        uint256 threshold = earlyEpochEndThreshold();
-        uint256 faultyValidatorsCount = _countFaultyValidators(epoch);
-
-        if (faultyValidatorsCount < threshold) {
-            return;
-        }
-
-        isEarlyEpochEnd[epoch] = true;
-        blockRewardContract.notifyEarlyEpochEnd();
-
-        emit NotifyEarlyEpochEnd(epoch, block.number);
     }
 }

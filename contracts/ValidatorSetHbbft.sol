@@ -8,7 +8,8 @@ import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
 import { IRandomHbbft } from "./interfaces/IRandomHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import {  SYSTEM_ADDRESS } from "./lib/Constants.sol";
+import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
+import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
 import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
@@ -101,6 +102,8 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// @dev time in seconds after which the inactive validator is considered abandoned
     uint256 public validatorInactivityThreshold;
 
+    IBonusScoreSystem public bonusScoreSystem;
+
     // ================================================ Events ========================================================
 
     /// @dev Emitted by the `reportMalicious` function to signal that a specified validator reported
@@ -119,6 +122,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     event SetMaxValidators(uint256 _count);
     event SetBanDuration(uint256 _value);
     event SetValidatorInactivityThreshold(uint256 _value);
+    event SetBonusScoreContract(address _address);
 
     error AnnounceBlockNumberTooOld();
     error CantAnnounceAvailability();
@@ -186,30 +190,24 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// @dev Initializes the network parameters. Used by the
     /// constructor of the `InitializerHbbft` contract.
     /// @param _contractOwner The address of the contract owner.
-    /// @param _blockRewardContract The address of the `BlockRewardHbbft` contract.
-    /// @param _randomContract The address of the `RandomHbbft` contract.
-    /// @param _stakingContract The address of the `StakingHbbft` contract.
-    /// @param _keyGenHistoryContract The address of the `KeyGenHistory` contract.
-    /// @param _validatorInactivityThreshold The time of inactivity in seconds to consider validator abandoned
+    /// @param _params ValidatorSetHbbft contract parameeters (introduced to avoid stack too deep issue):
+    ///  blockRewardContract The address of the `BlockRewardHbbft` contract.
+    ///  randomContract The address of the `RandomHbbft` contract.
+    ///  stakingContract The address of the `StakingHbbft` contract.
+    ///  keyGenHistoryContract The address of the `KeyGenHistory` contract.
+    ///  bonusScoreContract The address of the `BonusScoreSystem` contract.
+    ///  validatorInactivityThreshold The time of inactivity in seconds to consider validator abandoned
     /// @param _initialMiningAddresses The array of initial validators' mining addresses.
     /// @param _initialStakingAddresses The array of initial validators' staking addresses.
     function initialize(
         address _contractOwner,
-        address _blockRewardContract,
-        address _randomContract,
-        address _stakingContract,
-        address _keyGenHistoryContract,
-        uint256 _validatorInactivityThreshold,
+        ValidatorSetParams calldata _params,
         address[] calldata _initialMiningAddresses,
         address[] calldata _initialStakingAddresses
     ) external initializer {
-        if (
-            _contractOwner == address(0) ||
-            _blockRewardContract == address(0) ||
-            _randomContract == address(0) ||
-            _stakingContract == address(0) ||
-            _keyGenHistoryContract == address(0)
-        ) {
+        _validateParams(_params);
+
+        if (_contractOwner == address(0)) {
             revert ZeroAddress();
         }
 
@@ -223,11 +221,12 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
         __Ownable_init(_contractOwner);
 
-        blockRewardContract = _blockRewardContract;
-        randomContract = _randomContract;
-        stakingContract = IStakingHbbft(_stakingContract);
-        keyGenHistoryContract = IKeyGenHistory(_keyGenHistoryContract);
-        validatorInactivityThreshold = _validatorInactivityThreshold;
+        blockRewardContract = _params.blockRewardContract;
+        randomContract = _params.randomContract;
+        stakingContract = IStakingHbbft(_params.stakingContract);
+        keyGenHistoryContract = IKeyGenHistory(_params.keyGenHistoryContract);
+        bonusScoreSystem = IBonusScoreSystem(_params.bonusScoreContract);
+        validatorInactivityThreshold = _params.validatorInactivityThreshold;
 
         // Add initial validators to the `_currentValidators` array
         for (uint256 i = 0; i < _initialMiningAddresses.length; i++) {
@@ -254,6 +253,9 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
             _savePreviousValidators();
             _finalizeNewValidators();
         }
+
+        _rewardValidatorsStandBy();
+        _penaliseValidatorsNoStandBy();
 
         // new epoch starts
         stakingContract.incrementStakingEpoch();
@@ -282,6 +284,16 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         validatorInactivityThreshold = _seconds;
 
         emit SetValidatorInactivityThreshold(_seconds);
+    }
+
+    function setBonusScoreSystemAddress(address _address) external onlyOwner {
+        if (_address == address(0)) {
+            revert ZeroAddress();
+        }
+
+        bonusScoreSystem = IBonusScoreSystem(_address);
+
+        emit SetBonusScoreContract(_address);
     }
 
     /// @dev Removes malicious validators.
@@ -411,6 +423,10 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
                 // this Pool is not available anymore.
                 // the pool does not get a Ban,
                 // but is treated as "inactive" as long it does not `announceAvailability()`
+
+                // Decrease validator bonus score because of missed Part/ACK
+                // Should be called before `removePool` as it's changes pool likelihood
+                bonusScoreSystem.penaliseNoKeyWrite(miningAddress);
 
                 stakingContract.removePool(stakingByMiningAddress[miningAddress]);
 
@@ -1112,6 +1128,36 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         validatorAvailableSinceLastWrite[_validator] = block.timestamp;
     }
 
+    function _rewardValidatorsStandBy() internal {
+        address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
+        uint256 poolsLength = poolsToBeElected.length;
+
+        for (uint256 i = 0; i < poolsLength; ++i) {
+            address mining = miningByStakingAddress[poolsToBeElected[i]];
+
+            if (isValidator[mining] || validatorAvailableSince[mining] == 0) {
+                continue;
+            }
+
+            bonusScoreSystem.rewardStandBy(mining, validatorAvailableSince[mining]);
+        }
+    }
+
+    function _penaliseValidatorsNoStandBy() internal {
+        address[] memory poolsInactive = stakingContract.getPoolsInactive();
+        uint256 poolsLength = poolsInactive.length;
+
+        for (uint256 i = 0; i < poolsLength; ++i) {
+            address mining = miningByStakingAddress[poolsInactive[i]];
+
+            if (validatorAvailableSince[mining] != 0) {
+                continue;
+            }
+
+            bonusScoreSystem.penaliseNoStandBy(mining, validatorAvailableSinceLastWrite[mining]);
+        }
+    }
+
     /// @dev Returns the future timestamp until which a validator is banned.
     /// Used by the `_removeMaliciousValidator` internal function.
     function _banUntil() internal view returns (uint256) {
@@ -1143,5 +1189,17 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
             index++;
         }
         return index - 1;
+    }
+
+    function _validateParams(ValidatorSetParams calldata _params) private pure {
+        if (
+            _params.blockRewardContract == address(0) ||
+            _params.randomContract == address(0) ||
+            _params.stakingContract == address(0) ||
+            _params.keyGenHistoryContract == address(0) ||
+            _params.bonusScoreContract == address(0)
+        ) {
+            revert ZeroAddress();
+        }
     }
 }

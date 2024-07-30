@@ -4,6 +4,7 @@ pragma solidity =0.8.25;
 interface IStakingHbbft {
     struct StakingParams {
         address _validatorSetContract;
+        address _bonusScoreContract;
         address[] _initialStakingAddresses;
         uint256 _delegatorMinStake;
         uint256 _candidateMinStake;
@@ -27,6 +28,8 @@ interface IStakingHbbft {
 
     function notifyNetworkOfftimeDetected(uint256) external;
 
+    function updatePoolLikelihood(address mining, uint256 validatorScore) external;
+
     function getPoolPublicKey(address _poolAddress)
         external
         view
@@ -40,6 +43,8 @@ interface IStakingHbbft {
     function getPoolsToBeElected() external view returns (address[] memory);
 
     function getPoolsToBeRemoved() external view returns (address[] memory);
+
+    function getPoolsInactive() external view returns (address[] memory);
 
     function isPoolActive(address) external view returns (bool);
 

@@ -38,8 +38,6 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
     /// more infos: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/106
     uint256 public currentKeyGenRound;
 
-    event NewValidatorsSet(address[] newValidatorSet);
-
     error AcksAlreadySubmitted();
     error IncorrectEpoch();
     error IncorrectRound(uint256 expected, uint256 submited);
