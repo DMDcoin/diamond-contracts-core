@@ -58,13 +58,13 @@ task("make_spec_hbbft", "used to make a spec file")
                 initializerArgs                                  // bytes _data
             );
 
-            // example: 
+            // example:
             // npx hardhat verify --network alpha3  0x1000000000000000000000000000000000000000
             let implementationAddress = initialContracts.core[i].implementationAddress
             let proxyAddress = initialContracts.core[i].proxyAddress;
             blocscoutVerificationScript += `### ${contractName} ###\n`;
             blocscoutVerificationScript += `echo "verifying ${contractName} on ${implementationAddress}"\n`;
-            blocscoutVerificationScript += `npx hardhat verify --network alpha3 ${implementationAddress}\n`;            
+            blocscoutVerificationScript += `npx hardhat verify --network alpha3 ${implementationAddress}\n`;
             blocscoutVerificationScript += `echo "verifying proxy for ${contractName} on ${proxyAddress}"\n`;
             blocscoutVerificationScript += `npx hardhat verify --network alpha3 ${proxyAddress} ${implementationAddress} ${networkConfig.owner} ${initializerDataHex}\n`;
 

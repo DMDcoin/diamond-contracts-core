@@ -9,6 +9,7 @@ import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IGovernancePot } from "./interfaces/IGovernancePot.sol";
+import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
 import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
 import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
@@ -75,7 +76,7 @@ contract BlockRewardHbbft is
     uint256 public governancePotShareDenominator;
 
     /// @dev the address of the `ConnectivityTrackerHbbft` contract.
-    address public connectivityTracker;
+    IConnectivityTrackerHbbft public connectivityTracker;
 
     /// @dev flag indicating whether it is needed to end current epoch earlier.
     bool public earlyEpochEnd;
@@ -115,7 +116,7 @@ contract BlockRewardHbbft is
 
     /// @dev Ensures the caller is the ConnectivityTracker contract address.
     modifier onlyConnectivityTracker() {
-        if (msg.sender != connectivityTracker) {
+        if (msg.sender != address(connectivityTracker)) {
             revert Unauthorized();
         }
         _;
@@ -151,7 +152,7 @@ contract BlockRewardHbbft is
         __ReentrancyGuard_init();
 
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
-        connectivityTracker = _connectivityTracker;
+        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
 
         validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
 
@@ -216,7 +217,7 @@ contract BlockRewardHbbft is
             revert ZeroAddress();
         }
 
-        connectivityTracker = _connectivityTracker;
+        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
 
         emit SetConnectivityTracker(_connectivityTracker);
     }
@@ -383,6 +384,8 @@ contract BlockRewardHbbft is
     function _closeEpoch(IStakingHbbft stakingContract) private returns (uint256) {
         uint256 stakingEpoch = stakingContract.stakingEpoch();
 
+        connectivityTracker.penaliseFaultyValidators(stakingEpoch);
+
         uint256 nativeTotalRewardAmount = 0;
         // Distribute rewards among validator pools
         if (stakingEpoch != 0) {
@@ -448,7 +451,7 @@ contract BlockRewardHbbft is
         // those calls are able to fail.
         // more details: https://github.com/DMDcoin/diamond-contracts-core/issues/231
         IGovernancePot governancePot = IGovernancePot(governancePotAddress);
-        
+
         // solhint-disable no-empty-blocks
         try governancePot.switchPhase() {
             // all good, we just wanted to catch.

@@ -11,6 +11,7 @@ import { ValueGuards } from "./ValueGuards.sol";
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 import { Unauthorized, ZeroAddress, ZeroGasPrice } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 
@@ -133,6 +134,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @dev Number of last epoch when stake snapshot was taken. pool => delegator => epoch
     mapping(address => mapping(address => uint256)) internal _stakeSnapshotLastEpoch;
 
+    IBonusScoreSystem public bonusScoreContract;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
@@ -224,14 +227,19 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 delegatorsReward
     );
 
-
     /**
      * @dev Emitted when the minimum stake for a delegator is updated.
      * @param minStake The new minimum stake value.
      */
     event SetDelegatorMinStake(uint256 minStake);
 
-// ============================================== Errors =======================================================
+    /**
+     * @dev Emitted when the BonusScoreSystem contract address is changed.
+     * @param _address BonusScoreSystem contract address.
+     */
+    event SetBonusScoreContract(address _address);
+
+    // ============================================== Errors =======================================================
     error CannotClaimWithdrawOrderYet(address pool, address staker);
     error MaxPoolsCountExceeded();
     error MaxAllowedWithdrawExceeded(uint256 allowed, uint256 desired);
@@ -280,6 +288,13 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     modifier onlyBlockRewardContract() {
         if (msg.sender != validatorSetContract.blockRewardContract()) {
+            revert Unauthorized();
+        }
+        _;
+    }
+
+    modifier onlyBonusScoreContract() {
+        if (msg.sender != address(bonusScoreContract)) {
             revert Unauthorized();
         }
         _;
@@ -335,6 +350,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         __ReentrancyGuard_init();
 
         validatorSetContract = IValidatorSetHbbft(stakingParams._validatorSetContract);
+        bonusScoreContract = IBonusScoreSystem(stakingParams._bonusScoreContract);
+
         address[] calldata initStakingAddresses = stakingParams._initialStakingAddresses;
 
         for (uint256 i = 0; i < initStakingAddresses.length; ++i) {
@@ -362,7 +379,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             "delegatorMinStake()",
             delegatorMinStakeAllowedParams
         );
-        
+
         delegatorMinStake = stakingParams._delegatorMinStake;
         candidateMinStake = stakingParams._candidateMinStake;
 
@@ -427,6 +444,16 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     ) external onlyValidatorSetContract {
         poolInfo[_validatorAddress].internetAddress = _ip;
         poolInfo[_validatorAddress].port = _port;
+    }
+
+    function setBonusScoreContract(address _bonusScoreContract) external onlyOwner {
+        if (_bonusScoreContract == address(0)) {
+            revert ZeroAddress();
+        }
+
+        bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
+
+        emit SetBonusScoreContract(_bonusScoreContract);
     }
 
     /// @dev Increments the serial number of the current staking epoch.
@@ -855,6 +882,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] = stakeAmount[_stakingPool][_stakingPool];
     }
 
+    function updatePoolLikelihood(address mining, uint256 validatorScore) external onlyBonusScoreContract {
+        address stakingAddress = validatorSetContract.stakingByMiningAddress(mining);
+
+        _updateLikelihood(stakingAddress, validatorScore);
+    }
+
     // =============================================== Getters ========================================================
 
     /// @dev Returns an array of the current active pools (the staking addresses of candidates and validators).
@@ -1237,24 +1270,26 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     /// @dev Calculates (updates) the probability of being selected as a validator for the specified pool
     /// and updates the total sum of probability coefficients. Actually, the probability is equal to the
-    /// amount totally staked into the pool. See the `getPoolsLikelihood` getter.
+    /// amount totally staked into the pool multiplied by validator bonus score. See the `getPoolsLikelihood` getter.
     /// Used by the staking and withdrawal functions.
     /// @param _poolStakingAddress The address of the pool for which the probability coefficient must be updated.
     function _setLikelihood(address _poolStakingAddress) private {
+        address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
+        uint256 validatorBonusScore = bonusScoreContract.getValidatorScore(miningAddress);
+
+        _updateLikelihood(_poolStakingAddress, validatorBonusScore);
+    }
+
+    function _updateLikelihood(address _poolStakingAddress, uint256 validatorBonusScore) private {
         (bool isToBeElected, uint256 index) = _isPoolToBeElected(_poolStakingAddress);
 
         if (!isToBeElected) return;
 
         uint256 oldValue = _poolsLikelihood[index];
-        uint256 newValue = stakeAmountTotal[_poolStakingAddress];
+        uint256 newValue = stakeAmountTotal[_poolStakingAddress] * validatorBonusScore;
 
         _poolsLikelihood[index] = newValue;
-
-        if (newValue >= oldValue) {
-            _poolsLikelihoodSum = _poolsLikelihoodSum + (newValue - oldValue);
-        } else {
-            _poolsLikelihoodSum = _poolsLikelihoodSum - (oldValue - newValue);
-        }
+        _poolsLikelihoodSum = _poolsLikelihoodSum - oldValue + newValue;
     }
 
     /// @dev The internal function used by the `_stake` and `moveStake` functions.

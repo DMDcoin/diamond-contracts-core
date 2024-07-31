@@ -2,6 +2,15 @@
 pragma solidity =0.8.25;
 
 interface IValidatorSetHbbft {
+    struct ValidatorSetParams {
+        address blockRewardContract;
+        address randomContract;
+        address stakingContract;
+        address keyGenHistoryContract;
+        address bonusScoreContract;
+        uint256 validatorInactivityThreshold;
+    }
+
     // Key Generation states of validator.
     enum KeyGenMode {
         NotAPendingValidator,
