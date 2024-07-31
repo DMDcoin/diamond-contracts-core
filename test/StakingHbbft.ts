@@ -2272,8 +2272,6 @@ describe('StakingHbbft', () => {
 
         it('should set delegator min stake', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            console.log("mim stake: ", await stakingHbbft.delegatorMinStake());
             const minStakeValue = ethers.parseEther('150')
             await stakingHbbft.setDelegatorMinStake(minStakeValue);
             expect(await stakingHbbft.delegatorMinStake()).to.be.equal(minStakeValue);
