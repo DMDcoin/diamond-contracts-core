@@ -39,6 +39,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @dev The limit of the minimum delegator stake (DELEGATOR_MIN_STAKE).
     uint256 public delegatorMinStake;
 
+    /// @dev current limit of how many funds can
+    /// be staked on a single validator.
+    uint256 public maxStakeAmount;
+
     /// @dev The current amount of staking coins ordered for withdrawal from the specified
     /// pool by the specified staker. Used by the `orderWithdraw`, `claimOrderedWithdraw` and other functions.
     /// The first parameter is the pool staking address, the second one is the staker address.
@@ -102,6 +106,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// The pool staking address is accepted as a parameter.
     mapping(address => uint256) public stakeAmountTotal;
 
+    /// @dev Returns the total amount of staking coins currently staked on all pools.
+    /// Doesn't include the amount ordered for withdrawal.
+    uint256 public totalStakeAmount;
+
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
 
@@ -113,9 +121,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     mapping(address => PoolInfo) public poolInfo;
 
-    /// @dev current limit of how many funds can
-    /// be staked on a single validator.
-    uint256 public maxStakeAmount;
 
     mapping(address => bool) public abandonedAndRemoved;
 
@@ -662,6 +667,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         stakeAmount[_poolStakingAddress][_poolStakingAddress] += validatorReward;
         stakeAmountTotal[_poolStakingAddress] += poolReward;
+        totalStakeAmount += poolReward;
 
         _setLikelihood(_poolStakingAddress);
 
@@ -713,6 +719,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             newOrderedAmountTotal = newOrderedAmountTotal + amount;
             newStakeAmount = newStakeAmount - amount;
             newStakeAmountTotal = newStakeAmountTotal - amount;
+            totalStakeAmount -= amount;
             orderWithdrawEpoch[_poolStakingAddress][staker] = stakingEpoch;
         } else {
             uint256 amount = uint256(-_amount);
@@ -720,6 +727,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             newOrderedAmountTotal = newOrderedAmountTotal - amount;
             newStakeAmount = newStakeAmount + amount;
             newStakeAmountTotal = newStakeAmountTotal + amount;
+            totalStakeAmount += amount;
         }
         orderedWithdrawAmount[_poolStakingAddress][staker] = newOrderedAmount;
         orderedWithdrawAmountTotal[_poolStakingAddress] = newOrderedAmountTotal;
@@ -833,6 +841,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
             uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
             stakeAmountTotal[stakingAddress] = 0;
+            totalStakeAmount -= gatheredPerStakingAddress;
 
             address[] memory delegators = poolDelegators(stakingAddress);
             for (uint256 j = 0; j < delegators.length; ++j) {
@@ -1348,6 +1357,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch] += _amount;
         stakeAmountTotal[_poolStakingAddress] += _amount;
+        totalStakeAmount += _amount;
 
         if (selfStake) {
             // `staker` places a stake for himself and becomes a candidate
@@ -1406,6 +1416,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             ? amountByEpoch - _amount
             : 0;
         stakeAmountTotal[_poolStakingAddress] -= _amount;
+        totalStakeAmount -= _amount;
 
         if (newStakeAmount == 0) {
             _withdrawCheckPool(_poolStakingAddress, _staker);
