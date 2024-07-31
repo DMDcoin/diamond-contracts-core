@@ -174,7 +174,6 @@ describe('ConnectivityTrackerHbbft', () => {
         const signer = await impersonateAcc(caller);
 
         const latest = await helpers.time.latest();
-
         expect(await stakingHbbft.connect(signer).setStakingEpochStartTime(latest));
 
         await helpers.stopImpersonatingAccount(caller);
