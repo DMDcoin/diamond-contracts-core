@@ -240,6 +240,7 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         } else {
             newScore = currentScore - Math.min(currentScore, scorePoints);
 
+            // slither-disable-next-line incorrect-equality
             if (newScore == 0) {
                 newScore = MIN_SCORE;
             }
@@ -255,6 +256,7 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     function _getAccumulatedScorePoints(ScoringFactor factor, uint256 timeInterval) private view returns (uint256) {
         uint256 scoringFactorValue = getScoringFactorValue(factor);
 
+        // slither-disable-start incorrect-equality
         if (factor == ScoringFactor.NoKeyWritePenalty) {
             return scoringFactorValue;
         } else if (factor == ScoringFactor.BadPerformancePenalty && timeInterval == 0) {
@@ -263,6 +265,7 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
             // Eliminate a risk to get more points than defined MAX for given `factor`
             return Math.min(timeInterval / getTimePerScorePoint(factor), scoringFactorValue);
         }
+        // slither-disable-end incorrect-equality
     }
 
     function _isScoreIncrease(ScoringFactor factor) private pure returns (bool) {

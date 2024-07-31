@@ -1135,6 +1135,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         for (uint256 i = 0; i < poolsLength; ++i) {
             address mining = miningByStakingAddress[poolsToBeElected[i]];
 
+            // slither-disable-next-line incorrect-equality
             if (isValidator[mining] || validatorAvailableSince[mining] == 0) {
                 continue;
             }
