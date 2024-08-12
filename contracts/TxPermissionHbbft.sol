@@ -61,9 +61,6 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
     // Function signatures
 
-    // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
-    bytes4 public constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
-
     // bytes4(keccak256("writePart(uint256,uint256,bytes)"))
     bytes4 public constant WRITE_PART_SIGNATURE = 0x2d4de124;
 
@@ -316,24 +313,6 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         }
 
         if (_to == address(validatorSetContract)) {
-            // The rules for the ValidatorSet contract
-            if (signature == REPORT_MALICIOUS_SIGNATURE) {
-                uint256 paramsSize = _data.length - 4 > 64 ? 64 : _data.length - 4;
-                bytes memory abiParams = _memcpy(_data, paramsSize, 4);
-
-                (address maliciousMiningAddress, uint256 blockNumber) = abi.decode(abiParams, (address, uint256));
-
-                // The `reportMalicious()` can only be called by the validator's mining address
-                // when the calling is allowed
-                // slither-disable-next-line unused-return
-                (bool callable, ) = validatorSetContract.reportMaliciousCallable(
-                    _sender,
-                    maliciousMiningAddress,
-                    blockNumber
-                );
-                return (callable ? CALL : NONE, false);
-            }
-
             if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
                 return (validatorSetContract.canCallAnnounceAvailability(_sender) ? CALL : NONE, false);
             }

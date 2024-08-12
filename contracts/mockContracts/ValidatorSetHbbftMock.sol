@@ -12,13 +12,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     // =============================================== Setters ========================================================
 
-    function setBannedUntil(address _miningAddress, uint256 _bannedUntil)
-        public
-    {
-        bannedUntil[_miningAddress] = _bannedUntil;
-        bannedDelegatorsUntil[_miningAddress] = _bannedUntil;
-    }
-
     function setBlockRewardContract(address _address) public {
         blockRewardContract = _address;
     }
@@ -45,6 +38,20 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     function forceFinalizeNewValidators() external {
         _finalizeNewValidators();
+    }
+
+    function kickValidator(address _mining) external {
+        uint256 len = _currentValidators.length;
+
+        for (uint256 i = 0; i < len; i++) {
+            if (_currentValidators[i] == _mining) {
+                // Remove the malicious validator from `_pendingValidators`
+                _currentValidators[i] = _currentValidators[len - 1];
+                _currentValidators.pop();
+
+                return;
+            }
+        }
     }
 
     // =============================================== Getters ========================================================

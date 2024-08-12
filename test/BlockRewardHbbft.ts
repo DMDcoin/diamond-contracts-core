@@ -556,45 +556,6 @@ describe('BlockRewardHbbft', () => {
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it('should not reward banned validators', async () => {
-            const {
-                blockRewardContract,
-                validatorSetContract,
-                stakingContract,
-            } = await helpers.loadFixture(deployContractsFixture);
-
-            for (const _staking of initialStakingAddresses) {
-                const pool = await ethers.getSigner(_staking);
-
-                await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
-                expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
-            }
-
-            await callReward(blockRewardContract, true);
-            await callReward(blockRewardContract, true);
-
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
-            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
-            await helpers.mine(1);
-
-            const deltaPotValue = ethers.parseEther('10');
-            await blockRewardContract.addToDeltaPot({ value: deltaPotValue });
-            expect(await blockRewardContract.deltaPot()).to.be.eq(deltaPotValue);
-
-            const now = (await ethers.provider.getBlock('latest'))!.timestamp;
-
-            for (const validator of initialValidators) {
-                await validatorSetContract.setBannedUntil(validator, now + 3600);
-                expect(await validatorSetContract.isValidatorBanned(validator)).to.be.true;
-            }
-
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await expect(blockRewardContract.connect(systemSigner).reward(true))
-                .to.emit(blockRewardContract, "CoinsRewarded")
-                .withArgs(0n);
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
-        });
-
         it('should save epochs in which validator was awarded', async () => {
             const {
                 blockRewardContract,
@@ -1004,14 +965,14 @@ describe('BlockRewardHbbft', () => {
         expect(await stakingHbbft.getPoolsToBeElected()).to.be.lengthOf(49);
     })
 
-    it("upscaling: banning validator up to 16", async () => {
+    it("upscaling: removing validators up to 16", async () => {
 
         while ((await validatorSetHbbft.getValidators()).length > 16) {
             await mine();
             const validators = await validatorSetHbbft.getValidators();
 
             const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await validatorSetHbbft.connect(systemSigner).removeMaliciousValidators([validators[13]]);
+            await validatorSetHbbft.connect(systemSigner).kickValidator(validators[13]);
             await helpers.stopImpersonatingAccount(systemSigner.address);
         }
 

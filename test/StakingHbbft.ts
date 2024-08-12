@@ -1143,30 +1143,6 @@ describe('StakingHbbft', () => {
                 .withArgs(pool, delegatorAddress.address);
         });
 
-        it('should fail for a banned validator', async () => {
-            const {
-                stakingHbbft,
-                validatorSetHbbft,
-                candidateMinStake,
-                delegatorMinStake
-            } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = await ethers.getSigner(initialStakingAddresses[1]);
-
-            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
-
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await validatorSetHbbft.connect(systemSigner).removeMaliciousValidators([initialValidators[1]]);
-
-            await expect(stakingHbbft.connect(delegatorAddress).stake(
-                pool.address,
-                { value: delegatorMinStake }
-            )).to.be.revertedWithCustomError(stakingHbbft, "PoolMiningBanned")
-                .withArgs(pool.address);
-
-            await helpers.stopImpersonatingAccount(systemSigner.address);
-        });
-
         it.skip('should only success in the allowed staking window', async () => {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
@@ -1586,31 +1562,6 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
 
             await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
-        });
-
-        it("shouldn't allow withdrawing from a banned pool", async () => {
-            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = await ethers.getSigner(initialStakingAddresses[1]);
-
-            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
-            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: stakeAmount });
-
-            await validatorSetHbbft.setBannedUntil(initialValidators[1], '0xffffffffffffffff');
-
-            const maxAllowedForPool = await stakingHbbft.maxWithdrawOrderAllowed(pool.address, pool.address);
-            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount))
-                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
-                .withArgs(maxAllowedForPool, stakeAmount);
-
-            const maxAllowedForDelegator = await stakingHbbft.maxWithdrawOrderAllowed(pool.address, delegatorAddress.address);
-            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount))
-                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
-                .withArgs(maxAllowedForDelegator, stakeAmount);
-
-            await validatorSetHbbft.setBannedUntil(initialValidators[1], 0n);
-            await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
-            await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount);
         });
 
         it.skip("shouldn't allow withdrawing during the stakingWithdrawDisallowPeriod", async () => {

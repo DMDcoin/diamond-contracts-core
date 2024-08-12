@@ -475,10 +475,6 @@ contract BlockRewardHbbft is
         uint256 numRewardedValidators = 0;
 
         for (uint256 i = 0; i < validators.length; ++i) {
-            if (validatorSetContract.isValidatorBanned(validators[i])) {
-                continue;
-            }
-
             uint256 validatorStakeAmount = stakingContract.getPoolValidatorStakeAmount(
                 stakingEpoch,
                 validatorSetContract.stakingByMiningAddress(validators[i])

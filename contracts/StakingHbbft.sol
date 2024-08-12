@@ -253,7 +253,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error PoolAbandoned(address pool);
     error PoolCannotBeRemoved(address pool);
     error PoolEmpty(address pool);
-    error PoolMiningBanned(address pool);
     error PoolNotExist(address pool);
     error PoolStakeLimitExceeded(address pool, address delegator);
     error InitialStakingPoolsListEmpty();
@@ -693,12 +692,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         address staker = msg.sender;
 
-        if (
-            !_isWithdrawAllowed(
-                validatorSetContract.miningByStakingAddress(_poolStakingAddress),
-                staker != _poolStakingAddress
-            )
-        ) {
+        if (!areStakeAndWithdrawAllowed()) {
             revert WithdrawNotAllowed();
         }
 
@@ -792,12 +786,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             revert CannotClaimWithdrawOrderYet(_poolStakingAddress, staker);
         }
 
-        if (
-            !_isWithdrawAllowed(
-                validatorSetContract.miningByStakingAddress(_poolStakingAddress),
-                staker != _poolStakingAddress
-            )
-        ) {
+        if (!areStakeAndWithdrawAllowed()) {
             revert WithdrawNotAllowed();
         }
 
@@ -994,10 +983,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function maxWithdrawAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        if (
-            !_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker) ||
-            abandonedAndRemoved[_poolStakingAddress]
-        ) {
+        if (!areStakeAndWithdrawAllowed() || abandonedAndRemoved[_poolStakingAddress]) {
             return 0;
         }
 
@@ -1029,7 +1015,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function maxWithdrawOrderAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        if (!_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker)) {
+        if (!areStakeAndWithdrawAllowed()) {
             return 0;
         }
 
@@ -1320,10 +1306,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             revert InsufficientStakeAmount(_poolStakingAddress, _staker);
         }
 
-        if (validatorSetContract.isValidatorBanned(poolMiningAddress)) {
-            revert PoolMiningBanned(_poolStakingAddress);
-        }
-
         if (abandonedAndRemoved[_poolStakingAddress]) {
             revert PoolAbandoned(_poolStakingAddress);
         }
@@ -1496,26 +1478,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             return (true, index);
         }
         return (false, 0);
-    }
-
-    /// @dev Returns `true` if withdrawal from the pool of the specified candidate/validator is allowed at the moment.
-    /// Used by all withdrawal functions.
-    /// @param _miningAddress The mining address of the validator's pool.
-    /// @param _isDelegator Whether the withdrawal is requested by a delegator, not by a candidate/validator.
-    function _isWithdrawAllowed(address _miningAddress, bool _isDelegator) private view returns (bool) {
-        if (_isDelegator) {
-            if (validatorSetContract.areDelegatorsBanned(_miningAddress)) {
-                // The delegator cannot withdraw from the banned validator pool until the ban is expired
-                return false;
-            }
-        } else {
-            if (validatorSetContract.isValidatorBanned(_miningAddress)) {
-                // The banned validator cannot withdraw from their pool until the ban is expired
-                return false;
-            }
-        }
-
-        return areStakeAndWithdrawAllowed();
     }
 
     function _delegatorRewardShare(
