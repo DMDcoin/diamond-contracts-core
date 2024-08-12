@@ -9,7 +9,6 @@ import { IRandomHbbft } from "./interfaces/IRandomHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
-import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
 import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
