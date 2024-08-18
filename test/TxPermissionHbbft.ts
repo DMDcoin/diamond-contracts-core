@@ -535,6 +535,38 @@ describe('TxPermissionHbbft', () => {
             });
         });
 
+        describe('setConnectivityTracker()', async function () {
+            it("should restrict calling setConnectivityTracker to contract owner", async function () {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                const caller = accounts[1];
+
+                await expect(txPermission.connect(caller).setConnectivityTracker(caller.address))
+                    .to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
+            });
+
+            it("should not allow to set connectivity tracker address to zero", async function () {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                await expect(
+                    txPermission.connect(owner).setConnectivityTracker(ethers.ZeroAddress)
+                ).to.be.revertedWithCustomError(txPermission, "ZeroAddress");
+            });
+
+            it("should set connectivity tracker contract and emit event", async function () {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                const newAddress = accounts[10].address;
+
+                await expect(txPermission.connect(owner).setConnectivityTracker(newAddress))
+                    .to.emit(txPermission, "SetConnectivityTracker")
+                    .withArgs(newAddress)
+
+                expect(await txPermission.connectivityTracker()).to.equal(newAddress);
+            });
+        });
+
         describe('allowedTxTypes()', async function () {
             it("should allow all transaction types for allowed sender", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);

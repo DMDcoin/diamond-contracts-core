@@ -40,6 +40,24 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _finalizeNewValidators();
     }
 
+    function setValidatorsNum(uint256 num) external {
+        uint256 count = _currentValidators.length;
+
+        if (count < num) {
+            address validator = _currentValidators[0];
+            for (uint256 i = count; i <= num; ++i) {
+                _currentValidators.push(validator);
+            }
+
+        } else if (count > num) {
+            for (uint256 i = count; i > num; --i) {
+                _currentValidators.pop();
+            }
+        } else {
+            return;
+        }
+    }
+
     function kickValidator(address _mining) external {
         uint256 len = _currentValidators.length;
 
