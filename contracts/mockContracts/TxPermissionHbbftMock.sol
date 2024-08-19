@@ -17,6 +17,12 @@ contract MockValidatorSet {
     IValidatorSetHbbft.KeyGenMode public keyGenMode;
     address public stakingContract;
 
+    mapping(address => bool) public isValidator;
+
+    function setValidator(address mining, bool val) external {
+        isValidator[mining] = val;
+    }
+
     function setKeyGenMode(IValidatorSetHbbft.KeyGenMode _mode) external {
         keyGenMode = _mode;
     }
