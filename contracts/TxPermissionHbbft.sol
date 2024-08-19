@@ -12,7 +12,7 @@ import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
 
-import { DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE, MIN_BLOCK_GAS_LIMIT } from "./lib/Constants.sol";
+import { DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE } from "./lib/Constants.sol";
 import { ZeroAddress } from "./lib/Errors.sol";
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
