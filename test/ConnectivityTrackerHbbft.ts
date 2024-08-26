@@ -494,7 +494,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 .to.equal(previousScore + 1n);
         });
 
-        it("should increase validator score with each report", async () => {
+        it("should increase validator connectivity score with each report", async () => {
             const { connectivityTracker, stakingHbbft } = await helpers.loadFixture(deployContracts);
 
             const validator = initialValidators[0];
@@ -517,50 +517,6 @@ describe('ConnectivityTrackerHbbft', () => {
 
             expect(await connectivityTracker.getValidatorConnectivityScore(epoch, validator.address))
                 .to.equal(initialValidators.length - 1);
-        });
-
-        it("should set early epoch end = true with sufficient reports", async () => {
-            const { connectivityTracker, stakingHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContracts);
-
-            const badValidatorsCount = Math.floor(initialValidators.length / 4);
-
-            const badValidators = initialValidators.slice(0, badValidatorsCount);
-            const goodValidators = initialValidators.slice(badValidatorsCount);
-
-            const reportsThreshold = Math.floor(goodValidators.length * 2 / 3 + 1);
-
-            const epoch = 5;
-            await stakingHbbft.setStakingEpoch(epoch);
-            const latestBlock = await ethers.provider.getBlock("latest");
-
-            expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(false);
-
-            for (let i = 0; i < badValidators.length; ++i) {
-                for (let j = 0; j < reportsThreshold; ++j) {
-                    if (i == badValidators.length - 1 && j == reportsThreshold - 1) {
-                        break;
-                    }
-
-                    await connectivityTracker.connect(goodValidators[j]).reportMissingConnectivity(
-                        badValidators[i].address,
-                        latestBlock!.number,
-                        latestBlock!.hash!
-                    );
-                }
-            }
-
-            const lastBlock = await helpers.time.latestBlock();
-
-            const lastReporter = goodValidators[reportsThreshold - 1];
-            await expect(connectivityTracker.connect(lastReporter).reportMissingConnectivity(
-                badValidators[badValidators.length - 1].address,
-                latestBlock!.number,
-                latestBlock!.hash!
-            )).to.emit(connectivityTracker, "NotifyEarlyEpochEnd")
-                .withArgs(epoch, lastBlock + 1);
-
-            expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(true);
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.equal(true);
         });
     });
 
@@ -970,7 +926,7 @@ describe('ConnectivityTrackerHbbft', () => {
     });
 
     describe('isReported', async () => {
-        it("should check if validator reported", async function() {
+        it("should check if validator reported", async function () {
             const { connectivityTracker, stakingHbbft } = await helpers.loadFixture(deployContracts);
 
             const [badValidator, ...goodValidators] = initialValidators;
@@ -993,6 +949,130 @@ describe('ConnectivityTrackerHbbft', () => {
                     await connectivityTracker.isReported(epoch, badValidator.address, goodValidators[i].address)
                 ).to.be.true;
             }
+        });
+    });
+
+    describe('earlyEpochEndThreshold', async () => {
+        let EpochEndTriggers = [
+            { hbbftFaultTolerance: 0, networkSize: 1, threshold: 0 },
+            { hbbftFaultTolerance: 0, networkSize: 2, threshold: 0 },
+            { hbbftFaultTolerance: 0, networkSize: 3, threshold: 0 },
+            { hbbftFaultTolerance: 1, networkSize: 4, threshold: 0 },
+            { hbbftFaultTolerance: 2, networkSize: 7, threshold: 0 },
+            { hbbftFaultTolerance: 3, networkSize: 10, threshold: 1 },
+            { hbbftFaultTolerance: 4, networkSize: 13, threshold: 2 },
+            { hbbftFaultTolerance: 5, networkSize: 16, threshold: 3 },
+            { hbbftFaultTolerance: 6, networkSize: 19, threshold: 4 },
+            { hbbftFaultTolerance: 7, networkSize: 22, threshold: 5 },
+            { hbbftFaultTolerance: 8, networkSize: 25, threshold: 6 },
+        ];
+
+        EpochEndTriggers.forEach((args) => {
+            it(`should get epoch end threshold for hbbft fault tolerance: ${args.hbbftFaultTolerance}, network size: ${args.networkSize}`, async () => {
+                const { connectivityTracker, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+
+                await validatorSetHbbft.setValidatorsNum(args.networkSize);
+                expect(await validatorSetHbbft.getCurrentValidatorsCount()).to.equal(args.networkSize);
+
+                expect(await connectivityTracker.earlyEpochEndThreshold()).to.equal(args.threshold);
+            });
+        });
+    });
+
+    describe('early epoch end', async () => {
+        it("should set early epoch end = true with sufficient reports", async () => {
+            const { connectivityTracker, stakingHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContracts);
+
+            const badValidatorsCount = Math.floor(initialValidators.length / 4);
+
+            const badValidators = initialValidators.slice(0, badValidatorsCount);
+            const goodValidators = initialValidators.slice(badValidatorsCount);
+
+            const reportsThreshold = Math.floor(goodValidators.length * 2 / 3 + 1);
+
+            const epoch = 5;
+            await stakingHbbft.setStakingEpoch(epoch);
+            const latestBlock = await ethers.provider.getBlock("latest");
+
+            expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(false);
+
+            for (let i = 0; i < badValidators.length; ++i) {
+                for (let j = 0; j < reportsThreshold; ++j) {
+                    if (i == badValidators.length - 1 && j == reportsThreshold - 1) {
+                        break;
+                    }
+
+                    await connectivityTracker.connect(goodValidators[j]).reportMissingConnectivity(
+                        badValidators[i].address,
+                        latestBlock!.number,
+                        latestBlock!.hash!
+                    );
+                }
+            }
+
+            const lastBlock = await helpers.time.latestBlock();
+
+            const lastReporter = goodValidators[reportsThreshold - 1];
+            await expect(connectivityTracker.connect(lastReporter).reportMissingConnectivity(
+                badValidators[badValidators.length - 1].address,
+                latestBlock!.number,
+                latestBlock!.hash!
+            )).to.emit(connectivityTracker, "NotifyEarlyEpochEnd")
+                .withArgs(epoch, lastBlock + 1);
+
+            expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(true);
+            expect(await blockRewardHbbft.earlyEpochEnd()).to.equal(true);
+        });
+
+        it("should skip check for current epoch if early end already set", async () => {
+            const { connectivityTracker, stakingHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContracts);
+
+            const badValidatorsCount = Math.floor(initialValidators.length / 4);
+
+            const badValidators = initialValidators.slice(0, badValidatorsCount);
+            const goodValidators = initialValidators.slice(badValidatorsCount);
+
+            const reportsThreshold = Math.floor(goodValidators.length * 2 / 3 + 1);
+
+            const epoch = 5;
+            await stakingHbbft.setStakingEpoch(epoch);
+            const latestBlock = await ethers.provider.getBlock("latest");
+
+            expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(false);
+
+            for (let i = 0; i < badValidators.length; ++i) {
+                for (let j = 0; j < reportsThreshold; ++j) {
+                    if (i == badValidators.length - 1 && j == reportsThreshold - 1) {
+                        break;
+                    }
+
+                    await connectivityTracker.connect(goodValidators[j]).reportMissingConnectivity(
+                        badValidators[i].address,
+                        latestBlock!.number,
+                        latestBlock!.hash!
+                    );
+                }
+            }
+
+            const lastBlock = await helpers.time.latestBlock();
+
+            let reporter = goodValidators[reportsThreshold - 1];
+            await expect(connectivityTracker.connect(reporter).reportMissingConnectivity(
+                badValidators[badValidators.length - 1].address,
+                latestBlock!.number,
+                latestBlock!.hash!
+            )).to.emit(connectivityTracker, "NotifyEarlyEpochEnd")
+                .withArgs(epoch, lastBlock + 1);
+
+            expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(true);
+            expect(await blockRewardHbbft.earlyEpochEnd()).to.equal(true);
+
+            reporter = goodValidators[reportsThreshold];
+            await expect(connectivityTracker.connect(reporter).reportMissingConnectivity(
+                badValidators[badValidators.length - 1].address,
+                latestBlock!.number,
+                latestBlock!.hash!
+            )).to.not.emit(connectivityTracker, "NotifyEarlyEpochEnd");
         });
     });
 });

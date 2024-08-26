@@ -550,15 +550,11 @@ describe('KeyGenHistory', () => {
         });
 
         it('failed KeyGeneration, availability.', async () => {
-            const stakingBanned = await validatorSetHbbft.bannedUntil(stakingAddresses[0]);
-            const miningBanned = await validatorSetHbbft.bannedUntil(miningAddresses[0]);
             const currentTS = await helpers.time.latest();
             const newPoolStakingAddress = stakingAddresses[4];
             const newPoolMiningAddress = miningAddresses[4];
 
             if (logOutput) {
-                console.log('stakingBanned?', stakingBanned);
-                console.log('miningBanned?', miningBanned);
                 console.log('currentTS:', currentTS);
                 console.log('newPoolStakingAddress:', newPoolStakingAddress);
                 console.log('newPoolMiningAddress:', newPoolMiningAddress);

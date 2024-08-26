@@ -133,10 +133,8 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         uint256 epoch = currentEpoch();
         uint256 currentScore = getValidatorConnectivityScore(epoch, validator);
 
-        if (currentScore != 0) {
-            // slither-disable-next-line unused-return
-            _reporters[epoch][validator].remove(msg.sender);
-        }
+        // slither-disable-next-line unused-return
+        _reporters[epoch][validator].remove(msg.sender);
 
         if (currentScore == 1) {
             // slither-disable-next-line unused-return

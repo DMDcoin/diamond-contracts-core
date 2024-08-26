@@ -131,7 +131,11 @@ describe("BonusScoreSystem", function () {
         await stakingHbbft.setBonusScoreContract(await bonusScoreSystem.getAddress());
         await validatorSetHbbft.setBonusScoreSystemAddress(await bonusScoreSystem.getAddress());
 
-        return { bonusScoreSystem, stakingHbbft, validatorSetHbbft };
+        const reentrancyAttackerFactory = await ethers.getContractFactory("ReentrancyAttacker");
+        const reentrancyAttacker = await reentrancyAttackerFactory.deploy(await bonusScoreSystem.getAddress());
+        await reentrancyAttacker.waitForDeployment();
+
+        return { bonusScoreSystem, stakingHbbft, validatorSetHbbft, reentrancyAttacker };
     }
 
     async function impersonateAcc(accAddress: string) {
@@ -567,6 +571,25 @@ describe("BonusScoreSystem", function () {
 
             await helpers.stopImpersonatingAccount(validatorSet.address);
         });
+
+        it('should be non-reentrant', async () => {
+            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const selector = bonusScoreSystem.interface.getFunction('rewardStandBy').selector;
+
+            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
+            await bonusScoreSystem.setValidatorSetContract(await reentrancyAttacker.getAddress());
+
+            await reentrancyAttacker.setFuncId(selector);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const timestamp = await helpers.time.latest();
+
+            await helpers.time.increase(1000);
+
+            await expect(reentrancyAttacker.attack(mining, timestamp))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "ReentrancyGuardReentrantCall");
+        });
     });
 
     describe('penaliseNoStandBy', async () => {
@@ -722,6 +745,25 @@ describe("BonusScoreSystem", function () {
 
             await helpers.stopImpersonatingAccount(validatorSet.address);
         });
+
+        it('should be non-reentrant', async () => {
+            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const selector = bonusScoreSystem.interface.getFunction('penaliseNoStandBy').selector;
+
+            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
+            await bonusScoreSystem.setValidatorSetContract(await reentrancyAttacker.getAddress());
+
+            await reentrancyAttacker.setFuncId(selector);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const timestamp = await helpers.time.latest();
+
+            await helpers.time.increase(1000);
+
+            await expect(reentrancyAttacker.attack(mining, timestamp))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "ReentrancyGuardReentrantCall");
+        });
     });
 
     describe('penaliseNoKeyWrite', async () => {
@@ -812,6 +854,25 @@ describe("BonusScoreSystem", function () {
             expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(stakeAmount * bonusScoreAfter);
 
             await helpers.stopImpersonatingAccount(validatorSet.address);
+        });
+
+        it('should be non-reentrant', async () => {
+            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const selector = bonusScoreSystem.interface.getFunction('penaliseNoKeyWrite').selector;
+
+            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
+            await bonusScoreSystem.setValidatorSetContract(await reentrancyAttacker.getAddress());
+
+            await reentrancyAttacker.setFuncId(selector);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const timestamp = await helpers.time.latest();
+
+            await helpers.time.increase(1000);
+
+            await expect(reentrancyAttacker.attack(mining, timestamp))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "ReentrancyGuardReentrantCall");
         });
     });
 
@@ -905,6 +966,25 @@ describe("BonusScoreSystem", function () {
             expect(await getPoolLikelihood(stakingHbbft, staking.address)).to.equal(stakeAmount * bonusScoreAfter);
 
             await helpers.stopImpersonatingAccount(connectivityTracker.address);
+        });
+
+        it('should be non-reentrant', async () => {
+            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const selector = bonusScoreSystem.interface.getFunction('penaliseBadPerformance').selector;
+
+            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
+            await bonusScoreSystem.setConnectivityTrackerContract(await reentrancyAttacker.getAddress());
+
+            await reentrancyAttacker.setFuncId(selector);
+
+            const mining = await ethers.getSigner(initialValidators[0]);
+            const timestamp = await helpers.time.latest();
+
+            await helpers.time.increase(1000);
+
+            await expect(reentrancyAttacker.attack(mining, timestamp))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "ReentrancyGuardReentrantCall");
         });
     });
 });
