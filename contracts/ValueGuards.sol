@@ -87,6 +87,10 @@ contract ValueGuards is OwnableUpgradeable {
         return allowedParameterRange[bytes4(keccak256(bytes(_selector)))];
     }
 
+    function getAllowedParamsRangeWithSelector(bytes4 _selector) external view returns (ParameterRange memory) {
+        return allowedParameterRange[_selector];
+    }
+
     // =============================================== Setters ========================================================
 
     /**
