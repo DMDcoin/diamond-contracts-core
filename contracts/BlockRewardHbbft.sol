@@ -161,6 +161,17 @@ contract BlockRewardHbbft is
         governancePotAddress = payable(0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0);
         governancePotShareNominator = 1;
         governancePotShareDenominator = 10;
+
+        uint256[] memory governancePotShareNominatorParams = new uint256[](11);
+        for (uint256 i = 0; i < governancePotShareNominatorParams.length; i++) {
+            governancePotShareNominatorParams[i] = 10 + i;
+        }
+        
+        initAllowedChangeableParameter(
+            "setGovernancePotShareNominator(uint256)",
+            "governancePotShareNominatorParams()",
+            governancePotShareNominatorParams
+        );
     }
 
     /// @dev adds the transfered value to the delta pot.
