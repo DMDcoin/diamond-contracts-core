@@ -48,6 +48,8 @@ interface IStakingHbbft {
 
     function isPoolActive(address) external view returns (bool);
 
+    function isPoolValid(address) external view returns (bool);
+
     function MAX_CANDIDATES() external pure returns (uint256); // solhint-disable-line func-name-mixedcase
 
     function orderedWithdrawAmount(address, address)
