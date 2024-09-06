@@ -976,6 +976,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         return _pools.contains(_stakingAddress);
     }
 
+    /// @dev Returns a flag indicating whether a specified address is in the `_pools` or `poolsInactive` array.
+    /// @param _stakingAddress The staking address of the pool.
+    function isPoolValid(address _stakingAddress) public view returns (bool) {
+        return _pools.contains(_stakingAddress) || _poolsInactive.contains(_stakingAddress);
+    }
+
     /// @dev Returns the maximum amount which can be withdrawn from the specified pool by the specified staker
     /// at the moment. Used by the `withdraw` and `moveStake` functions.
     /// @param _poolStakingAddress The pool staking address from which the withdrawal will be made.
