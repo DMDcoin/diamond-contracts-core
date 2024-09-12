@@ -169,7 +169,7 @@ contract BlockRewardHbbft is
         
         initAllowedChangeableParameter(
             "setGovernancePotShareNominator(uint256)",
-            "governancePotShareNominatorParams()",
+            "governancePotShareNominator()",
             governancePotShareNominatorParams
         );
     }
