@@ -9,6 +9,10 @@ import {
     BlockRewardHbbftMock,
     ValidatorSetHbbftMock,
     StakingHbbftMock,
+    RandomHbbft,
+    KeyGenHistory,
+    CertifierHbbft,
+    TxPermissionHbbft,
 } from "../src/types";
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
@@ -26,7 +30,6 @@ const DELEGATOR_MIN_STAKE = ethers.parseEther('100');
 const MAX_STAKE = ethers.parseEther('100000');
 
 const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
-
 
 const addToDeltaPotValue = ethers.parseEther('60');
 const validatorInactivityThreshold = 365n * 86400n // 1 year
@@ -85,100 +88,109 @@ describe('BlockRewardHbbft', () => {
 
         contractDeployCounter = contractDeployCounter + 1;
 
-        // every second deployment we add the DAOMock contract, 
+        // every second deployment we add the DAOMock contract,
         // so we also cover the possibility that no contract was deployed.
         await deployDao();
-        
+
+        const bonusScoreContractMockFactory = await ethers.getContractFactory("BonusScoreSystemMock");
+        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy();
+        await bonusScoreContractMock.waitForDeployment();
+
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
         const connectivityTrackerContract = await ConnectivityTrackerFactory.deploy();
         await connectivityTrackerContract.waitForDeployment();
 
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            validatorInactivityThreshold: validatorInactivityThreshold,
+        }
+
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbftProxy = await upgrades.deployProxy(
+        const validatorSetContract = await upgrades.deployProxy(
             ValidatorSetFactory,
             [
                 owner.address,
-                stubAddress,                  // _blockRewardContract
-                stubAddress,                  // _randomContract
-                stubAddress,                  // _stakingContract
-                stubAddress,                  // _keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
-                initialValidators,            // _initialMiningAddresses
-                initialStakingAddresses,      // _initialStakingAddresses
+                validatorSetParams,      // _params
+                initialValidators,       // _initialMiningAddresses
+                initialStakingAddresses, // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as ValidatorSetHbbftMock;
 
-        await validatorSetHbbftProxy.waitForDeployment();
+        await validatorSetContract.waitForDeployment();
 
         const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-        const randomHbbftProxy = await upgrades.deployProxy(
+        const randomHbbftContract = await upgrades.deployProxy(
             RandomHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress()
+                await validatorSetContract.getAddress()
             ],
             { initializer: 'initialize' },
-        );
+        ) as unknown as RandomHbbft;
 
-        await randomHbbftProxy.waitForDeployment();
+        await randomHbbftContract.waitForDeployment();
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-        const keyGenHistoryProxy = await upgrades.deployProxy(
+        const keyGenHistoryContract = await upgrades.deployProxy(
             KeyGenFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetContract.getAddress(),
                 initialValidators,
                 parts,
                 acks
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as KeyGenHistory;
 
-        await keyGenHistoryProxy.waitForDeployment();
+        await keyGenHistoryContract.waitForDeployment();
 
         const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifierProxy = await upgrades.deployProxy(
+        const certifierContract = await upgrades.deployProxy(
             CertifierFactory,
             [
                 [owner.address],
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetContract.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as CertifierHbbft;
 
-        await certifierProxy.waitForDeployment();
+        await certifierContract.waitForDeployment();
 
         const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
-        const txPermissionProxy = await upgrades.deployProxy(
+        const txPermissionContract = await upgrades.deployProxy(
             TxPermissionFactory,
             [
                 [owner.address],
-                await certifierProxy.getAddress(),
-                await validatorSetHbbftProxy.getAddress(),
-                await keyGenHistoryProxy.getAddress(),
-                stubAddress,
+                await certifierContract.getAddress(),
+                await validatorSetContract.getAddress(),
+                await keyGenHistoryContract.getAddress(),
+                await connectivityTrackerContract.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as TxPermissionHbbft;
 
-        await txPermissionProxy.waitForDeployment();
+        await txPermissionContract.waitForDeployment();
 
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardHbbftProxy = await upgrades.deployProxy(
+        const blockRewardContract = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetContract.getAddress(),
                 await connectivityTrackerContract.getAddress(),
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as BlockRewardHbbftMock;
 
-        await blockRewardHbbftProxy.waitForDeployment();
+        await blockRewardContract.waitForDeployment();
 
         // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
         // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
@@ -194,7 +206,8 @@ describe('BlockRewardHbbft', () => {
         initialValidatorsIpAddresses = Array(initialValidators.length).fill(ethers.zeroPadBytes("0x00", 16));
 
         let structure = {
-            _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
+            _validatorSetContract: await validatorSetContract.getAddress(),
+            _bonusScoreContract: await bonusScoreContractMock.getAddress(),
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: DELEGATOR_MIN_STAKE,
             _candidateMinStake: MIN_STAKE,
@@ -205,7 +218,7 @@ describe('BlockRewardHbbft', () => {
         };
 
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-        const stakingHbbftProxy = await upgrades.deployProxy(
+        const stakingContract = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
                 owner.address,
@@ -214,26 +227,14 @@ describe('BlockRewardHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as StakingHbbftMock;
 
-        await stakingHbbftProxy.waitForDeployment();
-
-        const validatorSetContract = ValidatorSetFactory.attach(
-            await validatorSetHbbftProxy.getAddress()
-        ) as ValidatorSetHbbftMock;
-
-        const stakingContract = StakingHbbftFactory.attach(
-            await stakingHbbftProxy.getAddress()
-        ) as StakingHbbftMock;
-
-        const blockRewardContract = BlockRewardHbbftFactory.attach(
-            await blockRewardHbbftProxy.getAddress()
-        ) as BlockRewardHbbftMock
+        await stakingContract.waitForDeployment();
 
         await validatorSetContract.setBlockRewardContract(await blockRewardContract.getAddress());
-        await validatorSetContract.setRandomContract(await randomHbbftProxy.getAddress());
+        await validatorSetContract.setRandomContract(await randomHbbftContract.getAddress());
         await validatorSetContract.setStakingContract(await stakingContract.getAddress());
-        await validatorSetContract.setKeyGenHistoryContract(await keyGenHistoryProxy.getAddress());
+        await validatorSetContract.setKeyGenHistoryContract(await keyGenHistoryContract.getAddress());
 
         return { blockRewardContract, validatorSetContract, stakingContract, connectivityTrackerContract };
     }
@@ -552,45 +553,6 @@ describe('BlockRewardHbbft', () => {
             const systemSigner = await impersonateAcc(SystemAccountAddress);
             await expect(blockRewardContract.connect(systemSigner).reward(true))
                 .to.be.revertedWithCustomError(blockRewardContract, "ValidatorsListEmpty");
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
-        });
-
-        it('should not reward banned validators', async () => {
-            const {
-                blockRewardContract,
-                validatorSetContract,
-                stakingContract,
-            } = await helpers.loadFixture(deployContractsFixture);
-
-            for (const _staking of initialStakingAddresses) {
-                const pool = await ethers.getSigner(_staking);
-
-                await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
-                expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
-            }
-
-            await callReward(blockRewardContract, true);
-            await callReward(blockRewardContract, true);
-
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
-            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
-            await helpers.mine(1);
-
-            const deltaPotValue = ethers.parseEther('10');
-            await blockRewardContract.addToDeltaPot({ value: deltaPotValue });
-            expect(await blockRewardContract.deltaPot()).to.be.eq(deltaPotValue);
-
-            const now = (await ethers.provider.getBlock('latest'))!.timestamp;
-
-            for (const validator of initialValidators) {
-                await validatorSetContract.setBannedUntil(validator, now + 3600);
-                expect(await validatorSetContract.isValidatorBanned(validator)).to.be.true;
-            }
-
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await expect(blockRewardContract.connect(systemSigner).reward(true))
-                .to.emit(blockRewardContract, "CoinsRewarded")
-                .withArgs(0n);
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
@@ -926,11 +888,13 @@ describe('BlockRewardHbbft', () => {
     });
 
     it("should end epoch earlier if notified", async () => {
-        expect(await blockRewardHbbft.setConnectivityTracker(owner.address)).to.not.be.reverted;
+        const connectivityTracker = await impersonateAcc(await blockRewardHbbft.connectivityTracker());
 
         expect(await blockRewardHbbft.earlyEpochEnd()).to.be.false;
-        expect(await blockRewardHbbft.connect(owner).notifyEarlyEpochEnd()).to.not.be.reverted;
+        expect(await blockRewardHbbft.connect(connectivityTracker).notifyEarlyEpochEnd()).to.not.be.reverted;
         expect(await blockRewardHbbft.earlyEpochEnd()).to.be.true;
+
+        await helpers.stopImpersonatingAccount(connectivityTracker.address);
 
         const systemSigner = await impersonateAcc(SystemAccountAddress);
 
@@ -956,14 +920,10 @@ describe('BlockRewardHbbft', () => {
     });
 
     it("should restrict calling notifyEarlyEpochEnd to connectivity tracker contract only", async () => {
-        const allowedCaller = accounts[10];
         const caller = accounts[11];
 
-        expect(await blockRewardHbbft.setConnectivityTracker(allowedCaller.address)).to.not.be.reverted;
-        expect(await blockRewardHbbft.connectivityTracker()).to.be.equal(allowedCaller.address);
-
-        await expect(blockRewardHbbft.connect(caller).notifyEarlyEpochEnd()).to.be.reverted;
-        expect(await blockRewardHbbft.connect(allowedCaller).notifyEarlyEpochEnd()).to.not.be.reverted;
+        await expect(blockRewardHbbft.connect(caller).notifyEarlyEpochEnd())
+            .to.be.revertedWithCustomError(blockRewardHbbft, "Unauthorized");
     });
 
     it("upscaling: add multiple validator pools and upscale if needed.", async () => {
@@ -1005,14 +965,14 @@ describe('BlockRewardHbbft', () => {
         expect(await stakingHbbft.getPoolsToBeElected()).to.be.lengthOf(49);
     })
 
-    it("upscaling: banning validator up to 16", async () => {
+    it("upscaling: removing validators up to 16", async () => {
 
         while ((await validatorSetHbbft.getValidators()).length > 16) {
             await mine();
             const validators = await validatorSetHbbft.getValidators();
 
             const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await validatorSetHbbft.connect(systemSigner).removeMaliciousValidators([validators[13]]);
+            await validatorSetHbbft.connect(systemSigner).kickValidator(validators[13]);
             await helpers.stopImpersonatingAccount(systemSigner.address);
         }
 

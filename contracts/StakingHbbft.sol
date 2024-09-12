@@ -11,6 +11,7 @@ import { ValueGuards } from "./ValueGuards.sol";
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
+import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 import { Unauthorized, ZeroAddress, ZeroGasPrice } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 
@@ -37,6 +38,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     /// @dev The limit of the minimum delegator stake (DELEGATOR_MIN_STAKE).
     uint256 public delegatorMinStake;
+
+    /// @dev current limit of how many funds can
+    /// be staked on a single validator.
+    uint256 public maxStakeAmount;
 
     /// @dev The current amount of staking coins ordered for withdrawal from the specified
     /// pool by the specified staker. Used by the `orderWithdraw`, `claimOrderedWithdraw` and other functions.
@@ -101,6 +106,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// The pool staking address is accepted as a parameter.
     mapping(address => uint256) public stakeAmountTotal;
 
+    /// @dev Returns the total amount of staking coins currently staked on all pools.
+    /// Doesn't include the amount ordered for withdrawal.
+    uint256 public totalStakedAmount;
+
     /// @dev The address of the `ValidatorSetHbbft` contract.
     IValidatorSetHbbft public validatorSetContract;
 
@@ -112,9 +121,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     mapping(address => PoolInfo) public poolInfo;
 
-    /// @dev current limit of how many funds can
-    /// be staked on a single validator.
-    uint256 public maxStakeAmount;
 
     mapping(address => bool) public abandonedAndRemoved;
 
@@ -132,6 +138,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     /// @dev Number of last epoch when stake snapshot was taken. pool => delegator => epoch
     mapping(address => mapping(address => uint256)) internal _stakeSnapshotLastEpoch;
+
+    IBonusScoreSystem public bonusScoreContract;
 
     // ============================================== Constants =======================================================
 
@@ -224,14 +232,19 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 delegatorsReward
     );
 
-
     /**
      * @dev Emitted when the minimum stake for a delegator is updated.
      * @param minStake The new minimum stake value.
      */
     event SetDelegatorMinStake(uint256 minStake);
 
-// ============================================== Errors =======================================================
+    /**
+     * @dev Emitted when the BonusScoreSystem contract address is changed.
+     * @param _address BonusScoreSystem contract address.
+     */
+    event SetBonusScoreContract(address _address);
+
+    // ============================================== Errors =======================================================
     error CannotClaimWithdrawOrderYet(address pool, address staker);
     error MaxPoolsCountExceeded();
     error MaxAllowedWithdrawExceeded(uint256 allowed, uint256 desired);
@@ -240,7 +253,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error PoolAbandoned(address pool);
     error PoolCannotBeRemoved(address pool);
     error PoolEmpty(address pool);
-    error PoolMiningBanned(address pool);
     error PoolNotExist(address pool);
     error PoolStakeLimitExceeded(address pool, address delegator);
     error InitialStakingPoolsListEmpty();
@@ -280,6 +292,13 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     modifier onlyBlockRewardContract() {
         if (msg.sender != validatorSetContract.blockRewardContract()) {
+            revert Unauthorized();
+        }
+        _;
+    }
+
+    modifier onlyBonusScoreContract() {
+        if (msg.sender != address(bonusScoreContract)) {
             revert Unauthorized();
         }
         _;
@@ -335,6 +354,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         __ReentrancyGuard_init();
 
         validatorSetContract = IValidatorSetHbbft(stakingParams._validatorSetContract);
+        bonusScoreContract = IBonusScoreSystem(stakingParams._bonusScoreContract);
+
         address[] calldata initStakingAddresses = stakingParams._initialStakingAddresses;
 
         for (uint256 i = 0; i < initStakingAddresses.length; ++i) {
@@ -362,7 +383,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             "delegatorMinStake()",
             delegatorMinStakeAllowedParams
         );
-        
+
         delegatorMinStake = stakingParams._delegatorMinStake;
         candidateMinStake = stakingParams._candidateMinStake;
 
@@ -427,6 +448,16 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     ) external onlyValidatorSetContract {
         poolInfo[_validatorAddress].internetAddress = _ip;
         poolInfo[_validatorAddress].port = _port;
+    }
+
+    function setBonusScoreContract(address _bonusScoreContract) external onlyOwner {
+        if (_bonusScoreContract == address(0)) {
+            revert ZeroAddress();
+        }
+
+        bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
+
+        emit SetBonusScoreContract(_bonusScoreContract);
     }
 
     /// @dev Increments the serial number of the current staking epoch.
@@ -635,6 +666,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         stakeAmount[_poolStakingAddress][_poolStakingAddress] += validatorReward;
         stakeAmountTotal[_poolStakingAddress] += poolReward;
+        totalStakedAmount += poolReward;
 
         _setLikelihood(_poolStakingAddress);
 
@@ -660,12 +692,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         address staker = msg.sender;
 
-        if (
-            !_isWithdrawAllowed(
-                validatorSetContract.miningByStakingAddress(_poolStakingAddress),
-                staker != _poolStakingAddress
-            )
-        ) {
+        if (!areStakeAndWithdrawAllowed()) {
             revert WithdrawNotAllowed();
         }
 
@@ -686,6 +713,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             newOrderedAmountTotal = newOrderedAmountTotal + amount;
             newStakeAmount = newStakeAmount - amount;
             newStakeAmountTotal = newStakeAmountTotal - amount;
+            totalStakedAmount -= amount;
             orderWithdrawEpoch[_poolStakingAddress][staker] = stakingEpoch;
         } else {
             uint256 amount = uint256(-_amount);
@@ -693,6 +721,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             newOrderedAmountTotal = newOrderedAmountTotal - amount;
             newStakeAmount = newStakeAmount + amount;
             newStakeAmountTotal = newStakeAmountTotal + amount;
+            totalStakedAmount += amount;
         }
         orderedWithdrawAmount[_poolStakingAddress][staker] = newOrderedAmount;
         orderedWithdrawAmountTotal[_poolStakingAddress] = newOrderedAmountTotal;
@@ -757,12 +786,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             revert CannotClaimWithdrawOrderYet(_poolStakingAddress, staker);
         }
 
-        if (
-            !_isWithdrawAllowed(
-                validatorSetContract.miningByStakingAddress(_poolStakingAddress),
-                staker != _poolStakingAddress
-            )
-        ) {
+        if (!areStakeAndWithdrawAllowed()) {
             revert WithdrawNotAllowed();
         }
 
@@ -806,6 +830,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
             uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
             stakeAmountTotal[stakingAddress] = 0;
+            totalStakedAmount -= gatheredPerStakingAddress;
 
             address[] memory delegators = poolDelegators(stakingAddress);
             for (uint256 j = 0; j < delegators.length; ++j) {
@@ -853,6 +878,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         snapshotPoolTotalStakeAmount[_epoch][_stakingPool] = totalAmount;
         snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] = stakeAmount[_stakingPool][_stakingPool];
+    }
+
+    function updatePoolLikelihood(address mining, uint256 validatorScore) external onlyBonusScoreContract {
+        address stakingAddress = validatorSetContract.stakingByMiningAddress(mining);
+
+        _updateLikelihood(stakingAddress, validatorScore);
     }
 
     // =============================================== Getters ========================================================
@@ -945,6 +976,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         return _pools.contains(_stakingAddress);
     }
 
+    /// @dev Returns a flag indicating whether a specified address is in the `_pools` or `poolsInactive` array.
+    /// @param _stakingAddress The staking address of the pool.
+    function isPoolValid(address _stakingAddress) public view returns (bool) {
+        return _pools.contains(_stakingAddress) || _poolsInactive.contains(_stakingAddress);
+    }
+
     /// @dev Returns the maximum amount which can be withdrawn from the specified pool by the specified staker
     /// at the moment. Used by the `withdraw` and `moveStake` functions.
     /// @param _poolStakingAddress The pool staking address from which the withdrawal will be made.
@@ -952,10 +989,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function maxWithdrawAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        if (
-            !_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker) ||
-            abandonedAndRemoved[_poolStakingAddress]
-        ) {
+        if (!areStakeAndWithdrawAllowed() || abandonedAndRemoved[_poolStakingAddress]) {
             return 0;
         }
 
@@ -987,7 +1021,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function maxWithdrawOrderAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        if (!_isWithdrawAllowed(miningAddress, _poolStakingAddress != _staker)) {
+        if (!areStakeAndWithdrawAllowed()) {
             return 0;
         }
 
@@ -1237,24 +1271,26 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     /// @dev Calculates (updates) the probability of being selected as a validator for the specified pool
     /// and updates the total sum of probability coefficients. Actually, the probability is equal to the
-    /// amount totally staked into the pool. See the `getPoolsLikelihood` getter.
+    /// amount totally staked into the pool multiplied by validator bonus score. See the `getPoolsLikelihood` getter.
     /// Used by the staking and withdrawal functions.
     /// @param _poolStakingAddress The address of the pool for which the probability coefficient must be updated.
     function _setLikelihood(address _poolStakingAddress) private {
+        address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
+        uint256 validatorBonusScore = bonusScoreContract.getValidatorScore(miningAddress);
+
+        _updateLikelihood(_poolStakingAddress, validatorBonusScore);
+    }
+
+    function _updateLikelihood(address _poolStakingAddress, uint256 validatorBonusScore) private {
         (bool isToBeElected, uint256 index) = _isPoolToBeElected(_poolStakingAddress);
 
         if (!isToBeElected) return;
 
         uint256 oldValue = _poolsLikelihood[index];
-        uint256 newValue = stakeAmountTotal[_poolStakingAddress];
+        uint256 newValue = stakeAmountTotal[_poolStakingAddress] * validatorBonusScore;
 
         _poolsLikelihood[index] = newValue;
-
-        if (newValue >= oldValue) {
-            _poolsLikelihoodSum = _poolsLikelihoodSum + (newValue - oldValue);
-        } else {
-            _poolsLikelihoodSum = _poolsLikelihoodSum - (oldValue - newValue);
-        }
+        _poolsLikelihoodSum = _poolsLikelihoodSum - oldValue + newValue;
     }
 
     /// @dev The internal function used by the `_stake` and `moveStake` functions.
@@ -1274,10 +1310,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         if (_amount == 0) {
             revert InsufficientStakeAmount(_poolStakingAddress, _staker);
-        }
-
-        if (validatorSetContract.isValidatorBanned(poolMiningAddress)) {
-            revert PoolMiningBanned(_poolStakingAddress);
         }
 
         if (abandonedAndRemoved[_poolStakingAddress]) {
@@ -1313,6 +1345,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch] += _amount;
         stakeAmountTotal[_poolStakingAddress] += _amount;
+        totalStakedAmount += _amount;
 
         if (selfStake) {
             // `staker` places a stake for himself and becomes a candidate
@@ -1371,6 +1404,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             ? amountByEpoch - _amount
             : 0;
         stakeAmountTotal[_poolStakingAddress] -= _amount;
+        totalStakedAmount -= _amount;
 
         if (newStakeAmount == 0) {
             _withdrawCheckPool(_poolStakingAddress, _staker);
@@ -1450,26 +1484,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             return (true, index);
         }
         return (false, 0);
-    }
-
-    /// @dev Returns `true` if withdrawal from the pool of the specified candidate/validator is allowed at the moment.
-    /// Used by all withdrawal functions.
-    /// @param _miningAddress The mining address of the validator's pool.
-    /// @param _isDelegator Whether the withdrawal is requested by a delegator, not by a candidate/validator.
-    function _isWithdrawAllowed(address _miningAddress, bool _isDelegator) private view returns (bool) {
-        if (_isDelegator) {
-            if (validatorSetContract.areDelegatorsBanned(_miningAddress)) {
-                // The delegator cannot withdraw from the banned validator pool until the ban is expired
-                return false;
-            }
-        } else {
-            if (validatorSetContract.isValidatorBanned(_miningAddress)) {
-                // The banned validator cannot withdraw from their pool until the ban is expired
-                return false;
-            }
-        }
-
-        return areStakeAndWithdrawAllowed();
     }
 
     function _delegatorRewardShare(

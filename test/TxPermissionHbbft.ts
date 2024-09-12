@@ -10,7 +10,8 @@ import {
     StakingHbbftMock,
     TxPermissionHbbftMock,
     ValidatorSetHbbftMock,
-    ConnectivityTrackerHbbft
+    ConnectivityTrackerHbbft,
+    BlockRewardHbbftMock
 } from "../src/types";
 
 import { getTestPartNAcks } from './testhelpers/data';
@@ -56,26 +57,36 @@ describe('TxPermissionHbbft', () => {
 
         const { parts, acks } = getTestPartNAcks();
 
+        const bonusScoreContractMockFactory = await ethers.getContractFactory("BonusScoreSystemMock");
+        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy();
+        await bonusScoreContractMock.waitForDeployment();
+
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            validatorInactivityThreshold: validatorInactivityThreshold,
+        }
+
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbftProxy = await upgrades.deployProxy(
+        const validatorSetHbbft = await upgrades.deployProxy(
             ValidatorSetFactory,
             [
                 owner.address,
-                stubAddress,                   // _blockRewardContract
-                stubAddress,                   // _randomContract
-                stubAddress,                   // _stakingContract
-                stubAddress,                   // _keyGenHistoryContract
-                validatorInactivityThreshold,  // _validatorInactivityThreshold
-                initialValidators,             // _initialMiningAddresses
-                initialStakingAddresses,       // _initialStakingAddresses
+                validatorSetParams,      // _params
+                initialValidators,       // _initialMiningAddresses
+                initialStakingAddresses, // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as ValidatorSetHbbftMock;
 
-        await validatorSetHbbftProxy.waitForDeployment();
+        await validatorSetHbbft.waitForDeployment();
 
         let stakingParams = {
-            _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
+            _validatorSetContract: await validatorSetHbbft.getAddress(),
+            _bonusScoreContract: await bonusScoreContractMock.getAddress(),
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: ethers.parseEther('1'),
             _candidateMinStake: ethers.parseEther('1'),
@@ -98,7 +109,7 @@ describe('TxPermissionHbbft', () => {
 
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
         //Deploy StakingHbbft contract
-        const stakingHbbftProxy = await upgrades.deployProxy(
+        const stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
                 owner.address,
@@ -107,101 +118,86 @@ describe('TxPermissionHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as StakingHbbftMock;
 
-        await stakingHbbftProxy.waitForDeployment();
+        await stakingHbbft.waitForDeployment();
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-        const keyGenHistoryProxy = await upgrades.deployProxy(
+        const keyGenHistory = await upgrades.deployProxy(
             KeyGenFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 initialValidators,
                 parts,
                 acks
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as KeyGenHistory;
 
-        await keyGenHistoryProxy.waitForDeployment();
+        await keyGenHistory.waitForDeployment();
 
         const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifierProxy = await upgrades.deployProxy(
+        const certifier = await upgrades.deployProxy(
             CertifierFactory,
             [
                 [owner.address],
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as CertifierHbbft;
 
-        await certifierProxy.waitForDeployment();
+        await certifier.waitForDeployment();
 
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardHbbftProxy = await upgrades.deployProxy(
+        const blockRewardHbbft = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 stubAddress
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as BlockRewardHbbftMock;
 
-        await blockRewardHbbftProxy.waitForDeployment();
+        await blockRewardHbbft.waitForDeployment();
 
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
-        const connectivityTrackerProxy = await upgrades.deployProxy(
+        const connectivityTracker = await upgrades.deployProxy(
             ConnectivityTrackerFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
-                await stakingHbbftProxy.getAddress(),
-                await blockRewardHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
+                await stakingHbbft.getAddress(),
+                await blockRewardHbbft.getAddress(),
+                await bonusScoreContractMock.getAddress(),
                 minReportAgeBlocks,
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as ConnectivityTrackerHbbft;
 
-        await connectivityTrackerProxy.waitForDeployment();
+        await connectivityTracker.waitForDeployment();
 
         const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbftMock");
-        const txPermissionProxy = await upgrades.deployProxy(
+        const txPermission = await upgrades.deployProxy(
             TxPermissionFactory,
             [
                 allowedSenders,
-                await certifierProxy.getAddress(),
-                await validatorSetHbbftProxy.getAddress(),
-                await keyGenHistoryProxy.getAddress(),
-                await connectivityTrackerProxy.getAddress(),
+                await certifier.getAddress(),
+                await validatorSetHbbft.getAddress(),
+                await keyGenHistory.getAddress(),
+                await connectivityTracker.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as TxPermissionHbbftMock;
 
-        await txPermissionProxy.waitForDeployment();
+        await txPermission.waitForDeployment();
 
-        const txPermission = TxPermissionFactory.attach(await txPermissionProxy.getAddress()) as TxPermissionHbbftMock;
-        const keyGenHistory = KeyGenFactory.attach(await keyGenHistoryProxy.getAddress()) as KeyGenHistory;
-        const certifier = CertifierFactory.attach(await certifierProxy.getAddress()) as CertifierHbbft;
-
-        const validatorSetHbbft = ValidatorSetFactory.attach(
-            await validatorSetHbbftProxy.getAddress()
-        ) as ValidatorSetHbbftMock;
-
-        const stakingHbbft = StakingHbbftFactory.attach(
-            await stakingHbbftProxy.getAddress()
-        ) as StakingHbbftMock;
-
-        const connectivityTracker = ConnectivityTrackerFactory.attach(
-            await connectivityTrackerProxy.getAddress()
-        ) as ConnectivityTrackerHbbft;
-
-        await blockRewardHbbftProxy.setConnectivityTracker(await connectivityTrackerProxy.getAddress());
-        await validatorSetHbbftProxy.setKeyGenHistoryContract(await keyGenHistoryProxy.getAddress());
-        await validatorSetHbbftProxy.setStakingContract(await stakingHbbftProxy.getAddress());
+        await blockRewardHbbft.setConnectivityTracker(await connectivityTracker.getAddress());
+        await validatorSetHbbft.setKeyGenHistoryContract(await keyGenHistory.getAddress());
+        await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
 
         return { txPermission, validatorSetHbbft, certifier, keyGenHistory, stakingHbbft, connectivityTracker };
     }
@@ -539,7 +535,53 @@ describe('TxPermissionHbbft', () => {
             });
         });
 
+        describe('setConnectivityTracker()', async function () {
+            it("should restrict calling setConnectivityTracker to contract owner", async function () {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                const caller = accounts[1];
+
+                await expect(txPermission.connect(caller).setConnectivityTracker(caller.address))
+                    .to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
+                    .withArgs(caller.address);
+            });
+
+            it("should not allow to set connectivity tracker address to zero", async function () {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                await expect(
+                    txPermission.connect(owner).setConnectivityTracker(ethers.ZeroAddress)
+                ).to.be.revertedWithCustomError(txPermission, "ZeroAddress");
+            });
+
+            it("should set connectivity tracker contract and emit event", async function () {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                const newAddress = accounts[10].address;
+
+                await expect(txPermission.connect(owner).setConnectivityTracker(newAddress))
+                    .to.emit(txPermission, "SetConnectivityTracker")
+                    .withArgs(newAddress)
+
+                expect(await txPermission.connectivityTracker()).to.equal(newAddress);
+            });
+        });
+
         describe('allowedTxTypes()', async function () {
+            async function deployMocks() {
+                const mockStakingFactory = await ethers.getContractFactory("MockStaking");
+                const mockStaking = await mockStakingFactory.deploy();
+                await mockStaking.waitForDeployment();
+
+                const mockValidatorSetFactory = await ethers.getContractFactory("MockValidatorSet");
+                const mockValidatorSet = await mockValidatorSetFactory.deploy();
+                await mockValidatorSet.waitForDeployment();
+
+                await mockValidatorSet.setStakingContract(await mockStaking.getAddress());
+
+                return { mockValidatorSet, mockStaking };
+            }
+
             it("should allow all transaction types for allowed sender", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
@@ -727,100 +769,6 @@ describe('TxPermissionHbbft', () => {
                 const ipAddress = '0x11111111111111111111111111111111';
                 const port = '0xbeef';
 
-                it("should allow reportMalicious if callable", async function () {
-                    const { txPermission, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-                    const gasPrice = await txPermission.minimumGasPrice();
-                    const reporter = await ethers.getSigner(initialValidators[0]);
-                    const malicious = initialValidators[1];
-
-                    const latestBlock = await helpers.time.latestBlock();
-
-                    const calldata = validatorSetHbbft.interface.encodeFunctionData(
-                        "reportMalicious",
-                        [
-                            malicious,
-                            latestBlock - 1,
-                            EmptyBytes,
-                        ]
-                    );
-
-                    const result = await txPermission.allowedTxTypes(
-                        reporter.address,
-                        await validatorSetHbbft.getAddress(),
-                        0n,
-                        gasPrice,
-                        ethers.hexlify(calldata),
-                    );
-
-                    expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
-                    expect(result.cache).to.be.false;
-                });
-
-                it("should allow reportMalicious if callable with data length <= 64", async function () {
-                    const { txPermission, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-                    const gasPrice = await txPermission.minimumGasPrice();
-                    const reporter = await ethers.getSigner(initialValidators[0]);
-                    const malicious = initialValidators[1];
-
-                    const latestBlock = await helpers.time.latestBlock();
-
-                    const calldata = validatorSetHbbft.interface.encodeFunctionData(
-                        'reportMalicious',
-                        [
-                            malicious,
-                            latestBlock - 1,
-                            EmptyBytes
-                        ]
-                    );
-
-                    const slicedCalldata = calldata.slice(0, calldata.length - 128);
-
-                    const result = await txPermission.allowedTxTypes(
-                        reporter.address,
-                        await validatorSetHbbft.getAddress(),
-                        0n,
-                        gasPrice,
-                        ethers.hexlify(slicedCalldata),
-                    );
-
-                    expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
-                    expect(result.cache).to.be.false;
-                });
-
-                it("should not allow reportMalicious if not callable", async function () {
-                    const { txPermission, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-                    const gasPrice = await txPermission.minimumGasPrice();
-
-                    // If reporter is not validator, reportMalicious is not callable, that means tx is not allowed
-                    const reporter = await ethers.getSigner(initialStakingAddresses[0]);
-                    const malicious = initialValidators[1];
-
-                    const latestBlock = await helpers.time.latestBlock();
-
-                    const calldata = validatorSetHbbft.interface.encodeFunctionData(
-                        'reportMalicious',
-                        [
-                            malicious,
-                            latestBlock - 1,
-                            EmptyBytes
-                        ]
-                    );
-
-                    const result = await txPermission.allowedTxTypes(
-                        reporter.address,
-                        await validatorSetHbbft.getAddress(),
-                        0,
-                        gasPrice,
-                        ethers.hexlify(calldata),
-                    );
-
-                    expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
-                    expect(result.cache).to.be.false;
-                });
-
                 it("should allow announce availability by known unvailable validator", async function () {
                     const { txPermission, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -982,36 +930,23 @@ describe('TxPermissionHbbft', () => {
                 it("should use default validation for other methods calls with zero gas price", async function () {
                     const { txPermission, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
+                    const sender = accounts[11];
                     const calldata = validatorSetHbbft.interface.encodeFunctionData('newValidatorSet');
 
                     const result = await txPermission.allowedTxTypes(
-                        owner.address,
+                        sender.address,
                         await validatorSetHbbft.getAddress(),
                         0,
                         0,
                         ethers.hexlify(calldata),
                     );
 
-                    expect(result.typesMask).to.equal(AllowedTxTypeMask.All);
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
                     expect(result.cache).to.be.false;
                 });
             });
 
             describe('calls to KeyGenHistory contract', async function () {
-                async function deployMocks() {
-                    const mockStakingFactory = await ethers.getContractFactory("MockStaking");
-                    const mockStaking = await mockStakingFactory.deploy();
-                    await mockStaking.waitForDeployment();
-
-                    const mockValidatorSetFactory = await ethers.getContractFactory("MockValidatorSet");
-                    const mockValidatorSet = await mockValidatorSetFactory.deploy();
-                    await mockValidatorSet.waitForDeployment();
-
-                    await mockValidatorSet.setStakingContract(await mockStaking.getAddress());
-
-                    return { mockValidatorSet, mockStaking };
-                }
-
                 it("should not allow writePart transactions outside of write part time", async function () {
                     const { txPermission, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
 
@@ -1255,6 +1190,32 @@ describe('TxPermissionHbbft', () => {
                     expect(result.typesMask).to.equal(AllowedTxTypeMask.Call);
                     expect(result.cache).to.be.false;
                 });
+
+                it("should use default validation for other methods calls", async function () {
+                    const { txPermission, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
+                    const { mockValidatorSet, mockStaking } = await deployMocks();
+
+                    const epoch = 10;
+
+                    await txPermission.setValidatorSetContract(await mockValidatorSet.getAddress());
+                    await mockValidatorSet.setKeyGenMode(KeyGenMode.WriteAck);
+                    await mockStaking.setStakingEpoch(epoch);
+
+                    const calldata = keyGenHistory.interface.encodeFunctionData('clearPrevKeyGenState', [[]]);
+                    const caller = accounts[8];
+                    const gasPrice = await txPermission.minimumGasPrice();
+
+                    const result = await txPermission.allowedTxTypes(
+                        caller.address,
+                        await keyGenHistory.getAddress(),
+                        0,
+                        gasPrice,
+                        ethers.hexlify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.All);
+                    expect(result.cache).to.be.false;
+                });
             });
 
             describe('calls to ConnectivityTracker contract', async function () {
@@ -1390,6 +1351,68 @@ describe('TxPermissionHbbft', () => {
                         0,
                         gasPrice,
                         ethers.hexlify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.None);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should use default validation for other methods calls", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+                    const { mockValidatorSet, mockStaking } = await deployMocks();
+
+                    const epoch = 10;
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const caller = accounts[10];
+
+                    await txPermission.setValidatorSetContract(await mockValidatorSet.getAddress());
+                    await mockValidatorSet.setKeyGenMode(KeyGenMode.WriteAck);
+                    await mockStaking.setStakingEpoch(epoch);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData('penaliseFaultyValidators', [epoch]);
+
+                    const result = await txPermission.allowedTxTypes(
+                        caller.address,
+                        await connectivityTracker.getAddress(),
+                        0,
+                        gasPrice,
+                        ethers.hexlify(calldata),
+                    );
+
+                    expect(result.typesMask).to.equal(AllowedTxTypeMask.All);
+                    expect(result.cache).to.be.false;
+                });
+
+                it("should skip unknown params in calldata", async function () {
+                    const { txPermission, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+                    const gasPrice = await txPermission.minimumGasPrice();
+                    const reporter = await ethers.getSigner(initialValidators[0]);
+
+                    await helpers.mine(minReportAgeBlocks + 1n);
+
+                    const latestBlockNum = await helpers.time.latestBlock();
+                    const block = await ethers.provider.getBlock(latestBlockNum - 1);
+
+                    const calldata = connectivityTracker.interface.encodeFunctionData(
+                        'reportReconnect',
+                        [
+                            initialValidators[1],
+                            block!.number,
+                            ethers.ZeroHash,
+                        ]
+                    );
+
+                    const abiCoder = new ethers.AbiCoder();
+                    const additionalArg =  abiCoder.encode(["address"], [reporter.address]);
+
+                    const result = await txPermission.allowedTxTypes(
+                        reporter.address,
+                        await connectivityTracker.getAddress(),
+                        0,
+                        gasPrice,
+                        ethers.hexlify(calldata + additionalArg.slice(2)),
                     );
 
                     expect(result.typesMask).to.equal(AllowedTxTypeMask.None);

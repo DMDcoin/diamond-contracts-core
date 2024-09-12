@@ -19,16 +19,21 @@ describe('CertifierHbbft contract', () => {
     async function deployContracts() {
         const stubAddress = accounts[1].address;
 
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: stubAddress,
+            validatorInactivityThreshold: validatorInactivityThreshold,
+        }
+
         const validatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
         const validatorSetHbbftProxy = await upgrades.deployProxy(
             validatorSetFactory,
             [
                 owner.address,
-                stubAddress,                  // _blockRewardContract
-                stubAddress,                  // _randomContract
-                stubAddress,                  // _stakingContract
-                stubAddress,                  // _keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
+                validatorSetParams,           // _params
                 initialValidators,            // _initialMiningAddresses
                 initialStakingAddresses,      // _initialStakingAddresses
             ],

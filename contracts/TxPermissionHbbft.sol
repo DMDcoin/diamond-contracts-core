@@ -12,13 +12,19 @@ import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
 
-import { DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE, MIN_BLOCK_GAS_LIMIT } from "./lib/Constants.sol";
+import { DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE } from "./lib/Constants.sol";
 import { ZeroAddress } from "./lib/Errors.sol";
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
 /// protecting the network against "transaction spamming" by malicious validators.
 /// The protection logic is declared in the `allowedTxTypes` function.
 contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, ValueGuards {
+    struct AllowanceCheckResult {
+        uint32 mask;
+        bool knownFunc;
+        bool cache;
+    }
+
     // =============================================== Storage ========================================================
 
     // WARNING: since this contract is upgradeable, do not remove
@@ -60,9 +66,6 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     uint32 internal constant PRIVATE = 0x08;
 
     // Function signatures
-
-    // bytes4(keccak256("reportMalicious(address,uint256,bytes)"))
-    bytes4 public constant REPORT_MALICIOUS_SIGNATURE = 0xc476dd40;
 
     // bytes4(keccak256("writePart(uint256,uint256,bytes)"))
     bytes4 public constant WRITE_PART_SIGNATURE = 0x2d4de124;
@@ -220,13 +223,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     /// The limit can be changed by the owner (typical the DAO)
     /// @param _value The new minimum gas price.
     function setMinimumGasPrice(uint256 _value) public onlyOwner withinAllowedRange(_value) {
-        // currently, we do not allow to set the minimum gas price to 0,
-        // that would open pandoras box, and the consequences of doing that,
-        // requires deeper research.
-        if (_value == 0) {
-            revert InvalidMinGasPrice();
-        }
-
+        // param value validation is done in the {ValueGuards-withinAllowedRange} modifier
         minimumGasPrice = _value;
 
         emit GasPriceChanged(_value);
@@ -235,13 +232,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     /// @dev set's the block gas limit.
     /// IN HBBFT, there must be consens about the block gas limit.
     function setBlockGasLimit(uint256 _value) public onlyOwner withinAllowedRange(_value) {
-        // we make some check that the block gas limit can not be set to low,
-        // to prevent the chain to be completly inoperatable.
-        // this value is chosen arbitrarily
-        if (_value < MIN_BLOCK_GAS_LIMIT) {
-            revert InvalidBlockGasLimit();
-        }
-
+        // param value validation is done in the {ValueGuards-withinAllowedRange} modifier
         blockGasLimit = _value;
 
         emit BlockGasLimitChanged(_value);
@@ -316,24 +307,6 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         }
 
         if (_to == address(validatorSetContract)) {
-            // The rules for the ValidatorSet contract
-            if (signature == REPORT_MALICIOUS_SIGNATURE) {
-                uint256 paramsSize = _data.length - 4 > 64 ? 64 : _data.length - 4;
-                bytes memory abiParams = _memcpy(_data, paramsSize, 4);
-
-                (address maliciousMiningAddress, uint256 blockNumber) = abi.decode(abiParams, (address, uint256));
-
-                // The `reportMalicious()` can only be called by the validator's mining address
-                // when the calling is allowed
-                // slither-disable-next-line unused-return
-                (bool callable, ) = validatorSetContract.reportMaliciousCallable(
-                    _sender,
-                    maliciousMiningAddress,
-                    blockNumber
-                );
-                return (callable ? CALL : NONE, false);
-            }
-
             if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
                 return (validatorSetContract.canCallAnnounceAvailability(_sender) ? CALL : NONE, false);
             }
@@ -430,8 +403,9 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         }
 
         if (_to == address(connectivityTracker)) {
-            if (signature == REPORT_MISSING_CONNECTIVITY_SELECTOR || signature == REPORT_RECONNECT_SELECTOR) {
-                return _handleCallToConnectivityTracker(_sender, signature, _data);
+            AllowanceCheckResult memory result = _handleCallToConnectivityTracker(_sender, signature, _data);
+            if (result.knownFunc) {
+                return (result.mask, result.cache);
             }
 
             // if there is another external call to ConnectivityTracker contracts.
@@ -503,35 +477,39 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         address sender,
         bytes4 selector,
         bytes memory _calldata
-    ) internal view returns (uint32 typesMask, bool cache) {
+    ) internal view returns (AllowanceCheckResult memory) {
         // 3 x 32 bytes calldata args = 96 bytes
         uint256 paramsSize = _calldata.length - 4 > 96 ? 96 : _calldata.length - 4;
         bytes memory params = _memcpy(_calldata, paramsSize, 4);
 
-        (address validator, uint256 blockNumber, bytes32 blockHash) = abi.decode(params, (address, uint256, bytes32));
+        AllowanceCheckResult memory result = AllowanceCheckResult({ mask: NONE, knownFunc: true, cache: false });
 
         if (selector == REPORT_MISSING_CONNECTIVITY_SELECTOR) {
-            uint32 mask = NONE;
+            (address validator, uint256 blockNumber, bytes32 blockHash) = abi.decode(
+                params,
+                (address, uint256, bytes32)
+            );
 
             try connectivityTracker.checkReportMissingConnectivityCallable(sender, validator, blockNumber, blockHash) {
-                mask = CALL;
+                result.mask = CALL;
             } catch {
-                mask = NONE;
+                result.mask = NONE;
             }
-
-            return (mask, false);
-        }
-
-        if (selector == REPORT_RECONNECT_SELECTOR) {
-            uint32 mask = NONE;
+        } else if (selector == REPORT_RECONNECT_SELECTOR) {
+            (address validator, uint256 blockNumber, bytes32 blockHash) = abi.decode(
+                params,
+                (address, uint256, bytes32)
+            );
 
             try connectivityTracker.checkReportReconnectCallable(sender, validator, blockNumber, blockHash) {
-                mask = CALL;
+                result.mask = CALL;
             } catch {
-                mask = NONE;
+                result.mask = NONE;
             }
-
-            return (mask, false);
+        } else {
+            result.knownFunc = false;
         }
+
+        return result;
     }
 }

@@ -29,4 +29,6 @@ interface IConnectivityTrackerHbbft {
     ) external view;
 
     function isEarlyEpochEnd(uint256 epoch) external view returns (bool);
+
+    function penaliseFaultyValidators(uint256 epoch) external;
 }

@@ -16,6 +16,7 @@ import {
 
 import { getTestPartNAcks } from './testhelpers/data';
 import { Permission } from "./testhelpers/Permission";
+import { deployDao } from "./testhelpers/daoDeployment";
 
 const logOutput = false;
 
@@ -214,56 +215,68 @@ describe('KeyGenHistory', () => {
             console.log('initial Staking Addresses', initializingStakingAddresses);
         }
 
+        await deployDao();
+
+        const bonusScoreContractMockFactory = await ethers.getContractFactory("BonusScoreSystemMock");
+        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy();
+        await bonusScoreContractMock.waitForDeployment();
+
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
         const connectivityTracker = await ConnectivityTrackerFactory.deploy();
         await connectivityTracker.waitForDeployment();
 
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            validatorInactivityThreshold: validatorInactivityThreshold,
+        }
+
         // Deploy ValidatorSet contract
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbftProxy = await upgrades.deployProxy(
+        validatorSetHbbft = await upgrades.deployProxy(
             ValidatorSetFactory,
             [
                 owner.address,
-                stubAddress,                  // _blockRewardContract
-                stubAddress,                  // _randomContract
-                stubAddress,                  // _stakingContract
-                stubAddress,                  // _keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
+                validatorSetParams,           // _params
                 initializingMiningAddresses,  // _initialMiningAddresses
                 initializingStakingAddresses, // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as ValidatorSetHbbftMock;
 
-        await validatorSetHbbftProxy.waitForDeployment();
+        await validatorSetHbbft.waitForDeployment();
 
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardHbbftProxy = await upgrades.deployProxy(
+        blockRewardHbbft = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 await connectivityTracker.getAddress()
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as BlockRewardHbbftMock;
 
-        await blockRewardHbbftProxy.waitForDeployment();
+        await blockRewardHbbft.waitForDeployment();
 
         const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-        const randomHbbftProxy = await upgrades.deployProxy(
+        randomHbbft = await upgrades.deployProxy(
             RandomHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress()
+                await validatorSetHbbft.getAddress()
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as RandomHbbft;
 
-        await randomHbbftProxy.waitForDeployment();
+        await randomHbbft.waitForDeployment();
 
         const stakingParams = {
-            _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
+            _validatorSetContract: await validatorSetHbbft.getAddress(),
+            _bonusScoreContract: await bonusScoreContractMock.getAddress(),
             _initialStakingAddresses: initializingStakingAddresses,
             _delegatorMinStake: delegatorMinStake,
             _candidateMinStake: candidateMinStake,
@@ -274,7 +287,7 @@ describe('KeyGenHistory', () => {
         };
 
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-        const stakingHbbftProxy = await upgrades.deployProxy(
+        stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
                 owner.address,
@@ -283,79 +296,53 @@ describe('KeyGenHistory', () => {
                 initialValidatorsIpAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as StakingHbbftMock;
 
-        await stakingHbbftProxy.waitForDeployment();
+        await stakingHbbft.waitForDeployment();
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-        const keyGenHistoryProxy = await upgrades.deployProxy(
+        keyGenHistory = await upgrades.deployProxy(
             KeyGenFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 initializingMiningAddresses,
                 parts,
                 acks
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as KeyGenHistory;
 
-        await keyGenHistoryProxy.waitForDeployment();
+        await keyGenHistory.waitForDeployment();
 
         const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifierProxy = await upgrades.deployProxy(
+        certifier = await upgrades.deployProxy(
             CertifierFactory,
             [
                 [owner.address],
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as CertifierHbbft;
 
-        await certifierProxy.waitForDeployment()
+        await certifier.waitForDeployment()
 
         const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
-        const txPermissionProxy = await upgrades.deployProxy(
+        txPermission = await upgrades.deployProxy(
             TxPermissionFactory,
             [
                 [owner.address],
-                await certifierProxy.getAddress(),
-                await validatorSetHbbftProxy.getAddress(),
-                await keyGenHistoryProxy.getAddress(),
+                await certifier.getAddress(),
+                await validatorSetHbbft.getAddress(),
+                await keyGenHistory.getAddress(),
                 stubAddress,
                 owner.address
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as TxPermissionHbbft;
 
-        await txPermissionProxy.waitForDeployment();
-
-        validatorSetHbbft = ValidatorSetFactory.attach(
-            await validatorSetHbbftProxy.getAddress()
-        ) as ValidatorSetHbbftMock;
-
-        blockRewardHbbft = BlockRewardHbbftFactory.attach(
-            await blockRewardHbbftProxy.getAddress()
-        ) as BlockRewardHbbftMock;
-
-        randomHbbft = RandomHbbftFactory.attach(await randomHbbftProxy.getAddress()) as RandomHbbft;
-
-        stakingHbbft = StakingHbbftFactory.attach(
-            await stakingHbbftProxy.getAddress()
-        ) as StakingHbbftMock;
-
-        keyGenHistory = KeyGenFactory.attach(
-            await keyGenHistoryProxy.getAddress()
-        ) as KeyGenHistory;
-
-        certifier = CertifierFactory.attach(
-            await certifierProxy.getAddress()
-        ) as CertifierHbbft;
-
-        txPermission = TxPermissionFactory.attach(
-            await txPermissionProxy.getAddress()
-        ) as TxPermissionHbbft;
+        await txPermission.waitForDeployment();
 
         keyGenHistoryPermission = new Permission(txPermission, keyGenHistory, logOutput);
 
@@ -563,15 +550,11 @@ describe('KeyGenHistory', () => {
         });
 
         it('failed KeyGeneration, availability.', async () => {
-            const stakingBanned = await validatorSetHbbft.bannedUntil(stakingAddresses[0]);
-            const miningBanned = await validatorSetHbbft.bannedUntil(miningAddresses[0]);
             const currentTS = await helpers.time.latest();
             const newPoolStakingAddress = stakingAddresses[4];
             const newPoolMiningAddress = miningAddresses[4];
 
             if (logOutput) {
-                console.log('stakingBanned?', stakingBanned);
-                console.log('miningBanned?', miningBanned);
                 console.log('currentTS:', currentTS);
                 console.log('newPoolStakingAddress:', newPoolStakingAddress);
                 console.log('newPoolMiningAddress:', newPoolMiningAddress);

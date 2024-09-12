@@ -14,6 +14,7 @@ import {
 } from "../src/types";
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
+import { deployDao } from "./testhelpers/daoDeployment";
 
 //consts
 const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
@@ -67,56 +68,67 @@ describe('StakingHbbft', () => {
     async function deployContractsFixture() {
         const stubAddress = owner.address;
 
+        await deployDao();
+
+        const bonusScoreContractMockFactory = await ethers.getContractFactory("BonusScoreSystemMock");
+        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy();
+        await bonusScoreContractMock.waitForDeployment();
+
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
         const connectivityTracker = await ConnectivityTrackerFactory.deploy();
         await connectivityTracker.waitForDeployment();
 
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            validatorInactivityThreshold: validatorInactivityThreshold,
+        }
+
         // Deploy ValidatorSet contract
         const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbftProxy = await upgrades.deployProxy(
+        const validatorSetHbbft = await upgrades.deployProxy(
             ValidatorSetFactory,
             [
                 owner.address,
-                stubAddress,                  // _blockRewardContract
-                stubAddress,                  // _randomContract
-                stubAddress,                  // _stakingContract
-                stubAddress,                  // _keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
+                validatorSetParams,
                 initialValidators,            // _initialMiningAddresses
                 initialStakingAddresses,      // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as ValidatorSetHbbftMock;
 
-        await validatorSetHbbftProxy.waitForDeployment();
+        await validatorSetHbbft.waitForDeployment();
 
         // Deploy BlockRewardHbbft contract
         const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardHbbftProxy = await upgrades.deployProxy(
+        const blockRewardHbbft = await upgrades.deployProxy(
             BlockRewardHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 await connectivityTracker.getAddress(),
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as BlockRewardHbbftMock;
 
-        await blockRewardHbbftProxy.waitForDeployment();
+        await blockRewardHbbft.waitForDeployment();
 
-        await validatorSetHbbftProxy.setBlockRewardContract(await blockRewardHbbftProxy.getAddress());
+        await validatorSetHbbft.setBlockRewardContract(await blockRewardHbbft.getAddress());
 
         const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-        const randomHbbftProxy = await upgrades.deployProxy(
+        const randomHbbft = await upgrades.deployProxy(
             RandomHbbftFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress()
+                await validatorSetHbbft.getAddress()
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as RandomHbbft;
 
-        await randomHbbftProxy.waitForDeployment();
+        await randomHbbft.waitForDeployment();
 
         //without that, the Time is 0,
         //meaning a lot of checks that expect time to have some value deliver incorrect results.
@@ -125,22 +137,23 @@ describe('StakingHbbft', () => {
         const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
 
         const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-        const keyGenHistoryProxy = await upgrades.deployProxy(
+        const keyGenHistory = await upgrades.deployProxy(
             KeyGenFactory,
             [
                 owner.address,
-                await validatorSetHbbftProxy.getAddress(),
+                await validatorSetHbbft.getAddress(),
                 initialValidators,
                 parts,
                 acks
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as KeyGenHistory;
 
-        await keyGenHistoryProxy.waitForDeployment();
+        await keyGenHistory.waitForDeployment();
 
         let stakingParams = {
-            _validatorSetContract: await validatorSetHbbftProxy.getAddress(),
+            _validatorSetContract: await validatorSetHbbft.getAddress(),
+            _bonusScoreContract: await bonusScoreContractMock.getAddress(),
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: minStakeDelegators,
             _candidateMinStake: minStake,
@@ -166,7 +179,7 @@ describe('StakingHbbft', () => {
         initialValidatorsIpAddresses = Array(initialValidators.length).fill(ZeroIpAddress);
 
         const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-        const stakingHbbftProxy = await upgrades.deployProxy(
+        const stakingHbbft = await upgrades.deployProxy(
             StakingHbbftFactory,
             [
                 owner.address,
@@ -175,31 +188,16 @@ describe('StakingHbbft', () => {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        );
+        ) as unknown as StakingHbbftMock;
 
-        await stakingHbbftProxy.waitForDeployment();
+        await stakingHbbft.waitForDeployment();
 
-        await validatorSetHbbftProxy.setRandomContract(await randomHbbftProxy.getAddress());
-        await validatorSetHbbftProxy.setStakingContract(await stakingHbbftProxy.getAddress());
-        await validatorSetHbbftProxy.setKeyGenHistoryContract(await keyGenHistoryProxy.getAddress());
-
-        const validatorSetHbbft = ValidatorSetFactory.attach(
-            await validatorSetHbbftProxy.getAddress()
-        ) as ValidatorSetHbbftMock;
-
-        const stakingHbbft = StakingHbbftFactory.attach(
-            await stakingHbbftProxy.getAddress()
-        ) as StakingHbbftMock;
-
-        const blockRewardHbbft = BlockRewardHbbftFactory.attach(
-            await blockRewardHbbftProxy.getAddress()
-        ) as BlockRewardHbbftMock;
+        await validatorSetHbbft.setRandomContract(await randomHbbft.getAddress());
+        await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
+        await validatorSetHbbft.setKeyGenHistoryContract(await keyGenHistory.getAddress());
 
         const delegatorMinStake = await stakingHbbft.delegatorMinStake();
         const candidateMinStake = await stakingHbbft.candidateMinStake();
-
-        const randomHbbft = RandomHbbftFactory.attach(await randomHbbftProxy.getAddress()) as RandomHbbft;
-        const keyGenHistory = KeyGenFactory.attach(await keyGenHistoryProxy.getAddress()) as KeyGenHistory;
 
         return {
             validatorSetHbbft,
@@ -602,7 +600,8 @@ describe('StakingHbbft', () => {
     });
 
     describe('initialize()', async () => {
-        const validatorSetContract = '0x1000000000000000000000000000000000000001';
+        const validatorSetContract = ethers.Wallet.createRandom().address;
+        const bonusScoreContract = ethers.Wallet.createRandom().address;
 
         beforeEach(async () => {
             // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
@@ -628,6 +627,7 @@ describe('StakingHbbft', () => {
         it('should initialize successfully', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStakeDelegators,
                 _candidateMinStake: minStake,
@@ -647,7 +647,7 @@ describe('StakingHbbft', () => {
                     initialValidatorsIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
-            );
+            ) as unknown as StakingHbbftMock;
 
             await stakingHbbft.waitForDeployment();
 
@@ -669,6 +669,7 @@ describe('StakingHbbft', () => {
         it('should fail if owner = address(0)', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -694,6 +695,7 @@ describe('StakingHbbft', () => {
         it('should fail if ValidatorSet contract address is zero', async () => {
             let stakingParams = {
                 _validatorSetContract: ethers.ZeroAddress,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -719,6 +721,7 @@ describe('StakingHbbft', () => {
         it('should fail if delegatorMinStake is zero', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: 0,
                 _candidateMinStake: minStake,
@@ -745,6 +748,7 @@ describe('StakingHbbft', () => {
         it('should fail if candidateMinStake is zero', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: 0,
@@ -771,6 +775,7 @@ describe('StakingHbbft', () => {
         it('should fail if already initialized', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -805,6 +810,7 @@ describe('StakingHbbft', () => {
         it('should fail if stakingEpochDuration is 0', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -830,6 +836,7 @@ describe('StakingHbbft', () => {
         it('should fail if stakingWithdrawDisallowPeriod is 0', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -855,6 +862,7 @@ describe('StakingHbbft', () => {
         it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -882,6 +890,7 @@ describe('StakingHbbft', () => {
 
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -907,6 +916,7 @@ describe('StakingHbbft', () => {
         it('should fail if timewindow is 0', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -932,6 +942,7 @@ describe('StakingHbbft', () => {
         it('should fail if transition timewindow is smaller than the staking time window', async () => {
             let stakingParams = {
                 _validatorSetContract: validatorSetContract,
+                _bonusScoreContract: bonusScoreContract,
                 _initialStakingAddresses: initialStakingAddresses,
                 _delegatorMinStake: minStake,
                 _candidateMinStake: minStake,
@@ -1130,30 +1141,6 @@ describe('StakingHbbft', () => {
             await expect(stakingHbbft.connect(delegatorAddress).stake(initialStakingAddresses[1], { value: 0 }))
                 .to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount")
                 .withArgs(pool, delegatorAddress.address);
-        });
-
-        it('should fail for a banned validator', async () => {
-            const {
-                stakingHbbft,
-                validatorSetHbbft,
-                candidateMinStake,
-                delegatorMinStake
-            } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = await ethers.getSigner(initialStakingAddresses[1]);
-
-            await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
-
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await validatorSetHbbft.connect(systemSigner).removeMaliciousValidators([initialValidators[1]]);
-
-            await expect(stakingHbbft.connect(delegatorAddress).stake(
-                pool.address,
-                { value: delegatorMinStake }
-            )).to.be.revertedWithCustomError(stakingHbbft, "PoolMiningBanned")
-                .withArgs(pool.address);
-
-            await helpers.stopImpersonatingAccount(systemSigner.address);
         });
 
         it.skip('should only success in the allowed staking window', async () => {
@@ -1575,31 +1562,6 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
 
             await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
-        });
-
-        it("shouldn't allow withdrawing from a banned pool", async () => {
-            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = await ethers.getSigner(initialStakingAddresses[1]);
-
-            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
-            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: stakeAmount });
-
-            await validatorSetHbbft.setBannedUntil(initialValidators[1], '0xffffffffffffffff');
-
-            const maxAllowedForPool = await stakingHbbft.maxWithdrawOrderAllowed(pool.address, pool.address);
-            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount))
-                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
-                .withArgs(maxAllowedForPool, stakeAmount);
-
-            const maxAllowedForDelegator = await stakingHbbft.maxWithdrawOrderAllowed(pool.address, delegatorAddress.address);
-            await expect(stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount))
-                .to.be.revertedWithCustomError(stakingHbbft, "MaxAllowedWithdrawExceeded")
-                .withArgs(maxAllowedForDelegator, stakeAmount);
-
-            await validatorSetHbbft.setBannedUntil(initialValidators[1], 0n);
-            await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
-            await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, stakeAmount);
         });
 
         it.skip("shouldn't allow withdrawing during the stakingWithdrawDisallowPeriod", async () => {
@@ -2272,8 +2234,6 @@ describe('StakingHbbft', () => {
 
         it('should set delegator min stake', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            console.log("mim stake: ", await stakingHbbft.delegatorMinStake());
             const minStakeValue = ethers.parseEther('150')
             await stakingHbbft.setDelegatorMinStake(minStakeValue);
             expect(await stakingHbbft.delegatorMinStake()).to.be.equal(minStakeValue);

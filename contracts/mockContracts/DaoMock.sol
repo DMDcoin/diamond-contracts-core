@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-
-import { IGovernancePot } from "../interfaces/IGovernancePot.sol";  
+import { IGovernancePot } from "../interfaces/IGovernancePot.sol";
 
 contract DaoMock is IGovernancePot {
-
     uint256 public phaseCounter;
-    
+
     error SwitchPhaseReverted();
 
     function switchPhase() external {
@@ -21,7 +19,5 @@ contract DaoMock is IGovernancePot {
         }
     }
 
-    receive() external payable {
-
-    }
+    receive() external payable {}
 }

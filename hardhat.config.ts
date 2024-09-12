@@ -69,8 +69,6 @@ const config: HardhatUserConfig = {
                     browserURL: "http://185.187.170.209:4000/",
                 },
             },
-
-                        
         ],
     },
     contractSizer: {
@@ -79,13 +77,10 @@ const config: HardhatUserConfig = {
         disambiguatePaths: false,
         only: [
             "Hbbft",
-            "Registry"
+            "Registry",
+            ":BonusScoreSystem"
         ],
-        except: [
-            "Mock",
-            "Sacrifice",
-            "Base"
-        ]
+        except: ["Mock"]
     },
     gasReporter: {
         currency: "USD",
@@ -178,9 +173,6 @@ const config: HardhatUserConfig = {
     mocha: {
         timeout: 100000000
     },
-    upgrades: {
-        
-    }
 };
 
 export default config;

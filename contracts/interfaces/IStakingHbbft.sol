@@ -4,6 +4,7 @@ pragma solidity =0.8.25;
 interface IStakingHbbft {
     struct StakingParams {
         address _validatorSetContract;
+        address _bonusScoreContract;
         address[] _initialStakingAddresses;
         uint256 _delegatorMinStake;
         uint256 _candidateMinStake;
@@ -27,6 +28,8 @@ interface IStakingHbbft {
 
     function notifyNetworkOfftimeDetected(uint256) external;
 
+    function updatePoolLikelihood(address mining, uint256 validatorScore) external;
+
     function getPoolPublicKey(address _poolAddress)
         external
         view
@@ -41,7 +44,11 @@ interface IStakingHbbft {
 
     function getPoolsToBeRemoved() external view returns (address[] memory);
 
+    function getPoolsInactive() external view returns (address[] memory);
+
     function isPoolActive(address) external view returns (bool);
+
+    function isPoolValid(address) external view returns (bool);
 
     function MAX_CANDIDATES() external pure returns (uint256); // solhint-disable-line func-name-mixedcase
 
@@ -61,6 +68,8 @@ interface IStakingHbbft {
     function stakeAmount(address, address) external view returns (uint256);
 
     function stakeAmountTotal(address) external view returns (uint256);
+
+    function totalStakedAmount() external view returns (uint256);
 
     function stakingWithdrawDisallowPeriod() external view returns (uint256);
 
