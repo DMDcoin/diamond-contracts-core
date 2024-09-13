@@ -47,11 +47,6 @@ describe('StakingHbbft', () => {
     const stakingTransitionTimeframeLength = 3600n;
     const stakingWithdrawDisallowPeriod = 1n;
 
-    // the amount the deltaPot gets filled up.
-    // this is 60-times more, since the deltaPot get's
-    // drained each step by 60 by default.
-    const deltaPotFillupValue = epochReward * 60n;
-
     const validatorInactivityThreshold = 365n * 86400n // 1 year
 
     async function impersonateAcc(accAddress: string) {
@@ -84,6 +79,7 @@ describe('StakingHbbft', () => {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            connectivityTrackerContract: await connectivityTracker.getAddress(),
             validatorInactivityThreshold: validatorInactivityThreshold,
         }
 
@@ -2018,8 +2014,13 @@ describe('StakingHbbft', () => {
 
             for (let i = 0; i < initialStakingAddresses.length; ++i) {
                 const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                const mining = await ethers.getSigner(initialValidators[i]);
 
                 await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+                const latestBlock = await ethers.provider.getBlock('latest');
+                await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+
                 expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
             }
 
@@ -2067,8 +2068,13 @@ describe('StakingHbbft', () => {
 
             for (let i = 0; i < initialStakingAddresses.length; ++i) {
                 const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                const mining = await ethers.getSigner(initialValidators[i]);
 
                 await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+                const latestBlock = await ethers.provider.getBlock('latest');
+                await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+
                 expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
             }
 
@@ -2090,9 +2096,9 @@ describe('StakingHbbft', () => {
                 let _poolTotalStake = candidateMinStake;
 
                 // first delegator will stake minimum, 2nd = 2x, 3rd = 3x ....
-                let stake = BigInt(0); 
+                let stake = BigInt(0);
                 for (const _delegator of delegators) {
-                    
+
                     stake += minStakeDelegators;
                     stakeRecords.push({ delegator: _delegator.address, pool: _pool, stake: stake });
 

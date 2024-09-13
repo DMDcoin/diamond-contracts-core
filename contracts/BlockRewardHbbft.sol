@@ -166,7 +166,7 @@ contract BlockRewardHbbft is
         for (uint256 i = 0; i < governancePotShareNominatorParams.length; i++) {
             governancePotShareNominatorParams[i] = 10 + i;
         }
-        
+
         initAllowedChangeableParameter(
             "setGovernancePotShareNominator(uint256)",
             "governancePotShareNominatorParams()",
@@ -252,10 +252,8 @@ contract BlockRewardHbbft is
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.getStakingContract());
 
         // If this is the last block of the epoch i.e. master key has been generated.
-        if (_isEpochEndBlock || earlyEpochEnd) {
+        if (_isEpochEndBlock) {
             rewardsNative = _closeEpoch(stakingContract);
-
-            earlyEpochEnd = false;
 
             emit CoinsRewarded(rewardsNative);
         } else {
@@ -451,9 +449,15 @@ contract BlockRewardHbbft is
             }
         }
 
-        if ((isPhaseTransition || toBeUpscaled) && validatorSetContract.getPendingValidators().length == 0) {
+        bool validatorSetChangeTrigger = isPhaseTransition || toBeUpscaled || earlyEpochEnd;
+
+        if (validatorSetChangeTrigger && validatorSetContract.getPendingValidators().length == 0) {
             // Choose new validators
             validatorSetContract.newValidatorSet();
+
+            // in any case we reset early epoch end flag because
+            // the validator set change already in progress
+            earlyEpochEnd = false;
         } else if (block.timestamp >= stakingContract.stakingFixedEpochEndTime()) {
             validatorSetContract.handleFailedKeyGeneration();
         }
@@ -482,6 +486,8 @@ contract BlockRewardHbbft is
         // Indicates whether the validator is entitled to share the rewartds or not.
         bool[] memory isRewardedValidator = new bool[](validators.length);
 
+        uint256 currentEpochStartTime = stakingContract.stakingEpochStartTime();
+
         // Number of validators that are being rewarded.
         uint256 numRewardedValidators = 0;
 
@@ -492,6 +498,13 @@ contract BlockRewardHbbft is
             );
 
             if (validatorStakeAmount == 0) {
+                continue;
+            }
+
+            // validator who is unavailable or set himself available (because it was unavailable)
+            // in current epoch, should not get rewards for it.
+            uint256 availableSince = validatorSetContract.validatorAvailableSince(validators[i]);
+            if (availableSince == 0 || availableSince >= currentEpochStartTime) {
                 continue;
             }
 

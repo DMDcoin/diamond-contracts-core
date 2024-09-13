@@ -25,6 +25,7 @@ describe('CertifierHbbft contract', () => {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: stubAddress,
+            connectivityTrackerContract: stubAddress,
             validatorInactivityThreshold: validatorInactivityThreshold,
         }
 
