@@ -96,17 +96,21 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
     IBonusScoreSystem public bonusScoreSystem;
 
+    address public connectivityTracker;
+
     // ================================================ Events ========================================================
 
     event ValidatorAvailable(address validator, uint256 timestamp);
 
-    /// @dev Emitted by the `handleFailedKeyGeneration` function to signal that a specific validator was
-    /// marked as unavailable since he dit not contribute to the required key shares.
+    /// @dev Emitted by the `handleFailedKeyGeneration` and `notifyUnavailability` functions to signal that a specific
+    /// validator was marked as unavailable since he dit not contribute to the required key shares or 2/3 of other
+    /// validators reporter him as disconnected.
     event ValidatorUnavailable(address validator, uint256 timestamp);
 
     event SetMaxValidators(uint256 _count);
     event SetValidatorInactivityThreshold(uint256 _value);
     event SetBonusScoreContract(address _address);
+    event SetConnectivityTrackerContract(address _address);
 
     error AnnounceBlockNumberTooOld();
     error CantAnnounceAvailability();
@@ -132,17 +136,16 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         _;
     }
 
-    /// @dev Ensures the caller is the RandomHbbft contract address.
-    modifier onlyRandomContract() {
-        if (msg.sender != randomContract) {
+    /// @dev Ensures the caller is the StakingHbbft contract address.
+    modifier onlyStakingContract() {
+        if (msg.sender != address(stakingContract)) {
             revert Unauthorized();
         }
         _;
     }
 
-    /// @dev Ensures the caller is the StakingHbbft contract address.
-    modifier onlyStakingContract() {
-        if (msg.sender != address(stakingContract)) {
+    modifier onlyConnectivityTracker() {
+        if (msg.sender != connectivityTracker) {
             revert Unauthorized();
         }
         _;
@@ -202,6 +205,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         stakingContract = IStakingHbbft(_params.stakingContract);
         keyGenHistoryContract = IKeyGenHistory(_params.keyGenHistoryContract);
         bonusScoreSystem = IBonusScoreSystem(_params.bonusScoreContract);
+        connectivityTracker = _params.connectivityTrackerContract;
         validatorInactivityThreshold = _params.validatorInactivityThreshold;
 
         // Add initial validators to the `_currentValidators` array
@@ -269,6 +273,16 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         bonusScoreSystem = IBonusScoreSystem(_address);
 
         emit SetBonusScoreContract(_address);
+    }
+
+    function setConnectivityTracker(address _address) external onlyOwner {
+        if (_address == address(0)) {
+            revert ZeroAddress();
+        }
+
+        connectivityTracker = _address;
+
+        emit SetConnectivityTrackerContract(_address);
     }
 
     /// @dev called by validators when a validator comes online after
@@ -431,9 +445,13 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// @dev Notifies hbbft validator set contract that a validator
     /// asociated with the given `_stakingAddress` became
     /// unavailable and must be flagged as unavailable.
-    /// @param _stakingAddress The address of the validator which became unavailable.
-    function notifyUnavailability(address _stakingAddress) external onlyStakingContract {
-        _writeValidatorAvailableSince(miningByStakingAddress[_stakingAddress], 0);
+    /// @param _miningAddress The address of the validator which became unavailable.
+    function notifyUnavailability(address _miningAddress) external onlyConnectivityTracker {
+        stakingContract.removePool(stakingByMiningAddress[_miningAddress]);
+
+        _writeValidatorAvailableSince(_miningAddress, 0);
+
+        emit ValidatorUnavailable(_miningAddress, block.timestamp);
     }
 
     /// @dev Binds a mining address to the specified staking address. Called by the `StakingHbbft.addPool` function

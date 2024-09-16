@@ -67,6 +67,7 @@ describe('TxPermissionHbbft', () => {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            connectivityTrackerContract: stubAddress,
             validatorInactivityThreshold: validatorInactivityThreshold,
         }
 
@@ -198,6 +199,7 @@ describe('TxPermissionHbbft', () => {
         await blockRewardHbbft.setConnectivityTracker(await connectivityTracker.getAddress());
         await validatorSetHbbft.setKeyGenHistoryContract(await keyGenHistory.getAddress());
         await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
+        await validatorSetHbbft.setConnectivityTracker(await connectivityTracker.getAddress());
 
         return { txPermission, validatorSetHbbft, certifier, keyGenHistory, stakingHbbft, connectivityTracker };
     }

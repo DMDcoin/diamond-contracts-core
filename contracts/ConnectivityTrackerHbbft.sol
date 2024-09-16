@@ -29,10 +29,13 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
     mapping(uint256 => EnumerableSet.AddressSet) private _flaggedValidators;
     mapping(uint256 => mapping(address => EnumerableSet.AddressSet)) private _reporters;
 
-    mapping(address => uint256) private _disconnectTimestamp;
+    /// @custom:oz-renamed-from _disconnectTimestamp
+    mapping(address => uint256) private _unused;
     mapping(uint256 => bool) private _epochPenaltiesSent;
 
     IBonusScoreSystem public bonusScoreContract;
+
+    mapping(uint256 => mapping(address => uint256)) private _disconnectTimestamp;
 
     event SetMinReportAgeBlocks(uint256 _minReportAge);
     event SetEarlyEpochEndToleranceLevel(uint256 _level);
@@ -118,8 +121,8 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         // slither-disable-next-line unused-return
         _reporters[epoch][validator].add(msg.sender);
 
-        if (isFaultyValidator(validator, epoch)) {
-            _disconnectTimestamp[validator] = block.timestamp;
+        if (isFaultyValidator(epoch, validator)) {
+            _markValidatorFaulty(epoch, validator);
         }
 
         _decideEarlyEpochEndNeeded(epoch);
@@ -142,12 +145,13 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
 
             // All reporters confirmed that this validator reconnected,
             // decrease validator bonus score for bad performance based on disconnect time interval.
-            if (_disconnectTimestamp[validator] != 0) {
-                uint256 disconnectPeriod = block.timestamp - _disconnectTimestamp[validator];
+            uint256 disconnectTimestamp = _disconnectTimestamp[epoch][validator];
+            if (disconnectTimestamp != 0) {
+                uint256 disconnectPeriod = block.timestamp - disconnectTimestamp;
 
                 bonusScoreContract.penaliseBadPerformance(validator, disconnectPeriod);
 
-                delete _disconnectTimestamp[validator];
+                delete _disconnectTimestamp[epoch][validator];
             }
         }
 
@@ -166,7 +170,7 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         address[] memory flaggedValidators = getFlaggedValidatorsByEpoch(epoch);
 
         for (uint256 i = 0; i < flaggedValidators.length; ++i) {
-            if (!isFaultyValidator(flaggedValidators[i], epoch)) {
+            if (!isFaultyValidator(epoch, flaggedValidators[i])) {
                 continue;
             }
 
@@ -183,7 +187,7 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         return _reporters[epoch][validator].length();
     }
 
-    function isFaultyValidator(address validator, uint256 epoch) public view returns (bool) {
+    function isFaultyValidator(uint256 epoch, address validator) public view returns (bool) {
         return getValidatorConnectivityScore(epoch, validator) >= _getReportersThreshold(epoch);
     }
 
@@ -267,6 +271,17 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         blockRewardContract.notifyEarlyEpochEnd();
 
         emit NotifyEarlyEpochEnd(epoch, block.number);
+    }
+
+    function _markValidatorFaulty(uint256 epoch, address validator) private {
+        if (_disconnectTimestamp[epoch][validator] != 0) {
+            // validator already marked as faulty
+            return;
+        }
+
+        _disconnectTimestamp[epoch][validator] = block.timestamp;
+
+        validatorSetContract.notifyUnavailability(validator);
     }
 
     function _getReportersThreshold(uint256 epoch) private view returns (uint256) {

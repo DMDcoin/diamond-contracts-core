@@ -39,6 +39,7 @@ describe('RandomHbbft', () => {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: stubAddress,
+            connectivityTrackerContract: stubAddress,
             validatorInactivityThreshold: validatorInactivityThreshold,
         }
 
@@ -232,41 +233,6 @@ describe('RandomHbbft', () => {
     });
 
     describe("FullHealth()", async function () {
-        it.skip('should display health correctly', async () => {
-            const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
-
-            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
-            expect(await randomHbbft.isFullHealth()).to.be.true;
-
-            await validatorSetHbbft.connect(owner).removeMaliciousValidators([accounts[15].address]);
-
-            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(24);
-            expect(await randomHbbft.isFullHealth()).to.be.false;
-        });
-
-        it.skip('should set historical FullHealth() value as true when the block is healthy', async () => {
-            const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
-
-            let randomSeed = random(0, Number.MAX_SAFE_INTEGER);
-
-            // storing current seed and the health state of the network, network is healthy with 25 validators
-            await randomHbbft.connect(owner).setCurrentSeed(randomSeed);
-            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
-
-            // removing a validator so the network is not healthy
-            await validatorSetHbbft.connect(owner).removeMaliciousValidators([accounts[15].address]);
-
-            randomSeed = random(0, Number.MAX_SAFE_INTEGER);
-
-            // storing current seed and the health state of the network, network is NOT healthy with 24 validators
-            await randomHbbft.connect(owner).setCurrentSeed(randomSeed);
-            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(24);
-
-            // getting historical health values for both previous and current block
-            let blockNumber = await ethers.provider.getBlockNumber();
-            expect(await randomHbbft.isFullHealthsHistoric([blockNumber, blockNumber - 1])).to.be.deep.equal([false, true]);
-        });
-
         it('should display health correctly', async () => {
             const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 

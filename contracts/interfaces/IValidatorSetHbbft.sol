@@ -8,6 +8,7 @@ interface IValidatorSetHbbft {
         address stakingContract;
         address keyGenHistoryContract;
         address bonusScoreContract;
+        address connectivityTrackerContract;
         uint256 validatorInactivityThreshold;
     }
 

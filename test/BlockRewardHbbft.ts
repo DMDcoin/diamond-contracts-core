@@ -106,6 +106,7 @@ describe('BlockRewardHbbft', () => {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            connectivityTrackerContract: await connectivityTrackerContract.getAddress(),
             validatorInactivityThreshold: validatorInactivityThreshold,
         }
 
@@ -289,7 +290,7 @@ describe('BlockRewardHbbft', () => {
         _staking: StakingHbbftMock,
         _blockReward: BlockRewardHbbftMock,
         _percentage: bigint
-    ) {
+    ): Promise<void> {
         const stakingFixedEpochEndTime = await _staking.stakingFixedEpochEndTime();
         const stakingEpochStartTime = await _staking.stakingEpochStartTime();
 
@@ -300,29 +301,23 @@ describe('BlockRewardHbbft', () => {
         await callReward(_blockReward, true);
     }
 
-    async function announceAvailability(pool: string) {
+    async function announceAvailability(pool: string): Promise<void> {
         const blockNumber = await ethers.provider.getBlockNumber()
         const block = await ethers.provider.getBlock(blockNumber);
 
-        const asEncoded = validatorSetHbbft.interface.encodeFunctionData(
-            "announceAvailability",
-            [blockNumber, block!.hash!]
-        );
+        const poolSigner = await ethers.getSigner(pool);
 
         // we know now, that this call is allowed.
         // so we can execute it.
-        await (await ethers.getSigner(pool)).sendTransaction({
-            to: await validatorSetHbbft.getAddress(),
-            data: asEncoded
-        });
+        await validatorSetHbbft.connect(poolSigner).announceAvailability(blockNumber, block!.hash!);
     }
 
-    async function getValidatorStake(validatorAddr: string) {
+    async function getValidatorStake(validatorAddr: string): Promise<bigint> {
         const stakingAddr = await validatorSetHbbft.stakingByMiningAddress(validatorAddr);
         return await stakingHbbft.stakeAmount(stakingAddr, stakingAddr);
     }
 
-    async function mine() {
+    async function mine(): Promise<void> {
         let expectedEpochDuration = (await stakingHbbft
             .stakingFixedEpochEndTime()) - (await stakingHbbft.stakingEpochStartTime());
         let blocktime = expectedEpochDuration * 5n / 100n + 1n; //5% of the epoch
@@ -522,10 +517,6 @@ describe('BlockRewardHbbft', () => {
         });
     });
 
-    it('should get governance address', async () => {
-        expect(await blockRewardHbbft.getGovernanceAddress()).to.be.equal(GovernanceAddress);
-    });
-
     describe('reward', async () => {
         it('should restrict calling reward only to system address', async () => {
             const { blockRewardContract } = await helpers.loadFixture(deployContractsFixture);
@@ -560,12 +551,18 @@ describe('BlockRewardHbbft', () => {
             const {
                 blockRewardContract,
                 stakingContract,
+                validatorSetContract,
             } = await helpers.loadFixture(deployContractsFixture);
 
-            for (const _staking of initialStakingAddresses) {
-                const pool = await ethers.getSigner(_staking);
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                const mining = await ethers.getSigner(initialValidators[i]);
 
                 await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+                const latestBlock = await ethers.provider.getBlock('latest');
+                await validatorSetContract.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+
                 expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
             }
 
@@ -602,6 +599,75 @@ describe('BlockRewardHbbft', () => {
                 expect(poolRewardedEpochs).to.deep.equal(passedEpochs);
             }
         });
+
+        it('should not reward validators who announced availability in the current epoch', async () => {
+            const {
+                blockRewardContract,
+                stakingContract,
+                validatorSetContract,
+                connectivityTrackerContract,
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                const mining = await ethers.getSigner(initialValidators[i]);
+
+                await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+                const latestBlock = await ethers.provider.getBlock('latest');
+                await validatorSetContract.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+
+                expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+            }
+
+            await callReward(blockRewardContract, true);
+
+            const deltaPotValue = ethers.parseEther('10');
+            await blockRewardContract.addToDeltaPot({ value: deltaPotValue });
+            expect(await blockRewardContract.deltaPot()).to.be.eq(deltaPotValue);
+
+            const validator = await ethers.getSigner(initialValidators[0]);
+            const connectivityTrackerCaller = await ethers.getImpersonatedSigner(await connectivityTrackerContract.getAddress());
+
+            await owner.sendTransaction({
+                value: ethers.parseEther('1'),
+                to: await connectivityTrackerCaller.getAddress(),
+            });
+
+            await validatorSetContract.connect(connectivityTrackerCaller).notifyUnavailability(validator.address);
+            expect(await validatorSetContract.validatorAvailableSince(validator.address)).to.equal(0n);
+            await helpers.mine(5);
+
+            const announceBlock = await ethers.provider.getBlock('latest');
+            await validatorSetContract.connect(validator).announceAvailability(
+                announceBlock!.number,
+                announceBlock!.hash!
+            );
+
+            const availabilityTimestamp = await helpers.time.latest();
+            expect(await validatorSetContract.validatorAvailableSince(validator.address)).to.equal(availabilityTimestamp);
+
+            const epochNumber = await stakingContract.stakingEpoch();
+
+            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+            await helpers.mine(1);
+
+            // const epochNumber = await stakingContract.stakingEpoch();
+            await callReward(blockRewardContract, true);
+
+            for (const _validator of initialValidators) {
+                if (_validator == validator.address) {
+                    expect(await blockRewardContract.epochsPoolGotRewardFor(_validator)).to.be.empty;
+                } else {
+                    expect(await blockRewardContract.epochsPoolGotRewardFor(_validator)).to.deep.equal([epochNumber]);
+                }
+            }
+        });
+    });
+
+    it('should get governance address', async () => {
+        expect(await blockRewardHbbft.getGovernanceAddress()).to.be.equal(GovernanceAddress);
     });
 
     it('staking epoch #0 finished', async () => {
@@ -640,6 +706,7 @@ describe('BlockRewardHbbft', () => {
         const validators = await validatorSetHbbft.getValidators();
 
         for (let i = 0; i < validators.length; i++) {
+            const mining = await ethers.getSigner(validators[i]);
             const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validators[i]);
 
             // Validator places stake on themselves
@@ -657,6 +724,9 @@ describe('BlockRewardHbbft', () => {
                     { value: delegatorMinStake }
                 );
             }
+
+            const latestBlock = await ethers.provider.getBlock('latest');
+            await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
         }
     });
 
