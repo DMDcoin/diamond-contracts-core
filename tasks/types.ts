@@ -321,6 +321,7 @@ export class InitialContractsConfiguration {
                         stakingContract: this.getAddress('StakingHbbft'),
                         keyGenHistoryContract: this.getAddress('KeyGenHistory'),
                         bonusScoreContract: this.getAddress('BonusScoreSystem'),
+                        connectivityTrackerContract: this.getAddress('ConnectivityTrackerHbbft'),
                         validatorInactivityThreshold: config.validatorInactivityThreshold,
                     },
                     config.initialMiningAddresses,

@@ -15,12 +15,12 @@ import {
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
 
 describe('ConnectivityTrackerHbbft', () => {
-    const validatorInactivityThreshold = 86400 // 1 day
+    const validatorInactivityThreshold = 86400; // 1 day
     const minReportAgeBlocks = 10;
 
     let accounts: HardhatEthersSigner[];
     let owner: HardhatEthersSigner;
-    let addresses: string[]
+    let addresses: string[];
     let initialValidators: HardhatEthersSigner[];
     let initialStakingAccounts: HardhatEthersSigner[];
 
@@ -54,8 +54,9 @@ describe('ConnectivityTrackerHbbft', () => {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            connectivityTrackerContract: stubAddress,
             validatorInactivityThreshold: validatorInactivityThreshold,
-        }
+        };
 
         const validatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
         const validatorSetHbbft = await upgrades.deployProxy(
@@ -155,6 +156,7 @@ describe('ConnectivityTrackerHbbft', () => {
         await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
         await validatorSetHbbft.setBlockRewardContract(await blockRewardHbbft.getAddress());
         await validatorSetHbbft.setKeyGenHistoryContract(await keyGenHistory.getAddress());
+        await validatorSetHbbft.setConnectivityTracker(await connectivityTracker.getAddress());
 
         return { connectivityTracker, validatorSetHbbft, stakingHbbft, blockRewardHbbft, bonusScoreContractMock };
     }
@@ -518,6 +520,95 @@ describe('ConnectivityTrackerHbbft', () => {
             expect(await connectivityTracker.getValidatorConnectivityScore(epoch, validator.address))
                 .to.equal(initialValidators.length - 1);
         });
+
+        it("should set faulty validator as unavailable", async () => {
+            const { connectivityTracker, stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+
+            const badValidator = initialValidators[0];
+            const goodValidators = initialValidators.slice(1);
+
+            const reportsThreshold = Math.floor(goodValidators.length * 2 / 3 + 1);
+
+            const announceBlock = await ethers.provider.getBlock("latest");
+            await helpers.mine(1);
+
+            await validatorSetHbbft.connect(badValidator).announceAvailability(
+                announceBlock!.number,
+                announceBlock!.hash!
+            );
+
+            const availableSinceTimestamp = await helpers.time.latest();
+
+            expect(await validatorSetHbbft.validatorAvailableSince(badValidator.address)).to.equal(availableSinceTimestamp)
+            await helpers.mine(5);
+
+            const epoch = 5;
+            await stakingHbbft.setStakingEpoch(epoch);
+            const latestBlock = await ethers.provider.getBlock("latest");
+
+            for (let j = 0; j < reportsThreshold; ++j) {
+                await connectivityTracker.connect(goodValidators[j]).reportMissingConnectivity(
+                    badValidator.address,
+                    latestBlock!.number,
+                    latestBlock!.hash!
+                );
+            }
+
+            expect(await validatorSetHbbft.validatorAvailableSince(badValidator.address)).to.equal(0n);
+        });
+
+        it("should not mark validator faulty if it's already marked", async () => {
+            const { connectivityTracker, stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+
+            const badValidator = initialValidators[0];
+            const goodValidators = initialValidators.slice(1);
+
+            const reportsThreshold = Math.floor(goodValidators.length * 2 / 3 + 1);
+
+            const announceBlock = await ethers.provider.getBlock("latest");
+            await helpers.mine(1);
+
+            await validatorSetHbbft.connect(badValidator).announceAvailability(
+                announceBlock!.number,
+                announceBlock!.hash!
+            );
+
+            const availableSinceTimestamp = await helpers.time.latest();
+
+            expect(await validatorSetHbbft.validatorAvailableSince(badValidator.address)).to.equal(availableSinceTimestamp)
+            await helpers.mine(5);
+
+            const epoch = 5;
+            await stakingHbbft.setStakingEpoch(epoch);
+            let latestBlock = await ethers.provider.getBlock("latest");
+
+            for (let i = 0; i < reportsThreshold; ++i) {
+                await connectivityTracker.connect(goodValidators[i]).reportMissingConnectivity(
+                    badValidator.address,
+                    latestBlock!.number,
+                    latestBlock!.hash!
+                );
+            }
+
+            const unavailableWriteTimestamp = await helpers.time.latest();
+
+            expect(await validatorSetHbbft.validatorAvailableSince(badValidator.address)).to.equal(0n);
+            expect(await validatorSetHbbft.validatorAvailableSinceLastWrite(badValidator.address)).to.equal(unavailableWriteTimestamp);
+
+            await helpers.mine(10);
+
+            latestBlock = await ethers.provider.getBlock("latest");
+            let nextReporter = goodValidators[reportsThreshold];
+
+            await expect(connectivityTracker.connect(nextReporter).reportMissingConnectivity(
+                badValidator.address,
+                latestBlock!.number,
+                latestBlock!.hash!
+            )).to.not.emit(validatorSetHbbft, "ValidatorUnavailable");
+
+            expect(await validatorSetHbbft.validatorAvailableSince(badValidator.address)).to.equal(0n);
+            expect(await validatorSetHbbft.validatorAvailableSinceLastWrite(badValidator.address)).to.equal(unavailableWriteTimestamp);
+        });
     });
 
     describe('reportReconnect', async () => {
@@ -713,7 +804,7 @@ describe('ConnectivityTrackerHbbft', () => {
             await stakingHbbft.setStakingEpoch(epoch);
             let latestBlock = await ethers.provider.getBlock("latest");
 
-            expect(await connectivityTracker.isFaultyValidator(badValidator.address, epoch)).to.be.false;
+            expect(await connectivityTracker.isFaultyValidator(epoch, badValidator.address)).to.be.false;
 
             for (let i = 0; i < reportsThreshold; ++i) {
                 await connectivityTracker.connect(goodValidators[i]).reportMissingConnectivity(
@@ -723,7 +814,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 );
             }
 
-            expect(await connectivityTracker.isFaultyValidator(badValidator.address, epoch)).to.be.true;
+            expect(await connectivityTracker.isFaultyValidator(epoch, badValidator.address)).to.be.true;
 
             const initialScore = 250n;
             await bonusScoreContractMock.setValidatorScore(badValidator.address, initialScore);
@@ -740,7 +831,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 );
             }
 
-            expect(await connectivityTracker.isFaultyValidator(badValidator.address, epoch)).to.be.false;
+            expect(await connectivityTracker.isFaultyValidator(epoch, badValidator.address)).to.be.false;
             expect(await connectivityTracker.getValidatorConnectivityScore(epoch, badValidator.address)).to.equal(0n);
             expect(await bonusScoreContractMock.getValidatorScore(badValidator.address)).to.equal(expectedScore);
         });
@@ -936,7 +1027,7 @@ describe('ConnectivityTrackerHbbft', () => {
             await stakingHbbft.setStakingEpoch(epoch);
             let latestBlock = await ethers.provider.getBlock("latest");
 
-            expect(await connectivityTracker.isFaultyValidator(badValidator.address, epoch)).to.be.false;
+            expect(await connectivityTracker.isFaultyValidator(epoch, badValidator.address)).to.be.false;
 
             for (let i = 0; i < reportsThreshold - 1; ++i) {
                 await connectivityTracker.connect(goodValidators[i]).reportMissingConnectivity(

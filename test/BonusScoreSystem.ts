@@ -70,6 +70,7 @@ describe("BonusScoreSystem", function () {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: stubAddress,
+            connectivityTrackerContract: stubAddress,
             validatorInactivityThreshold: 86400,
         }
 

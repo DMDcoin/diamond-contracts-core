@@ -10,6 +10,7 @@ import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "hardhat-contract-sizer";
 import 'solidity-docgen';
+import 'hardhat-tracer';
 
 import './tasks/make_spec';
 

@@ -231,6 +231,7 @@ describe('KeyGenHistory', () => {
             stakingContract: stubAddress,
             keyGenHistoryContract: stubAddress,
             bonusScoreContract: await bonusScoreContractMock.getAddress(),
+            connectivityTrackerContract: await connectivityTracker.getAddress(),
             validatorInactivityThreshold: validatorInactivityThreshold,
         }
 
