@@ -361,14 +361,43 @@ describe('BlockRewardHbbft', () => {
                 minValidatorSharePercent = 30n;
             }
 
-            const expectedValidatorReward = (totalReward - expectedDAOShare) / BigInt(currentValidators.length) * minValidatorSharePercent / 100n;
-            const stakeAfterReward = await getValidatorStake(currentValidators.at(-1)!);
+            const singleValidatorReward = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
+            const validator = currentValidators.at(-1)!;
+
+            const expectedValidatorReward = await getValidatorReward(singleValidatorReward, validator);
+            const stakeAfterReward = await getValidatorStake(validator);
             const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
 
             expect(actualValidatorReward).to.be.closeTo(expectedValidatorReward, expectedValidatorReward / 10000n);
         } else {
             await callReward(blockRewardHbbft, false);
         }
+    }
+
+    async function getValidatorReward(totalReward: bigint, validator: string): Promise<bigint> {
+        const validatorMinRewardPercent = await blockRewardHbbft.VALIDATOR_FIXED_REWARD_PERCENT();
+        const validatorFixedReward = (totalReward * validatorMinRewardPercent) / 100n;
+
+        const validatorStake = await getValidatorStake(validator);
+        const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validator);
+        const totalStake = await stakingHbbft.stakeAmountTotal(stakingAddress);
+
+        return validatorFixedReward + ((totalReward - validatorFixedReward) * validatorStake / totalStake);
+    }
+
+    async function getDelegatorReward(totalReward: bigint, validator: string, delegator: string): Promise<bigint> {
+        const validatorReward = await getValidatorReward(totalReward, validator);
+
+        const delegatorsReward = totalReward - validatorReward;
+
+        const totalStake = await stakingHbbft.stakeAmountTotal(validator);
+        const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validator);
+        const validatorStake = await stakingHbbft.stakeAmount(stakingAddress, stakingAddress);
+
+        const allDelegatorsStake = totalStake - validatorStake;
+        const delegatorStake = await stakingHbbft.stakeAmount(stakingAddress, delegator);
+
+        return delegatorsReward * delegatorStake / allDelegatorsStake;
     }
 
     describe('initialize', async () => {
@@ -887,7 +916,15 @@ describe('BlockRewardHbbft', () => {
         const currentValidators = await validatorSetHbbft.getValidators();
         const maxValidators = await validatorSetHbbft.maxValidators();
 
+        const deltaPotPayoutFraction = await blockRewardHbbft.deltaPotPayoutFraction();
+        const reinsertPotPayoutFraction = await blockRewardHbbft.reinsertPotPayoutFraction();
+        const governancePotShareDenominator = await blockRewardHbbft.governancePotShareDenominator();
+
         const stakeBeforeReward = await getValidatorStake(currentValidators[1]);
+
+        const deltaPotValue = await blockRewardHbbft.deltaPot();
+        const reinsertPotValue = await blockRewardHbbft.reinsertPot();
+        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
 
         const initialGovernancePotBalance = await getCurrentGovernancePotValue();
         let _epochPercentage = 30n;
@@ -896,23 +933,22 @@ describe('BlockRewardHbbft', () => {
         const currentGovernancePotBalance = await getCurrentGovernancePotValue();
         const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
 
-        let deltaPotValue = await blockRewardHbbft.deltaPot();
-        let reinsertPotValue = await blockRewardHbbft.reinsertPot();
+        const deltaPotShare =
+            deltaPotValue * BigInt(currentValidators.length) * _epochPercentage
+            / deltaPotPayoutFraction / maxValidators / 100n;
 
-        const deltaPotShare = deltaPotValue * BigInt(currentValidators.length) * _epochPercentage / 6000n / maxValidators / 100n;
-        const reinsertPotShare = reinsertPotValue * BigInt(currentValidators.length) * _epochPercentage / 6000n / maxValidators / 100n;
-        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
+        const reinsertPotShare =
+            reinsertPotValue * BigInt(currentValidators.length) * _epochPercentage
+            / reinsertPotPayoutFraction / maxValidators / 100n;
 
         const totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
-        const expectedDAOShare = totalReward / 10n;
+        const expectedDAOShare = totalReward / governancePotShareDenominator;
 
         // we expect 1 wei difference, since the reward combination from 2 pots results in that.
-        //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
         expect(governancePotIncrease).to.be.closeTo(expectedDAOShare, expectedDAOShare / 100000n);
 
-        //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
-        const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT();
-        const expectedValidatorReward = (totalReward - expectedDAOShare) / BigInt(currentValidators.length) * minValidatorSharePercent / 100n;
+        const singleValidatorRewards = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
+        const expectedValidatorReward = await getValidatorReward(singleValidatorRewards, currentValidators[1]);
 
         const stakeAfterReward = await getValidatorStake(currentValidators[1]);
         const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
@@ -924,32 +960,41 @@ describe('BlockRewardHbbft', () => {
         const currentValidators = await validatorSetHbbft.getValidators();
         const maxValidators = await validatorSetHbbft.maxValidators();
 
+        const deltaPotPayoutFraction = await blockRewardHbbft.deltaPotPayoutFraction();
+        const reinsertPotPayoutFraction = await blockRewardHbbft.reinsertPotPayoutFraction();
+        const governancePotShareDenominator = await blockRewardHbbft.governancePotShareDenominator();
+
         const stakeBeforeReward = await getValidatorStake(currentValidators[1]);
 
+        const deltaPotValue = await blockRewardHbbft.deltaPot();
+        const reinsertPotValue = await blockRewardHbbft.reinsertPot();
+        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
+
         const initialGovernancePotBalance = await getCurrentGovernancePotValue();
-        let _epochPercentage = 120n;
+        const _epochPercentage = 120n;
         await finishEpochPrelim(stakingHbbft, blockRewardHbbft, _epochPercentage);
 
         const currentGovernancePotBalance = await getCurrentGovernancePotValue();
         const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
 
-        let deltaPotValue = await blockRewardHbbft.deltaPot();
-        let reinsertPotValue = await blockRewardHbbft.reinsertPot();
+        const deltaPotShare =
+            deltaPotValue * BigInt(currentValidators.length)
+            / deltaPotPayoutFraction / maxValidators;
 
-        const deltaPotShare = deltaPotValue * BigInt(currentValidators.length) / 6000n / maxValidators;
-        const reinsertPotShare = reinsertPotValue * BigInt(currentValidators.length) / 6000n / maxValidators;
-        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
+        const reinsertPotShare =
+            reinsertPotValue * BigInt(currentValidators.length)
+            / reinsertPotPayoutFraction / maxValidators;
 
         const totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
-        const expectedDAOShare = totalReward / 10n;
+        const expectedDAOShare = totalReward / governancePotShareDenominator;
 
         // we expect 1 wei difference, since the reward combination from 2 pots results in that.
         //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
         expect(governancePotIncrease).to.be.closeTo(expectedDAOShare, expectedDAOShare / 10000n);
 
         //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
-        const minValidatorSharePercent = await blockRewardHbbft.VALIDATOR_MIN_REWARD_PERCENT();
-        const expectedValidatorReward = (totalReward - expectedDAOShare) / BigInt(currentValidators.length) * minValidatorSharePercent / 100n;
+        const singleValidatorRewards = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
+        const expectedValidatorReward = await getValidatorReward(singleValidatorRewards, currentValidators[1]);
 
         const stakeAfterReward = await getValidatorStake(currentValidators[1]);
         const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
