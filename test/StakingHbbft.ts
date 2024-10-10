@@ -2137,26 +2137,16 @@ describe('StakingHbbft', () => {
             await blockRewardHbbft.connect(systemSigner).reward(true);
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-            const validatorMinRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
+            const validatorFixedRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
 
             for (const _stakeRecord of stakeRecords) {
-                let validatorShare = 0n;
-                let delegatorShare = 0n;
+                const validatorFixedReward = poolReward * validatorFixedRewardPercent / 100n;
+                const rewardsToDistribute = poolReward - validatorFixedReward;
 
                 const poolTotalStake = poolTotalStakes.get(_stakeRecord.pool)!;
-                const delegatorsStake = poolTotalStake - candidateMinStake;
 
-                const minRewardPercentExceeded = candidateMinStake * (100n - validatorMinRewardPercent)
-                    > delegatorsStake * validatorMinRewardPercent;
-
-                if (minRewardPercentExceeded) {
-                    validatorShare = (poolReward * candidateMinStake) / poolTotalStake;
-                    delegatorShare = (poolReward * _stakeRecord.stake) / poolTotalStake;
-                } else {
-                    validatorShare = (poolReward * validatorMinRewardPercent) / 100n;
-                    delegatorShare = (poolReward * _stakeRecord.stake * (100n - validatorMinRewardPercent))
-                        / (delegatorsStake * 100n);
-                }
+                const validatorShare = validatorFixedReward + rewardsToDistribute * candidateMinStake / poolTotalStake;
+                const delegatorShare = rewardsToDistribute * _stakeRecord.stake / poolTotalStake;
 
                 expect(
                     await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.pool)

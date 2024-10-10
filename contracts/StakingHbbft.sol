@@ -121,7 +121,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     mapping(address => PoolInfo) public poolInfo;
 
-
     mapping(address => bool) public abandonedAndRemoved;
 
     /// @dev The total amount staked into the specified pool (staking address)
@@ -369,7 +368,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             poolInfo[initStakingAddresses[i]].publicKey = abi.encodePacked(_publicKeys[i * 2], _publicKeys[i * 2 + 1]);
             poolInfo[initStakingAddresses[i]].internetAddress = _internetAddresses[i];
         }
-
 
         uint256[] memory delegatorMinStakeAllowedParams = new uint256[](5);
         delegatorMinStakeAllowedParams[0] = 50 ether;
@@ -632,28 +630,14 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         if (totalStake > validatorStake) {
             address[] memory delegators = poolDelegators(_poolStakingAddress);
 
-            uint256 delegatorsStake = totalStake - validatorStake;
+            uint256 validatorFixedReward = (poolReward * _validatorMinRewardPercent) / 100;
+            uint256 rewardsToDisribute = poolReward - validatorFixedReward;
 
-            bool minRewardPercentExceeded = validatorStake * (100 - _validatorMinRewardPercent) >
-                delegatorsStake * _validatorMinRewardPercent;
-
-            validatorReward = _validatorRewardShare(
-                minRewardPercentExceeded,
-                validatorStake,
-                totalStake,
-                poolReward,
-                _validatorMinRewardPercent
-            );
+            validatorReward = validatorFixedReward + (rewardsToDisribute * validatorStake) / totalStake;
 
             for (uint256 i = 0; i < delegators.length; ++i) {
-                uint256 delegatorReward = _delegatorRewardShare(
-                    minRewardPercentExceeded,
-                    totalStake,
-                    _getDelegatorStake(stakingEpoch, _poolStakingAddress, delegators[i]),
-                    delegatorsStake,
-                    poolReward,
-                    _validatorMinRewardPercent
-                );
+                uint256 delegatorReward = (rewardsToDisribute *
+                    _getDelegatorStake(stakingEpoch, _poolStakingAddress, delegators[i])) / totalStake;
 
                 stakeAmount[_poolStakingAddress][delegators[i]] += delegatorReward;
                 _stakeAmountByEpoch[_poolStakingAddress][delegators[i]][stakingEpoch] += delegatorReward;
@@ -1484,61 +1468,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             return (true, index);
         }
         return (false, 0);
-    }
-
-    function _delegatorRewardShare(
-        bool _minRewardPercentExceeded,
-        uint256 _totalStake,
-        uint256 _delegatorStake,
-        uint256 _allDelegatorsStaked,
-        uint256 _poolReward,
-        uint256 _validatorMinRewardPercent
-    ) private pure returns (uint256) {
-        if (_delegatorStake == 0 || _allDelegatorsStaked == 0 || _totalStake == 0) {
-            return 0;
-        }
-
-        unchecked {
-            uint256 share = 0;
-
-            if (_minRewardPercentExceeded) {
-                // Validator has more than validatorMinPercent %
-                share = (_poolReward * _delegatorStake) / _totalStake;
-            } else {
-                // Validator has validatorMinPercent %
-                share =
-                    (_poolReward * _delegatorStake * (100 - _validatorMinRewardPercent)) /
-                    (_allDelegatorsStaked * 100);
-            }
-
-            return share;
-        }
-    }
-
-    function _validatorRewardShare(
-        bool _minRewardPercentExceeded,
-        uint256 _validatorStaked,
-        uint256 _totalStaked,
-        uint256 _poolReward,
-        uint256 _validatorMinRewardPercent
-    ) private pure returns (uint256) {
-        if (_validatorStaked == 0 || _totalStaked == 0) {
-            return 0;
-        }
-
-        unchecked {
-            uint256 share = 0;
-
-            if (_minRewardPercentExceeded) {
-                // Validator has more than validatorMinPercent %
-                share = (_poolReward * _validatorStaked) / _totalStaked;
-            } else {
-                // Validator has validatorMinPercent %
-                share = (_poolReward * _validatorMinRewardPercent) / 100;
-            }
-
-            return share;
-        }
     }
 }
 

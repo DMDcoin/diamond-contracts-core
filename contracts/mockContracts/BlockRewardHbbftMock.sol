@@ -14,10 +14,6 @@ contract BlockRewardHbbftMock is BlockRewardHbbft {
         governancePotAddress = payable(_address);
     }
 
-    function setValidatorMinRewardPercent(uint256 _stakingEpoch, uint256 _percent) external {
-        validatorMinRewardPercent[_stakingEpoch] = _percent;
-    }
-
     function getPotsShares(uint256 numValidators) external view returns (PotsShares memory) {
         return _getPotsShares(numValidators);
     }

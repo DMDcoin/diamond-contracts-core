@@ -41,9 +41,9 @@ contract BlockRewardHbbft is
     uint256 public nativeRewardUndistributed;
 
     /// @dev The validator's min reward percent which was actual at the specified staking epoch.
-    /// This percent is taken from the VALIDATOR_MIN_REWARD_PERCENT constant and saved for every staking epoch
+    /// This percent is taken from the VALIDATOR_FIXED_REWARD_PERCENT constant and saved for every staking epoch
     /// by the `reward` function.
-    /// This is needed to have an ability to change validator's min reward percent in the VALIDATOR_MIN_REWARD_PERCENT
+    /// This is needed to have an ability to change validator's min reward percent in the VALIDATOR_FIXED_REWARD_PERCENT
     /// constant by upgrading the contract.
     mapping(uint256 => uint256) public validatorMinRewardPercent;
 
@@ -81,8 +81,7 @@ contract BlockRewardHbbft is
     /// @dev flag indicating whether it is needed to end current epoch earlier.
     bool public earlyEpochEnd;
 
-    uint256 public constant VALIDATOR_MIN_REWARD_PERCENT = 30; // 30%
-    uint256 public constant REWARD_PERCENT_MULTIPLIER = 1000000;
+    uint256 public constant VALIDATOR_FIXED_REWARD_PERCENT = 20; // 20%
 
     // ================================================ Events ========================================================
 
@@ -154,7 +153,7 @@ contract BlockRewardHbbft is
         validatorSetContract = IValidatorSetHbbft(_validatorSet);
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
 
-        validatorMinRewardPercent[0] = VALIDATOR_MIN_REWARD_PERCENT;
+        validatorMinRewardPercent[0] = VALIDATOR_FIXED_REWARD_PERCENT;
 
         deltaPotPayoutFraction = 6000;
         reinsertPotPayoutFraction = 6000;
@@ -418,7 +417,7 @@ contract BlockRewardHbbft is
         _snapshotPoolStakeAmounts(stakingContract, nextStakingEpoch, miningAddresses);
 
         // Remember validator's min reward percent for the upcoming staking epoch
-        validatorMinRewardPercent[nextStakingEpoch] = VALIDATOR_MIN_REWARD_PERCENT;
+        validatorMinRewardPercent[nextStakingEpoch] = VALIDATOR_FIXED_REWARD_PERCENT;
 
         // the rewards got distributed,
         // we now can finalize the epoch and start with a new one.
