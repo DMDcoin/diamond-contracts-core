@@ -13,6 +13,7 @@ import 'solidity-docgen';
 import 'hardhat-tracer';
 
 import './tasks/make_spec';
+import './tasks/getContractUpgradeCalldata';
 
 
 const getMnemonic = () => {
