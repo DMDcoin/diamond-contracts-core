@@ -17,8 +17,10 @@ let KnownContracts = new Map<string, string>([
 task("getUpgradeCalldata", "Get contract upgrade calldata to use in DAO proposal")
     .addParam("contract", "The core contract address to upgrade")
     .addOptionalParam("impl", "Address of new core contract implementation", undefined, types.string)
+    .addOptionalParam("initFunc", "Initialization or reinitialization function", undefined, types.string)
+    .addOptionalVariadicPositionalParam("constructorArgsParams", "Contract constructor arguments.", [])
     .setAction(async (taskArgs, hre) => {
-        const { contract, impl } = taskArgs;
+        const { contract, impl, initFunc, constructorArgsParams } = taskArgs;
 
         if (!KnownContracts.has(contract)) {
             throw new Error(`${contract} is unknown`);
@@ -41,14 +43,21 @@ task("getUpgradeCalldata", "Get contract upgrade calldata to use in DAO proposal
             implementationAddress = result as string;
         }
 
-        const proxyAdminAddress = await hre.upgrades.erc1967.getAdminAddress(proxyAddress);
+        let initCalldata = hre.ethers.hexlify(new Uint8Array());
+        if (initFunc != undefined) {
+            const initializer = initFunc as string;
+            const contractFactory = await hre.ethers.getContractFactory(contract);
 
+            initCalldata = contractFactory.interface.encodeFunctionData(initializer, constructorArgsParams);
+        }
+
+        const proxyAdminAddress = await hre.upgrades.erc1967.getAdminAddress(proxyAddress);
         const proxyAdmin = await attachProxyAdminV5(hre, proxyAdminAddress);
 
         const calldata = proxyAdmin.interface.encodeFunctionData("upgradeAndCall", [
             proxyAddress,
             implementationAddress,
-            hre.ethers.hexlify(new Uint8Array()),
+            initCalldata,
         ]);
 
         console.log("contract:", contract);
