@@ -520,6 +520,70 @@ describe('ValidatorSetHbbft', () => {
             )).to.be.revertedWithCustomError(ValidatorSetFactory, "MiningAddressAlreadyUsed")
                 .withArgs(initialValidators[1]);
         });
+
+        it('should reinitialize', async () => {
+            const params = getValidatorSetParams();
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            const validatorSetHbbft = await upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    params,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            );
+
+            expect(await validatorSetHbbft.waitForDeployment());
+
+            const newConnectivityTracker = ethers.Wallet.createRandom().address;
+
+            expect(await upgrades.upgradeProxy(
+                await validatorSetHbbft.getAddress(),
+                ValidatorSetFactory,
+                {
+                    call: {
+                        fn: 'initializeV2',
+                        args: [newConnectivityTracker]
+                    }
+                },
+            )).to.emit(validatorSetHbbft, "Initialized")
+                .withArgs(2);
+
+            expect(await validatorSetHbbft.connectivityTracker()).to.equal(newConnectivityTracker);
+        });
+
+        it('should not reinitialize with zero ConnectivityTracker address', async () => {
+            const params = getValidatorSetParams();
+
+            const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
+            const validatorSetHbbft = await upgrades.deployProxy(
+                ValidatorSetFactory,
+                [
+                    owner.address,
+                    params,
+                    initialValidators,
+                    initialStakingAddresses,
+                ],
+                { initializer: 'initialize' }
+            );
+
+            expect(await validatorSetHbbft.waitForDeployment());
+
+
+            await expect(upgrades.upgradeProxy(
+                await validatorSetHbbft.getAddress(),
+                ValidatorSetFactory,
+                {
+                    call: {
+                        fn: 'initializeV2',
+                        args: [ethers.ZeroAddress]
+                    }
+                },
+            )).to.be.revertedWithCustomError(validatorSetHbbft, "ZeroAddress");
+        });
     });
 
     describe('setValidatorInactivityThreshold', async () => {

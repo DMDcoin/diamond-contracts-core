@@ -222,6 +222,10 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     }
 
     function initializeV2(address _connectivityTracker) external reinitializer(2) {
+        if (_connectivityTracker == address(0)) {
+            revert ZeroAddress();
+        }
+
         connectivityTracker = _connectivityTracker;
     }
 
