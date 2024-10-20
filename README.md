@@ -10,9 +10,7 @@ The algorithm provides a Sybil control mechanism for reporting malicious validat
 
 ## POSDAO Repositories and Resources
 
-- White paper https://forum.poa.network/t/posdao-white-paper/2208
-- Backported Open Ethereum client with all POSDAO features https://github.com/poanetwork/open-ethereum/tree/posdao-backport
-- Original Open Ethereum client supporting POSDAO features https://github.com/OpenEthereum/open-ethereum starting from v2.7.2 (except [posdaoTransition spec option](https://github.com/OpenEthereum/open-ethereum/pull/11245) which waits to be released in the next version)
+- White paper https://github.com/DMDcoin/whitepaper/wiki
 
 ## Smart Contract Summaries
 
@@ -27,8 +25,6 @@ Check also the [BlockRewardHbbft call graph](/docs/BlockRewardHbbft-call-graph.p
   - ValidatorSetHbbft.reportMalicious
   - KeyGenHistory.writeAck
   - KeyGenHistory.writePart
-
-- `InitializerHbbft`: used once on network startup and then destroyed. This contract is needed for initializing upgradable contracts since an upgradable contract can't have the constructor. The bytecode of this contract is written by the `scripts/make_spec_hbbft.js` into `spec.json` along with other contracts when initializing on genesis block.
 
 - `RandomHbbft`: stores random numbers written by the HBBFT engine. Random numbers are used to form a new validator set at the beginning of each staking epoch by the `ValidatorSet` contract. There are two key functions:
   - `setCurrentSeed`. This is a setter that can only be called by the HBBFT engine in order to set the newly generated random number that is gonna be used for the new validator set selection.
@@ -48,6 +44,8 @@ Check also the [StakingHbbft call graph](/docs/StakingHbbft-call-graph.png).
 
 - `ValidatorSetHbbft`: stores the current validator set and contains the logic for choosing new validators at the beginning of each staking epoch. The logic uses a random seed stored in the `RandomHbbft` contract. Also, ValidatorSetHbbft is responsible for discovering and removing malicious validators. This contract is based on `reporting ValidatorSet` [described in Parity Wiki](https://wiki.parity.io/Validator-Set.html#reporting-contract).
 Check also the [ValidatorSetHbbft call graph](/docs/ValidatorSetHbbft-call-graph.png).
+
+- `BonusScoreSystem`: Handles the Bonus Scores that validators collect during their supportive phases. 
 
 ## Usage
 
