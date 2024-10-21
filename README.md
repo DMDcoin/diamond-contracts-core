@@ -1,10 +1,11 @@
 # HBBFT - POSDAO Smart Contracts
 
-Implementation of the HBBFT-POSDAO consensus algorithm in [Solidity](https://solidity.readthedocs.io).
+Implementation of the HBBFT-POSDAO consensus algorithm in [Solidity](https://solidity.readthedocs.io),
+suited for the needs of the DMD Diamond Blockchain https://github.com/DMDcoin/whitepaper/wiki
 
 ## About
 
-POSDAO is a Proof-of-Stake (POS) algorithm implemented as a decentralized autonomous organization (DAO). It is designed to provide a decentralized, fair, and energy efficient consensus for public chains. The algorithm works as a set of smart contracts written in Solidity. POSDAO can be implemented with any general purpose BFT consensus protocol. In the current version Honeybadger BFT (HBBFT) is chosen, which is leaderless and with instant finality. It incentivizes actors to behave in the best interests of a network.
+POSDAO is a Proof-of-Stake (POS) algorithm implemented as a decentralized autonomous organization (DAO). It is designed to provide a decentralized, fair, and energy efficient consensus for public chains. The algorithm works as a set of smart contracts written in Solidity. It is designed to work together with a Honeybadger BFT (HBBFT) consensus algoritm, which is leaderless and with instant finality. It incentivizes actors to behave in the best interests of a network.
 
 The algorithm provides a Sybil control mechanism for reporting malicious validators and adjusting their stake, distributing a block reward, and managing a set of validators.  
 
@@ -46,6 +47,12 @@ Check also the [StakingHbbft call graph](/docs/StakingHbbft-call-graph.png).
 Check also the [ValidatorSetHbbft call graph](/docs/ValidatorSetHbbft-call-graph.png).
 
 - `BonusScoreSystem`: Handles the Bonus Scores that validators collect during their supportive phases. 
+
+- `ConnectivityTrackerHbbft`: Tracks the notifications of individual nodes in order to handle Early Epoch Ends if the network has to many nodes that became disconnected.
+
+- `KeyGenHistory`: Manages the treshhold encryption shared key generation, required for epoch switches in order to pass the leadership to a new set of validators.
+
+- `ValueGuards`: Manages valid ranges for changes of Ecosystem Parameter changes.
 
 ## Usage
 
