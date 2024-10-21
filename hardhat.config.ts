@@ -30,7 +30,8 @@ const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : ethers.Mn
 
 const chainIds = {
     hardhat: 31337,
-    alpha2: 777012
+    alpha2: 777012,
+    alpha4: 777018,
 };
 
 const config: HardhatUserConfig = {
@@ -69,6 +70,14 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: "http://185.187.170.209:4000/api",
                     browserURL: "http://185.187.170.209:4000/",
+                },
+            },
+            {
+                network: "alpha4",
+                chainId: 777018,
+                urls: {
+                    apiURL: "http://62.171.133.46:4400/api",
+                    browserURL: "http://62.171.133.46:4400",
                 },
             },
         ],
@@ -137,6 +146,17 @@ const config: HardhatUserConfig = {
         },
         alpha3: {
             url: "http://185.187.170.209:38000",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+        },
+        alpha4: {
+            url: "http://62.171.133.46:54100",
             accounts: {
                 mnemonic: getMnemonic(),
                 path: "m/44'/60'/0'/0",
