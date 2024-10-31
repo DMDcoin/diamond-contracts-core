@@ -14,6 +14,10 @@ contract BlockRewardHbbftMock is BlockRewardHbbft {
         governancePotAddress = payable(_address);
     }
 
+    function resetEarlyEpochEnd() external {
+        earlyEpochEnd = false;
+    }
+
     function getPotsShares(uint256 numValidators) external view returns (PotsShares memory) {
         return _getPotsShares(numValidators);
     }

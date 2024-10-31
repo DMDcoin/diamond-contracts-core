@@ -101,6 +101,8 @@ contract BlockRewardHbbft is
     /// @param _fraction New reinsert pot payout fraction value.
     event SetReinsertPotPayoutFraction(uint256 _fraction);
 
+    event EarlyEpochEndNotificationReceived();
+
     error ZeroPayoutFraction();
 
     // ============================================== Modifiers =======================================================
@@ -158,8 +160,8 @@ contract BlockRewardHbbft is
         deltaPotPayoutFraction = 6000;
         reinsertPotPayoutFraction = 6000;
         governancePotAddress = payable(0xDA0da0da0Da0Da0Da0DA00DA0da0da0DA0DA0dA0);
-        governancePotShareNominator = 1;
-        governancePotShareDenominator = 10;
+        governancePotShareNominator = 10;
+        governancePotShareDenominator = 100;
 
         uint256[] memory governancePotShareNominatorParams = new uint256[](11);
         for (uint256 i = 0; i < governancePotShareNominatorParams.length; i++) {
@@ -237,6 +239,8 @@ contract BlockRewardHbbft is
     /// https://github.com/DMDcoin/diamond-contracts-core/issues/92
     function notifyEarlyEpochEnd() external onlyConnectivityTracker {
         earlyEpochEnd = true;
+
+        emit EarlyEpochEndNotificationReceived();
     }
 
     /// @dev Called by the engine when producing and closing a block,
@@ -315,13 +319,12 @@ contract BlockRewardHbbft is
         }
 
         PotsShares memory shares = _getPotsShares(numValidators);
-
-        deltaPot -= shares.deltaPotAmount;
-        reinsertPot -= shares.reinsertPotAmount;
-
         if (shares.totalRewards == 0) {
             return 0;
         }
+
+        deltaPot -= shares.deltaPotAmount;
+        reinsertPot -= shares.reinsertPotAmount;
 
         TransferUtils.transferNative(governancePotAddress, shares.governancePotAmount);
 
@@ -336,6 +339,8 @@ contract BlockRewardHbbft is
 
         // No rewards distributed in this epoch
         if (numRewardedValidators == 0) {
+            nativeRewardUndistributed = shares.totalRewards - distributedAmount;
+
             return 0;
         }
 
@@ -423,6 +428,8 @@ contract BlockRewardHbbft is
         // we now can finalize the epoch and start with a new one.
         validatorSetContract.finalizeChange();
 
+        earlyEpochEnd = false;
+
         return nativeTotalRewardAmount;
     }
 
@@ -449,8 +456,9 @@ contract BlockRewardHbbft is
         }
 
         bool validatorSetChangeTrigger = isPhaseTransition || toBeUpscaled || earlyEpochEnd;
+        uint256 pendingValidatorsCount = validatorSetContract.getPendingValidators().length;
 
-        if (validatorSetChangeTrigger && validatorSetContract.getPendingValidators().length == 0) {
+        if (validatorSetChangeTrigger && pendingValidatorsCount == 0) {
             // Choose new validators
             validatorSetContract.newValidatorSet();
 
@@ -459,6 +467,12 @@ contract BlockRewardHbbft is
             earlyEpochEnd = false;
         } else if (block.timestamp >= stakingContract.stakingFixedEpochEndTime()) {
             validatorSetContract.handleFailedKeyGeneration();
+        }
+
+        if (earlyEpochEnd && pendingValidatorsCount != 0) {
+            // reset early epoch end flag if notification was received,
+            // but network already in keygen phase
+            earlyEpochEnd = false;
         }
 
         // on closing a block, the governance pot is able to execute functions.
