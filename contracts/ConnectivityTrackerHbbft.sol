@@ -21,7 +21,10 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
     IStakingHbbft public stakingContract;
     IBlockRewardHbbft public blockRewardContract;
 
-    uint256 public minReportAgeBlocks;
+    /// @dev Time since the beginning of the epoch during which reports are not accepted.
+    /// @custom:oz-renamed-from minReportAgeBlocks
+    uint256 public reportDisallowPeriod;
+
     uint256 public earlyEpochEndToleranceLevel;
 
     mapping(uint256 => bool) public isEarlyEpochEnd;
@@ -37,7 +40,7 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
 
     mapping(uint256 => mapping(address => uint256)) private _disconnectTimestamp;
 
-    event SetMinReportAgeBlocks(uint256 _minReportAge);
+    event SetReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds);
     event SetEarlyEpochEndToleranceLevel(uint256 _level);
     event ReportMissingConnectivity(address indexed reporter, address indexed validator, uint256 indexed blockNumber);
 
@@ -71,7 +74,7 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         address _stakingContract,
         address _blockRewardContract,
         address _bonusScoreContract,
-        uint256 _minReportAgeBlocks
+        uint256 _reportDisallowPeriodSeconds
     ) external initializer {
         if (
             _contractOwner == address(0) ||
@@ -90,14 +93,17 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         blockRewardContract = IBlockRewardHbbft(_blockRewardContract);
         bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
 
-        minReportAgeBlocks = _minReportAgeBlocks;
+        reportDisallowPeriod = _reportDisallowPeriodSeconds;
         earlyEpochEndToleranceLevel = 2;
     }
 
-    function setMinReportAge(uint256 _minReportAge) external onlyOwner {
-        minReportAgeBlocks = _minReportAge;
+    /// @dev This function sets the period of time during which reports are not accepted.
+    /// Can only be called by contract owner.
+    /// @param _reportDisallowPeriodSeconds Time period in seconds.
+    function setReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds) external onlyOwner {
+        reportDisallowPeriod = _reportDisallowPeriodSeconds;
 
-        emit SetMinReportAgeBlocks(_minReportAge);
+        emit SetReportDisallowPeriod(_reportDisallowPeriodSeconds);
     }
 
     function setEarlyEpochEndToleranceLevel(uint256 _level) external onlyOwner {
@@ -321,8 +327,8 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
             revert CannotReportByFlaggedValidator(caller);
         }
 
-        uint256 epochStartBlock = stakingContract.stakingEpochStartBlock();
-        if (block.number < epochStartBlock + minReportAgeBlocks) {
+        uint256 epochStartTimestamp = stakingContract.stakingEpochStartTime();
+        if (block.timestamp < epochStartTimestamp + reportDisallowPeriod) {
             revert ReportTooEarly();
         }
     }

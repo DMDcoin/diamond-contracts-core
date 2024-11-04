@@ -14,9 +14,13 @@ import {
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
 
+const MinuteInSeconds = 60;
+const HourInSeconds = MinuteInSeconds * 60;
+const DayInSeconds = HourInSeconds * 24;
+
 describe('ConnectivityTrackerHbbft', () => {
-    const validatorInactivityThreshold = 86400; // 1 day
-    const minReportAgeBlocks = 10;
+    const validatorInactivityThreshold = DayInSeconds;
+    const reportDisallowPeriod = 15 * MinuteInSeconds;
 
     let accounts: HardhatEthersSigner[];
     let owner: HardhatEthersSigner;
@@ -145,7 +149,7 @@ describe('ConnectivityTrackerHbbft', () => {
                 await stakingHbbft.getAddress(),
                 await blockRewardHbbft.getAddress(),
                 await bonusScoreContractMock.getAddress(),
-                minReportAgeBlocks,
+                reportDisallowPeriod,
             ],
             { initializer: 'initialize' }
         ) as unknown as ConnectivityTrackerHbbft;
@@ -181,6 +185,10 @@ describe('ConnectivityTrackerHbbft', () => {
         await helpers.stopImpersonatingAccount(caller);
     }
 
+    async function disallowPeriodPassed() {
+        await helpers.time.increase(reportDisallowPeriod + 1);
+    }
+
     describe('Initializer', async () => {
         it("should revert if owner = address(0)", async () => {
             const stubAddress = addresses[1];
@@ -194,7 +202,7 @@ describe('ConnectivityTrackerHbbft', () => {
                     stubAddress,
                     stubAddress,
                     stubAddress,
-                    minReportAgeBlocks
+                    reportDisallowPeriod
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWithCustomError(ConnectivityTrackerFactory, "ZeroAddress");
@@ -212,7 +220,7 @@ describe('ConnectivityTrackerHbbft', () => {
                     stubAddress,
                     stubAddress,
                     stubAddress,
-                    minReportAgeBlocks
+                    reportDisallowPeriod
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWithCustomError(ConnectivityTrackerFactory, "ZeroAddress");
@@ -230,7 +238,7 @@ describe('ConnectivityTrackerHbbft', () => {
                     ethers.ZeroAddress,
                     stubAddress,
                     stubAddress,
-                    minReportAgeBlocks
+                    reportDisallowPeriod
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWithCustomError(ConnectivityTrackerFactory, "ZeroAddress");
@@ -248,7 +256,7 @@ describe('ConnectivityTrackerHbbft', () => {
                     stubAddress,
                     ethers.ZeroAddress,
                     stubAddress,
-                    minReportAgeBlocks
+                    reportDisallowPeriod
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWithCustomError(ConnectivityTrackerFactory, "ZeroAddress");
@@ -266,7 +274,7 @@ describe('ConnectivityTrackerHbbft', () => {
                     stubAddress,
                     stubAddress,
                     ethers.ZeroAddress,
-                    minReportAgeBlocks
+                    reportDisallowPeriod
                 ],
                 { initializer: 'initialize' }
             )).to.be.revertedWithCustomError(ConnectivityTrackerFactory, "ZeroAddress");
@@ -284,7 +292,7 @@ describe('ConnectivityTrackerHbbft', () => {
                     stubAddress,
                     stubAddress,
                     stubAddress,
-                    minReportAgeBlocks
+                    reportDisallowPeriod
                 ],
                 { initializer: 'initialize' }
             );
@@ -297,32 +305,32 @@ describe('ConnectivityTrackerHbbft', () => {
                 stubAddress,
                 stubAddress,
                 stubAddress,
-                minReportAgeBlocks
+                reportDisallowPeriod
             )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 
-    describe('setMinReportArge', async () => {
+    describe('setReportDisallowPeriod', async () => {
         it("should revert calling function by unauthorized account", async function () {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
             const caller = accounts[4];
 
             await expect(
-                connectivityTracker.connect(caller).setMinReportAge(100)
+                connectivityTracker.connect(caller).setReportDisallowPeriod(HourInSeconds)
             ).to.be.revertedWithCustomError(connectivityTracker, "OwnableUnauthorizedAccount")
                 .withArgs(caller.address);
         });
 
-        it("should set min report age and emit event", async function () {
+        it("should set report disallow period and emit event", async function () {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
-            const newValue = 100;
+            const newValue = HourInSeconds;
 
             await expect(
-                connectivityTracker.connect(owner).setMinReportAge(newValue)
-            ).to.emit(connectivityTracker, "SetMinReportAgeBlocks")
+                connectivityTracker.connect(owner).setReportDisallowPeriod(newValue)
+            ).to.emit(connectivityTracker, "SetReportDisallowPeriod")
                 .withArgs(newValue);
 
-            expect(await connectivityTracker.minReportAgeBlocks()).to.equal(newValue);
+            expect(await connectivityTracker.reportDisallowPeriod()).to.equal(newValue);
         });
     });
 
@@ -412,7 +420,7 @@ describe('ConnectivityTrackerHbbft', () => {
             const validator = initialValidators[1];
 
             await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
-            await helpers.mine(minReportAgeBlocks + 1);
+            await disallowPeriodPassed();
 
             const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -432,6 +440,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should revert report by flagged validator", async () => {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
+
+            await disallowPeriodPassed();
 
             const reporter = initialValidators[0];
             const validator = initialValidators[1];
@@ -454,6 +464,8 @@ describe('ConnectivityTrackerHbbft', () => {
         it("should report missing connectivity and emit event", async () => {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
 
+            await disallowPeriodPassed();
+
             const reporter = initialValidators[0];
             const validator = initialValidators[1];
             const latestBlock = await ethers.provider.getBlock("latest");
@@ -474,6 +486,9 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should report missing connectivity and flag validator", async () => {
             const { connectivityTracker, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            await disallowPeriodPassed();
+
             const latestBlock = await ethers.provider.getBlock("latest");
 
             const currentEpoch = await stakingHbbft.stakingEpoch();
@@ -499,6 +514,8 @@ describe('ConnectivityTrackerHbbft', () => {
         it("should increase validator connectivity score with each report", async () => {
             const { connectivityTracker, stakingHbbft } = await helpers.loadFixture(deployContracts);
 
+            await disallowPeriodPassed();
+
             const validator = initialValidators[0];
 
             const epoch = await stakingHbbft.stakingEpoch();
@@ -523,6 +540,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should set faulty validator as unavailable", async () => {
             const { connectivityTracker, stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+
+            await disallowPeriodPassed();
 
             const badValidator = initialValidators[0];
             const goodValidators = initialValidators.slice(1);
@@ -559,6 +578,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should not mark validator faulty if it's already marked", async () => {
             const { connectivityTracker, stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+
+            await disallowPeriodPassed();
 
             const badValidator = initialValidators[0];
             const goodValidators = initialValidators.slice(1);
@@ -671,9 +692,12 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should revert report reconnect without disconnect report", async () => {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
-            const latestBlock = await ethers.provider.getBlock("latest");
             const reporter = initialValidators[0];
             const validator = initialValidators[1];
+
+            await disallowPeriodPassed();
+
+            const latestBlock = await ethers.provider.getBlock("latest");
 
             await expect(
                 connectivityTracker.connect(reporter).reportReconnect(
@@ -693,7 +717,7 @@ describe('ConnectivityTrackerHbbft', () => {
             const validator = initialValidators[1];
 
             await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
-            await helpers.mine(minReportAgeBlocks + 1);
+            await disallowPeriodPassed();
 
             let latestBlock = await ethers.provider.getBlock("latest");
 
@@ -717,7 +741,7 @@ describe('ConnectivityTrackerHbbft', () => {
             const validator = initialValidators[1];
 
             await setStakingEpochStartTime(await validatorSetHbbft.getAddress(), stakingHbbft);
-            await helpers.mine(minReportAgeBlocks + 1);
+            await disallowPeriodPassed();
 
             let latestBlock = await ethers.provider.getBlock("latest");
 
@@ -744,9 +768,11 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should report validator reconnected and unflag it", async () => {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
-            const latestBlock = await ethers.provider.getBlock("latest");
             const caller = initialValidators[0];
             const validator = initialValidators[1];
+
+            await disallowPeriodPassed();
+            const latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.connect(initialValidators[0]).reportMissingConnectivity(
                 validator.address,
@@ -768,8 +794,10 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should decrease validator connectivity score if reported reconnect", async () => {
             const { connectivityTracker, stakingHbbft } = await helpers.loadFixture(deployContracts);
-            const latestBlock = await ethers.provider.getBlock("latest");
             const validator = initialValidators[2];
+
+            await disallowPeriodPassed();
+            const latestBlock = await ethers.provider.getBlock("latest");
 
             for (const reporter of [initialValidators[0], initialValidators[1]]) {
                 expect(await connectivityTracker.connect(reporter).reportMissingConnectivity(
@@ -802,6 +830,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             let latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.isFaultyValidator(epoch, badValidator.address)).to.be.false;
@@ -882,6 +912,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             const latestBlock = await ethers.provider.getBlock("latest");
 
             for (const badValidator of badValidators) {
@@ -930,6 +962,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             const latestBlock = await ethers.provider.getBlock("latest");
 
             for (const badValidator of badValidators) {
@@ -973,6 +1007,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             const latestBlock = await ethers.provider.getBlock("latest");
 
             for (const badValidator of badValidators) {
@@ -1000,6 +1036,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             const latestBlock = await ethers.provider.getBlock("latest");
 
             for (const badValidator of badValidators) {
@@ -1025,6 +1063,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             let latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.isFaultyValidator(epoch, badValidator.address)).to.be.false;
@@ -1083,6 +1123,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             const latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(false);
@@ -1127,6 +1169,8 @@ describe('ConnectivityTrackerHbbft', () => {
 
             const epoch = 5;
             await stakingHbbft.setStakingEpoch(epoch);
+            await disallowPeriodPassed();
+
             const latestBlock = await ethers.provider.getBlock("latest");
 
             expect(await connectivityTracker.isEarlyEpochEnd(epoch)).to.equal(false);
