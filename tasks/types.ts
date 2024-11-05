@@ -37,7 +37,7 @@ export class NetworkConfiguration {
     public minimumBlockTime?: number;
     public maximumBlockTime?: number;
     public validatorInactivityThreshold?: number;
-    public minReportAgeBlocks?: number;
+    public reportDisallowPeriod?: number;
 
     static create(fileName: string): NetworkConfiguration {
         const instance = new NetworkConfiguration();
@@ -59,7 +59,7 @@ export class NetworkConfiguration {
 
         instance.minimumBlockTime = Number.parseInt(process.env.MINIMUM_BLOCK_TIME ? process.env.MINIMUM_BLOCK_TIME : "0");
         instance.maximumBlockTime = Number.parseInt(process.env.MAXIMUM_BLOCK_TIME ? process.env.MAXIMUM_BLOCK_TIME : "0");
-        instance.minReportAgeBlocks = Number.parseInt(process.env.MIN_REPORT_AGE_BLOCKS ? process.env.MIN_REPORT_AGE_BLOCKS : "10");
+        instance.reportDisallowPeriod = Number.parseInt(process.env.REPORT_DISALLOW_PERIOD ? process.env.REPORT_DISALLOW_PERIOD : "10");
 
         instance.networkName = process.env.NETWORK_NAME;
         instance.networkId = process.env.NETWORK_ID;
@@ -379,7 +379,7 @@ export class InitialContractsConfiguration {
                     this.getAddress('StakingHbbft'),
                     this.getAddress('BlockRewardHbbft'),
                     this.getAddress('BonusScoreSystem'),
-                    config.minReportAgeBlocks
+                    config.reportDisallowPeriod
                 ];
             case 'BonusScoreSystem':
                 return [
