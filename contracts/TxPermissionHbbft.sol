@@ -144,7 +144,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
         __Ownable_init(_contractOwner);
 
-        for (uint256 i = 0; i < _allowed.length; i++) {
+        for (uint256 i = 0; i < _allowed.length; ++i) {
             _addAllowedSender(_allowed[i]);
         }
 
@@ -168,21 +168,22 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         minGasPriceAllowedParams[9] = 8 gwei;
         minGasPriceAllowedParams[10] = 10 gwei;
 
-        initAllowedChangeableParameter("setMinimumGasPrice(uint256)", "minimumGasPrice()", minGasPriceAllowedParams);
+        __initAllowedChangeableParameter(
+            this.setMinimumGasPrice.selector,
+            this.minimumGasPrice.selector,
+            minGasPriceAllowedParams
+        );
 
         uint256[] memory blockGasLimitAllowedParams = new uint256[](10);
-        blockGasLimitAllowedParams[0] = 100_000_000;
-        blockGasLimitAllowedParams[1] = 200_000_000;
-        blockGasLimitAllowedParams[2] = 300_000_000;
-        blockGasLimitAllowedParams[3] = 400_000_000;
-        blockGasLimitAllowedParams[4] = 500_000_000;
-        blockGasLimitAllowedParams[5] = 600_000_000;
-        blockGasLimitAllowedParams[6] = 700_000_000;
-        blockGasLimitAllowedParams[7] = 800_000_000;
-        blockGasLimitAllowedParams[8] = 900_000_000;
-        blockGasLimitAllowedParams[9] = 1000_000_000;
+        for (uint256 i = 0; i < blockGasLimitAllowedParams.length; ++i) {
+            blockGasLimitAllowedParams[i] = (i + 1) * 1e8;
+        }
 
-        initAllowedChangeableParameter("setBlockGasLimit(uint256)", "blockGasLimit()", blockGasLimitAllowedParams);
+        __initAllowedChangeableParameter(
+            this.setBlockGasLimit.selector,
+            this.blockGasLimit.selector,
+            blockGasLimitAllowedParams
+        );
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
@@ -222,6 +223,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     /// before submitting it as contribution.
     /// The limit can be changed by the owner (typical the DAO)
     /// @param _value The new minimum gas price.
+    /// Emits a {GasPriceChanged} event.
     function setMinimumGasPrice(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // param value validation is done in the {ValueGuards-withinAllowedRange} modifier
         minimumGasPrice = _value;
@@ -231,6 +233,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
     /// @dev set's the block gas limit.
     /// IN HBBFT, there must be consens about the block gas limit.
+    /// Emits a {BlockGasLimitChanged} event.
     function setBlockGasLimit(uint256 _value) public onlyOwner withinAllowedRange(_value) {
         // param value validation is done in the {ValueGuards-withinAllowedRange} modifier
         blockGasLimit = _value;

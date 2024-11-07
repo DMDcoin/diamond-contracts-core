@@ -376,9 +376,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         delegatorMinStakeAllowedParams[3] = 200 ether;
         delegatorMinStakeAllowedParams[4] = 250 ether;
 
-        initAllowedChangeableParameter(
-            "setDelegatorMinStake(uint256)",
-            "delegatorMinStake()",
+        __initAllowedChangeableParameter(
+            this.setDelegatorMinStake.selector,
+            this.delegatorMinStake.selector,
             delegatorMinStakeAllowedParams
         );
 
@@ -417,13 +417,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
      * Requirements:
      * - Only the contract owner can call this function.
      * - The stake amount must be within the allowed range.
+     *
+     * Emits a {SetDelegatorMinStake} event.
      */
-    function setDelegatorMinStake(uint256 _minStake)
-        public
-        onlyOwner
-        withinAllowedRange(_minStake)
-    {
+    function setDelegatorMinStake(uint256 _minStake) external onlyOwner withinAllowedRange(_minStake) {
         delegatorMinStake = _minStake;
+
         emit SetDelegatorMinStake(_minStake);
     }
 
