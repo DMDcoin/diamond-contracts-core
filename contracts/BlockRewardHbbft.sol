@@ -103,6 +103,8 @@ contract BlockRewardHbbft is
 
     event EarlyEpochEndNotificationReceived();
 
+    event SetGovernancePotShareNominator(uint256 value);
+
     error ZeroPayoutFraction();
 
     // ============================================== Modifiers =======================================================
@@ -164,13 +166,13 @@ contract BlockRewardHbbft is
         governancePotShareDenominator = 100;
 
         uint256[] memory governancePotShareNominatorParams = new uint256[](11);
-        for (uint256 i = 0; i < governancePotShareNominatorParams.length; i++) {
+        for (uint256 i = 0; i < governancePotShareNominatorParams.length; ++i) {
             governancePotShareNominatorParams[i] = 10 + i;
         }
 
-        initAllowedChangeableParameter(
-            "setGovernancePotShareNominator(uint256)",
-            "governancePotShareNominator()",
+        __initAllowedChangeableParameter(
+            this.setGovernancePotShareNominator.selector,
+            this.governancePotShareNominator.selector,
             governancePotShareNominatorParams
         );
     }
@@ -272,11 +274,15 @@ contract BlockRewardHbbft is
      * Requirements:
      * - Only the contract owner can call this function.
      * - The _shareNominator value must be within the allowed range.
+     * 
+     * Emits a {SetGovernancePotShareNominator} event.
      */
     function setGovernancePotShareNominator(
         uint256 _shareNominator
-    ) public onlyOwner withinAllowedRange(_shareNominator) {
+    ) external onlyOwner withinAllowedRange(_shareNominator) {
         governancePotShareNominator = _shareNominator;
+
+        emit SetGovernancePotShareNominator(_shareNominator);
     }
 
     // =============================================== Getters ========================================================
