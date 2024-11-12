@@ -1,5 +1,7 @@
+import { TASK_COMPILE } from "hardhat/builtin-tasks/task-names";
 import { task, types } from 'hardhat/config';
 import { attachProxyAdminV5 } from '@openzeppelin/hardhat-upgrades/dist/utils';
+import { ContractFactory } from 'ethers';
 
 let KnownContracts = new Map<string, string>([
     ["ValidatorSetHbbft", "0x1000000000000000000000000000000000000001"],
@@ -26,13 +28,28 @@ task("getUpgradeCalldata", "Get contract upgrade calldata to use in DAO proposal
             throw new Error(`${contract} is unknown`);
         }
 
+        await hre.run(TASK_COMPILE);
+
+        const [deployer] = await hre.ethers.getSigners();
+
         const proxyAddress = KnownContracts.get(contract)!;
+        const contractFactory = await hre.ethers.getContractFactory(contract, deployer) as ContractFactory;
+
+        console.log("Validating upgrade compatibility")
+        await hre.upgrades.validateImplementation(contractFactory);
+        await hre.upgrades.validateUpgrade(
+            proxyAddress,
+            contractFactory,
+            {
+                unsafeAllowRenames: false,
+                unsafeSkipStorageCheck: false,
+                kind: "transparent",
+            },
+        );
+        console.log("done!")
 
         let implementationAddress: string = impl;
         if (impl == undefined) {
-            const [deployer] = await hre.ethers.getSigners();
-            const contractFactory = await hre.ethers.getContractFactory(contract, deployer);
-
             const result = await hre.upgrades.deployImplementation(
                 contractFactory,
                 {
@@ -46,7 +63,6 @@ task("getUpgradeCalldata", "Get contract upgrade calldata to use in DAO proposal
         let initCalldata = hre.ethers.hexlify(new Uint8Array());
         if (initFunc != undefined) {
             const initializer = initFunc as string;
-            const contractFactory = await hre.ethers.getContractFactory(contract);
 
             initCalldata = contractFactory.interface.encodeFunctionData(initializer, constructorArgsParams);
         }
