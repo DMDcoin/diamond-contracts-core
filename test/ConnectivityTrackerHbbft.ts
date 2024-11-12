@@ -323,7 +323,7 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should set report disallow period and emit event", async function () {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
-            const newValue = HourInSeconds;
+            const newValue = reportDisallowPeriod + (3 * 60);
 
             await expect(
                 connectivityTracker.connect(owner).setReportDisallowPeriod(newValue)
