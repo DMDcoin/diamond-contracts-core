@@ -162,8 +162,8 @@ describe('KeyGenHistory', () => {
         // note: the Nodes they DO check if the ACKS and PARTS
         // make it possible to generate a treshold key here,
         // but within the tests, we just mimic this behavior.
-        
-        
+
+
         const systemSigner = await impersonateSystemAcc();
         let isEpochEndBlock = false;
         let pendingValidators = await validatorSetHbbft.getPendingValidators();
@@ -174,7 +174,7 @@ describe('KeyGenHistory', () => {
                 isEpochEndBlock = true;
             }
         }
-        
+
         await blockRewardHbbft.connect(systemSigner).reward(isEpochEndBlock);
 
         await helpers.stopImpersonatingAccount(SystemAccountAddress);
@@ -195,7 +195,7 @@ describe('KeyGenHistory', () => {
     }
 
     async function timeTravelToEndEpoch() {
-        
+
 
         const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime();
 
@@ -691,7 +691,7 @@ describe('KeyGenHistory', () => {
 
             // address1 is already picked up and a validator.
             // we double check if he is also marked for being available:
-            
+
 
             expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress1)).to.be.not.equal(0n);
 
@@ -741,11 +741,11 @@ describe('KeyGenHistory', () => {
             await writeAcks('3', '2', acks[0], poolMiningAddress2);
 
             await callReward();
-            
+
 
             expect(await stakingHbbft.stakingEpoch()).to.be.equal(3n);
             expect(await validatorSetHbbft.getValidators()).to.be.deep.equal([poolMiningAddress2]);
-            
+
         });
 
         it('1/2 KeyGeneration - ACKS Failure', async () => {
@@ -771,7 +771,7 @@ describe('KeyGenHistory', () => {
 
             expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress1)).to.be.not.equal(0n);
             expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress2)).to.be.not.equal(0n);
-            
+
             await timeTravelToTransition();
             await printValidatorState('validator2 pending:');
 
@@ -805,7 +805,7 @@ describe('KeyGenHistory', () => {
 
             // we are in another round,
             expect(await keyGenHistory.getCurrentKeyGenRound()).to.be.equal(2n);
-        
+
             // but the validator who did not write his ACKS is not a pending validator anymore.
 
         });
