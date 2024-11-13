@@ -10,7 +10,8 @@ import {
     StakingHbbftMock,
     KeyGenHistory,
     TxPermissionHbbft,
-    CertifierHbbft
+    CertifierHbbft,
+    ConnectivityTrackerHbbftMock
 } from "../src/types";
 
 
@@ -51,6 +52,7 @@ describe('KeyGenHistory', () => {
     let validatorSetHbbft: ValidatorSetHbbftMock;
     let stakingHbbft: StakingHbbftMock;
     let blockRewardHbbft: BlockRewardHbbftMock;
+    let connectivityTracker: ConnectivityTrackerHbbftMock;
     let randomHbbft: RandomHbbft;
     let certifier: CertifierHbbft;
     let keyGenHistoryPermission: Permission<KeyGenHistory>;
@@ -107,6 +109,20 @@ describe('KeyGenHistory', () => {
         console.log(info + ' pools toBeElected: ', toBeElected);
     }
 
+
+    async function printEarlyEpochEndInfo() {
+
+        if (!logOutput) {
+            return;
+        }
+        
+        const epoch = await stakingHbbft.stakingEpoch();
+        const keyGenRound = await keyGenHistory.currentKeyGenRound();
+        const isEarlyEpochEnd = await blockRewardHbbft.earlyEpochEnd();
+
+        console.log(`epoch ${epoch} keyGenRound ${keyGenRound} isEarlyEpochEnd ${isEarlyEpochEnd}`);
+
+    }
     // checks if a validator is able to write parts for free
     // and executes it.
     // NOTE: It does not really send the transaction with 0 gas price,
@@ -227,7 +243,7 @@ describe('KeyGenHistory', () => {
         await bonusScoreContractMock.waitForDeployment();
 
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
-        const connectivityTracker = await ConnectivityTrackerFactory.deploy();
+        connectivityTracker = await ConnectivityTrackerFactory.deploy();
         await connectivityTracker.waitForDeployment();
 
         const validatorSetParams = {
@@ -687,6 +703,13 @@ describe('KeyGenHistory', () => {
             // even if the failing party manages to announce availability
             // within the extra-key-gen round he wont be picked up this round.
 
+            const connectivityTrackerCaller = await ethers.getImpersonatedSigner(await connectivityTracker.getAddress());
+
+            
+            await blockRewardHbbft.connect(connectivityTrackerCaller).notifyEarlyEpochEnd({ gasPrice: "0"});
+
+            await printEarlyEpochEndInfo();
+
             const poolMiningAddress1 = miningAddresses[4];
 
             // address1 is already picked up and a validator.
@@ -712,6 +735,7 @@ describe('KeyGenHistory', () => {
 
             // now let pending validator 2 write it's Part,
             // but pending validator 1 misses out to write it's part.
+            await printEarlyEpochEndInfo();
 
             await writePart('3', '1', parts[0], poolMiningAddress2);
             await expect(writeAcks('3', '1', acks[0], poolMiningAddress2)).to.be.rejected;
@@ -736,6 +760,10 @@ describe('KeyGenHistory', () => {
             // and only validator 2 is part of the Set.
             // validator 2 needs to write his keys again.
             expect(await validatorSetHbbft.getPendingValidators()).to.be.deep.equal([poolMiningAddress2]);
+
+
+            // console.log("isEarlyEpochEnd 2 - 2:", await blockRewardHbbft.earlyEpochEnd());
+            await printEarlyEpochEndInfo();
 
             await writePart('3', '2', parts[0], poolMiningAddress2);
             await writeAcks('3', '2', acks[0], poolMiningAddress2);
@@ -777,6 +805,7 @@ describe('KeyGenHistory', () => {
 
             // now let pending validator 2 write it's Part,
             // but pending validator 1 misses out to write it's part.
+            await printEarlyEpochEndInfo();
 
             await writePart('4', '1', parts[0], poolMiningAddress2);
             await writePart('4', '1', parts[0], poolMiningAddress1);
@@ -806,8 +835,7 @@ describe('KeyGenHistory', () => {
             // we are in another round,
             expect(await keyGenHistory.getCurrentKeyGenRound()).to.be.equal(2n);
 
-            // but the validator who did not write his ACKS is not a pending validator anymore.
-
+            await printEarlyEpochEndInfo();
         });
     });
 
