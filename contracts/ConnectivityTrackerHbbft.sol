@@ -14,9 +14,9 @@ import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 
 import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
 
-import { ValueGuards } from "./ValueGuards.sol";
+import { ValueGuardsV2 } from "./ValueGuardsV2.sol";
 
-contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft, ValueGuards {
+contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft, ValueGuardsV2 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
