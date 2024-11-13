@@ -23,10 +23,10 @@ abstract contract ValueGuardsV2 is OwnableUpgradeable {
         mapping(bytes4 => ParameterRange) allowedParameterRange;
     }
 
-    bytes32 private constant ValueguardsStorageNamespace = keccak256("valueguards.storage");
+    bytes32 private constant VALUEGUARDS_STORAGE_NAMESPACE = keccak256("valueguards.storage");
 
     function _getValueGuardsStorage() private pure returns (ValueGuardsStorage storage $) {
-        bytes32 slot = ValueguardsStorageNamespace;
+        bytes32 slot = VALUEGUARDS_STORAGE_NAMESPACE;
         assembly {
             $.slot := slot
         }
