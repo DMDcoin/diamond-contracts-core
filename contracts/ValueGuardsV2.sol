@@ -23,10 +23,11 @@ abstract contract ValueGuardsV2 is OwnableUpgradeable {
         mapping(bytes4 => ParameterRange) allowedParameterRange;
     }
 
-    bytes32 private constant VALUEGUARDS_STORAGE_NAMESPACE = keccak256("valueguards.storage");
+    bytes32 private constant VALUEGUARDS_STORAGE_NAMESPACE = keccak256(abi.encode(uint256(keccak256("valueguards.storage")) - 1)) & ~bytes32(uint256(0xff));
 
     function _getValueGuardsStorage() private pure returns (ValueGuardsStorage storage $) {
         bytes32 slot = VALUEGUARDS_STORAGE_NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             $.slot := slot
         }

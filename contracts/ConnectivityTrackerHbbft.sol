@@ -171,8 +171,10 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
 
         reportDisallowPeriod = _reportDisallowPeriodSeconds;
         earlyEpochEndToleranceLevel = 2;
-        
-        uint256 step = 3 * 60; // 3 minutes in seconds
+    }
+
+    function initializeV2() external reinitializer(2) {
+        uint256 step = 3 minutes;
         uint256[] memory reportDisallowPeriodAllowedParams = new uint256[](10);
 
         for (uint256 i = 0; i < 10; i++) {
