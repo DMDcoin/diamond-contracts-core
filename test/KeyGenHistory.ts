@@ -10,7 +10,8 @@ import {
     StakingHbbftMock,
     KeyGenHistory,
     TxPermissionHbbft,
-    CertifierHbbft
+    CertifierHbbft,
+    ConnectivityTrackerHbbftMock
 } from "../src/types";
 
 
@@ -18,6 +19,7 @@ import { getTestPartNAcks } from './testhelpers/data';
 import { Permission } from "./testhelpers/Permission";
 import { deployDao } from "./testhelpers/daoDeployment";
 
+// you can set this to true for debugging uses.
 const logOutput = false;
 
 const candidateMinStake = ethers.parseEther('2');
@@ -50,6 +52,7 @@ describe('KeyGenHistory', () => {
     let validatorSetHbbft: ValidatorSetHbbftMock;
     let stakingHbbft: StakingHbbftMock;
     let blockRewardHbbft: BlockRewardHbbftMock;
+    let connectivityTracker: ConnectivityTrackerHbbftMock;
     let randomHbbft: RandomHbbft;
     let certifier: CertifierHbbft;
     let keyGenHistoryPermission: Permission<KeyGenHistory>;
@@ -106,6 +109,20 @@ describe('KeyGenHistory', () => {
         console.log(info + ' pools toBeElected: ', toBeElected);
     }
 
+
+    async function printEarlyEpochEndInfo() {
+
+        if (!logOutput) {
+            return;
+        }
+        
+        const epoch = await stakingHbbft.stakingEpoch();
+        const keyGenRound = await keyGenHistory.currentKeyGenRound();
+        const isEarlyEpochEnd = await blockRewardHbbft.earlyEpochEnd();
+
+        console.log(`epoch ${epoch} keyGenRound ${keyGenRound} isEarlyEpochEnd ${isEarlyEpochEnd}`);
+
+    }
     // checks if a validator is able to write parts for free
     // and executes it.
     // NOTE: It does not really send the transaction with 0 gas price,
@@ -120,6 +137,7 @@ describe('KeyGenHistory', () => {
     }
 
     async function announceAvailability(pool: string) {
+
         const blockNumber = await ethers.provider.getBlockNumber()
         const block = await ethers.provider.getBlock(blockNumber);
         const asEncoded = validatorSetHbbft.interface.encodeFunctionData(
@@ -147,14 +165,31 @@ describe('KeyGenHistory', () => {
 
         // we know now, that this call is allowed.
         // so we can execute it.
-        await (await ethers.getSigner(pool)).sendTransaction({ to: await validatorSetHbbft.getAddress(), data: asEncoded });
+        let respone = await (await ethers.getSigner(pool)).sendTransaction({ to: await validatorSetHbbft.getAddress(), data: asEncoded });
+        await respone.wait();
     }
 
-    async function callReward(isEpochEndBlock: boolean) {
-        // console.log('getting validators...');
-        // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/hbbft-posdao-contracts/issues/13
-        // console.log('got validators:', validators);
+    async function callReward() {
+
+        // mimic the behavor of the nodes here:
+        // if The Validators managed to write the correct number
+        // of Acks and Parts, we are happy and set a "true"
+        // if not, we send a "false"
+        // note: the Nodes they DO check if the ACKS and PARTS
+        // make it possible to generate a treshold key here,
+        // but within the tests, we just mimic this behavior.
+
+
         const systemSigner = await impersonateSystemAcc();
+        let isEpochEndBlock = false;
+        let pendingValidators = await validatorSetHbbft.getPendingValidators();
+
+        if (pendingValidators.length > 0) {
+            const keyGenFragments = await keyGenHistory.getNumberOfKeyFragmentsWritten();
+            if (keyGenFragments[0] === BigInt(pendingValidators.length) && keyGenFragments[1] === BigInt(pendingValidators.length)) {
+                isEpochEndBlock = true;
+            }
+        }
 
         await blockRewardHbbft.connect(systemSigner).reward(isEpochEndBlock);
 
@@ -172,30 +207,16 @@ describe('KeyGenHistory', () => {
         }
 
         await helpers.time.increaseTo(startTimeOfNextPhaseTransition);
-        await callReward(false);
+        await callReward();
     }
 
     async function timeTravelToEndEpoch() {
-        // todo: mimic the behavor of the nodes here:
-        // if The Validators managed to write the correct number
-        // of Acks and Parts, we are happy and set a "true"
-        // if not, we send a "false"
-        // note: the Nodes they DO check if the ACKS and PARTS
-        // make it possible to generate a treshold key here,
-        // but within the tests, we just mimic this behavior.
-        const callResult = await keyGenHistory.getNumberOfKeyFragmentsWritten();
 
-        const numberOfParts = callResult[0];
-        const numberOfAcks = callResult[1];
-
-        const pendingValidators = await validatorSetHbbft.getPendingValidators();
-        const numberOfPendingValidators = BigInt(pendingValidators.length);
-        let callRewardParameter = (numberOfParts === numberOfPendingValidators && numberOfAcks === numberOfPendingValidators);
 
         const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime();
 
         await helpers.time.increaseTo(endTimeOfCurrentEpoch);
-        await callReward(callRewardParameter);
+        await callReward();
     }
 
     before(async function () {
@@ -222,7 +243,7 @@ describe('KeyGenHistory', () => {
         await bonusScoreContractMock.waitForDeployment();
 
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
-        const connectivityTracker = await ConnectivityTrackerFactory.deploy();
+        connectivityTracker = await ConnectivityTrackerFactory.deploy();
         await connectivityTracker.waitForDeployment();
 
         const validatorSetParams = {
@@ -682,15 +703,24 @@ describe('KeyGenHistory', () => {
             // even if the failing party manages to announce availability
             // within the extra-key-gen round he wont be picked up this round.
 
+            const connectivityTrackerCaller = await ethers.getImpersonatedSigner(await connectivityTracker.getAddress());
+
+            
+            await blockRewardHbbft.connect(connectivityTrackerCaller).notifyEarlyEpochEnd({ gasPrice: "0"});
+
+            await printEarlyEpochEndInfo();
+
             const poolMiningAddress1 = miningAddresses[4];
 
             // address1 is already picked up and a validator.
             // we double check if he is also marked for being available:
 
+
             expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress1)).to.be.not.equal(0n);
 
             const poolStakingAddress2 = stakingAddresses[5];
             const poolMiningAddress2 = miningAddresses[5];
+
 
             await stakingHbbft.connect(await ethers.getSigner(poolStakingAddress2)).addPool(
                 poolMiningAddress2,
@@ -705,6 +735,7 @@ describe('KeyGenHistory', () => {
 
             // now let pending validator 2 write it's Part,
             // but pending validator 1 misses out to write it's part.
+            await printEarlyEpochEndInfo();
 
             await writePart('3', '1', parts[0], poolMiningAddress2);
             await expect(writeAcks('3', '1', acks[0], poolMiningAddress2)).to.be.rejected;
@@ -729,6 +760,82 @@ describe('KeyGenHistory', () => {
             // and only validator 2 is part of the Set.
             // validator 2 needs to write his keys again.
             expect(await validatorSetHbbft.getPendingValidators()).to.be.deep.equal([poolMiningAddress2]);
+
+
+            // console.log("isEarlyEpochEnd 2 - 2:", await blockRewardHbbft.earlyEpochEnd());
+            await printEarlyEpochEndInfo();
+
+            await writePart('3', '2', parts[0], poolMiningAddress2);
+            await writeAcks('3', '2', acks[0], poolMiningAddress2);
+
+            await callReward();
+
+
+            expect(await stakingHbbft.stakingEpoch()).to.be.equal(3n);
+            expect(await validatorSetHbbft.getValidators()).to.be.deep.equal([poolMiningAddress2]);
+
+        });
+
+        it('1/2 KeyGeneration - ACKS Failure', async () => {
+
+            //tests a 2 validators setup.
+            // both  manage to write it's part.
+            // 1 does not manage to write it's ACK.
+            // expected behavior:
+            // system goes into an extra key gen round,
+            // without the failing party as pending validator.
+
+            const poolMiningAddress1 = miningAddresses[4];
+            const poolMiningAddress2 = miningAddresses[5];
+
+            let pools = await stakingHbbft.getPools();
+
+            // address1 is already picked up and a validator.
+            // we double check if he is also marked for being available:
+            await announceAvailability(poolMiningAddress1);
+            await announceAvailability(poolMiningAddress2);
+
+            pools = await stakingHbbft.getPools();
+
+            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress1)).to.be.not.equal(0n);
+            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress2)).to.be.not.equal(0n);
+
+            await timeTravelToTransition();
+            await printValidatorState('validator2 pending:');
+
+            // now let pending validator 2 write it's Part,
+            // but pending validator 1 misses out to write it's part.
+            await printEarlyEpochEndInfo();
+
+            await writePart('4', '1', parts[0], poolMiningAddress2);
+            await writePart('4', '1', parts[0], poolMiningAddress1);
+
+            await writeAcks('4', '1', acks[0], poolMiningAddress1);
+
+            if (logOutput) {
+                console.log('numberOfPartsWritten: ', await keyGenHistory.numberOfPartsWritten());
+                console.log('numberOfAcksWritten: ', await keyGenHistory.numberOfAcksWritten());
+            }
+
+            await timeTravelToEndEpoch();
+            await printValidatorState('failedEnd:');
+
+            // we expect that there was NO epoch change.
+            // since Validator 2 failed writing his ACKs.
+            expect(await stakingHbbft.stakingEpoch()).to.be.equal(3n);
+
+            // we expect Validator 2 now to be marked as unavailable,
+            // since he failed to write his key.
+            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress2)).to.be.equal(0n);
+
+            // and only validator 2 is part of the Set.
+            // validator 2 needs to write his keys again.
+            expect(await validatorSetHbbft.getPendingValidators()).to.be.deep.equal([poolMiningAddress1]);
+
+            // we are in another round,
+            expect(await keyGenHistory.getCurrentKeyGenRound()).to.be.equal(2n);
+
+            await printEarlyEpochEndInfo();
         });
     });
 
