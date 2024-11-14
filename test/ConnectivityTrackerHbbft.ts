@@ -308,6 +308,47 @@ describe('ConnectivityTrackerHbbft', () => {
                 reportDisallowPeriod
             )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
+
+        it('should reinitialize', async () => {
+            const stubAddress = addresses[1];
+
+            const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
+            const contract = await upgrades.deployProxy(
+                ConnectivityTrackerFactory,
+                [
+                    owner.address,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    stubAddress,
+                    reportDisallowPeriod
+                ],
+                { initializer: 'initialize' }
+            );
+
+            expect(await contract.waitForDeployment());
+
+            expect(await upgrades.upgradeProxy(
+                await contract.getAddress(),
+                ConnectivityTrackerFactory,
+                {
+                    call: {
+                        fn: 'initializeV2',
+                        args: []
+                    }
+                },
+            )).to.emit(contract, "Initialized")
+                .withArgs(2);
+
+            // Check if the allowedParameterRange for the reportDisallowPeriod selector is set correctly
+            const step = 3n * 60n;  // step in seconds (3 minutes)
+            const expectedRange = [];
+            for (let i = 0n; i < 10n; i++) {
+                expectedRange.push(step + (i * step));
+            }
+            const actualRange = await contract.getAllowedParamsRangeWithSelector(contract.interface.getFunction("setReportDisallowPeriod")?.selector);
+            expect(actualRange[1]).to.deep.equal(expectedRange);
+        }); 
     });
 
     describe('setReportDisallowPeriod', async () => {
@@ -323,7 +364,21 @@ describe('ConnectivityTrackerHbbft', () => {
 
         it("should set report disallow period and emit event", async function () {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
-            const newValue = HourInSeconds;
+            const connectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbft");
+
+            expect(await upgrades.upgradeProxy(
+                await connectivityTracker.getAddress(),
+                connectivityTrackerFactory,
+                {
+                    call: {
+                        fn: 'initializeV2',
+                        args: []
+                    }
+                },
+            )).to.emit(connectivityTracker, "Initialized")
+                .withArgs(2);
+
+            const newValue = reportDisallowPeriod + (3 * 60);
 
             await expect(
                 connectivityTracker.connect(owner).setReportDisallowPeriod(newValue)

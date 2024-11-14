@@ -14,7 +14,9 @@ import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 
 import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
 
-contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft {
+import { ValueGuardsV2 } from "./ValueGuardsV2.sol";
+
+contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft, ValueGuardsV2 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -171,6 +173,21 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         earlyEpochEndToleranceLevel = 2;
     }
 
+    function initializeV2() external reinitializer(2) {
+        uint256 step = 3 minutes;
+        uint256[] memory reportDisallowPeriodAllowedParams = new uint256[](10);
+
+        for (uint256 i = 0; i < 10; i++) {
+            reportDisallowPeriodAllowedParams[i] = step + (i * step);
+        }
+
+        __initAllowedChangeableParameter(
+            this.setReportDisallowPeriod.selector,
+            this.reportDisallowPeriod.selector,
+            reportDisallowPeriodAllowedParams
+        );
+    }
+
     /**
      * @dev This function sets the period of time during which reports are not accepted.
      * Can only be called by contract owner.
@@ -178,7 +195,7 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
      *
      * Emits a {SetReportDisallowPeriod} event.
      */
-    function setReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds) external onlyOwner {
+    function setReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds) external onlyOwner withinAllowedRange(_reportDisallowPeriodSeconds) {
         reportDisallowPeriod = _reportDisallowPeriodSeconds;
 
         emit SetReportDisallowPeriod(_reportDisallowPeriodSeconds);
