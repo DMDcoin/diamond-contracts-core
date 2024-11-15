@@ -221,14 +221,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         maxValidators = 25;
     }
 
-    function initializeV2(address _connectivityTracker) external reinitializer(2) {
-        if (_connectivityTracker == address(0)) {
-            revert ZeroAddress();
-        }
-
-        connectivityTracker = _connectivityTracker;
-    }
-
     /// @dev Called by the system when a pending validator set is ready to be activated.
     /// Only valid when msg.sender == SUPER_USER (EIP96, 2**160 - 2).
     /// After this function is called, the `getValidators` getter returns the new validator set.
