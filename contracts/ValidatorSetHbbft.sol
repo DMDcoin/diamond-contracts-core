@@ -22,21 +22,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     address[] internal _pendingValidators;
     address[] internal _previousValidators;
 
-    /// @custom:oz-renamed-from _maliceReportedForBlock
-    mapping(address => mapping(uint256 => address[])) internal _unused1;
-
-    /// @custom:oz-renamed-from banCounter
-    mapping(address => uint256) public _unused2;
-
-    /// @custom:oz-renamed-from bannedUntil
-    mapping(address => uint256) public _unused3;
-
-    /// @custom:oz-renamed-from bannedDelegatorsUntil
-    mapping(address => uint256) public _unused4;
-
-    /// @custom:oz-renamed-from banReason
-    mapping(address => bytes32) public _unused5;
-
     /// @dev The address of the `BlockRewardHbbft` contract.
     address public blockRewardContract;
 
@@ -54,12 +39,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
     /// @dev The `RandomHbbft` contract address.
     address public randomContract;
-
-    /// @custom:oz-renamed-from reportingCounter
-    mapping(address => mapping(uint256 => uint256)) public _unused6;
-
-    /// @custom:oz-renamed-from reportingCounterTotal
-    mapping(uint256 => uint256) public _unused7;
 
     /// @dev A staking address bound to a specified mining address.
     /// See the `_setStakingAddress` internal function.
@@ -87,9 +66,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
     /// @dev The max number of validators.
     uint256 public maxValidators;
-
-    /// @custom:oz-renamed-from banDuration
-    uint256 public _unused8;
 
     /// @dev time in seconds after which the inactive validator is considered abandoned
     uint256 public validatorInactivityThreshold;
