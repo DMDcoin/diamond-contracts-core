@@ -1,28 +1,14 @@
-pragma solidity =0.8.17;
+// SPDX-License-Identifier: Apache 2.0
+pragma solidity =0.8.25;
 
-import "../../contracts/ValidatorSetHbbft.sol";
+import { ValidatorSetHbbft } from "../ValidatorSetHbbft.sol";
+import { IKeyGenHistory } from "../interfaces/IKeyGenHistory.sol";
+import { IStakingHbbft } from "../interfaces/IStakingHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
-    address internal _systemAddress;
-    bool internal _isFullHealth;
-
     receive() external payable {}
 
-    // ============================================== Modifiers =======================================================
-
-    modifier onlySystem() override {
-        require(msg.sender == _getSystemAddress());
-        _;
-    }
-
     // =============================================== Setters ========================================================
-
-    function setBannedUntil(address _miningAddress, uint256 _bannedUntil)
-        public
-    {
-        bannedUntil[_miningAddress] = _bannedUntil;
-        bannedDelegatorsUntil[_miningAddress] = _bannedUntil;
-    }
 
     function setBlockRewardContract(address _address) public {
         blockRewardContract = _address;
@@ -40,16 +26,43 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         keyGenHistoryContract = IKeyGenHistory(_address);
     }
 
-    function setSystemAddress(address _address) public {
-        _systemAddress = _address;
-    }
-
     function setValidatorAvailableSince(address _validator, uint256 _timestamp) public {
         _writeValidatorAvailableSince(_validator, _timestamp);
     }
 
-    function setIsFullHealth(bool _healthy) public {
-        _isFullHealth = _healthy;
+    function forceFinalizeNewValidators() external {
+        _finalizeNewValidators();
+    }
+
+    function setValidatorsNum(uint256 num) external {
+        uint256 count = _currentValidators.length;
+
+        if (count < num) {
+            address validator = _currentValidators[0];
+            for (uint256 i = count; i <= num; ++i) {
+                _currentValidators.push(validator);
+            }
+        } else if (count > num) {
+            for (uint256 i = count; i > num; --i) {
+                _currentValidators.pop();
+            }
+        } else {
+            return;
+        }
+    }
+
+    function kickValidator(address _mining) external {
+        uint256 len = _currentValidators.length;
+
+        for (uint256 i = 0; i < len; i++) {
+            if (_currentValidators[i] == _mining) {
+                // Remove the malicious validator from `_pendingValidators`
+                _currentValidators[i] = _currentValidators[len - 1];
+                _currentValidators.pop();
+
+                return;
+            }
+        }
     }
 
     // =============================================== Getters ========================================================
@@ -59,21 +72,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         uint256 _likelihoodSum,
         uint256 _randomNumber
     ) public pure returns (uint256) {
-        return
-            _getRandomIndex(
-                _likelihood,
-                _likelihoodSum,
-                uint256(keccak256(abi.encode(_randomNumber)))
-            );
-    }
-
-    function isFullHealth() external view override returns (bool) {
-        return _isFullHealth;
-    }
-
-    // =============================================== Private ========================================================
-
-    function _getSystemAddress() internal view returns (address) {
-        return _systemAddress;
+        return _getRandomIndex(_likelihood, _likelihoodSum, uint256(keccak256(abi.encode(_randomNumber))));
     }
 }

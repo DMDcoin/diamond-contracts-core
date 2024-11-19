@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache 2.0
-pragma solidity =0.8.17;
+pragma solidity =0.8.25;
 
 interface IConnectivityTrackerHbbft {
     function reportMissingConnectivity(
@@ -29,4 +29,6 @@ interface IConnectivityTrackerHbbft {
     ) external view;
 
     function isEarlyEpochEnd(uint256 epoch) external view returns (bool);
+
+    function penaliseFaultyValidators(uint256 epoch) external;
 }

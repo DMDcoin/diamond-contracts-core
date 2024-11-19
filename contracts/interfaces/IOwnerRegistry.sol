@@ -1,4 +1,5 @@
-pragma solidity =0.8.17;
+// SPDX-License-Identifier: Apache 2.0
+pragma solidity =0.8.25;
 
 interface IOwnerRegistry {
     event Reserved(bytes32 indexed name, address indexed owner);

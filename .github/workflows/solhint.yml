@@ -1,0 +1,48 @@
+name: Solhint Analysis
+
+on: [push, pull_request]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Run solhint
+        id: solhint
+        run: npm run solhint:ci
+        continue-on-error: true
+
+      - name: Get solhint report
+        if: steps.solhint.outcome != 'success'
+        run: npm run solhint:sarif-report
+
+      - name: Upload solhint result
+        if: steps.solhint.outcome != 'success'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          # Path to SARIF file relative to the root of the repository
+          sarif_file: solhint_report.sarif
+          # Optional category for the results
+          # Used to differentiate multiple results for one commit
+          category: solhint
+
+      - name: Check result
+        if: steps.solhint.outcome != 'success'
+        run: exit 1

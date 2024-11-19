@@ -19,16 +19,22 @@ describe('CertifierHbbft contract', () => {
     async function deployContracts() {
         const stubAddress = accounts[1].address;
 
+        const validatorSetParams = {
+            blockRewardContract: stubAddress,
+            randomContract: stubAddress,
+            stakingContract: stubAddress,
+            keyGenHistoryContract: stubAddress,
+            bonusScoreContract: stubAddress,
+            connectivityTrackerContract: stubAddress,
+            validatorInactivityThreshold: validatorInactivityThreshold,
+        }
+
         const validatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
         const validatorSetHbbftProxy = await upgrades.deployProxy(
             validatorSetFactory,
             [
                 owner.address,
-                stubAddress,                  // _blockRewardContract
-                stubAddress,                  // _randomContract
-                stubAddress,                  // _stakingContract
-                stubAddress,                  // _keyGenHistoryContract
-                validatorInactivityThreshold, // _validatorInactivityThreshold
+                validatorSetParams,           // _params
                 initialValidators,            // _initialMiningAddresses
                 initialStakingAddresses,      // _initialStakingAddresses
             ],
@@ -78,7 +84,7 @@ describe('CertifierHbbft contract', () => {
                     owner.address
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Validatorset must not be 0');
+            )).to.be.revertedWithCustomError(contractFactory, "ZeroAddress");
         });
 
         it("should revert initialization with owner = address(0)", async () => {
@@ -91,7 +97,7 @@ describe('CertifierHbbft contract', () => {
                     ethers.ZeroAddress
                 ],
                 { initializer: 'initialize' }
-            )).to.be.revertedWith('Owner address must not be 0');
+            )).to.be.revertedWithCustomError(contractFactory, "ZeroAddress");
         });
 
         it("should not allow initialization if initialized contract", async () => {
@@ -112,7 +118,7 @@ describe('CertifierHbbft contract', () => {
                 [],
                 accounts[1].address,
                 owner.address
-            )).to.be.revertedWith('Initializable: contract is already initialized');
+            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 
@@ -123,7 +129,8 @@ describe('CertifierHbbft contract', () => {
             const caller = accounts[5];
 
             await expect(certifier.connect(caller).certify(caller.address))
-                .to.be.revertedWith('Ownable: caller is not the owner');
+                .to.be.revertedWithCustomError(certifier, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it('should restrict calling revoke to contract owner', async function () {
@@ -132,7 +139,8 @@ describe('CertifierHbbft contract', () => {
             const caller = accounts[5];
 
             await expect(certifier.connect(caller).revoke(caller.address))
-                .to.be.revertedWith('Ownable: caller is not the owner');
+                .to.be.revertedWithCustomError(certifier, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
         });
 
         it("should sertify address", async function () {

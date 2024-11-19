@@ -33,3 +33,5 @@ src
 .env*
 
 .vscode/
+/mythril
+blockscout_verify.sh

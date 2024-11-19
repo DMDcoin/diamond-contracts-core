@@ -1,7 +1,9 @@
-pragma solidity =0.8.17;
+// SPDX-License-Identifier: Apache 2.0
+// solhint-disable one-contract-per-file
+pragma solidity =0.8.25;
 
-import "../../contracts/interfaces/IValidatorSetHbbft.sol";
-import "../../contracts/TxPermissionHbbft.sol";
+import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
+import { TxPermissionHbbft } from "../TxPermissionHbbft.sol";
 
 contract MockStaking {
     uint256 public stakingEpoch;
@@ -14,6 +16,12 @@ contract MockStaking {
 contract MockValidatorSet {
     IValidatorSetHbbft.KeyGenMode public keyGenMode;
     address public stakingContract;
+
+    mapping(address => bool) public isValidator;
+
+    function setValidator(address mining, bool val) external {
+        isValidator[mining] = val;
+    }
 
     function setKeyGenMode(IValidatorSetHbbft.KeyGenMode _mode) external {
         keyGenMode = _mode;

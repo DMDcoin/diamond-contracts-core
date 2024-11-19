@@ -10,8 +10,10 @@ import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "hardhat-contract-sizer";
 import 'solidity-docgen';
+import 'hardhat-tracer';
 
 import './tasks/make_spec';
+import './tasks/getContractUpgradeCalldata';
 
 
 const getMnemonic = () => {
@@ -28,7 +30,8 @@ const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : ethers.Mn
 
 const chainIds = {
     hardhat: 31337,
-    alpha2: 777012
+    alpha2: 777012,
+    alpha4: 777018,
 };
 
 const config: HardhatUserConfig = {
@@ -61,6 +64,22 @@ const config: HardhatUserConfig = {
                     browserURL: "http://explorer.uniq.diamonds",
                 },
             },
+            {
+                network: "alpha3",
+                chainId: 777016,
+                urls: {
+                    apiURL: "http://185.187.170.209:4000/api",
+                    browserURL: "http://185.187.170.209:4000/",
+                },
+            },
+            {
+                network: "alpha4",
+                chainId: 777018,
+                urls: {
+                    apiURL: "http://62.171.133.46:4400/api",
+                    browserURL: "http://62.171.133.46:4400",
+                },
+            },
         ],
     },
     contractSizer: {
@@ -69,13 +88,10 @@ const config: HardhatUserConfig = {
         disambiguatePaths: false,
         only: [
             "Hbbft",
-            "Registry"
+            "Registry",
+            ":BonusScoreSystem"
         ],
-        except: [
-            "Mock",
-            "Sacrifice",
-            "Base"
-        ]
+        except: ["Mock"]
     },
     gasReporter: {
         currency: "USD",
@@ -128,6 +144,28 @@ const config: HardhatUserConfig = {
             },
             gasPrice: 1000000000,
         },
+        alpha3: {
+            url: "http://185.187.170.209:38000",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+        },
+        alpha4: {
+            url: "http://62.171.133.46:54100",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+        },
     },
     paths: {
         artifacts: "./artifacts",
@@ -136,13 +174,8 @@ const config: HardhatUserConfig = {
         tests: "./test",
     },
     solidity: {
-        version: "0.8.17",
+        version: "0.8.25",
         settings: {
-            // metadata: {
-            //     // Not including the metadata hash
-            //     // https://github.com/paulrberg/hardhat-template/issues/31
-            //     bytecodeHash: "none",
-            // },
             // Disable the optimizer when debugging
             // https://hardhat.org/hardhat-network/#solidity-optimizer-support
             optimizer: {

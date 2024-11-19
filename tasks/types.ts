@@ -1,18 +1,18 @@
 import fs from 'fs';
 import fp from 'lodash/fp';
-import { BigNumber, ethers } from "ethers";
+import { ethers } from "ethers";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
 import { getInitializerData } from '@openzeppelin/hardhat-upgrades/dist/utils';
 
 export class StakingParams {
     public _initialStakingAddresses?: string[];
-    public _delegatorMinStake?: BigNumber;
-    public _candidateMinStake?: BigNumber;
-    public _maxStake?: BigNumber;
-    public _stakingFixedEpochDuration?: BigNumber;
-    public _stakingTransitionTimeframeLength?: BigNumber;
-    public _stakingWithdrawDisallowPeriod?: BigNumber;
+    public _delegatorMinStake?: bigint;
+    public _candidateMinStake?: bigint;
+    public _maxStake?: bigint;
+    public _stakingFixedEpochDuration?: bigint;
+    public _stakingTransitionTimeframeLength?: bigint;
+    public _stakingWithdrawDisallowPeriod?: bigint;
 
     constructor(init: Partial<StakingParams>) {
         Object.assign(this, init);
@@ -31,13 +31,13 @@ export class NetworkConfiguration {
     public initialStakingAddresses?: string[];
     public permittedAddresses?: string[];
 
-    public parts?: Array<Buffer>;
-    public acks: any;
+    public parts?: any[];
+    public acks?: any[];
 
     public minimumBlockTime?: number;
     public maximumBlockTime?: number;
     public validatorInactivityThreshold?: number;
-    public minReportAgeBlocks?: number;
+    public reportDisallowPeriod?: number;
 
     static create(fileName: string): NetworkConfiguration {
         const instance = new NetworkConfiguration();
@@ -59,7 +59,7 @@ export class NetworkConfiguration {
 
         instance.minimumBlockTime = Number.parseInt(process.env.MINIMUM_BLOCK_TIME ? process.env.MINIMUM_BLOCK_TIME : "0");
         instance.maximumBlockTime = Number.parseInt(process.env.MAXIMUM_BLOCK_TIME ? process.env.MAXIMUM_BLOCK_TIME : "0");
-        instance.minReportAgeBlocks = Number.parseInt(process.env.MIN_REPORT_AGE_BLOCKS ? process.env.MIN_REPORT_AGE_BLOCKS : "10");
+        instance.reportDisallowPeriod = Number.parseInt(process.env.REPORT_DISALLOW_PERIOD ? process.env.REPORT_DISALLOW_PERIOD : "10");
 
         instance.networkName = process.env.NETWORK_NAME;
         instance.networkId = process.env.NETWORK_ID;
@@ -85,9 +85,38 @@ export class NetworkConfiguration {
             publicKeys[i] = publicKeys[i].trim();
         }
 
-        const newParts: Buffer[] = [];
+        // ethers v6 working solution
+        // const newParts = new Array<Uint8Array>();
+        // initData.parts.forEach((x: string) => {
+        //     newParts.push(new Uint8Array(Buffer.from(x)));
+        // });
+
+        // const newAcks = new Array<Array<Uint8Array>>();
+        // for (const ack of initData.acks) {
+        //     const ackResults = new Array<Uint8Array>();
+
+        //     ack.forEach((x: string) => {
+        //         ackResults.push(new Uint8Array(Buffer.from(x)));
+        //     })
+
+        //     newAcks.push(ackResults);
+        // }
+
+        // not working with ethers v6
+        const newParts: string[] = [];
         initData.parts.forEach((x: string) => {
-            newParts.push(Buffer.from(x));
+            newParts.push( '0x' + x);
+        });
+
+        let newAcks: Array<Array<string>> = [];
+
+        // initData.acks
+        initData.acks.forEach((acksValidator: Array<string>) => {
+            let acks: Array<string> = [];
+            acksValidator.forEach((ack: string) => {
+                acks.push('0x' + ack);
+            });
+            newAcks.push(acks);
         });
 
         instance.publicKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])(publicKeys);
@@ -97,7 +126,7 @@ export class NetworkConfiguration {
         instance.permittedAddresses = [instance.owner];
 
         instance.parts = newParts;
-        instance.acks = initData.acks;
+        instance.acks = newAcks;
 
         const stakingEpochDuration = process.env.STAKING_EPOCH_DURATION;
         const stakeWithdrawDisallowPeriod = process.env.STAKE_WITHDRAW_DISALLOW_PERIOD;
@@ -106,14 +135,14 @@ export class NetworkConfiguration {
         const stakingMinStakeForDelegatorString = process.env.STAKING_MIN_STAKE_FOR_DELEGATOR;
         const validatorInactivityThresholdString = process.env.VALIDATOR_INACTIVITY_THRESHOLD;
 
-        let stakingMinStakeForValidator = ethers.utils.parseEther('1');
+        let stakingMinStakeForValidator = ethers.parseEther('1');
         if (stakingMinStakeForValidatorString) {
-            stakingMinStakeForValidator = ethers.utils.parseEther(stakingMinStakeForValidatorString);
+            stakingMinStakeForValidator = ethers.parseEther(stakingMinStakeForValidatorString);
         }
 
-        let stakingMinStakeForDelegator = ethers.utils.parseEther('1');
+        let stakingMinStakeForDelegator = ethers.parseEther('1');
         if (stakingMinStakeForDelegatorString) {
-            stakingMinStakeForDelegator = ethers.utils.parseEther(stakingMinStakeForDelegatorString);
+            stakingMinStakeForDelegator = ethers.parseEther(stakingMinStakeForDelegatorString);
         }
 
         instance.validatorInactivityThreshold = 365 * 86400 // 1year
@@ -121,16 +150,16 @@ export class NetworkConfiguration {
             instance.validatorInactivityThreshold = parseInt(validatorInactivityThresholdString);
         }
 
-        let stakingMaxStakeForValidator = ethers.utils.parseEther('50000');
+        let stakingMaxStakeForValidator = ethers.parseEther('50000');
 
         instance.stakingParams = new StakingParams({
             _initialStakingAddresses: instance.initialStakingAddresses,
             _delegatorMinStake: stakingMinStakeForDelegator,
             _candidateMinStake: stakingMinStakeForValidator,
             _maxStake: stakingMaxStakeForValidator,
-            _stakingFixedEpochDuration: BigNumber.from(stakingEpochDuration),
-            _stakingTransitionTimeframeLength: BigNumber.from(stakingTransitionWindowLength),
-            _stakingWithdrawDisallowPeriod: BigNumber.from(stakeWithdrawDisallowPeriod),
+            _stakingFixedEpochDuration: BigInt(stakingEpochDuration!),
+            _stakingTransitionTimeframeLength: BigInt(stakingTransitionWindowLength!),
+            _stakingWithdrawDisallowPeriod: BigInt(stakeWithdrawDisallowPeriod!),
         });
 
         return instance;
@@ -154,9 +183,9 @@ export class SpecialContract {
 
     async compileContract(hre: HardhatRuntimeEnvironment, args: any[]) {
         const factory = await hre.ethers.getContractFactory(this.name!);
-        const tx = factory.getDeployTransaction(...args);
+        const tx = await factory.getDeployTransaction(...args);
 
-        this.bytecode = tx.data!.toString();
+        this.bytecode = tx.data;
     }
 
     toSpecAccount(balance: number) {
@@ -194,20 +223,23 @@ export class CoreContract {
         return this.proxyAddress !== '';
     }
 
+    // returns hex encoded initializer data.
     async compileProxy(
         hre: HardhatRuntimeEnvironment,
         proxyContractName: string,
         logicAddress: string,
-        adminAddress: string,
+        ownerAddress: string,
         args: any[]
     ) {
         const proxyFactory = await hre.ethers.getContractFactory(proxyContractName);
         const contractFactory = await hre.ethers.getContractFactory(this.name!);
 
         const initializerData = getInitializerData(contractFactory.interface, args, 'initialize')
-        const tx = proxyFactory.getDeployTransaction(logicAddress, adminAddress, initializerData);
+        const tx = await proxyFactory.getDeployTransaction(logicAddress, ownerAddress, initializerData);
 
-        this.proxyBytecode = tx.data!.toString();
+        this.proxyBytecode = tx.data;
+
+        return initializerData;
     }
 
     async compileContract(hre: HardhatRuntimeEnvironment) {
@@ -217,7 +249,7 @@ export class CoreContract {
     }
 
     toSpecAccount(useUpgradeProxy: boolean, initialBalance: number) {
-        let spec = {};
+        let spec: { [id: string]: any; } = {};
 
         if (useUpgradeProxy) {
             spec[this.implementationAddress!] = {
@@ -241,8 +273,7 @@ export class CoreContract {
 }
 
 export class InitialContractsConfiguration {
-    public core: CoreContract[];
-    public admin?: SpecialContract;
+    public core: CoreContract[] = [];
     public registry?: SpecialContract;
 
     static fromJSON(json: any): InitialContractsConfiguration {
@@ -253,10 +284,11 @@ export class InitialContractsConfiguration {
                 instance[key] = (value as Array<any>).map(x => new CoreContract(...(Object.values(x as any) as [])));
             }
 
-            if (key == 'admin' || key == 'registry') {
+            if (key == 'registry') {
                 instance[key] = new SpecialContract(...(Object.values(value as any) as []));
             }
         }
+
 
         return instance;
     }
@@ -271,7 +303,8 @@ export class InitialContractsConfiguration {
     getAddress(name: string): string | undefined {
         const found = this.core.find(obj => obj.name === name);
 
-        return found ? found.proxyAddress : ethers.constants.AddressZero;
+
+        return found ? found.proxyAddress : ethers.ZeroAddress;
     }
 
     getContractInitializerArgs(
@@ -282,11 +315,15 @@ export class InitialContractsConfiguration {
             case 'ValidatorSetHbbft':
                 return [
                     config.owner,
-                    this.getAddress('BlockRewardHbbft'),
-                    this.getAddress('RandomHbbft'),
-                    this.getAddress('StakingHbbft'),
-                    this.getAddress('KeyGenHistory'),
-                    config.validatorInactivityThreshold,
+                    {
+                        blockRewardContract: this.getAddress('BlockRewardHbbft'),
+                        randomContract: this.getAddress('RandomHbbft'),
+                        stakingContract: this.getAddress('StakingHbbft'),
+                        keyGenHistoryContract: this.getAddress('KeyGenHistory'),
+                        bonusScoreContract: this.getAddress('BonusScoreSystem'),
+                        connectivityTrackerContract: this.getAddress('ConnectivityTrackerHbbft'),
+                        validatorInactivityThreshold: config.validatorInactivityThreshold,
+                    },
                     config.initialMiningAddresses,
                     config.initialStakingAddresses
                 ];
@@ -329,6 +366,7 @@ export class InitialContractsConfiguration {
                     config.owner,
                     {
                         _validatorSetContract: this.getAddress('ValidatorSetHbbft'),
+                        _bonusScoreContract: this.getAddress('BonusScoreSystem'),
                         ...config.stakingParams
                     },
                     config.publicKeys,
@@ -340,7 +378,15 @@ export class InitialContractsConfiguration {
                     this.getAddress('ValidatorSetHbbft'),
                     this.getAddress('StakingHbbft'),
                     this.getAddress('BlockRewardHbbft'),
-                    config.minReportAgeBlocks
+                    this.getAddress('BonusScoreSystem'),
+                    config.reportDisallowPeriod
+                ];
+            case 'BonusScoreSystem':
+                return [
+                    config.owner,
+                    this.getAddress('ValidatorSetHbbft'),
+                    this.getAddress('ConnectivityTrackerHbbft'),
+                    this.getAddress('StakingHbbft'),
                 ];
             case 'Registry':
                 return [

@@ -1,6 +1,17 @@
-pragma solidity =0.8.17;
+// SPDX-License-Identifier: Apache 2.0
+pragma solidity =0.8.25;
 
 interface IValidatorSetHbbft {
+    struct ValidatorSetParams {
+        address blockRewardContract;
+        address randomContract;
+        address stakingContract;
+        address keyGenHistoryContract;
+        address bonusScoreContract;
+        address connectivityTrackerContract;
+        uint256 validatorInactivityThreshold;
+    }
+
     // Key Generation states of validator.
     enum KeyGenMode {
         NotAPendingValidator,
@@ -17,15 +28,11 @@ interface IValidatorSetHbbft {
 
     function newValidatorSet() external;
 
-    function removeMaliciousValidators(address[] calldata) external;
-
     function setStakingAddress(address, address) external;
 
     function handleFailedKeyGeneration() external;
 
     function isFullHealth() external view returns (bool);
-
-    function areDelegatorsBanned(address) external view returns (bool);
 
     function blockRewardContract() external view returns (address);
 
@@ -40,11 +47,7 @@ interface IValidatorSetHbbft {
 
     function getValidators() external view returns (address[] memory);
 
-    function isReportValidatorValid(address) external view returns (bool);
-
     function isValidator(address) external view returns (bool);
-
-    function isValidatorBanned(address) external view returns (bool);
 
     function isValidatorOrPending(address) external view returns (bool);
 
@@ -62,12 +65,6 @@ interface IValidatorSetHbbft {
     function randomContract() external view returns (address);
 
     function notifyUnavailability(address) external;
-
-    function reportMaliciousCallable(
-        address,
-        address,
-        uint256
-    ) external view returns (bool, bool);
 
     function stakingByMiningAddress(address) external view returns (address);
 

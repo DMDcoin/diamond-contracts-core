@@ -1,4 +1,5 @@
-pragma solidity =0.8.17;
+// SPDX-License-Identifier: Apache 2.0
+pragma solidity =0.8.25;
 
 interface IMetadataRegistry {
     event DataChanged(bytes32 indexed name, string key, string plainKey);
