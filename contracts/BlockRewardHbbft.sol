@@ -13,7 +13,7 @@ import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbf
 import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
 import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
-import { ValueGuards } from "./ValueGuards.sol";
+import { ValueGuards } from "./lib/ValueGuards.sol";
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
 contract BlockRewardHbbft is

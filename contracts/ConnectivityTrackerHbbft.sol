@@ -13,10 +13,9 @@ import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 
 import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
+import { ValueGuards } from "./lib/ValueGuards.sol";
 
-import { ValueGuardsV2 } from "./ValueGuardsV2.sol";
-
-contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft, ValueGuardsV2 {
+contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft, ValueGuards {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -59,11 +58,6 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
      * @dev Mapping of reported validators and their reporters by epoch number.
      */
     mapping(uint256 => mapping(address => EnumerableSet.AddressSet)) private _reporters;
-
-    /**
-     * @custom:oz-renamed-from _disconnectTimestamp
-     */
-    mapping(address => uint256) private _unused;
 
     /**
      * @dev Indicats wheter validators were penalised for bad performance in specific epoch.
@@ -171,9 +165,7 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
 
         reportDisallowPeriod = _reportDisallowPeriodSeconds;
         earlyEpochEndToleranceLevel = 2;
-    }
 
-    function initializeV2() external reinitializer(2) {
         uint256 step = 3 minutes;
         uint256[] memory reportDisallowPeriodAllowedParams = new uint256[](10);
 

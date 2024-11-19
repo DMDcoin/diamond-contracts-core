@@ -4,7 +4,6 @@ pragma solidity =0.8.25;
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import { ValueGuards } from "./ValueGuards.sol";
 import { ICertifier } from "./interfaces/ICertifier.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { ITxPermission } from "./interfaces/ITxPermission.sol";
@@ -14,6 +13,7 @@ import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbf
 
 import { DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE } from "./lib/Constants.sol";
 import { ZeroAddress } from "./lib/Errors.sol";
+import { ValueGuards } from "./lib/ValueGuards.sol";
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
 /// protecting the network against "transaction spamming" by malicious validators.

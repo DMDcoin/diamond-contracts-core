@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import { ValueGuards } from "../ValueGuards.sol";
+import { ValueGuards } from "../lib/ValueGuards.sol";
 
 
 contract ValueGuardsMock is Initializable, OwnableUpgradeable, ValueGuards {

@@ -7,13 +7,14 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import { ValueGuards } from "./ValueGuards.sol";
 import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
+
 import { Unauthorized, ZeroAddress, ZeroGasPrice } from "./lib/Errors.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
+import { ValueGuards } from "./lib/ValueGuards.sol";
 
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
