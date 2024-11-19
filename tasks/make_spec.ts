@@ -69,7 +69,7 @@ task("make_spec_hbbft", "used to make a spec file")
             blocscoutVerificationScript += `npx hardhat verify --network alpha3 ${proxyAddress} ${implementationAddress} ${networkConfig.owner} ${initializerDataHex}\n`;
 
             const contractSpec = initialContracts.core[i].toSpecAccount(taskArgs.useUpgradeProxy, 0);
-
+            
             spec.accounts = {
                 ...spec.accounts,
                 ...contractSpec
@@ -82,7 +82,7 @@ task("make_spec_hbbft", "used to make a spec file")
         spec.params.transactionPermissionContractTransition = '0x0';
         spec.params.registrar = initialContracts.registry?.address;
 
-
+        console.log("compiling registry contract.");
         await initialContracts.registry!.compileContract(
             hre,
             [
