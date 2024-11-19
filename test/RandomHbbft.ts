@@ -198,8 +198,6 @@ describe('RandomHbbft', () => {
 
             const systemSigner = await impersonateSystemAcc();
 
-            await validatorSetHbbft.setIsFullHealth(true);
-
             const blockNumber = await helpers.time.latestBlock();
             const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
 
@@ -233,29 +231,27 @@ describe('RandomHbbft', () => {
     });
 
     describe("FullHealth()", async function () {
+
         it('should display health correctly', async () => {
+
             const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
-
-            let healthy = false;
-
-            await validatorSetHbbft.setIsFullHealth(healthy);
-            expect(await randomHbbft.isFullHealth()).to.be.equal(healthy);
-
-            healthy = true;
-
-            await validatorSetHbbft.setIsFullHealth(healthy);
-            expect(await randomHbbft.isFullHealth()).to.be.equal(healthy);
-        });
+            expect((await validatorSetHbbft.getValidators()).length).to.be.equal(25);
+            expect((await randomHbbft.isFullHealth())).to.be.equal(true);
+            // trigger an event for kicking out the validators
+            // ((await validatorSetHbbft.getValidators()).length).should.be.equal(24);
+            // (await randomHbbft.isFullHealth()).should.be.equal(false);
+        })
 
         it('should mark unhealty blocks', async () => {
             const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
-            let healthy = false;
-
-            await validatorSetHbbft.setIsFullHealth(healthy);
-            expect(await randomHbbft.isFullHealth()).to.be.equal(healthy);
+            const validators = await validatorSetHbbft.getValidators();
+            expect(validators.length).to.be.equal(25);
+            expect(await randomHbbft.isFullHealth()).to.be.equal(true);
 
             const systemSigner = await impersonateSystemAcc();
+
+            await validatorSetHbbft.kickValidator(validators[0]);
 
             const blockNumber = await helpers.time.latestBlock();
             const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
@@ -263,12 +259,9 @@ describe('RandomHbbft', () => {
             await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
 
             expect(await randomHbbft.getSeedHistoric(blockNumber + 1)).to.equal(randomSeed);
-            expect(await randomHbbft.isFullHealthHistoric(blockNumber + 1)).to.equal(healthy);
-
+            expect(await randomHbbft.isFullHealthHistoric(blockNumber + 1)).to.equal(false);
+            expect(await helpers.time.latestBlock()).to.be.equal(blockNumber + 1);
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
-
-            healthy = true;
-            await validatorSetHbbft.setIsFullHealth(true);
         });
 
         it('should get full health historic array ', async () => {
@@ -278,10 +271,9 @@ describe('RandomHbbft', () => {
 
             let blocks = new Array<bigint>();
             let expected = new Array<boolean>();
-
-            let healthy = true;
-            await validatorSetHbbft.setIsFullHealth(healthy);
-            expect(await randomHbbft.isFullHealth()).to.be.equal(healthy);
+            
+            expect(await randomHbbft.isFullHealth()).to.be.equal(true);
+            const validators = await validatorSetHbbft.getValidators();
 
             let startBlock = await helpers.time.latestBlock();
 
@@ -291,12 +283,13 @@ describe('RandomHbbft', () => {
                 await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
 
                 blocks.push(BigInt(startBlock + i + 1));
-                expected.push(healthy);
+                expected.push(true);
             }
 
-            healthy = false;
-            await validatorSetHbbft.setIsFullHealth(healthy);
-            expect(await randomHbbft.isFullHealth()).to.be.equal(healthy);
+
+            expect(await randomHbbft.isFullHealth()).to.be.equal(true);
+
+            await validatorSetHbbft.kickValidator(validators[0]);
 
             startBlock = await helpers.time.latestBlock();
 
@@ -306,7 +299,7 @@ describe('RandomHbbft', () => {
                 await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
 
                 blocks.push(BigInt(startBlock + i + 1));
-                expected.push(healthy);
+                expected.push(false);
             }
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);

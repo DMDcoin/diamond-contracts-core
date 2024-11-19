@@ -468,11 +468,10 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         return address(stakingContract);
     }
 
+    /// @dev only a network with the maximum number of validators is considered to be at full health.
+    /// this is especially true for the use of the generated random numbers.
     function isFullHealth() external view virtual returns (bool) {
-        // return maxValidators == _currentValidators.length;
-        // for testing purposes we are hardcoding this to true.
-        // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/162
-        return true;
+        return maxValidators == _currentValidators.length;
     }
 
     function getCurrentValidatorsCount() external view returns (uint256) {
