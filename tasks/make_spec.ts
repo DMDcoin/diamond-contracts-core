@@ -80,20 +80,20 @@ task("make_spec_hbbft", "used to make a spec file")
         spec.engine.hbbft.params.blockRewardContractAddress = initialContracts.getAddress("BlockRewardHbbft");
         spec.params.transactionPermissionContract = initialContracts.getAddress("TxPermissionHbbft");
         spec.params.transactionPermissionContractTransition = '0x0';
-        spec.params.registrar = initialContracts.registry?.address;
+        
+        // spec.params.registrar = initialContracts.registry?.address;
 
 
-        await initialContracts.registry!.compileContract(
-            hre,
-            [
-                initialContracts.getAddress("CertifierHbbft"),
-                networkConfig.owner
-            ]
-        );
+        // await initialContracts.registry!.compileContract(
+        //     hre,
+        //     [
+        //         initialContracts.getAddress("CertifierHbbft"),
+        //         networkConfig.owner
+        //     ]
+        // );
 
         spec.accounts = {
-            ...spec.accounts,
-            ...initialContracts.registry?.toSpecAccount(0)
+            ...spec.accounts
         };
 
         console.log('Using the following initial validators: ' + networkConfig.initialMiningAddresses);

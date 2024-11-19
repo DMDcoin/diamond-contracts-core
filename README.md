@@ -31,8 +31,6 @@ Check also the [BlockRewardHbbft call graph](/docs/BlockRewardHbbft-call-graph.p
   - `setCurrentSeed`. This is a setter that can only be called by the HBBFT engine in order to set the newly generated random number that is gonna be used for the new validator set selection.
   - `currentSeed`. This public getter is used by the `ValidatorSetHbbft` contract at a predefined block of each staking epoch to get the accumulated random seed for randomly choosing new validators among active pools. It can also be used by anyone who wants to use the network's random seed.
 
-- `Registry`: stores human-readable keys associated with addresses, like DNS information (see [Parity Wiki](https://wiki.parity.io/Parity-name-registry.html)). This contract is needed primarily to store the address of the `Certifier` contract (see [Parity Wiki](https://wiki.parity.io/Permissioning.html#gas-price) for details).
-
 - `StakingHbbft`: contains staking logic including:
   - creating, storing, and removing pools by candidates and validators;
   - staking coins by participants (delegators, candidates, or validators) into the pools;
