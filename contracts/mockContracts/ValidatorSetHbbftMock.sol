@@ -6,8 +6,6 @@ import { IKeyGenHistory } from "../interfaces/IKeyGenHistory.sol";
 import { IStakingHbbft } from "../interfaces/IStakingHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
-    bool internal _isFullHealth;
-
     receive() external payable {}
 
     // =============================================== Setters ========================================================
@@ -32,10 +30,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         _writeValidatorAvailableSince(_validator, _timestamp);
     }
 
-    function setIsFullHealth(bool _healthy) public {
-        _isFullHealth = _healthy;
-    }
-
     function forceFinalizeNewValidators() external {
         _finalizeNewValidators();
     }
@@ -48,7 +42,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
             for (uint256 i = count; i <= num; ++i) {
                 _currentValidators.push(validator);
             }
-
         } else if (count > num) {
             for (uint256 i = count; i > num; --i) {
                 _currentValidators.pop();
@@ -79,15 +72,6 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         uint256 _likelihoodSum,
         uint256 _randomNumber
     ) public pure returns (uint256) {
-        return
-            _getRandomIndex(
-                _likelihood,
-                _likelihoodSum,
-                uint256(keccak256(abi.encode(_randomNumber)))
-            );
-    }
-
-    function isFullHealth() external view override returns (bool) {
-        return _isFullHealth;
+        return _getRandomIndex(_likelihood, _likelihoodSum, uint256(keccak256(abi.encode(_randomNumber))));
     }
 }
