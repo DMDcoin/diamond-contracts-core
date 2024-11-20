@@ -254,12 +254,37 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
             );
 
             expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.true;
+        });
+
+        it('should create pool and set node operator configuration', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.false;
+
+            const nodeOperator = accounts[10];
+            const nodeOperatorShare = 2000;
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                nodeOperator,
+                nodeOperatorShare,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            )).to.emit(stakingHbbft, "SetNodeOperator")
+                .withArgs(candidateStakingAddress.address, nodeOperator.address, nodeOperatorShare);
+
+            expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.true;
+            expect(await stakingHbbft.poolNodeOperator(candidateStakingAddress.address)).to.equal(nodeOperator.address);
+            expect(await stakingHbbft.poolNodeOperatorShare(candidateStakingAddress.address)).to.equal(nodeOperatorShare);
         });
 
         it('should fail if created with overstaked pool', async () => {
@@ -269,6 +294,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: maxStake + minStake }
@@ -281,6 +308,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 ethers.ZeroAddress,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -292,6 +321,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateStakingAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -306,6 +337,8 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -313,6 +346,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress2).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -320,6 +355,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress2.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -327,6 +364,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateMiningAddress2).addPool(
                 candidateStakingAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -334,6 +373,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateMiningAddress).addPool(
                 candidateStakingAddress2.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -341,6 +382,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateMiningAddress2).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -348,6 +391,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateMiningAddress).addPool(
                 candidateMiningAddress2.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -355,6 +400,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress2).addPool(
                 candidateStakingAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -362,6 +409,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateStakingAddress2.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -369,6 +418,8 @@ describe('StakingHbbft', () => {
 
             expect(await stakingHbbft.connect(candidateStakingAddress2).addPool(
                 candidateMiningAddress2.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -380,6 +431,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { gasPrice: 0, value: minStake }
@@ -391,6 +444,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: 0n }
@@ -402,6 +457,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake },
@@ -411,6 +468,8 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake },
@@ -422,6 +481,8 @@ describe('StakingHbbft', () => {
 
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake / 2n }
@@ -434,6 +495,8 @@ describe('StakingHbbft', () => {
             const amount = minStake * 2n;
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: amount }
@@ -461,6 +524,8 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(candidate1StakingAddress).addPool(
                 candidate1MiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: amount1 }
@@ -468,6 +533,8 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(candidate2StakingAddress).addPool(
                 candidate2MiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: amount2 }
@@ -505,6 +572,8 @@ describe('StakingHbbft', () => {
             // Try to add a new pool outside of max limit, max limit is 100 in mock contract.
             await expect(stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -521,6 +590,8 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -528,6 +599,125 @@ describe('StakingHbbft', () => {
 
             expect(await stakingHbbft.isPoolActive(candidateStakingAddress.address)).to.be.true;
             expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
+        });
+    });
+
+    describe('setNodeOperator', async () => {
+        let candidateMiningAddress: HardhatEthersSigner;
+        let candidateStakingAddress: HardhatEthersSigner;
+
+        beforeEach(async () => {
+            candidateMiningAddress = accounts[7];
+            candidateStakingAddress = accounts[8];
+        });
+
+        it('should revert for non-existing pool', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const pool = accounts[15];
+            const operator = ethers.Wallet.createRandom().address;
+            const share = 1000;
+
+            await expect(stakingHbbft.connect(pool).setNodeOperator(operator, share))
+                .to.be.revertedWithCustomError(stakingHbbft, "PoolNotExist")
+                .withArgs(pool.address);
+        });
+
+        it('should not allow to change node operator twice within same epoch', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            );
+
+            const operator = ethers.Wallet.createRandom().address;
+            const share = 1000;
+
+            const stakingEpoch = await stakingHbbft.stakingEpoch();
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).setNodeOperator(operator, share))
+                .to.be.revertedWithCustomError(stakingHbbft, "OnlyOncePerEpoch")
+                .withArgs(stakingEpoch);
+        });
+
+        it('should not allow zero address and non-zero percent', async () => {
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            );
+
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
+            await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
+            await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
+
+            const operator = ethers.ZeroAddress;
+            const share = 1000;
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).setNodeOperator(operator, share))
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidNodeOperatorConfiguration")
+                .withArgs(operator, share);
+        });
+
+        it('should not exceed max share percent', async () => {
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            );
+
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
+            await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
+            await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
+
+            const operator = ethers.Wallet.createRandom().address;
+            const share = 2001;
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).setNodeOperator(operator, share))
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidNodeOperatorShare")
+                .withArgs(share);
+        });
+
+        it('should change pool node operator configuration', async () => {
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.connect(candidateStakingAddress).addPool(
+                candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: minStake }
+            );
+
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
+            await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
+            await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
+
+            const operator = ethers.Wallet.createRandom().address;
+            const share = 1950;
+
+            await expect(stakingHbbft.connect(candidateStakingAddress).setNodeOperator(operator, share))
+                .to.emit(stakingHbbft, "SetNodeOperator")
+                .withArgs(candidateStakingAddress.address, operator, share);
+
+            expect(await stakingHbbft.poolNodeOperator(candidateStakingAddress.address)).to.equal(operator);
+            expect(await stakingHbbft.poolNodeOperatorShare(candidateStakingAddress.address)).to.equal(share);
         });
     });
 
@@ -553,6 +743,8 @@ describe('StakingHbbft', () => {
             expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(0n);
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ZeroPublicKey,
                 ZeroIpAddress,
                 { value: minStake }
@@ -2002,160 +2194,436 @@ describe('StakingHbbft', () => {
             )).to.not.emit(stakingHbbft, "RestakeReward");
         });
 
-        it('should restake all rewards to validator without delegators', async () => {
-            const {
-                stakingHbbft,
-                blockRewardHbbft,
-                validatorSetHbbft,
-                candidateMinStake
-            } = await helpers.loadFixture(deployContractsFixture);
+        describe('without node operator', async () => {
+            it('should restake all rewards to validator without delegators', async () => {
+                const {
+                    stakingHbbft,
+                    blockRewardHbbft,
+                    validatorSetHbbft,
+                    candidateMinStake
+                } = await helpers.loadFixture(deployContractsFixture);
 
-            expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
+                expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
 
-            for (let i = 0; i < initialStakingAddresses.length; ++i) {
-                const pool = await ethers.getSigner(initialStakingAddresses[i]);
-                const mining = await ethers.getSigner(initialValidators[i]);
+                for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                    const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                    const mining = await ethers.getSigner(initialValidators[i]);
 
-                await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+                    await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
 
-                const latestBlock = await ethers.provider.getBlock('latest');
-                await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+                    const latestBlock = await ethers.provider.getBlock('latest');
+                    await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
 
-                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
-            }
-
-            let systemSigner = await impersonateAcc(SystemAccountAddress);
-
-            await blockRewardHbbft.connect(systemSigner).reward(true);
-            await blockRewardHbbft.connect(systemSigner).reward(true);
-
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
-
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
-            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
-            await helpers.mine(1);
-
-            const deltaPotValue = ethers.parseEther('50');
-            await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
-            expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
-
-            const validators = await validatorSetHbbft.getValidators();
-            const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
-
-            const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
-            const poolReward = validatorRewards / BigInt(validators.length);
-
-            systemSigner = await impersonateAcc(SystemAccountAddress);
-            await blockRewardHbbft.connect(systemSigner).reward(true);
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
-
-            for (let i = 0; i < initialStakingAddresses.length; ++i) {
-                const pool = await ethers.getSigner(initialStakingAddresses[i]);
-
-                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake + poolReward);
-            }
-        });
-
-        it('should restake delegators rewards according to stakes', async () => {
-            const {
-                stakingHbbft,
-                blockRewardHbbft,
-                validatorSetHbbft,
-                candidateMinStake,
-            } = await helpers.loadFixture(deployContractsFixture);
-
-            expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
-
-            for (let i = 0; i < initialStakingAddresses.length; ++i) {
-                const pool = await ethers.getSigner(initialStakingAddresses[i]);
-                const mining = await ethers.getSigner(initialValidators[i]);
-
-                await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
-
-                const latestBlock = await ethers.provider.getBlock('latest');
-                await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
-
-                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
-            }
-
-            let systemSigner = await impersonateAcc(SystemAccountAddress);
-            await blockRewardHbbft.connect(systemSigner).reward(true);
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
-
-            interface StakeRecord {
-                delegator: string;
-                pool: string;
-                stake: bigint;
-            }
-
-            const delegators = accounts.slice(15, 20);
-            const stakeRecords = new Array<StakeRecord>();
-            const poolTotalStakes = new Map<string, bigint>();
-
-            for (const _pool of initialStakingAddresses) {
-                let _poolTotalStake = candidateMinStake;
-
-                // first delegator will stake minimum, 2nd = 2x, 3rd = 3x ....
-                let stake = BigInt(0);
-                for (const _delegator of delegators) {
-
-                    stake += minStakeDelegators;
-                    stakeRecords.push({ delegator: _delegator.address, pool: _pool, stake: stake });
-
-                    _poolTotalStake += stake;
-
-                    await stakingHbbft.connect(_delegator).stake(_pool, { value: stake });
-                    expect(await stakingHbbft.stakeAmount(_pool, _delegator.address)).to.equal(stake);
+                    expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
                 }
 
-                poolTotalStakes.set(_pool, _poolTotalStake);
+                let systemSigner = await impersonateAcc(SystemAccountAddress);
 
-                expect(await stakingHbbft.stakeAmountTotal(_pool)).to.be.eq(_poolTotalStake);
-            }
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
 
-            systemSigner = await impersonateAcc(SystemAccountAddress);
-            await blockRewardHbbft.connect(systemSigner).reward(true);
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
-            await helpers.time.increaseTo(fixedEpochEndTime + 1n);
-            await helpers.mine(1);
+                const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+                await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+                await helpers.mine(1);
 
-            const epoch = await stakingHbbft.stakingEpoch();
+                const deltaPotValue = ethers.parseEther('50');
+                await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+                expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
 
-            const deltaPotValue = ethers.parseEther('10');
-            await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
-            expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+                const validators = await validatorSetHbbft.getValidators();
+                const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
 
-            const validators = await validatorSetHbbft.getValidators();
-            const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+                const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+                const poolReward = validatorRewards / BigInt(validators.length);
 
-            const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
-            const poolReward = validatorRewards / BigInt(validators.length);
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-            systemSigner = await impersonateAcc(SystemAccountAddress);
-            await blockRewardHbbft.connect(systemSigner).reward(true);
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+                for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                    const pool = await ethers.getSigner(initialStakingAddresses[i]);
 
-            const validatorFixedRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
+                    expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake + poolReward);
+                }
+            });
 
-            for (const _stakeRecord of stakeRecords) {
-                const validatorFixedReward = poolReward * validatorFixedRewardPercent / 100n;
-                const rewardsToDistribute = poolReward - validatorFixedReward;
+            it('should restake delegators rewards according to stakes', async () => {
+                const {
+                    stakingHbbft,
+                    blockRewardHbbft,
+                    validatorSetHbbft,
+                    candidateMinStake,
+                } = await helpers.loadFixture(deployContractsFixture);
 
-                const poolTotalStake = poolTotalStakes.get(_stakeRecord.pool)!;
+                expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
 
-                const validatorShare = validatorFixedReward + rewardsToDistribute * candidateMinStake / poolTotalStake;
-                const delegatorShare = rewardsToDistribute * _stakeRecord.stake / poolTotalStake;
+                for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                    const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                    const mining = await ethers.getSigner(initialValidators[i]);
 
-                expect(
-                    await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.pool)
-                ).to.be.closeTo(candidateMinStake + validatorShare, 100n);
+                    await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
 
-                expect(
-                    await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.delegator)
-                ).to.be.closeTo(_stakeRecord.stake + delegatorShare, 100n);
-            }
+                    const latestBlock = await ethers.provider.getBlock('latest');
+                    await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+
+                    expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+                }
+
+                let systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                interface StakeRecord {
+                    delegator: string;
+                    pool: string;
+                    stake: bigint;
+                }
+
+                const delegators = accounts.slice(15, 20);
+                const stakeRecords = new Array<StakeRecord>();
+                const poolTotalStakes = new Map<string, bigint>();
+
+                for (const _pool of initialStakingAddresses) {
+                    let _poolTotalStake = candidateMinStake;
+
+                    // first delegator will stake minimum, 2nd = 2x, 3rd = 3x ....
+                    let stake = BigInt(0);
+                    for (const _delegator of delegators) {
+
+                        stake += minStakeDelegators;
+                        stakeRecords.push({ delegator: _delegator.address, pool: _pool, stake: stake });
+
+                        _poolTotalStake += stake;
+
+                        await stakingHbbft.connect(_delegator).stake(_pool, { value: stake });
+                        expect(await stakingHbbft.stakeAmount(_pool, _delegator.address)).to.equal(stake);
+                    }
+
+                    poolTotalStakes.set(_pool, _poolTotalStake);
+
+                    expect(await stakingHbbft.stakeAmountTotal(_pool)).to.be.eq(_poolTotalStake);
+                }
+
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+                await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+                await helpers.mine(1);
+
+                const epoch = await stakingHbbft.stakingEpoch();
+
+                const deltaPotValue = ethers.parseEther('10');
+                await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+                expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+
+                const validators = await validatorSetHbbft.getValidators();
+                const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+
+                const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+                const poolReward = validatorRewards / BigInt(validators.length);
+
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                const validatorFixedRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
+
+                for (const _stakeRecord of stakeRecords) {
+                    const validatorFixedReward = poolReward * validatorFixedRewardPercent / 100n;
+                    const rewardsToDistribute = poolReward - validatorFixedReward;
+
+                    const poolTotalStake = poolTotalStakes.get(_stakeRecord.pool)!;
+
+                    const validatorShare = validatorFixedReward + rewardsToDistribute * candidateMinStake / poolTotalStake;
+                    const delegatorShare = rewardsToDistribute * _stakeRecord.stake / poolTotalStake;
+
+                    expect(
+                        await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.pool)
+                    ).to.be.closeTo(candidateMinStake + validatorShare, 100n);
+
+                    expect(
+                        await stakingHbbft.stakeAmount(_stakeRecord.pool, _stakeRecord.delegator)
+                    ).to.be.closeTo(_stakeRecord.stake + delegatorShare, 100n);
+                }
+            });
+        });
+
+        describe('with node operator', async () => {
+            it('should not distribute to node operator with 0% share', async () => {
+                const {
+                    stakingHbbft,
+                    blockRewardHbbft,
+                    validatorSetHbbft,
+                    candidateMinStake
+                } = await helpers.loadFixture(deployContractsFixture);
+
+                expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
+
+                let poolOperators = new Map<HardhatEthersSigner, string>();
+
+                for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                    const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                    const mining = await ethers.getSigner(initialValidators[i]);
+
+                    await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+
+                    const latestBlock = await ethers.provider.getBlock('latest');
+                    await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+
+                    expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+
+                    poolOperators.set(pool, ethers.Wallet.createRandom().address);
+                }
+
+                let systemSigner = await impersonateAcc(SystemAccountAddress);
+
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                for (let [pool, operator] of poolOperators) {
+                    await stakingHbbft.connect(pool).setNodeOperator(operator, 0n);
+                }
+
+                const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+                await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+                await helpers.mine(1);
+
+                const deltaPotValue = ethers.parseEther('50');
+                await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+                expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+
+                const validators = await validatorSetHbbft.getValidators();
+                const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+
+                const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+                const poolReward = validatorRewards / BigInt(validators.length);
+
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                    const pool = await ethers.getSigner(initialStakingAddresses[i]);
+
+                    expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake + poolReward);
+                }
+            });
+
+            it('should include node operators in reward distribution', async () => {
+                const {
+                    stakingHbbft,
+                    blockRewardHbbft,
+                    validatorSetHbbft,
+                    candidateMinStake
+                } = await helpers.loadFixture(deployContractsFixture);
+
+                interface NodeOperatorConfig {
+                    operator: string;
+                    share: bigint;
+                }
+
+                interface StakeRecord {
+                    pool: HardhatEthersSigner;
+                    delegator: string;
+                    stake: bigint;
+                }
+
+                expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
+
+                let poolOperators = new Map<string, NodeOperatorConfig>();
+
+                for (let i = 0; i < initialStakingAddresses.length; ++i) {
+                    const pool = await ethers.getSigner(initialStakingAddresses[i]);
+                    const mining = await ethers.getSigner(initialValidators[i]);
+
+                    expect(await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake }));
+
+                    const latestBlock = await ethers.provider.getBlock('latest');
+                    await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+
+                    expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+
+                    poolOperators.set(
+                        pool.address,
+                        {
+                            operator: ethers.Wallet.createRandom().address,
+                            share: BigInt(200 * (i + 1)),
+                        }
+                    );
+                }
+
+                const delegators = accounts.slice(16, 21);
+                const stakeRecords = new Array<StakeRecord>();
+                const poolTotalStakes = new Map<string, bigint>();
+
+                for (const _pool of initialStakingAddresses) {
+                    let _poolTotalStake = candidateMinStake;
+
+                    // first delegator will stake minimum, 2nd = 2x, 3rd = 3x ....
+                    let stake = BigInt(0);
+                    for (const _delegator of delegators) {
+
+                        stake += minStakeDelegators;
+                        stakeRecords.push({
+                            delegator: _delegator.address,
+                            pool: await ethers.getSigner(_pool),
+                            stake: stake
+                        });
+
+                        _poolTotalStake += stake;
+
+                        expect(await stakingHbbft.connect(_delegator).stake(_pool, { value: stake }));
+                        expect(await stakingHbbft.stakeAmount(_pool, _delegator.address)).to.equal(stake);
+                    }
+
+                    poolTotalStakes.set(_pool, _poolTotalStake);
+
+                    expect(await stakingHbbft.stakeAmountTotal(_pool)).to.be.eq(_poolTotalStake);
+                }
+
+                let systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                for (let [pool, cfg] of poolOperators) {
+                    const poolSigner = await ethers.getSigner(pool);
+                    expect(await stakingHbbft.connect(poolSigner).setNodeOperator(cfg.operator, cfg.share));
+                }
+
+                const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+                await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+                await helpers.mine(1);
+
+                const deltaPotValue = ethers.parseEther('50');
+                await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+                expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+
+                const validators = await validatorSetHbbft.getValidators();
+                const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+
+                const validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+                const poolReward = validatorRewards / BigInt(validators.length);
+
+                const epoch = await stakingHbbft.stakingEpoch();
+                const validatorFixedRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
+                
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                for (const _stakeRecord of stakeRecords) {
+                    const nodeOperatorCfg = poolOperators.get(_stakeRecord.pool.address)!;
+
+                    const validatorFixedReward = poolReward * validatorFixedRewardPercent / 100n;
+                    const rewardsToDistribute = poolReward - validatorFixedReward;
+                    const nodeOperatorShare = poolReward * nodeOperatorCfg.share / 10000n;
+
+                    const poolTotalStake = poolTotalStakes.get(_stakeRecord.pool.address)!;
+
+                    const validatorShare = validatorFixedReward
+                        - nodeOperatorShare
+                        + rewardsToDistribute * candidateMinStake / poolTotalStake;
+                    const delegatorShare = rewardsToDistribute * _stakeRecord.stake / poolTotalStake;
+                    
+                    expect(
+                        await stakingHbbft.stakeAmount(_stakeRecord.pool.address, _stakeRecord.pool.address)
+                    ).to.be.closeTo(candidateMinStake + validatorShare, 100n);
+
+                    expect(
+                        await stakingHbbft.stakeAmount(_stakeRecord.pool.address, _stakeRecord.delegator)
+                    ).to.be.closeTo(_stakeRecord.stake + delegatorShare, 100n);
+
+                    expect(
+                        await stakingHbbft.stakeAmount(_stakeRecord.pool.address, nodeOperatorCfg.operator)
+                    ).to.be.equal(nodeOperatorShare);
+                }
+            });
+
+            it('should send operator share to new address if it was changed', async () => {
+                const {
+                    stakingHbbft,
+                    blockRewardHbbft,
+                    validatorSetHbbft,
+                    candidateMinStake
+                } = await helpers.loadFixture(deployContractsFixture);
+
+                expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.be.equal(0n);
+
+                const pool = await ethers.getSigner(initialStakingAddresses[0]);
+                const mining = await ethers.getSigner(initialValidators[0]);
+                const nodeOperator = ethers.Wallet.createRandom().address;
+                const nodeOperatorShare = 2000n;
+
+                await stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake });
+                const latestBlock = await ethers.provider.getBlock('latest');
+                await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+                expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+
+                let systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                // set node operator
+                await stakingHbbft.connect(pool).setNodeOperator(nodeOperator, nodeOperatorShare);
+
+                const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+                await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+                await helpers.mine(1);
+
+                const deltaPotValue = ethers.parseEther('50');
+                await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
+                expect(await blockRewardHbbft.deltaPot()).to.be.equal(deltaPotValue);
+
+                const validators = await validatorSetHbbft.getValidators();
+                let potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+
+                let validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+                let poolReward = validatorRewards;
+
+                let poolTotalStake = await stakingHbbft.stakeAmountTotal(pool.address);
+
+                // distribute epoch rewards, so node operator will get shares
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                // node operator should get all of the fixed validator rewards;
+                let expectedOperatorStake = poolReward * nodeOperatorShare / 10000n;
+                let expectedValidatorStake = candidateMinStake + (poolReward - expectedOperatorStake) * candidateMinStake / poolTotalStake;
+
+                expect(await stakingHbbft.stakeAmount(pool.address, nodeOperator)).to.equal(expectedOperatorStake);
+                expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.equal(expectedValidatorStake);
+
+                const newOperator = ethers.Wallet.createRandom();
+                const oldOperatorStake = await stakingHbbft.stakeAmount(pool.address, nodeOperator);
+                const prevValidatorStake = await stakingHbbft.stakeAmount(pool.address, pool.address);
+
+                await stakingHbbft.connect(pool).setNodeOperator(newOperator, nodeOperatorShare);
+
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+                validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
+                poolReward = validatorRewards;
+
+                poolTotalStake = await stakingHbbft.stakeAmountTotal(pool.address);
+
+                const newOperatorStake = poolReward * nodeOperatorShare / 10000n;
+                const expectedOldOperatorStake = oldOperatorStake + (poolReward - newOperatorStake) * oldOperatorStake / poolTotalStake;
+                expectedValidatorStake = prevValidatorStake + (poolReward - newOperatorStake) * prevValidatorStake / poolTotalStake;
+
+                expect(await stakingHbbft.stakeAmount(pool.address, newOperator)).to.equal(newOperatorStake);
+                expect(await stakingHbbft.stakeAmount(pool.address, nodeOperator)).to.equal(expectedOldOperatorStake);
+                expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.equal(expectedValidatorStake);
+            });
         });
     });
 

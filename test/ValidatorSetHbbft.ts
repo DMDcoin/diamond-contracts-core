@@ -839,6 +839,8 @@ describe('ValidatorSetHbbft', () => {
                 const stakeAmount = stakeUnit * BigInt(i + 1);
                 await stakingHbbft.connect(await ethers.getSigner(stakingAddresses[i])).addPool(
                     miningAddresses[i],
+                    ethers.ZeroAddress,
+                    0n,
                     ethers.zeroPadBytes("0x00", 64),
                     ethers.zeroPadBytes("0x00", 16),
                     { value: stakeAmount }

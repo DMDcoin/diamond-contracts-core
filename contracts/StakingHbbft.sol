@@ -141,10 +141,23 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     IBonusScoreSystem public bonusScoreContract;
 
+    /// @dev Address of node operator for specified pool.
+    mapping(address => address) public poolNodeOperator;
+
+    /// @dev Node operator share percent of total pool rewards.
+    mapping(address => uint256) public poolNodeOperatorShare;
+
+    /// @dev The epoch number in which the operator's address can be changed.
+    /// Next epoch number used to avoid issues in epoch #0.
+    mapping(address => uint256) internal _poolNodeOperatorNextAllowedChangeEpoch;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
     uint256 public constant MAX_CANDIDATES = 3000;
+
+    uint256 public constant MAX_NODE_OPERATOR_SHARE_PERCENT = 2000;
+    uint256 public constant PERCENT_DENOMINATOR = 10000;
 
     // ================================================ Events ========================================================
 
@@ -232,6 +245,16 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 delegatorsReward
     );
 
+    /// @dev Emitted by the `_setNodeOperator` function.
+    /// @param poolStakingAddress The pool for which node operator was configured.
+    /// @param nodeOperatorAddress Address of node operator address related to `poolStakingAddress`.
+    /// @param operatorShare Node operator share percent.
+    event SetNodeOperator(
+        address indexed poolStakingAddress,
+        address indexed nodeOperatorAddress,
+        uint256 operatorShare
+    );
+
     /**
      * @dev Emitted when the minimum stake for a delegator is updated.
      * @param minStake The new minimum stake value.
@@ -246,6 +269,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     // ============================================== Errors =======================================================
     error CannotClaimWithdrawOrderYet(address pool, address staker);
+    error OnlyOncePerEpoch(uint256 _epoch);
     error MaxPoolsCountExceeded();
     error MaxAllowedWithdrawExceeded(uint256 allowed, uint256 desired);
     error NoStakesToRecover();
@@ -268,6 +292,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error InvalidStakingFixedEpochDuration();
     error InvalidTransitionTimeFrame();
     error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
+    error InvalidNodeOperatorConfiguration(address _operator, uint256 _share);
+    error InvalidNodeOperatorShare(uint256 _share);
     error WithdrawNotAllowed();
     error ZeroWidthrawAmount();
     error ZeroWidthrawDisallowPeriod();
@@ -505,14 +531,26 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// they want to create a pool. This is a wrapper for the `stake` function.
     /// @param _miningAddress The mining address of the candidate. The mining address is bound to the staking address
     /// (msg.sender). This address cannot be equal to `msg.sender`.
-    function addPool(address _miningAddress, bytes calldata _publicKey, bytes16 _ip) external payable gasPriceIsValid {
+    /// @param _nodeOperatorAddress Address of node operator, will receive `_operatorShare` of epoch rewards.
+    /// @param _operatorShare Percent of epoch rewards to send to `_nodeOperatorAddress`.
+    /// Integer value with 2 decimal places, e.g. 1% = 100, 10.25% = 1025.
+    function addPool(
+        address _miningAddress,
+        address _nodeOperatorAddress,
+        uint256 _operatorShare,
+        bytes calldata _publicKey,
+        bytes16 _ip
+    ) external payable gasPriceIsValid {
         address stakingAddress = msg.sender;
         uint256 amount = msg.value;
         validatorSetContract.setStakingAddress(_miningAddress, stakingAddress);
         // The staking address and the staker are the same.
-        _stake(stakingAddress, stakingAddress, amount);
         poolInfo[stakingAddress].publicKey = _publicKey;
         poolInfo[stakingAddress].internetAddress = _ip;
+
+        _setNodeOperator(stakingAddress, _nodeOperatorAddress, _operatorShare);
+
+        _stake(stakingAddress, stakingAddress, amount);
 
         emit PlacedStake(stakingAddress, stakingAddress, stakingEpoch, amount);
     }
@@ -545,6 +583,17 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         poolInfo[msg.sender].publicKey = _publicKey;
         poolInfo[msg.sender].internetAddress = _ip;
         poolInfo[msg.sender].port = _port;
+    }
+
+    /// @dev Set's the pool node operator configuration for a specific ethereum address.
+    /// @param _operatorAddress Node operator address.
+    /// @param _operatorShare Node operator reward share percent.
+    function setNodeOperator(address _operatorAddress, uint256 _operatorShare) external {
+        if (validatorSetContract.miningByStakingAddress(msg.sender) == address(0)) {
+            revert PoolNotExist(msg.sender);
+        }
+
+        _setNodeOperator(msg.sender, _operatorAddress, _operatorShare);
     }
 
     /// @dev Removes a specified pool from the `pools` array (a list of active pools which can be retrieved by the
@@ -623,38 +672,35 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         uint256 poolReward = msg.value;
         uint256 totalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_poolStakingAddress];
-        uint256 validatorStake = snapshotPoolValidatorStakeAmount[stakingEpoch][_poolStakingAddress];
 
-        uint256 validatorReward = 0;
+        PoolRewardShares memory shares = _splitPoolReward(_poolStakingAddress, poolReward, _validatorMinRewardPercent);
 
-        if (totalStake > validatorStake) {
-            address[] memory delegators = poolDelegators(_poolStakingAddress);
+        address[] memory delegators = poolDelegators(_poolStakingAddress);
+        for (uint256 i = 0; i < delegators.length; ++i) {
+            uint256 delegatorReward = (shares.delegatorsShare *
+                _getDelegatorStake(stakingEpoch, _poolStakingAddress, delegators[i])) / totalStake;
 
-            uint256 validatorFixedReward = (poolReward * _validatorMinRewardPercent) / 100;
-            uint256 rewardsToDisribute = poolReward - validatorFixedReward;
-
-            validatorReward = validatorFixedReward + (rewardsToDisribute * validatorStake) / totalStake;
-
-            for (uint256 i = 0; i < delegators.length; ++i) {
-                uint256 delegatorReward = (rewardsToDisribute *
-                    _getDelegatorStake(stakingEpoch, _poolStakingAddress, delegators[i])) / totalStake;
-
-                stakeAmount[_poolStakingAddress][delegators[i]] += delegatorReward;
-                _stakeAmountByEpoch[_poolStakingAddress][delegators[i]][stakingEpoch] += delegatorReward;
-            }
-        } else {
-            // Whole pool stake belongs to the pool owner
-            // and he received all the rewards.
-            validatorReward = poolReward;
+            stakeAmount[_poolStakingAddress][delegators[i]] += delegatorReward;
+            _stakeAmountByEpoch[_poolStakingAddress][delegators[i]][stakingEpoch] += delegatorReward;
         }
 
-        stakeAmount[_poolStakingAddress][_poolStakingAddress] += validatorReward;
+        if (shares.nodeOperatorShare != 0) {
+            _rewardNodeOperator(_poolStakingAddress, shares.nodeOperatorShare);
+        }
+
+        stakeAmount[_poolStakingAddress][_poolStakingAddress] += shares.validatorShare;
+
         stakeAmountTotal[_poolStakingAddress] += poolReward;
         totalStakedAmount += poolReward;
 
         _setLikelihood(_poolStakingAddress);
 
-        emit RestakeReward(_poolStakingAddress, stakingEpoch, validatorReward, poolReward - validatorReward);
+        emit RestakeReward(
+            _poolStakingAddress,
+            stakingEpoch,
+            shares.validatorShare,
+            poolReward - shares.validatorShare
+        );
     }
 
     /// @dev Orders coins withdrawal from the staking address of the specified pool to the
@@ -1433,6 +1479,44 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
     }
 
+    function _setNodeOperator(
+        address _stakingAddress,
+        address _operatorAddress,
+        uint256 _operatorSharePercent
+    ) private {
+        if (_operatorSharePercent > MAX_NODE_OPERATOR_SHARE_PERCENT) {
+            revert InvalidNodeOperatorShare(_operatorSharePercent);
+        }
+
+        if (_operatorAddress == address(0) && _operatorSharePercent != 0) {
+            revert InvalidNodeOperatorConfiguration(_operatorAddress, _operatorSharePercent);
+        }
+
+        uint256 nextChangeEpoch = _poolNodeOperatorNextAllowedChangeEpoch[_stakingAddress];
+
+        if (stakingEpoch < nextChangeEpoch) {
+            revert OnlyOncePerEpoch(stakingEpoch);
+        }
+
+        poolNodeOperator[_stakingAddress] = _operatorAddress;
+        poolNodeOperatorShare[_stakingAddress] = _operatorSharePercent;
+
+        _poolNodeOperatorNextAllowedChangeEpoch[_stakingAddress] = stakingEpoch + 1;
+
+        emit SetNodeOperator(_stakingAddress, _operatorAddress, _operatorSharePercent);
+    }
+
+    function _rewardNodeOperator(address _stakingAddress, uint256 _operatorShare) private {
+        address nodeOperator = poolNodeOperator[_stakingAddress];
+
+        if (!_poolDelegators[_stakingAddress].contains(nodeOperator)) {
+            _addPoolDelegator(_stakingAddress, nodeOperator);
+        }
+
+        stakeAmount[_stakingAddress][nodeOperator] += _operatorShare;
+        _stakeAmountByEpoch[_stakingAddress][nodeOperator][stakingEpoch] += _operatorShare;
+    }
+
     function _getDelegatorStake(
         uint256 _stakingEpoch,
         address _stakingAddress,
@@ -1468,6 +1552,30 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             return (true, index);
         }
         return (false, 0);
+    }
+
+    function _splitPoolReward(
+        address _poolAddress,
+        uint256 _poolReward,
+        uint256 _validatorMinRewardPercent
+    ) private view returns (PoolRewardShares memory shares) {
+        uint256 totalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_poolAddress];
+        uint256 validatorStake = snapshotPoolValidatorStakeAmount[stakingEpoch][_poolAddress];
+
+        uint256 validatorFixedReward = (_poolReward * _validatorMinRewardPercent) / 100;
+
+        shares.delegatorsShare = _poolReward - validatorFixedReward;
+
+        uint256 operatorSharePercent = poolNodeOperatorShare[_poolAddress];
+        if (poolNodeOperator[_poolAddress] != address(0) && operatorSharePercent != 0) {
+            shares.nodeOperatorShare = (_poolReward * operatorSharePercent) / PERCENT_DENOMINATOR;
+        }
+
+        shares.validatorShare =
+            validatorFixedReward -
+            shares.nodeOperatorShare +
+            (shares.delegatorsShare * validatorStake) /
+            totalStake;
     }
 }
 
