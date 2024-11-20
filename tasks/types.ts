@@ -166,37 +166,41 @@ export class NetworkConfiguration {
     }
 }
 
-export class SpecialContract {
-    public name?: string;
-    public address?: string;
-    public bytecode?: string;
+// SpecialContract has been used for the Registry.
+// It is not used anymore.
+// kept for reference if any other special contracts show up int he future.
 
-    public constructor(
-        name?: string,
-        address?: string,
-        bytecode?: string
-    ) {
-        this.name = name;
-        this.address = address;
-        this.bytecode = bytecode;
-    }
+// export class SpecialContract {
+//     public name?: string;
+//     public address?: string;
+//     public bytecode?: string;
 
-    async compileContract(hre: HardhatRuntimeEnvironment, args: any[]) {
-        const factory = await hre.ethers.getContractFactory(this.name!);
-        const tx = await factory.getDeployTransaction(...args);
+//     public constructor(
+//         name?: string,
+//         address?: string,
+//         bytecode?: string
+//     ) {
+//         this.name = name;
+//         this.address = address;
+//         this.bytecode = bytecode;
+//     }
 
-        this.bytecode = tx.data;
-    }
+//     async compileContract(hre: HardhatRuntimeEnvironment, args: any[]) {
+//         const factory = await hre.ethers.getContractFactory(this.name!);
+//         const tx = await factory.getDeployTransaction(...args);
 
-    toSpecAccount(balance: number) {
-        return {
-            [this.address!]: {
-                balance: balance.toString(),
-                constructor: this.bytecode!
-            }
-        };
-    }
-}
+//         this.bytecode = tx.data;
+//     }
+
+//     toSpecAccount(balance: number) {
+//         return {
+//             [this.address!]: {
+//                 balance: balance.toString(),
+//                 constructor: this.bytecode!
+//             }
+//         };
+//     }
+// }
 
 export class CoreContract {
     public name?: string;
@@ -274,7 +278,6 @@ export class CoreContract {
 
 export class InitialContractsConfiguration {
     public core: CoreContract[] = [];
-    public registry?: SpecialContract;
 
     static fromJSON(json: any): InitialContractsConfiguration {
         const instance = new InitialContractsConfiguration();
@@ -282,10 +285,6 @@ export class InitialContractsConfiguration {
         for (const [key, value] of Object.entries(json)) {
             if (key == 'core') {
                 instance[key] = (value as Array<any>).map(x => new CoreContract(...(Object.values(x as any) as [])));
-            }
-
-            if (key == 'registry') {
-                instance[key] = new SpecialContract(...(Object.values(value as any) as []));
             }
         }
 
@@ -387,11 +386,6 @@ export class InitialContractsConfiguration {
                     this.getAddress('ValidatorSetHbbft'),
                     this.getAddress('ConnectivityTrackerHbbft'),
                     this.getAddress('StakingHbbft'),
-                ];
-            case 'Registry':
-                return [
-                    this.getAddress('CertifierHbbft'),
-                    config.owner
                 ];
             default:
                 return [];

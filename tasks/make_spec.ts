@@ -46,10 +46,10 @@ task("make_spec_hbbft", "used to make a spec file")
             const contractName = initialContracts.core[i].name!;
 
             console.log("Preparing contract: ", contractName);
-
             const initializerArgs = initialContracts.getContractInitializerArgs(contractName, networkConfig);
-
             await initialContracts.core[i].compileContract(hre);
+            console.log("compiled: ", contractName);
+            
             let initializerDataHex = await initialContracts.core[i].compileProxy(
                 hre,
                 ProxyContractName,
@@ -68,30 +68,21 @@ task("make_spec_hbbft", "used to make a spec file")
             blocscoutVerificationScript += `echo "verifying proxy for ${contractName} on ${proxyAddress}"\n`;
             blocscoutVerificationScript += `npx hardhat verify --network alpha3 ${proxyAddress} ${implementationAddress} ${networkConfig.owner} ${initializerDataHex}\n`;
 
+            console.log("generating spec for ", contractName);
             const contractSpec = initialContracts.core[i].toSpecAccount(taskArgs.useUpgradeProxy, 0);
-
+            
             spec.accounts = {
                 ...spec.accounts,
                 ...contractSpec
             };
         }
+        console.log("Spec preparation done.");
 
         //spec.engine.hbbft.params.randomnessContractAddress = RANDOM_CONTRACT;
         spec.engine.hbbft.params.blockRewardContractAddress = initialContracts.getAddress("BlockRewardHbbft");
         spec.params.transactionPermissionContract = initialContracts.getAddress("TxPermissionHbbft");
         spec.params.transactionPermissionContractTransition = '0x0';
         
-        // spec.params.registrar = initialContracts.registry?.address;
-
-
-        // await initialContracts.registry!.compileContract(
-        //     hre,
-        //     [
-        //         initialContracts.getAddress("CertifierHbbft"),
-        //         networkConfig.owner
-        //     ]
-        // );
-
         spec.accounts = {
             ...spec.accounts
         };
