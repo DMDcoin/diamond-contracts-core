@@ -2,6 +2,12 @@
 pragma solidity =0.8.25;
 
 interface IStakingHbbft {
+    struct PoolRewardShares {
+        uint256 validatorShare;
+        uint256 nodeOperatorShare;
+        uint256 delegatorsShare;
+    }
+
     struct StakingParams {
         address _validatorSetContract;
         address _bonusScoreContract;

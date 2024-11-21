@@ -1301,6 +1301,8 @@ describe('BlockRewardHbbft', () => {
 
             await stakingHbbft.connect(stakingAddress).addPool(
                 miningAddress.address,
+                ethers.ZeroAddress,
+                0n,
                 ethers.zeroPadBytes("0x00", 64),
                 ethers.zeroPadBytes("0x00", 16),
                 { value: MIN_STAKE }
