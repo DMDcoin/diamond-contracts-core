@@ -624,7 +624,7 @@ describe('StakingHbbft', () => {
         });
 
         it('should not allow to change node operator twice within same epoch', async () => {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.connect(candidateStakingAddress).addPool(
                 candidateMiningAddress.address,
@@ -638,9 +638,19 @@ describe('StakingHbbft', () => {
             const operator = ethers.Wallet.createRandom().address;
             const share = 1000;
 
+            await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
+            await stakingHbbft.connect(accounts[7]).incrementStakingEpoch();
+            await stakingHbbft.setValidatorMockSetAddress(await validatorSetHbbft.getAddress());
+
+
+            await stakingHbbft.connect(candidateStakingAddress).setNodeOperator(operator, share);
+            expect(await stakingHbbft.poolNodeOperator(candidateStakingAddress.address)).to.equal(operator);
+            expect(await stakingHbbft.poolNodeOperatorShare(candidateStakingAddress.address)).to.equal(share);
+
+            const newOperator = ethers.Wallet.createRandom().address;
             const stakingEpoch = await stakingHbbft.stakingEpoch();
 
-            await expect(stakingHbbft.connect(candidateStakingAddress).setNodeOperator(operator, share))
+            await expect(stakingHbbft.connect(candidateStakingAddress).setNodeOperator(newOperator, share))
                 .to.be.revertedWithCustomError(stakingHbbft, "OnlyOncePerEpoch")
                 .withArgs(stakingEpoch);
         });
