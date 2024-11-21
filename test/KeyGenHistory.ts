@@ -586,6 +586,8 @@ describe('KeyGenHistory', () => {
 
             await stakingHbbft.connect(await ethers.getSigner(newPoolStakingAddress)).addPool(
                 newPoolMiningAddress,
+                ethers.ZeroAddress,
+                0n,
                 ethers.zeroPadBytes("0x00", 64),
                 ethers.zeroPadBytes("0x00", 16),
                 { value: candidateMinStake }
@@ -724,6 +726,8 @@ describe('KeyGenHistory', () => {
 
             await stakingHbbft.connect(await ethers.getSigner(poolStakingAddress2)).addPool(
                 poolMiningAddress2,
+                ethers.ZeroAddress,
+                0n,
                 ethers.zeroPadBytes("0x00", 64),
                 ethers.zeroPadBytes("0x00", 16),
                 { value: candidateMinStake }
