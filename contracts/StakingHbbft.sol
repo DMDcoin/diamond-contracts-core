@@ -260,12 +260,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
      */
     event SetDelegatorMinStake(uint256 minStake);
 
-    /**
-     * @dev Emitted when the BonusScoreSystem contract address is changed.
-     * @param _address BonusScoreSystem contract address.
-     */
-    event SetBonusScoreContract(address _address);
-
     // ============================================== Errors =======================================================
     error CannotClaimWithdrawOrderYet(address pool, address staker);
     error OnlyOncePerEpoch(uint256 _epoch);
@@ -471,16 +465,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     ) external onlyValidatorSetContract {
         poolInfo[_validatorAddress].internetAddress = _ip;
         poolInfo[_validatorAddress].port = _port;
-    }
-
-    function setBonusScoreContract(address _bonusScoreContract) external onlyOwner {
-        if (_bonusScoreContract == address(0)) {
-            revert ZeroAddress();
-        }
-
-        bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
-
-        emit SetBonusScoreContract(_bonusScoreContract);
     }
 
     /// @dev Increments the serial number of the current staking epoch.

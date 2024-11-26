@@ -3,6 +3,7 @@ pragma solidity =0.8.25;
 
 import { StakingHbbft } from "../StakingHbbft.sol";
 import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
+import { IBonusScoreSystem } from "../interfaces/IBonusScoreSystem.sol";
 import { Unauthorized } from "../lib/Errors.sol";
 
 contract StakingHbbftMock is StakingHbbft {
@@ -48,6 +49,10 @@ contract StakingHbbftMock is StakingHbbft {
 
     function setValidatorSetAddress(IValidatorSetHbbft _validatorSetAddress) public {
         validatorSetContract = _validatorSetAddress;
+    }
+
+    function setBonusScoreContract(address _bonusScoreContract) public {
+        bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
     }
 
     // =============================================== Getters ========================================
