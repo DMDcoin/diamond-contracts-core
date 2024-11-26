@@ -4,6 +4,7 @@ pragma solidity =0.8.25;
 import { ValidatorSetHbbft } from "../ValidatorSetHbbft.sol";
 import { IKeyGenHistory } from "../interfaces/IKeyGenHistory.sol";
 import { IStakingHbbft } from "../interfaces/IStakingHbbft.sol";
+import { IBonusScoreSystem } from "../interfaces/IBonusScoreSystem.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     receive() external payable {}
@@ -24,6 +25,14 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
     function setKeyGenHistoryContract(address _address) public {
         keyGenHistoryContract = IKeyGenHistory(_address);
+    }
+
+    function setBonusScoreSystemAddress(address _address) public {
+        bonusScoreSystem = IBonusScoreSystem(_address);
+    }
+
+    function setConnectivityTracker(address _address) public {
+        connectivityTracker = _address;
     }
 
     function setValidatorAvailableSince(address _validator, uint256 _timestamp) public {

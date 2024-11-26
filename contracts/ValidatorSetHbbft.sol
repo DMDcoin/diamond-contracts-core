@@ -83,11 +83,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// validators reporter him as disconnected.
     event ValidatorUnavailable(address validator, uint256 timestamp);
 
-    event SetMaxValidators(uint256 _count);
-    event SetValidatorInactivityThreshold(uint256 _value);
-    event SetBonusScoreContract(address _address);
-    event SetConnectivityTrackerContract(address _address);
-
     error AnnounceBlockNumberTooOld();
     error CantAnnounceAvailability();
     error EpochNotYetzFinished();
@@ -132,13 +127,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         // Prevents initialization of implementation contract
         _disableInitializers();
     }
-
-    // function getInfo()
-    // public
-    // view
-    // returns (address sender, address admin) {
-    //     return (msg.sender, _admin());
-    // }
 
     // =============================================== Setters ========================================================
 
@@ -224,44 +212,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// Automatically called by the `BlockRewardHbbft.reward` function at the latest block of the staking epoch.
     function newValidatorSet() external onlyBlockRewardContract {
         _newValidatorSet(new address[](0));
-    }
-
-    /// @dev Inactive validators and their stakers loose there stake after a certain period of time.
-    /// This function defines the lenght of this time window. 
-    /// @param _seconds new value in seconds. 
-    function setValidatorInactivityThreshold(uint256 _seconds) external onlyOwner {
-        
-        // chosen abritary minimum value of a week.
-        // if you want smaller values for tests,
-        // the contract can be deployed with a smaller value
-        // (no restriction there)
-        if (_seconds < 1 weeks) {
-            revert InvalidInactivityThreshold();
-        }
-
-        validatorInactivityThreshold = _seconds;
-
-        emit SetValidatorInactivityThreshold(_seconds);
-    }
-
-    function setBonusScoreSystemAddress(address _address) external onlyOwner {
-        if (_address == address(0)) {
-            revert ZeroAddress();
-        }
-
-        bonusScoreSystem = IBonusScoreSystem(_address);
-
-        emit SetBonusScoreContract(_address);
-    }
-
-    function setConnectivityTracker(address _address) external onlyOwner {
-        if (_address == address(0)) {
-            revert ZeroAddress();
-        }
-
-        connectivityTracker = _address;
-
-        emit SetConnectivityTrackerContract(_address);
     }
 
     /// @dev called by validators when a validator comes online after
@@ -442,12 +392,6 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// and should never be used as a pool before.
     function setStakingAddress(address _miningAddress, address _stakingAddress) external onlyStakingContract {
         _setStakingAddress(_miningAddress, _stakingAddress);
-    }
-
-    function setMaxValidators(uint256 _maxValidators) external onlyOwner {
-        maxValidators = _maxValidators;
-
-        emit SetMaxValidators(_maxValidators);
     }
 
     /// @dev set's the validators ip address.

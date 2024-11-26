@@ -522,35 +522,6 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
-    describe('setValidatorInactivityThreshold', async () => {
-        it('fail to set threshold less than a week', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const value = 60 * 60 * 24 * 7 - 1;
-
-            await expect(validatorSetHbbft.setValidatorInactivityThreshold(value))
-                .to.be.revertedWithCustomError(validatorSetHbbft, "InvalidInactivityThreshold");
-        });
-
-        it('correct value is set', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            let value30Days = 2592000;
-            await validatorSetHbbft.setValidatorInactivityThreshold(value30Days);
-            expect(await validatorSetHbbft.validatorInactivityThreshold()).to.be.equal(value30Days);
-        });
-
-        it('only owner should be able to change value', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-            let nobody = (await ethers.getSigners())[42];
-            let value30Days = 2592000;
-
-            await expect(validatorSetHbbft.connect(nobody).setValidatorInactivityThreshold(value30Days))
-                .to.be.revertedWithCustomError(validatorSetHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(nobody.address);
-        });
-    });
-
     describe('setValidatorInternetAddress', async () => {
         let validatorSetPermission: Permission<ValidatorSetHbbftMock>
 
@@ -683,68 +654,6 @@ describe('ValidatorSetHbbft', () => {
                 }
                 ipLast++;
             }
-        });
-    });
-
-    describe('setBonusScoreSystemAddress', async () => {
-        it('should restrict calling to contract owner', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[10];
-
-            await expect(validatorSetHbbft.connect(caller).setBonusScoreSystemAddress(ethers.ZeroAddress))
-                .to.be.revertedWithCustomError(validatorSetHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should revert set zero address', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(validatorSetHbbft.setBonusScoreSystemAddress(ethers.ZeroAddress))
-                .to.be.revertedWithCustomError(validatorSetHbbft, "ZeroAddress");
-        });
-
-        it('should set new address and emit event', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const newAddress = accounts[11].address;
-
-            expect(await validatorSetHbbft.setBonusScoreSystemAddress(newAddress))
-                .to.emit(validatorSetHbbft, "SetBonusScoreContract")
-                .withArgs(newAddress);
-
-            expect(await validatorSetHbbft.bonusScoreSystem()).to.equal(newAddress);
-        });
-    });
-
-    describe('setConnectivityTracker', async () => {
-        it('should restrict calling to contract owner', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[10];
-
-            await expect(validatorSetHbbft.connect(caller).setConnectivityTracker(ethers.ZeroAddress))
-                .to.be.revertedWithCustomError(validatorSetHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should revert set zero address', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(validatorSetHbbft.setConnectivityTracker(ethers.ZeroAddress))
-                .to.be.revertedWithCustomError(validatorSetHbbft, "ZeroAddress");
-        });
-
-        it('should set new address and emit event', async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const newAddress = accounts[11].address;
-
-            expect(await validatorSetHbbft.setConnectivityTracker(newAddress))
-                .to.emit(validatorSetHbbft, "SetConnectivityTrackerContract")
-                .withArgs(newAddress);
-
-            expect(await validatorSetHbbft.connectivityTracker()).to.equal(newAddress);
         });
     });
 
@@ -1131,29 +1040,6 @@ describe('ValidatorSetHbbft', () => {
             await expect(validatorSetHbbft.connect(blockRewardSigner).finalizeChange()).to.be.fulfilled;
 
             await helpers.stopImpersonatingAccount(blockRewardSigner.address);
-        });
-    });
-
-    describe('setMaxValidators', async () => {
-        it("should restrict calling to contract owner", async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[5];
-
-            await expect(validatorSetHbbft.connect(caller).setMaxValidators(0n))
-                .to.be.revertedWithCustomError(validatorSetHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it("should set max validators", async () => {
-            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
-            const newValue = 50n;
-
-            await expect(validatorSetHbbft.connect(owner).setMaxValidators(newValue))
-                .to.emit(validatorSetHbbft, "SetMaxValidators")
-                .withArgs(newValue);
-
-            expect(await validatorSetHbbft.maxValidators()).to.equal(newValue);
         });
     });
 
