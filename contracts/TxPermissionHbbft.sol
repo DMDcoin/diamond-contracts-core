@@ -85,16 +85,6 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
     // ============================================== Events ==========================================================
 
-    event GasPriceChanged(uint256 _value);
-    event BlockGasLimitChanged(uint256 _value);
-    event SetConnectivityTracker(address _value);
-
-    error InvalidMinGasPrice();
-    error InvalidBlockGasLimit();
-    error SenderNotAllowed();
-    error AlreadyExist(address _value);
-    error NotExist(address _value);
-
     /**
      * @dev Emitted when the minimum gas price is updated.
      * @param _minGasPrice The new minimum gas price.
@@ -106,6 +96,16 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
      * @param _blockGasLimit The new block gas limit.
      */
     event SetBlockGasLimit(uint256 _blockGasLimit);
+
+    event AddAllowedSender(address indexed _sender);
+
+    event RemoveAllowedSender(address indexed _sender);
+
+    error InvalidMinGasPrice();
+    error InvalidBlockGasLimit();
+    error SenderNotAllowed();
+    error AlreadyExist(address _value);
+    error NotExist(address _value);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -213,6 +213,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         }
 
         isSenderAllowed[_sender] = false;
+
+        emit RemoveAllowedSender(_sender);
     }
 
     /// @dev set's the minimum gas price that is allowed by non-service transactions.
@@ -228,7 +230,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         // param value validation is done in the {ValueGuards-withinAllowedRange} modifier
         minimumGasPrice = _value;
 
-        emit GasPriceChanged(_value);
+        emit SetMinimumGasPrice(_value);
     }
 
     /// @dev set's the block gas limit.
@@ -238,17 +240,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         // param value validation is done in the {ValueGuards-withinAllowedRange} modifier
         blockGasLimit = _value;
 
-        emit BlockGasLimitChanged(_value);
-    }
-
-    function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
-        if (_connectivityTracker == address(0)) {
-            revert ZeroAddress();
-        }
-
-        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
-
-        emit SetConnectivityTracker(_connectivityTracker);
+        emit SetBlockGasLimit(_value);
     }
 
     // =============================================== Getters ========================================================
@@ -451,6 +443,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
         _allowedSenders.push(_sender);
         isSenderAllowed[_sender] = true;
+
+        emit AddAllowedSender(_sender);
     }
 
     /// @dev retrieves a UInt256 slice of a bytes array on a specific location
