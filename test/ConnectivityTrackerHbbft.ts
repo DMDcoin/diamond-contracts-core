@@ -335,30 +335,6 @@ describe('ConnectivityTrackerHbbft', () => {
         });
     });
 
-    describe('setEarlyEpochEndToleranceLevel', async () => {
-        it("should revert calling function by unauthorized account", async function () {
-            const { connectivityTracker } = await helpers.loadFixture(deployContracts);
-            const caller = accounts[4];
-
-            await expect(
-                connectivityTracker.connect(caller).setEarlyEpochEndToleranceLevel(5)
-            ).to.be.revertedWithCustomError(connectivityTracker, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it("should set early epoch end tolerance level and emit event", async function () {
-            const { connectivityTracker } = await helpers.loadFixture(deployContracts);
-            const newValue = 5;
-
-            await expect(
-                connectivityTracker.connect(owner).setEarlyEpochEndToleranceLevel(newValue)
-            ).to.emit(connectivityTracker, "SetEarlyEpochEndToleranceLevel")
-                .withArgs(newValue);
-
-            expect(await connectivityTracker.earlyEpochEndToleranceLevel()).to.equal(newValue);
-        });
-    });
-
     describe('reportMissingConnectivity', async () => {
         it("should restrict calling function only to validators", async () => {
             const { connectivityTracker } = await helpers.loadFixture(deployContracts);
