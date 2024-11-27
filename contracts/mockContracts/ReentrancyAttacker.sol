@@ -8,12 +8,12 @@ contract ReentrancyAttacker {
     uint256 public timeArgValue;
     bytes4 public funcId;
 
-    constructor(address _bonusScoreSystem) {
-        bonusScoreSystem = IBonusScoreSystem(_bonusScoreSystem);
-    }
-
     function setFuncId(bytes4 id) external {
         funcId = id;
+    }
+
+    function setBonusScoreContract(address _bonusScoreSystem) external {
+        bonusScoreSystem = IBonusScoreSystem(_bonusScoreSystem);
     }
 
     function attack(address mining, uint256 time) public {
