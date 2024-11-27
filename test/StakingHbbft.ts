@@ -2637,7 +2637,7 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('setStakingTransitionTimeframeLength()', async () => {
+    describe.skip('setStakingTransitionTimeframeLength()', async () => {
         it('should allow calling only to contract owner', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -2670,7 +2670,7 @@ describe('StakingHbbft', () => {
 
     });
 
-    describe('setStakingFixedEpochDuration()', async () => {
+    describe.skip('setStakingFixedEpochDuration()', async () => {
         it('should allow calling only to contract owner', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 

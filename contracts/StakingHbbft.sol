@@ -415,22 +415,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         stakingTransitionTimeframeLength = stakingParams._stakingTransitionTimeframeLength;
     }
 
-    function setStakingTransitionTimeframeLength(uint256 _value) external onlyOwner {
-        if (_value <= 10 || _value >= stakingFixedEpochDuration) {
-            revert InvalidStakingTransitionTimeframe();
-        }
-
-        stakingTransitionTimeframeLength = _value;
-    }
-
-    function setStakingFixedEpochDuration(uint256 _value) external onlyOwner {
-        if (_value <= stakingTransitionTimeframeLength) {
-            revert InvalidStakingFixedEpochDuration();
-        }
-
-        stakingFixedEpochDuration = _value;
-    }
-
     /**
      * @dev Sets the minimum stake required for delegators.
      * @param _minStake The new minimum stake amount.
