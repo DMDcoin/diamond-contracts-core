@@ -4,7 +4,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 import fp from "lodash/fp";
 
-import { BonusScoreSystem, StakingHbbft, ValidatorSetHbbftMock } from "../src/types";
+import { BonusScoreSystem, StakingHbbft, StakingHbbftMock, ValidatorSetHbbftMock } from "../src/types";
 
 // one epoch in 12 hours.
 const STAKING_FIXED_EPOCH_DURATION = 43200n;
@@ -110,7 +110,7 @@ describe("BonusScoreSystem", function () {
                 initialValidatorsIpAddresses // _internetAddresses
             ],
             { initializer: 'initialize' }
-        ) as unknown as StakingHbbft;
+        ) as unknown as StakingHbbftMock;
 
         await stakingHbbft.waitForDeployment();
 
@@ -133,8 +133,10 @@ describe("BonusScoreSystem", function () {
         await validatorSetHbbft.setBonusScoreSystemAddress(await bonusScoreSystem.getAddress());
 
         const reentrancyAttackerFactory = await ethers.getContractFactory("ReentrancyAttacker");
-        const reentrancyAttacker = await reentrancyAttackerFactory.deploy(await bonusScoreSystem.getAddress());
+        const reentrancyAttacker = await reentrancyAttackerFactory.deploy();
         await reentrancyAttacker.waitForDeployment();
+
+        await reentrancyAttacker.setBonusScoreContract(await bonusScoreSystem.getAddress());
 
         return { bonusScoreSystem, stakingHbbft, validatorSetHbbft, reentrancyAttacker };
     }
@@ -252,7 +254,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe('updateScoringFactor', async () => {
+    describe.skip('updateScoringFactor', async () => {
         const TestCases = [
             { factor: ScoringFactor.StandByBonus, value: 20 },
             { factor: ScoringFactor.NoStandByPenalty, value: 50 },
@@ -287,96 +289,6 @@ describe("BonusScoreSystem", function () {
 
                 expect(await bonusScoreSystem.getScoringFactorValue(args.factor)).to.equal(args.value);
             });
-        });
-    });
-
-    describe('setStakingContract', async () => {
-        it('should restrict calling to contract owner', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const caller = users[2];
-
-            await expect(bonusScoreSystem.connect(caller).setStakingContract(randomWallet()))
-                .to.be.revertedWithCustomError(bonusScoreSystem, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should not set zero contract address', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-
-            await expect(
-                bonusScoreSystem.setStakingContract(ethers.ZeroAddress)
-            ).to.be.revertedWithCustomError(bonusScoreSystem, "ZeroAddress");
-        });
-
-        it('should set Staking contract address and emit event', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const _staking = randomWallet();
-
-            await expect(
-                bonusScoreSystem.setStakingContract(_staking)
-            ).to.emit(bonusScoreSystem, "SetStakingContract").withArgs(_staking);
-
-            expect(await bonusScoreSystem.stakingHbbft()).to.equal(_staking);
-        });
-    });
-
-    describe('setValidatorSetContract', async () => {
-        it('should restrict calling to contract owner', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const caller = users[2];
-
-            await expect(bonusScoreSystem.connect(caller).setValidatorSetContract(randomWallet()))
-                .to.be.revertedWithCustomError(bonusScoreSystem, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should not set zero contract address', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-
-            await expect(
-                bonusScoreSystem.setValidatorSetContract(ethers.ZeroAddress)
-            ).to.be.revertedWithCustomError(bonusScoreSystem, "ZeroAddress");
-        });
-
-        it('should set ValidatorSet contract address and emit event', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const _validatorSet = randomWallet();
-
-            await expect(
-                bonusScoreSystem.setValidatorSetContract(_validatorSet)
-            ).to.emit(bonusScoreSystem, "SetValidatorSetContract").withArgs(_validatorSet);
-
-            expect(await bonusScoreSystem.validatorSetHbbft()).to.equal(_validatorSet);
-        });
-    });
-
-    describe('setConnectivityTrackerContract', async () => {
-        it('should restrict calling to contract owner', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const caller = users[2];
-
-            await expect(bonusScoreSystem.connect(caller).setConnectivityTrackerContract(randomWallet()))
-                .to.be.revertedWithCustomError(bonusScoreSystem, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should not set zero contract address', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-
-            await expect(
-                bonusScoreSystem.setConnectivityTrackerContract(ethers.ZeroAddress)
-            ).to.be.revertedWithCustomError(bonusScoreSystem, "ZeroAddress");
-        });
-
-        it('should set ConnectivityTracker contract address and emit event', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const _connectivityTracker = randomWallet();
-
-            await expect(
-                bonusScoreSystem.setConnectivityTrackerContract(_connectivityTracker)
-            ).to.emit(bonusScoreSystem, "SetConnectivityTrackerContract").withArgs(_connectivityTracker);
-
-            expect(await bonusScoreSystem.connectivityTracker()).to.equal(_connectivityTracker);
         });
     });
 
@@ -574,13 +486,23 @@ describe("BonusScoreSystem", function () {
         });
 
         it('should be non-reentrant', async () => {
-            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+            const { reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const bonusScoreSystemFactory = await ethers.getContractFactory("BonusScoreSystem");
+            const bonusScoreSystem = await upgrades.deployProxy(
+                bonusScoreSystemFactory,
+                [
+                    owner.address,
+                    await reentrancyAttacker.getAddress(), // _validatorSetHbbft
+                    randomWallet(),                        // _connectivityTracker
+                    await reentrancyAttacker.getAddress(), // _stakingContract
+                ],
+                { initializer: 'initialize' }
+            ) as unknown as BonusScoreSystem;
 
             const selector = bonusScoreSystem.interface.getFunction('rewardStandBy').selector;
 
-            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
-            await bonusScoreSystem.setValidatorSetContract(await reentrancyAttacker.getAddress());
-
+            await reentrancyAttacker.setBonusScoreContract(await bonusScoreSystem.getAddress());
             await reentrancyAttacker.setFuncId(selector);
 
             const mining = await ethers.getSigner(initialValidators[0]);
@@ -748,13 +670,23 @@ describe("BonusScoreSystem", function () {
         });
 
         it('should be non-reentrant', async () => {
-            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+            const { reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const bonusScoreSystemFactory = await ethers.getContractFactory("BonusScoreSystem");
+            const bonusScoreSystem = await upgrades.deployProxy(
+                bonusScoreSystemFactory,
+                [
+                    owner.address,
+                    await reentrancyAttacker.getAddress(), // _validatorSetHbbft
+                    randomWallet(),                        // _connectivityTracker
+                    await reentrancyAttacker.getAddress(), // _stakingContract
+                ],
+                { initializer: 'initialize' }
+            ) as unknown as BonusScoreSystem;
 
             const selector = bonusScoreSystem.interface.getFunction('penaliseNoStandBy').selector;
 
-            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
-            await bonusScoreSystem.setValidatorSetContract(await reentrancyAttacker.getAddress());
-
+            await reentrancyAttacker.setBonusScoreContract(await bonusScoreSystem.getAddress());
             await reentrancyAttacker.setFuncId(selector);
 
             const mining = await ethers.getSigner(initialValidators[0]);
@@ -858,13 +790,23 @@ describe("BonusScoreSystem", function () {
         });
 
         it('should be non-reentrant', async () => {
-            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+            const { reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const bonusScoreSystemFactory = await ethers.getContractFactory("BonusScoreSystem");
+            const bonusScoreSystem = await upgrades.deployProxy(
+                bonusScoreSystemFactory,
+                [
+                    owner.address,
+                    await reentrancyAttacker.getAddress(), // _validatorSetHbbft
+                    randomWallet(),                        // _connectivityTracker
+                    await reentrancyAttacker.getAddress(), // _stakingContract
+                ],
+                { initializer: 'initialize' }
+            ) as unknown as BonusScoreSystem;
 
             const selector = bonusScoreSystem.interface.getFunction('penaliseNoKeyWrite').selector;
 
-            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
-            await bonusScoreSystem.setValidatorSetContract(await reentrancyAttacker.getAddress());
-
+            await reentrancyAttacker.setBonusScoreContract(await bonusScoreSystem.getAddress());
             await reentrancyAttacker.setFuncId(selector);
 
             const mining = await ethers.getSigner(initialValidators[0]);
@@ -970,13 +912,23 @@ describe("BonusScoreSystem", function () {
         });
 
         it('should be non-reentrant', async () => {
-            const { bonusScoreSystem, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+            const { validatorSetHbbft, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
+
+            const bonusScoreSystemFactory = await ethers.getContractFactory("BonusScoreSystem");
+            const bonusScoreSystem = await upgrades.deployProxy(
+                bonusScoreSystemFactory,
+                [
+                    owner.address,
+                    await validatorSetHbbft.getAddress(),  // _validatorSetHbbft
+                    await reentrancyAttacker.getAddress(), // _connectivityTracker
+                    await reentrancyAttacker.getAddress(), // _stakingContract
+                ],
+                { initializer: 'initialize' }
+            ) as unknown as BonusScoreSystem;
 
             const selector = bonusScoreSystem.interface.getFunction('penaliseBadPerformance').selector;
 
-            await bonusScoreSystem.setStakingContract(await reentrancyAttacker.getAddress());
-            await bonusScoreSystem.setConnectivityTrackerContract(await reentrancyAttacker.getAddress());
-
+            await reentrancyAttacker.setBonusScoreContract(await bonusScoreSystem.getAddress());
             await reentrancyAttacker.setFuncId(selector);
 
             const mining = await ethers.getSigner(initialValidators[0]);

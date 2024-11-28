@@ -402,7 +402,7 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).addAllowedSender(ethers.ZeroAddress)
-                ).to.be.reverted;
+                ).to.be.revertedWithCustomError(txPermission, "ZeroAddress");
             });
 
             it("should add allowed sender", async function () {
@@ -411,7 +411,11 @@ describe('TxPermissionHbbft', () => {
                 const sender = accounts[10];
 
                 expect(await txPermission.isSenderAllowed(sender.address)).to.be.false;
-                expect(await txPermission.connect(owner).addAllowedSender(sender.address));
+                
+                await expect(txPermission.connect(owner).addAllowedSender(sender.address))
+                    .to.emit(txPermission, "AddAllowedSender")
+                    .withArgs(sender.address);
+
                 expect(await txPermission.isSenderAllowed(sender.address)).to.be.true;
 
                 expect(await txPermission.allowedSenders()).to.contain(sender.address);
@@ -428,7 +432,8 @@ describe('TxPermissionHbbft', () => {
 
                 await expect(
                     txPermission.connect(owner).addAllowedSender(sender.address)
-                ).to.be.rejected;
+                ).to.be.revertedWithCustomError(txPermission, "AlreadyExist")
+                    .withArgs(sender.address);
             });
         });
 
@@ -444,18 +449,15 @@ describe('TxPermissionHbbft', () => {
                     .withArgs(caller.address);
             });
 
-            it("should revert calling if sender already removed", async function () {
+            it("should revert for non-existing sender", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
 
                 const sender = accounts[11];
 
-                // expect(await txPermission.isSenderAllowed(sender.address)).to.be.false;
-                // expect(await txPermission.connect(owner).addAllowedSender(sender.address));
-                // expect(await txPermission.isSenderAllowed(sender.address)).to.be.true;
-
                 await expect(
                     txPermission.connect(owner).removeAllowedSender(sender.address)
-                ).to.be.reverted;
+                ).to.be.revertedWithCustomError(txPermission, "NotExist")
+                    .withArgs(sender.address);
             });
 
             it("should remove sender", async function () {
@@ -467,7 +469,9 @@ describe('TxPermissionHbbft', () => {
                 expect(await txPermission.isSenderAllowed(sender.address)).to.be.true;
                 expect(await txPermission.allowedSenders()).to.contain(sender.address);
 
-                expect(await txPermission.connect(owner).removeAllowedSender(sender.address));
+                await expect(txPermission.connect(owner).removeAllowedSender(sender.address))
+                    .to.emit(txPermission, "RemoveAllowedSender")
+                    .withArgs(sender.address);
 
                 expect(await txPermission.isSenderAllowed(sender.address)).to.be.false;
                 expect(await txPermission.allowedSenders()).to.not.contain(sender.address);
@@ -498,7 +502,7 @@ describe('TxPermissionHbbft', () => {
                 const minGasPrice = ethers.parseUnits('0.8', 'gwei');
                 await expect(
                     txPermission.connect(owner).setMinimumGasPrice(minGasPrice)
-                ).to.emit(txPermission, "GasPriceChanged")
+                ).to.emit(txPermission, "SetMinimumGasPrice")
                     .withArgs(minGasPrice);
 
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
@@ -531,41 +535,11 @@ describe('TxPermissionHbbft', () => {
 
                 const blockGasLimit = 200_000_000
 
-                expect(await txPermission.connect(owner).setBlockGasLimit(blockGasLimit));
+                await expect(txPermission.connect(owner).setBlockGasLimit(blockGasLimit))
+                    .to.emit(txPermission, "SetBlockGasLimit")
+                    .withArgs(blockGasLimit);
 
                 expect(await txPermission.blockGasLimit()).to.equal(blockGasLimit);
-            });
-        });
-
-        describe('setConnectivityTracker()', async function () {
-            it("should restrict calling setConnectivityTracker to contract owner", async function () {
-                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
-
-                const caller = accounts[1];
-
-                await expect(txPermission.connect(caller).setConnectivityTracker(caller.address))
-                    .to.be.revertedWithCustomError(txPermission, "OwnableUnauthorizedAccount")
-                    .withArgs(caller.address);
-            });
-
-            it("should not allow to set connectivity tracker address to zero", async function () {
-                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
-
-                await expect(
-                    txPermission.connect(owner).setConnectivityTracker(ethers.ZeroAddress)
-                ).to.be.revertedWithCustomError(txPermission, "ZeroAddress");
-            });
-
-            it("should set connectivity tracker contract and emit event", async function () {
-                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
-
-                const newAddress = accounts[10].address;
-
-                await expect(txPermission.connect(owner).setConnectivityTracker(newAddress))
-                    .to.emit(txPermission, "SetConnectivityTracker")
-                    .withArgs(newAddress)
-
-                expect(await txPermission.connectivityTracker()).to.equal(newAddress);
             });
         });
 

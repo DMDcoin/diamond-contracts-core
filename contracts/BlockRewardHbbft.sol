@@ -89,23 +89,9 @@ contract BlockRewardHbbft is
     /// @param rewards The amount minted and distributed among the validators.
     event CoinsRewarded(uint256 rewards);
 
-    /// @dev Emitted by the `setConnectivityTracker` function.
-    /// @param _connectivityTracker New ConnectivityTracker contract address.
-    event SetConnectivityTracker(address _connectivityTracker);
-
-    /// @dev Emitted by the `setdeltaPotPayoutFraction` function.
-    /// @param _fraction New delta pot payout fraction value.
-    event SetDeltaPotPayoutFraction(uint256 _fraction);
-
-    /// @dev Emitted by the `setReinsertPotPayoutFraction` function.
-    /// @param _fraction New reinsert pot payout fraction value.
-    event SetReinsertPotPayoutFraction(uint256 _fraction);
-
     event EarlyEpochEndNotificationReceived();
 
     event SetGovernancePotShareNominator(uint256 value);
-
-    error ZeroPayoutFraction();
 
     // ============================================== Modifiers =======================================================
 
@@ -195,45 +181,6 @@ contract BlockRewardHbbft is
     /// everyone is welcomed to pile up the reinsert pot.
     function addToReinsertPot() external payable {
         reinsertPot += msg.value;
-    }
-
-    /// @dev set the delta pot payout fraction.
-    /// every epoch,
-    /// a fraction of the delta pot is payed out.
-    /// Only theOwner, the DAO is allowed to set the delta pot payout fraction.
-    function setdeltaPotPayoutFraction(uint256 _value) external onlyOwner {
-        if (_value == 0) {
-            revert ZeroPayoutFraction();
-        }
-
-        deltaPotPayoutFraction = _value;
-
-        emit SetDeltaPotPayoutFraction(_value);
-    }
-
-    /// @dev set the reinsert pot payout fraction.
-    /// every epoch,
-    /// a fraction of the reinsert pot is payed out.
-    /// (same logic than in the reinsert pot.)
-    /// Only theOwner, the DAO is allowed to set the reinsert pot payout fraction.
-    function setReinsertPotPayoutFraction(uint256 _value) external onlyOwner {
-        if (_value == 0) {
-            revert ZeroPayoutFraction();
-        }
-
-        reinsertPotPayoutFraction = _value;
-
-        emit SetReinsertPotPayoutFraction(_value);
-    }
-
-    function setConnectivityTracker(address _connectivityTracker) external onlyOwner {
-        if (_connectivityTracker == address(0)) {
-            revert ZeroAddress();
-        }
-
-        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
-
-        emit SetConnectivityTracker(_connectivityTracker);
     }
 
     /// @dev Notify block reward contract, that current epoch must be closed earlier.

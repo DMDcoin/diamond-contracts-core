@@ -466,62 +466,6 @@ describe('BlockRewardHbbft', () => {
         });
     });
 
-    describe('setdeltaPotPayoutFraction', async () => {
-        it('should restrict calling to contract owner', async () => {
-            const caller = accounts[5];
-
-            await expect(blockRewardHbbft.connect(caller).setdeltaPotPayoutFraction(1))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should not allow zero payout fraction', async () => {
-            await expect(blockRewardHbbft.setdeltaPotPayoutFraction(0))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "ZeroPayoutFraction");
-        });
-
-        it('should set delta pot payout fraction and emit event', async () => {
-            const previousValue = await blockRewardHbbft.deltaPotPayoutFraction();
-            const newValue = 10;
-
-            await expect(blockRewardHbbft.setdeltaPotPayoutFraction(newValue))
-                .to.emit(blockRewardHbbft, "SetDeltaPotPayoutFraction")
-                .withArgs(newValue);
-            expect(await blockRewardHbbft.deltaPotPayoutFraction()).to.be.equal(newValue);
-
-            expect(await blockRewardHbbft.setdeltaPotPayoutFraction(previousValue));
-            expect(await blockRewardHbbft.deltaPotPayoutFraction()).to.be.equal(previousValue);
-        });
-    });
-
-    describe('setReinsertPotPayoutFraction', async () => {
-        it('should restrict calling to contract owner', async () => {
-            const caller = accounts[5];
-
-            await expect(blockRewardHbbft.connect(caller).setReinsertPotPayoutFraction(1))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should not allow zero payout fraction', async () => {
-            await expect(blockRewardHbbft.setReinsertPotPayoutFraction(0))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "ZeroPayoutFraction");
-        });
-
-        it('should set reinsert pot payout fraction and emit event', async () => {
-            const previousValue = await blockRewardHbbft.reinsertPotPayoutFraction();
-            const newValue = 10;
-
-            await expect(blockRewardHbbft.setReinsertPotPayoutFraction(newValue))
-                .to.emit(blockRewardHbbft, "SetReinsertPotPayoutFraction")
-                .withArgs(newValue);
-            expect(await blockRewardHbbft.reinsertPotPayoutFraction()).to.be.equal(newValue);
-
-            expect(await blockRewardHbbft.setReinsertPotPayoutFraction(previousValue));
-            expect(await blockRewardHbbft.reinsertPotPayoutFraction()).to.be.equal(previousValue);
-        });
-    });
-
     describe('setGovernancePotShareNominator', async () => {
         let GovernancePotShareNominatorAllowedParams = new Array(11).fill(null).map((_, i) => i + 10);
 
@@ -558,34 +502,6 @@ describe('BlockRewardHbbft', () => {
                 await blockRewardHbbft.setGovernancePotShareNominator(val);
                 expect(await blockRewardHbbft.governancePotShareNominator()).to.equal(val);
             }
-        });
-    });
-
-    describe('setConnectivityTracker', async () => {
-        it('should restrict calling to contract owner', async () => {
-            const caller = accounts[5];
-
-            await expect(blockRewardHbbft.connect(caller).setConnectivityTracker(ethers.ZeroAddress))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should revert set zero address', async () => {
-            await expect(blockRewardHbbft.setConnectivityTracker(ethers.ZeroAddress))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "ZeroAddress");
-        });
-
-        it('should set connectivity tracker address and emit event', async () => {
-            const previousValue = await blockRewardHbbft.connectivityTracker();
-            const newValue = accounts[7];
-
-            await expect(blockRewardHbbft.setConnectivityTracker(newValue))
-                .to.emit(blockRewardHbbft, "SetConnectivityTracker")
-                .withArgs(newValue);
-            expect(await blockRewardHbbft.connectivityTracker()).to.be.equal(newValue);
-
-            expect(await blockRewardHbbft.setConnectivityTracker(previousValue));
-            expect(await blockRewardHbbft.connectivityTracker()).to.be.equal(previousValue);
         });
     });
 

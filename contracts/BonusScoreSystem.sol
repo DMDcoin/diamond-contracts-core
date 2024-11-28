@@ -48,21 +48,6 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// @param value New scoring factor bonus/penalty value.
     event UpdateScoringFactor(ScoringFactor indexed factor, uint256 value);
 
-    /// @dev Emitted by the `setStakingContract` function when StakingHbbft contract address changes
-    /// @param _staking New StakingHbbft contract address
-    event SetStakingContract(address indexed _staking);
-
-    /// @dev Emitted by the `setValidatorSetContract` function when ValidatorSetHbbft contract address changes
-    /// @param _validatorSet New ValidatorSetHbbft contract address
-    event SetValidatorSetContract(address indexed _validatorSet);
-
-    /// @dev Emitted by the `setConnectivityTrackerContract` function
-    /// when ConnectivityTrackerHbbft contract address changes
-    /// @param _connectivityTracker New ConnectivityTrackerHbbft contract address
-    event SetConnectivityTrackerContract(address indexed _connectivityTracker);
-
-    error ZeroFactorValue();
-    error InvalidScoringFactor();
     error InvalidIntervalStartTimestamp();
 
     modifier onlyValidatorSet() {
@@ -75,13 +60,6 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     modifier onlyConnectivityTracker() {
         if (msg.sender != connectivityTracker) {
             revert Unauthorized();
-        }
-        _;
-    }
-
-    modifier validAddress(address _address) {
-        if (_address == address(0)) {
-            revert ZeroAddress();
         }
         _;
     }
@@ -114,35 +92,6 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         stakingHbbft = IStakingHbbft(_stakingHbbft);
 
         _setInitialScoringFactors();
-    }
-
-    function setStakingContract(address _staking) external onlyOwner validAddress(_staking) {
-        stakingHbbft = IStakingHbbft(_staking);
-
-        emit SetStakingContract(_staking);
-    }
-
-    function setValidatorSetContract(address _validatorSet) external onlyOwner validAddress(_validatorSet) {
-        validatorSetHbbft = _validatorSet;
-
-        emit SetValidatorSetContract(_validatorSet);
-    }
-
-    function setConnectivityTrackerContract(address _address) external onlyOwner validAddress(_address) {
-        connectivityTracker = _address;
-
-        emit SetConnectivityTrackerContract(_address);
-    }
-
-    /// TODO: Define value guards.
-    function updateScoringFactor(ScoringFactor factor, uint256 value) external onlyOwner {
-        if (value == 0) {
-            revert ZeroFactorValue();
-        }
-
-        _factors[factor] = value;
-
-        emit UpdateScoringFactor(factor, value);
     }
 
     /// @dev Reward a validator who could not get into the current set, but was available.

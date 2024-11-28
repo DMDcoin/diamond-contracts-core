@@ -81,12 +81,6 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
     event SetReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds);
 
     /**
-     * @dev Emitted by the {setEarlyEpochEndToleranceLevel} function.
-     * @param _level New early epoch end tolerance level.
-     */
-    event SetEarlyEpochEndToleranceLevel(uint256 _level);
-
-    /**
      * @dev Emitted when `validator` was reported by `reporter` for lost connection at block `blockNumber`.
      * @param reporter Reporting validator address.
      * @param validator Address of the validator with which the connection was lost.
@@ -191,21 +185,6 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         reportDisallowPeriod = _reportDisallowPeriodSeconds;
 
         emit SetReportDisallowPeriod(_reportDisallowPeriodSeconds);
-    }
-
-    /**
-     * @dev This function sets the early epoch end tolerance level.
-     * Can only be called by contract owner.
-     * @param _level New early epoch end tolerance level.
-     *
-     * Emits a {SetEarlyEpochEndToleranceLevel} event.
-     */
-    function setEarlyEpochEndToleranceLevel(uint256 _level) external onlyOwner {
-        earlyEpochEndToleranceLevel = _level;
-
-        _decideEarlyEpochEndNeeded(currentEpoch());
-
-        emit SetEarlyEpochEndToleranceLevel(_level);
     }
 
     /**

@@ -3,6 +3,7 @@
 pragma solidity =0.8.25;
 
 import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
+import { IConnectivityTrackerHbbft } from "../interfaces/IConnectivityTrackerHbbft.sol";
 import { TxPermissionHbbft } from "../TxPermissionHbbft.sol";
 
 contract MockStaking {
@@ -43,5 +44,9 @@ contract MockValidatorSet {
 contract TxPermissionHbbftMock is TxPermissionHbbft {
     function setValidatorSetContract(address _address) external {
         validatorSetContract = IValidatorSetHbbft(_address);
+    }
+
+    function setConnectivityTracker(address _connectivityTracker) external {
+        connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
     }
 }

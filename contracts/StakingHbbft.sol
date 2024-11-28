@@ -260,12 +260,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
      */
     event SetDelegatorMinStake(uint256 minStake);
 
-    /**
-     * @dev Emitted when the BonusScoreSystem contract address is changed.
-     * @param _address BonusScoreSystem contract address.
-     */
-    event SetBonusScoreContract(address _address);
-
     // ============================================== Errors =======================================================
     error CannotClaimWithdrawOrderYet(address pool, address staker);
     error OnlyOncePerEpoch(uint256 _epoch);
@@ -421,22 +415,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         stakingTransitionTimeframeLength = stakingParams._stakingTransitionTimeframeLength;
     }
 
-    function setStakingTransitionTimeframeLength(uint256 _value) external onlyOwner {
-        if (_value <= 10 || _value >= stakingFixedEpochDuration) {
-            revert InvalidStakingTransitionTimeframe();
-        }
-
-        stakingTransitionTimeframeLength = _value;
-    }
-
-    function setStakingFixedEpochDuration(uint256 _value) external onlyOwner {
-        if (_value <= stakingTransitionTimeframeLength) {
-            revert InvalidStakingFixedEpochDuration();
-        }
-
-        stakingFixedEpochDuration = _value;
-    }
-
     /**
      * @dev Sets the minimum stake required for delegators.
      * @param _minStake The new minimum stake amount.
@@ -471,16 +449,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     ) external onlyValidatorSetContract {
         poolInfo[_validatorAddress].internetAddress = _ip;
         poolInfo[_validatorAddress].port = _port;
-    }
-
-    function setBonusScoreContract(address _bonusScoreContract) external onlyOwner {
-        if (_bonusScoreContract == address(0)) {
-            revert ZeroAddress();
-        }
-
-        bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
-
-        emit SetBonusScoreContract(_bonusScoreContract);
     }
 
     /// @dev Increments the serial number of the current staking epoch.
