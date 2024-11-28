@@ -27,7 +27,8 @@
     "eip1706Transition": "0x0",
     "eip1884Transition": "0x0",
     "eip2028Transition": "0x0",
-    "registrar": "0x6000000000000000000000000000000000000000"
+    "registrar": "0x6000000000000000000000000000000000000000",
+    "maxTransactionSize": "0x64000"
   },
   "genesis": {
     "seal": {
