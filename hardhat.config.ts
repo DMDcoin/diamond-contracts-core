@@ -32,6 +32,7 @@ const chainIds = {
     hardhat: 31337,
     alpha2: 777012,
     alpha4: 777018,
+    alpha5: 777019,
 };
 
 const config: HardhatUserConfig = {
@@ -79,6 +80,7 @@ const config: HardhatUserConfig = {
                     apiURL: "http://62.171.133.46:4400/api",
                     browserURL: "http://62.171.133.46:4400",
                 },
+
             },
         ],
     },
@@ -166,6 +168,24 @@ const config: HardhatUserConfig = {
             },
             gasPrice: 1000000000,
         },
+        alpha5: {
+            //url: "http://62.171.133.46:55100",
+            url: "http://127.0.0.1:8540",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+        },
+        forked: {
+            gasPrice: 0,
+            url: "http://127.0.0.1:8545",
+            timeout: 1_000_000
+        },
+
     },
     paths: {
         artifacts: "./artifacts",

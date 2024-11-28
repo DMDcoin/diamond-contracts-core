@@ -47,7 +47,7 @@ async function triggerReward() {
 
   const systemSigner = await ethers.getSigner(SystemAccountAddress);
 
-  const result = await blockReward.connect(systemSigner).reward(true, { gasLimit: 5_000_000 });
+  const result = await blockReward.connect(systemSigner).reward(true, { gasLimit: 5_000_000, gasPrice: 0 });
   const receipt = await result.wait();
 
   console.log("receipt: ", receipt);
