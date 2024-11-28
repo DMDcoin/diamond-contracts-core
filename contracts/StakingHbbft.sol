@@ -148,7 +148,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     mapping(address => uint256) public poolNodeOperatorShare;
 
     /// @dev The epoch number in which the operator's address can be changed.
-    mapping(address => uint256) internal _poolNodeOperatorLastChangeEpoch;
+    mapping(address => uint256) public poolNodeOperatorLastChangeEpoch;
 
     // ============================================== Constants =======================================================
 
@@ -1491,7 +1491,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             revert InvalidNodeOperatorConfiguration(_operatorAddress, _operatorSharePercent);
         }
 
-        uint256 lastChangeEpoch = _poolNodeOperatorLastChangeEpoch[_stakingAddress];
+        uint256 lastChangeEpoch = poolNodeOperatorLastChangeEpoch[_stakingAddress];
         if (lastChangeEpoch != 0 && lastChangeEpoch == stakingEpoch) {
             revert OnlyOncePerEpoch(stakingEpoch);
         }
@@ -1499,7 +1499,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         poolNodeOperator[_stakingAddress] = _operatorAddress;
         poolNodeOperatorShare[_stakingAddress] = _operatorSharePercent;
 
-        _poolNodeOperatorLastChangeEpoch[_stakingAddress] = stakingEpoch;
+        poolNodeOperatorLastChangeEpoch[_stakingAddress] = stakingEpoch;
 
         emit SetNodeOperator(_stakingAddress, _operatorAddress, _operatorSharePercent);
     }
