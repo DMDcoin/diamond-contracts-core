@@ -179,6 +179,7 @@ const config: HardhatUserConfig = {
                 passphrase: "",
             },
             gasPrice: 1000000000,
+            hardfork: "london",
         },
         forked: {
             gasPrice: 0,
@@ -205,7 +206,7 @@ const config: HardhatUserConfig = {
                     yul: true,
                 },
             },
-            evmVersion: "istanbul"
+            evmVersion: "london"
         },
     },
     typechain: {
