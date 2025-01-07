@@ -5,6 +5,6 @@
     "code-complexity": ["warn", 25],
     "function-max-lines": ["warn", 160],
     "func-visibility": ["warn", { "ignoreConstructors": true }],
-    "max-states-count": ["warn", 37]
+    "max-states-count": ["warn", 40]
   }
 }

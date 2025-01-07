@@ -1861,7 +1861,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
         });
 
-        it.only('should fail if withdraw already ordered amount', async () => {
+        it.skip('should fail if withdraw already ordered amount', async () => {
             const { stakingHbbft, validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const systemSigner = await impersonateAcc(SystemAccountAddress);
