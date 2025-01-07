@@ -150,6 +150,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @dev The epoch number in which the operator's address can be changed.
     mapping(address => uint256) public poolNodeOperatorLastChangeEpoch;
 
+    /// @dev The timestamp of the block when early epoch end mechanism was triggered
+    /// due to validator set upscaling or faulty validators.
+    uint256 public earlyEpochEndTriggerTime;
+
     // ============================================== Constants =======================================================
 
     /// @dev The max number of candidates (including validators). This limit was determined through stress testing.
@@ -456,6 +460,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function incrementStakingEpoch() external onlyValidatorSetContract {
         stakingEpoch++;
         currentKeyGenExtraTimeWindow = 0;
+        earlyEpochEndTriggerTime = 0;
     }
 
     /// @dev Notifies hbbft staking contract that the
@@ -475,10 +480,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// to write their keys.
     /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
     function notifyNetworkOfftimeDetected(uint256 detectedOfflineTime) public onlyValidatorSetContract {
-        currentKeyGenExtraTimeWindow =
-            currentKeyGenExtraTimeWindow +
-            detectedOfflineTime +
-            stakingTransitionTimeframeLength;
+        currentKeyGenExtraTimeWindow += (detectedOfflineTime + stakingTransitionTimeframeLength);
     }
 
     /// @dev Notifies hbbft staking contract that a validator
@@ -490,6 +492,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             _addPoolActive(_stakingAddress, true);
             _setLikelihood(_stakingAddress);
         }
+    }
+
+    function notifiyEarlyEpochEnd(uint256 timestamp) external onlyBlockRewardContract {
+        earlyEpochEndTriggerTime = timestamp;
     }
 
     /// @dev Adds a new candidate's pool to the list of active pools (see the `getPools` getter) and
@@ -1076,6 +1082,16 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             stakingFixedEpochDuration +
             currentKeyGenExtraTimeWindow -
             (stakingFixedEpochDuration == 0 ? 0 : 1);
+    }
+
+    function earlyEpochEndTime() public view returns (uint256) {
+        return earlyEpochEndTriggerTime + stakingTransitionTimeframeLength + currentKeyGenExtraTimeWindow;
+    }
+
+    function actualEpochEndTime() public view returns (uint256) {
+        uint256 earlyEndTime = earlyEpochEndTime();
+
+        return earlyEndTime == 0 ? stakingFixedEpochEndTime() : earlyEndTime;
     }
 
     /// @dev Adds the specified staking address to the array of active pools returned by

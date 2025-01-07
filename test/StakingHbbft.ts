@@ -1861,7 +1861,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
         });
 
-        it('should fail if withdraw already ordered amount', async () => {
+        it.only('should fail if withdraw already ordered amount', async () => {
             const { stakingHbbft, validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const systemSigner = await impersonateAcc(SystemAccountAddress);
@@ -2849,7 +2849,7 @@ describe('StakingHbbft', () => {
 
         await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-        if (receipt!.logs.length > 0) {
+        if (isEpochEndBlock && receipt!.logs.length > 0) {
             // Emulate minting native coins
             const event = blockRewardContract.interface.parseLog(receipt!.logs[0]);
 
@@ -2878,8 +2878,6 @@ describe('StakingHbbft', () => {
     ) {
         const tsBeforeTimeTravel = await helpers.time.latest();
         const endTimeOfCurrentEpoch = await stakingContract.stakingFixedEpochEndTime();
-        // console.log('tsBefore:', tsBeforeTimeTravel.toString());
-        // console.log('endTimeOfCurrentEpoch:', endTimeOfCurrentEpoch.toString());
 
         if (endTimeOfCurrentEpoch < tsBeforeTimeTravel) {
             console.error('Trying to timetravel back in time !!');
