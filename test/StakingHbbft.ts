@@ -1861,7 +1861,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
         });
 
-        it.skip('should fail if withdraw already ordered amount', async () => {
+        it('should fail if withdraw already ordered amount', async () => {
             const { stakingHbbft, validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const systemSigner = await impersonateAcc(SystemAccountAddress);
@@ -2782,6 +2782,14 @@ describe('StakingHbbft', () => {
             const caller = accounts[10];
 
             await expect(stakingHbbft.connect(caller).notifyAvailability(initialStakingAddresses[1]))
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
+        });
+
+        it('should restrict calling notifiyEarlyEpochEnd to block reward contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifiyEarlyEpochEnd(0n))
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
