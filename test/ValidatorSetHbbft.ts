@@ -18,6 +18,8 @@ import {
 import { Permission } from "./testhelpers/Permission";
 import { random } from "./utils/utils";
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
+import { KeyGenMode } from "./testhelpers/types";
+import { getTestPartNAcks } from './testhelpers/data';
 
 // one epoch in 1 day.
 const stakingFixedEpochDuration = 86400n;
@@ -527,7 +529,7 @@ describe('ValidatorSetHbbft', () => {
     describe('setValidatorInternetAddress', async () => {
         let validatorSetPermission: Permission<ValidatorSetHbbftMock>
 
-        it('should revert for unknown mining address', async function() {
+        it('should revert for unknown mining address', async function () {
             const unknownMiningWallet = accounts[18];
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -1040,15 +1042,15 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
-    describe('handleFailedKeyGeneration', async function() {
-        it('should restrict calling to block reward contract', async function() {
+    describe('handleFailedKeyGeneration', async function () {
+        it('should restrict calling to block reward contract', async function () {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(validatorSetHbbft.connect(owner).handleFailedKeyGeneration())
                 .to.be.revertedWithCustomError(validatorSetHbbft, "Unauthorized");
         });
 
-        it('should not be called before epoch end', async function() {
+        it('should not be called before epoch end', async function () {
             const { validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const blockRewardSigner = await impersonateAcc(await blockRewardHbbft.getAddress());
@@ -1059,7 +1061,7 @@ describe('ValidatorSetHbbft', () => {
             await helpers.stopImpersonatingAccount(blockRewardSigner.address);
         });
 
-        it('should immediately return if there is pools to be elected', async function() {
+        it('should immediately return if there is pools to be elected', async function () {
             const {
                 validatorSetHbbft,
                 blockRewardHbbft,
@@ -1089,7 +1091,7 @@ describe('ValidatorSetHbbft', () => {
             await helpers.stopImpersonatingAccount(blockRewardSigner.address);
         });
 
-        it('should immediately return if there is no pending validators', async function() {
+        it('should immediately return if there is no pending validators', async function () {
             const {
                 validatorSetHbbft,
                 blockRewardHbbft,
@@ -1133,7 +1135,7 @@ describe('ValidatorSetHbbft', () => {
             await helpers.stopImpersonatingAccount(blockRewardSigner.address);
         });
 
-        it('should keep existing pending validators when there is no other candidates (w/o network offtime)', async function() {
+        it('should keep existing pending validators when there is no other candidates (w/o network offtime)', async function () {
             const {
                 validatorSetHbbft,
                 blockRewardHbbft,
@@ -1191,7 +1193,7 @@ describe('ValidatorSetHbbft', () => {
             expect(await stakingHbbft.currentKeyGenExtraTimeWindow()).to.eq(stakingTransitionTimeframeLength);
         });
 
-        it('should select new pending validators when there are other candidates (with network offtime)', async function() {
+        it('should select new pending validators when there are other candidates (with network offtime)', async function () {
             const {
                 validatorSetHbbft,
                 blockRewardHbbft,
@@ -1253,7 +1255,7 @@ describe('ValidatorSetHbbft', () => {
 
             const validatorSetSigner = await impersonateAcc(await validatorSetHbbft.getAddress());
             await expect(keyGenHistory.connect(validatorSetSigner).clearPrevKeyGenState(initialValidators)).to.be.fulfilled;
-            
+
             await helpers.stopImpersonatingAccount(validatorSetSigner.address);
 
 
@@ -1266,7 +1268,7 @@ describe('ValidatorSetHbbft', () => {
 
             await helpers.stopImpersonatingAccount(blockRewardSigner.address);
 
-        
+
             expect(
                 await keyGenHistory.getCurrentKeyGenRound(),
                 "keygen round counter should be increased",
@@ -1288,13 +1290,161 @@ describe('ValidatorSetHbbft', () => {
                 .to.be.revertedWithCustomError(validatorSetHbbft, "Unauthorized");
         });
 
-        it('should call by block reward address', async () => {
+        it('should be callable by block reward address', async () => {
             const { validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const blockRewardSigner = await impersonateAcc(await blockRewardHbbft.getAddress());
             await expect(validatorSetHbbft.connect(blockRewardSigner).finalizeChange()).to.be.fulfilled;
 
             await helpers.stopImpersonatingAccount(blockRewardSigner.address);
+        });
+
+        it('should save current validators as previous after change', async () => {
+            const { validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const newValidatorMining = initialValidators[0];
+
+            await expect(validatorSetHbbft.addPendingValidator(newValidatorMining)).to.be.fulfilled;
+
+            const blockRewardSigner = await impersonateAcc(await blockRewardHbbft.getAddress());
+            await expect(validatorSetHbbft.connect(blockRewardSigner).finalizeChange()).to.be.fulfilled;
+            await helpers.stopImpersonatingAccount(blockRewardSigner.address);
+
+            expect(await validatorSetHbbft.getPreviousValidators()).to.deep.eq(initialValidators);
+            expect(await validatorSetHbbft.getValidators()).to.deep.eq([newValidatorMining]);
+            expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
+        });
+    });
+
+    describe('getPendingValidatorKeyGenerationMode', async function () {
+        async function clearPrevKeyGenState(validatorSetHbbft: ValidatorSetHbbftMock, keyGenHistory: KeyGenHistory) {
+            const validatorSetSigner = await impersonateAcc(await validatorSetHbbft.getAddress());
+            await expect(keyGenHistory.connect(validatorSetSigner).clearPrevKeyGenState(initialValidators)).to.be.fulfilled;
+            await helpers.stopImpersonatingAccount(validatorSetSigner.address);
+        }
+
+        it('should return correct mode for non-pending validator', async function () {
+            const { validatorSetHbbft, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
+
+            await clearPrevKeyGenState(validatorSetHbbft, keyGenHistory);
+            
+            const validator = initialValidators[0];
+            expect(await validatorSetHbbft.getPendingValidatorKeyGenerationMode(validator))
+                .to.equal(KeyGenMode.NotAPendingValidator);
+        });
+
+        it('should return correct mode for pending validator', async function () {
+            const { validatorSetHbbft, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
+
+            await clearPrevKeyGenState(validatorSetHbbft, keyGenHistory);
+
+            const validator = initialValidators[0];
+            await validatorSetHbbft.addPendingValidator(validator);
+
+            expect(await validatorSetHbbft.getPendingValidatorKeyGenerationMode(validator))
+                .to.equal(KeyGenMode.WritePart);
+        });
+
+        it('should return correct mode if parts written and waiting others', async function () {
+            const { validatorSetHbbft, stakingHbbft, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
+
+            await clearPrevKeyGenState(validatorSetHbbft, keyGenHistory);
+
+            for (const validator of initialValidators) {
+                await expect(validatorSetHbbft.addPendingValidator(validator)).to.be.fulfilled;
+            }
+
+            const validatorSigner = await ethers.getSigner(initialValidators[0]);
+            const currentEpoch = await stakingHbbft.stakingEpoch();
+            const curerntRound = await keyGenHistory.getCurrentKeyGenRound();
+
+            const { parts } = getTestPartNAcks();
+
+            await expect(keyGenHistory.connect(validatorSigner).writePart(currentEpoch + 1n, curerntRound, parts[0])).to.be.fulfilled;
+
+            expect(await validatorSetHbbft.getPendingValidatorKeyGenerationMode(initialValidators[0]))
+                .to.equal(KeyGenMode.WaitForOtherParts);
+        });
+
+        it('should return correct mode if all parts written', async function () {
+            const { validatorSetHbbft, stakingHbbft, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
+
+            await clearPrevKeyGenState(validatorSetHbbft, keyGenHistory);
+
+            const validator = await ethers.getSigner(initialValidators[0]);
+            const currentEpoch = await stakingHbbft.stakingEpoch();
+            const curerntRound = await keyGenHistory.getCurrentKeyGenRound();
+
+            const { parts } = getTestPartNAcks();
+
+            await validatorSetHbbft.addPendingValidator(validator);
+
+            await expect(keyGenHistory.connect(validator).writePart(currentEpoch + 1n, curerntRound, parts[0])).to.be.fulfilled;
+
+            expect(await validatorSetHbbft.getPendingValidatorKeyGenerationMode(initialValidators[0]))
+                .to.equal(KeyGenMode.WriteAck);
+        });
+
+        it('should return correct mode if ack written and waiting others', async function () {
+            const { validatorSetHbbft, stakingHbbft, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
+
+            await clearPrevKeyGenState(validatorSetHbbft, keyGenHistory);
+
+            for (const validator of initialValidators) {
+                await expect(validatorSetHbbft.addPendingValidator(validator)).to.be.fulfilled;
+            }
+
+            const currentEpoch = await stakingHbbft.stakingEpoch();
+            const curerntRound = await keyGenHistory.getCurrentKeyGenRound();
+
+            const { parts,acks } = getTestPartNAcks();
+
+            for (let i = 0; i < initialValidators.length; ++i) {
+                const signer = await ethers.getSigner(initialValidators[i]);
+
+                await expect(keyGenHistory.connect(signer)
+                    .writePart(currentEpoch + 1n, curerntRound, parts[i])).to.be.fulfilled;
+            }
+
+            const validator = await ethers.getSigner(initialValidators[0]);
+
+            await expect(keyGenHistory.connect(validator)
+                .writeAcks(currentEpoch + 1n, curerntRound, acks[0])).to.be.fulfilled;
+
+            expect(await validatorSetHbbft.getPendingValidatorKeyGenerationMode(initialValidators[0]))
+                .to.equal(KeyGenMode.WaitForOtherAcks);
+        });
+
+        it('should return correct mode when all keys done', async function () {
+            const { validatorSetHbbft, stakingHbbft, keyGenHistory } = await helpers.loadFixture(deployContractsFixture);
+
+            await clearPrevKeyGenState(validatorSetHbbft, keyGenHistory);
+
+            for (const validator of initialValidators) {
+                await expect(validatorSetHbbft.addPendingValidator(validator)).to.be.fulfilled;
+            }
+
+            const currentEpoch = await stakingHbbft.stakingEpoch();
+            const curerntRound = await keyGenHistory.getCurrentKeyGenRound();
+
+            const { parts,acks } = getTestPartNAcks();
+
+            for (let i = 0; i < initialValidators.length; ++i) {
+                const signer = await ethers.getSigner(initialValidators[i]);
+
+                await expect(keyGenHistory.connect(signer)
+                    .writePart(currentEpoch + 1n, curerntRound, parts[i])).to.be.fulfilled;
+            }
+
+            for (let i = 0; i < initialValidators.length; ++i) {
+                const signer = await ethers.getSigner(initialValidators[i]);
+
+                await expect(keyGenHistory.connect(signer)
+                    .writeAcks(currentEpoch + 1n, curerntRound, acks[0])).to.be.fulfilled;
+            }
+
+            expect(await validatorSetHbbft.getPendingValidatorKeyGenerationMode(initialValidators[0]))
+                .to.equal(KeyGenMode.AllKeysDone);
         });
     });
 
@@ -1316,8 +1466,95 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
-    describe.skip('_getRandomIndex', async () => {
-        it('should return an adjusted index for defined inputs', async () => {
+    describe('isValidatorOrPending', async function () {
+        it('should return true for current validator', async function () {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+
+            expect(await validatorSetHbbft.isValidatorOrPending(validator)).to.be.true;
+        });
+
+        it('should return true for pending validator', async function () {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = ethers.Wallet.createRandom().address;
+            await expect(validatorSetHbbft.addPendingValidator(validator)).to.be.fulfilled;
+
+            expect(await validatorSetHbbft.isValidatorOrPending(validator)).to.be.true;
+        });
+
+        it('should return false for other validators', async function () {
+            const { validatorSetHbbft, stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validatorStaking = accounts[16];
+            const validatorMining = accounts[17];
+
+            await owner.sendTransaction({
+                to: validatorStaking.address,
+                value: await stakingHbbft.candidateMinStake() + ethers.parseEther("10"),
+            });
+
+            await owner.sendTransaction({
+                to: validatorMining.address,
+                value: ethers.parseEther("10"),
+            });
+
+            await stakingHbbft.connect(validatorStaking).addPool(
+                validatorMining.address,
+                ethers.ZeroAddress,
+                0n,
+                ZeroPublicKey,
+                ZeroIpAddress,
+                { value: await stakingHbbft.candidateMinStake() }
+            );
+
+            const lastBlock = await ethers.provider.getBlock('latest');
+            await validatorSetHbbft.connect(validatorMining).announceAvailability(lastBlock!.number, lastBlock!.hash!);
+
+            expect(await validatorSetHbbft.isValidatorOrPending(validatorMining)).to.be.false;
+        });
+    });
+
+    describe('isPendingValidator', async function () {
+        it('should return true for pending validator', async function () {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[1];
+            await expect(validatorSetHbbft.addPendingValidator(validator)).to.be.fulfilled;
+
+            expect(await validatorSetHbbft.isPendingValidator(validator)).to.be.true;
+        });
+
+        it('should return false for unknown validator', async function () {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = ethers.Wallet.createRandom().address;
+
+            expect(await validatorSetHbbft.isPendingValidator(validator)).to.be.false;
+        });
+
+        it('should return false for current validator', async function () {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[1];
+
+            expect(await validatorSetHbbft.isPendingValidator(validator)).to.be.false;
+        });
+    });
+
+    describe('getCurrentValidatorsCount', async function () {
+        it('should get current validators count', async function () {
+            const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            const currentValidators = await validatorSetHbbft.getValidators();
+
+            expect(await validatorSetHbbft.getCurrentValidatorsCount()).to.eq(currentValidators.length);
+        });
+    });
+
+    describe('_getRandomIndex', async function () {
+        it('should return an adjusted index for defined inputs', async function () {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const likelihood = [100n, 200n, 300n, 400n, 500n, 600n, 700n];
@@ -1449,7 +1686,7 @@ describe('ValidatorSetHbbft', () => {
             expect(results).to.deep.equal(sampleIndexes);
         });
 
-        it('should always return an index within the input array size', async () => {
+        it('should always return an index within the input array size', async function () {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             for (let i = 0; i < 100; i++) {
@@ -1484,7 +1721,7 @@ describe('ValidatorSetHbbft', () => {
             }
         });
         /*
-        it('should return indexes according to given likelihood', async () => {
+        it('should return indexes according to given likelihood', async function() {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const repeats = 2000;
@@ -1538,7 +1775,7 @@ describe('ValidatorSetHbbft', () => {
         });
         */
 
-        it('should return indexes according to given likelihood', async () => {
+        it('should return indexes according to given likelihood', async function () {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const repeats = 2000;
@@ -1585,15 +1822,15 @@ describe('ValidatorSetHbbft', () => {
         });
     });
 
-    describe.skip('getValidatorCountSweetSpot', async () => {
-        it('should revert for possible validator count = 0', async function() {
+    describe('getValidatorCountSweetSpot', async function () {
+        it('should revert for possible validator count = 0', async function () {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(validatorSetHbbft.getValidatorCountSweetSpot(0n))
                 .to.be.revertedWithCustomError(validatorSetHbbft, "InvalidPossibleValidatorCount");
         });
 
-        it('should correctly calculate hbbft sweet spots', async () => {
+        it('should correctly calculate hbbft sweet spots', async function () {
             const { validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const expectedResults =

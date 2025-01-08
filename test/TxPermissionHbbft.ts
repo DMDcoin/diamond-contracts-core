@@ -15,6 +15,7 @@ import {
 } from "../src/types";
 
 import { getTestPartNAcks } from './testhelpers/data';
+import { KeyGenMode } from "./testhelpers/types";
 
 const EmptyBytes = ethers.hexlify(new Uint8Array());
 const validatorInactivityThreshold = BigInt(365 * 86400); // 1 year
@@ -32,15 +33,6 @@ enum AllowedTxTypeMask {
     Private = 0x08,
     All = 0xffffffff
 };
-
-enum KeyGenMode {
-    NotAPendingValidator,
-    WritePart,
-    WaitForOtherParts,
-    WriteAck,
-    WaitForOtherAcks,
-    AllKeysDone
-}
 
 describe('TxPermissionHbbft', () => {
     let owner: HardhatEthersSigner;
