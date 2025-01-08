@@ -1085,13 +1085,14 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
 
     function earlyEpochEndTime() public view returns (uint256) {
-        return earlyEpochEndTriggerTime + stakingTransitionTimeframeLength + currentKeyGenExtraTimeWindow;
+        return
+            earlyEpochEndTriggerTime == 0
+                ? 0
+                : earlyEpochEndTriggerTime + stakingTransitionTimeframeLength + currentKeyGenExtraTimeWindow;
     }
 
     function actualEpochEndTime() public view returns (uint256) {
-        uint256 earlyEndTime = earlyEpochEndTime();
-
-        return earlyEndTime == 0 ? stakingFixedEpochEndTime() : earlyEndTime;
+        return earlyEpochEndTriggerTime == 0 ? stakingFixedEpochEndTime() : earlyEpochEndTime();
     }
 
     /// @dev Adds the specified staking address to the array of active pools returned by
