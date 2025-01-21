@@ -115,7 +115,7 @@ describe('KeyGenHistory', () => {
         if (!logOutput) {
             return;
         }
-        
+
         const epoch = await stakingHbbft.stakingEpoch();
         const keyGenRound = await keyGenHistory.currentKeyGenRound();
         const isEarlyEpochEnd = await blockRewardHbbft.earlyEpochEnd();
@@ -480,6 +480,47 @@ describe('KeyGenHistory', () => {
                 acks
             )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
+
+        it('should initialize and set parts, acks', async () => {
+            const KeyGenFactoryFactory = await ethers.getContractFactory("KeyGenHistory");
+            const keyGenHistory = await upgrades.deployProxy(
+                KeyGenFactoryFactory,
+                [
+                    owner.address,
+                    await validatorSetHbbft.getAddress(),
+                    initializingMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            ) as unknown as KeyGenHistory;
+
+            await keyGenHistory.waitForDeployment();
+
+            let actualPartsCount = 0;
+            let actualAcksCount = 0;
+            for (const miningAddress of initializingMiningAddresses) {
+                const storedPart = await keyGenHistory.getPart(miningAddress);
+                const storedAcksLength = await keyGenHistory.getAcksLength(miningAddress);
+
+                if (storedPart.length > 0) {
+                    actualPartsCount++;
+                }
+
+                if (storedAcksLength > 0) {
+                    actualAcksCount++;
+                }
+            }
+
+            const [
+                numberOfPartsWritten,
+                numberOfAcksWritten
+            ] = await keyGenHistory.getNumberOfKeyFragmentsWritten();
+
+            expect(await keyGenHistory.getCurrentKeyGenRound()).to.eq(1n);
+            expect(numberOfPartsWritten).to.eq(actualPartsCount);
+            expect(numberOfAcksWritten).to.eq(actualAcksCount);
+        });
     });
 
     describe('contract functions', async () => {
@@ -707,8 +748,8 @@ describe('KeyGenHistory', () => {
 
             const connectivityTrackerCaller = await ethers.getImpersonatedSigner(await connectivityTracker.getAddress());
 
-            
-            await blockRewardHbbft.connect(connectivityTrackerCaller).notifyEarlyEpochEnd({ gasPrice: "0"});
+
+            await blockRewardHbbft.connect(connectivityTrackerCaller).notifyEarlyEpochEnd({ gasPrice: "0" });
 
             await printEarlyEpochEndInfo();
 

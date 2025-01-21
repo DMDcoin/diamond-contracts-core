@@ -112,6 +112,8 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
         }
 
         currentKeyGenRound = 1;
+        numberOfPartsWritten = uint128(_validators.length);
+        numberOfAcksWritten = uint128(_validators.length);
     }
 
     /// @dev Clears the state (acks and parts of previous validators.
