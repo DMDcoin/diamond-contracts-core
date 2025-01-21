@@ -57,7 +57,7 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
 
     /// @dev ensures that Key Generation functions are called with wrong _epoch
     /// parameter to prevent old and wrong transactions get picked up.
-    modifier onlyUpcommingEpoch(uint256 _epoch) {
+    modifier onlyUpcomingEpoch(uint256 _epoch) {
         if (IStakingHbbft(validatorSetContract.getStakingContract()).stakingEpoch() + 1 != _epoch) {
             revert IncorrectEpoch();
         }
@@ -137,10 +137,10 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
     }
 
     function writePart(
-        uint256 _upcommingEpoch,
+        uint256 _upcomingEpoch,
         uint256 _roundCounter,
         bytes memory _part
-    ) external onlyUpcommingEpoch(_upcommingEpoch) onlyCorrectRound(_roundCounter) {
+    ) external onlyUpcomingEpoch(_upcomingEpoch) onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         if (!validatorSetContract.isPendingValidator(msg.sender)) {
@@ -156,10 +156,10 @@ contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
     }
 
     function writeAcks(
-        uint256 _upcommingEpoch,
+        uint256 _upcomingEpoch,
         uint256 _roundCounter,
         bytes[] memory _acks
-    ) external onlyUpcommingEpoch(_upcommingEpoch) onlyCorrectRound(_roundCounter) {
+    ) external onlyUpcomingEpoch(_upcomingEpoch) onlyCorrectRound(_roundCounter) {
         // It can only be called by a new validator which is elected but not yet finalized...
         // ...or by a validator which is already in the validator set.
         if (!validatorSetContract.isPendingValidator(msg.sender)) {

@@ -336,7 +336,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
                 ) {
                     //is the epoch parameter correct ?
 
-                    // return if the data length is not big enough to pass a upcommingEpoch parameter.
+                    // return if the data length is not big enough to pass a upcomingEpoch parameter.
                     // we could add an addition size check, that include the minimal size of the part as well.
                     if (_data.length < 36) {
                         return (NONE, false);
@@ -361,7 +361,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
                     validatorSetContract.getPendingValidatorKeyGenerationMode(_sender) ==
                     IValidatorSetHbbft.KeyGenMode.WriteAck
                 ) {
-                    // return if the data length is not big enough to pass a upcommingEpoch parameter.
+                    // return if the data length is not big enough to pass a upcomingEpoch parameter.
                     // we could add an addition size check, that include the minimal size of the part as well.
                     if (_data.length < 36) {
                         return (NONE, false);

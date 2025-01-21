@@ -19,7 +19,7 @@ export class Permission<T extends BaseContract> {
 
     //const numberFromContract = await txPermission._getSliceUInt256(4, asEncoded);
     //const numberFromContract2 = await txPermission._decodeUInt256Param(4, asEncoded);
-    //console.log('upcommingEpochNumber: ', numberFromContract.toString());
+    //console.log('upcomingEpochNumber: ', numberFromContract.toString());
     //console.log('numberFromContract2', numberFromContract2.toString());
 
 

@@ -128,12 +128,12 @@ describe('KeyGenHistory', () => {
     // NOTE: It does not really send the transaction with 0 gas price,
     // because that would only work if the network nodes would already
     // run on the test contracts deployed here.
-    async function writePart(upcommingEpochNumber: string, round: string, parts: any, from: string) {
-        await keyGenHistoryPermission.callFunction('writePart', from, [upcommingEpochNumber, round, parts]);
+    async function writePart(upcomingEpochNumber: string, round: string, parts: any, from: string) {
+        await keyGenHistoryPermission.callFunction('writePart', from, [upcomingEpochNumber, round, parts]);
     }
 
-    async function writeAcks(upcommingEpochNumber: string, round: string, parts: any, from: string) {
-        await keyGenHistoryPermission.callFunction('writeAcks', from, [upcommingEpochNumber, round, parts]);
+    async function writeAcks(upcomingEpochNumber: string, round: string, parts: any, from: string) {
+        await keyGenHistoryPermission.callFunction('writeAcks', from, [upcomingEpochNumber, round, parts]);
     }
 
     async function announceAvailability(pool: string) {
