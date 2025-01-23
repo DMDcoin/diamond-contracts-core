@@ -75,7 +75,12 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
     /// Can only be called by the `owner`.
     /// @param _who The address for which transactions with a zero gas price must be denied.
     function revoke(address _who) external onlyOwner {
+        if (!_certified[_who]) {
+            return;
+        }
+
         _certified[_who] = false;
+
         emit Revoked(_who);
     }
 
