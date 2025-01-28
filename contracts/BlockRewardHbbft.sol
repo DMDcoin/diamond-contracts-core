@@ -279,8 +279,6 @@ contract BlockRewardHbbft is
         deltaPot -= shares.deltaPotAmount;
         reinsertPot -= shares.reinsertPotAmount;
 
-        TransferUtils.transferNative(governancePotAddress, shares.governancePotAmount);
-
         uint256 distributedAmount = shares.governancePotAmount;
         uint256 rewardToDistribute = shares.totalRewards - distributedAmount;
 
@@ -312,13 +310,15 @@ contract BlockRewardHbbft is
 
                 _savePoolRewardStats(_stakingEpoch, miningAddress, poolReward);
 
-                stakingContract.restake{ value: poolReward }(poolStakingAddress, minValidatorRewardPercent);
-
                 distributedAmount += poolReward;
+
+                stakingContract.restake{ value: poolReward }(poolStakingAddress, minValidatorRewardPercent);
             }
         }
 
         nativeRewardUndistributed = shares.totalRewards - distributedAmount;
+
+        TransferUtils.transferNative(governancePotAddress, shares.governancePotAmount);
 
         // slither-disable-end reentrancy-eth
 
