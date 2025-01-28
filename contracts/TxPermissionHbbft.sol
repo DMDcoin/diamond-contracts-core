@@ -106,6 +106,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     error SenderNotAllowed();
     error AlreadyExist(address _value);
     error NotExist(address _value);
+    error ReadOutOfBounds();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -452,6 +453,10 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     /// @param _data byte[] to read the data from.
     /// @return uint256 value found on offset _begin in _data.
     function _getSliceUInt256(uint256 _begin, bytes memory _data) internal pure returns (uint256) {
+        if (_begin + 32 > _data.length) {
+            revert ReadOutOfBounds();
+        }
+
         uint256 a = 0;
 
         for (uint256 i = 0; i < 32; i++) {
