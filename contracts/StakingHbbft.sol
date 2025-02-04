@@ -1543,6 +1543,13 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             (shares.delegatorsShare * validatorStake) /
             totalStake;
     }
+
+    /// @dev For deployment, the length of stakingTransitionTimeframeLength was chosen not long enough, leading to bonus score losses.
+    /// see https://github.com/DMDcoin/Beta1/issues/6 for more infos. 
+    function updateStakingTransitionTimeframeLength() external {
+
+        stakingTransitionTimeframeLength = 900;
+    }
 }
 
 // slither-disable-end unused-return
