@@ -2522,7 +2522,7 @@ describe('StakingHbbft', () => {
 
                 const epoch = await stakingHbbft.stakingEpoch();
                 const validatorFixedRewardPercent = await blockRewardHbbft.validatorMinRewardPercent(epoch);
-                
+
                 systemSigner = await impersonateAcc(SystemAccountAddress);
                 await blockRewardHbbft.connect(systemSigner).reward(true);
                 await helpers.stopImpersonatingAccount(SystemAccountAddress);
@@ -2540,7 +2540,7 @@ describe('StakingHbbft', () => {
                         - nodeOperatorShare
                         + rewardsToDistribute * candidateMinStake / poolTotalStake;
                     const delegatorShare = rewardsToDistribute * _stakeRecord.stake / poolTotalStake;
-                    
+
                     expect(
                         await stakingHbbft.stakeAmount(_stakeRecord.pool.address, _stakeRecord.pool.address)
                     ).to.be.closeTo(candidateMinStake + validatorShare, 100n);
@@ -2757,6 +2757,54 @@ describe('StakingHbbft', () => {
                 expect(await stakingHbbft.snapshotPoolTotalStakeAmount(stakingEpoch, pool)).to.be.eq(candidateMinStake + stakeAmount);
                 expect(await stakingHbbft.getPoolValidatorStakeAmount(stakingEpoch, pool.address)).to.be.eq(candidateMinStake);
             }
+        });
+    });
+
+    describe('setPoolInfo', async function () {
+        let stakingHbbft: StakingHbbftMock;
+        let validator: HardhatEthersSigner;
+
+        beforeEach(async () => {
+            const { stakingHbbft: _stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            stakingHbbft = _stakingHbbft;
+
+            validator = await ethers.getSigner(initialValidators[1]);
+        });
+
+        it('should accept any public key length', async () => {
+            const shortPublicKey = ethers.zeroPadBytes("0xdead", 4);
+            const longPublicKey = ethers.zeroPadBytes("0xbeef", 128);
+            const ipAddress = ethers.zeroPadBytes("0xfe", 16);
+            const port = '0x6987';
+            await expect(stakingHbbft.connect(validator).setPoolInfo(shortPublicKey, ipAddress, port)).to.not.be.reverted;
+            await expect(stakingHbbft.connect(validator).setPoolInfo(longPublicKey, ipAddress, port)).to.not.be.reverted;
+        });
+
+        it('should accept invalid IP addresses', async () => {
+            const publicKey = ethers.zeroPadBytes("0xdeadbeef", 64);
+            const invalidIpAddress = ethers.zeroPadBytes("0xffffffff", 16); // 255.255.255.255
+            const port = '0x6987';
+            await expect(stakingHbbft.connect(validator).setPoolInfo(publicKey, invalidIpAddress, port)).to.not.be.reverted;
+        });
+
+        it('should accept any port number within 2 bytes', async () => {
+            const publicKey = ethers.zeroPadBytes("0xdeadbeef", 64);
+            const ipAddress = ethers.zeroPadBytes("0xfe", 16);
+
+            const invalidPort = '0xffff'; // 65535, technically valid but often reserved
+            await expect(stakingHbbft.connect(validator).setPoolInfo(publicKey, ipAddress, invalidPort)).to.not.be.reverted;
+        });
+
+        it('should store and retrieve invalid data', async () => {
+            const invalidPublicKey = ethers.zeroPadBytes("0xdead", 4);
+            const invalidIpAddress = ethers.zeroPadBytes("0xffffffff", 16);
+            const invalidPort = '0xffff';
+            await stakingHbbft.connect(validator).setPoolInfo(invalidPublicKey, invalidIpAddress, invalidPort);
+
+            const poolInfo = await stakingHbbft.poolInfo(validator.address);
+            expect(poolInfo.publicKey).to.equal(invalidPublicKey);
+            expect(poolInfo.internetAddress).to.equal(invalidIpAddress);
+            expect(poolInfo.port).to.equal(invalidPort);
         });
     });
 

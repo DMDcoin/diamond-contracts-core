@@ -10,7 +10,7 @@ import {
     ValidatorSetHbbftMock,
 } from "../src/types";
 
-import { random, range } from "./utils/utils";
+import { random, range } from "./testhelpers/utils";
 
 const minStake = ethers.parseEther('1');
 const maxStake = ethers.parseEther('100000');

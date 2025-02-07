@@ -16,7 +16,7 @@ import {
 } from "../src/types";
 
 import { Permission } from "./testhelpers/Permission";
-import { random } from "./utils/utils";
+import { random } from "./testhelpers/utils";
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
 import { KeyGenMode } from "./testhelpers/types";
 import { getTestPartNAcks } from './testhelpers/data';
