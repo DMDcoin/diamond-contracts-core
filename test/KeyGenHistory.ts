@@ -131,11 +131,11 @@ describe('KeyGenHistory', () => {
     }
 
     async function announceAvailability(mining: HardhatEthersSigner | HDNodeWallet) {
-        const blockNumber = await ethers.provider.getBlockNumber()
-        const block = await ethers.provider.getBlock(blockNumber);
+        const block = await ethers.provider.getBlock("latest");
+
         const asEncoded = validatorSetHbbft.interface.encodeFunctionData(
             "announceAvailability",
-            [blockNumber, block!.hash!]
+            [block!.number, block!.hash!]
         );
         if (logOutput) {
             console.log('calling: announceAvailability');

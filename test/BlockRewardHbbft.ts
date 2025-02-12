@@ -309,12 +309,11 @@ describe('BlockRewardHbbft', () => {
     }
 
     async function announceAvailability(poolSigner: HardhatEthersSigner | HDNodeWallet): Promise<void> {
-        const blockNumber = await ethers.provider.getBlockNumber()
-        const block = await ethers.provider.getBlock(blockNumber);
+        const block = await ethers.provider.getBlock("latest");
 
         // we know now, that this call is allowed.
         // so we can execute it.
-        await validatorSetHbbft.connect(poolSigner).announceAvailability(blockNumber, block!.hash!);
+        await validatorSetHbbft.connect(poolSigner).announceAvailability(block!.number, block!.hash!);
     }
 
     async function getValidatorStake(validatorAddr: string): Promise<bigint> {
