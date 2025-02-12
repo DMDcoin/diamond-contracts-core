@@ -1205,7 +1205,7 @@ describe('BlockRewardHbbft', () => {
         const additionalValidatorsCount = 25;
 
         for (let i = 0; i < additionalValidatorsCount; ++i) {
-            const validator = await Validator.create();
+            const validator = await Validator.create(ethers.provider);
             additionalValidators.push(validator);
         }
 

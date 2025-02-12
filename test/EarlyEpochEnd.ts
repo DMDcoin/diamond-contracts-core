@@ -46,12 +46,12 @@ describe('Early Epoch End', async function () {
         pendingValidators = new Array<Validator>();
 
         for (let i = 0; i < 3; ++i) {
-            const validator = await Validator.create();
+            const validator = await Validator.create(ethers.provider);
             initialValidators.push(validator);
         }
 
         for (let i = 0; i < 3; ++i) {
-            const validator = await Validator.create();
+            const validator = await Validator.create(ethers.provider);
             pendingValidators.push(validator);
         }
     });

@@ -545,7 +545,7 @@ describe('ValidatorSetHbbft', () => {
         it('should allow validator candidates to write and read their IP address', async () => {
             const validators = new Array<Validator>();
             for (let i = 0; i < 4; ++i) {
-                const validator = await Validator.create();
+                const validator = await Validator.create(ethers.provider);
                 validators.push(validator);
             }
 
@@ -743,7 +743,7 @@ describe('ValidatorSetHbbft', () => {
 
             const validators = new Array<Validator>();
             for (let i = 0; i < 25; ++i) {
-                const valdiator = await Validator.create();
+                const valdiator = await Validator.create(ethers.provider);
                 validators.push(valdiator);
             }
 
@@ -1214,7 +1214,7 @@ describe('ValidatorSetHbbft', () => {
                 await validatorSetHbbft.addPendingValidator(mining.address);
             }
 
-            const newValidator = await Validator.create();
+            const newValidator = await Validator.create(ethers.provider);
 
             await stakingHbbft.connect(newValidator.staking).addPool(
                 newValidator.miningAddress(),
@@ -1471,7 +1471,7 @@ describe('ValidatorSetHbbft', () => {
         it('should return false for other validators', async function () {
             const { validatorSetHbbft, stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const validator = await Validator.create();
+            const validator = await Validator.create(ethers.provider);
 
             await stakingHbbft.connect(validator.staking).addPool(
                 validator.miningAddress(),

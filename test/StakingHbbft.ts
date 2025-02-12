@@ -179,11 +179,11 @@ describe('StakingHbbft', () => {
 
         initialValidators = new Array<Validator>();
         for (let i = 0; i < 3; ++i) {
-            const validator = await Validator.create();
+            const validator = await Validator.create(ethers.provider);
             initialValidators.push(validator);
         }
 
-        candidate = await Validator.create();
+        candidate = await Validator.create(ethers.provider);
 
         expect(initialValidators).to.be.lengthOf(3);
     });
@@ -280,7 +280,7 @@ describe('StakingHbbft', () => {
         it('should fail if the pool with the same mining/staking address is already existing', async function() {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const otherCandidate = await Validator.create();
+            const otherCandidate = await Validator.create(ethers.provider);
 
             await stakingHbbft.connect(candidate.staking).addPool(
                 candidate.miningAddress(),
@@ -430,7 +430,7 @@ describe('StakingHbbft', () => {
         it('should revert if mining address and corresponding public key mismatched', async function() {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const otherValidator = await Validator.create();
+            const otherValidator = await Validator.create(ethers.provider);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
                 candidate.miningAddress(),
@@ -463,7 +463,7 @@ describe('StakingHbbft', () => {
         it('should be able to add more than one pool', async function() {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const otherCandidate = await Validator.create();
+            const otherCandidate = await Validator.create(ethers.provider);
 
             const amount1 = minStake * 2n;
             const amount2 = minStake * 3n;

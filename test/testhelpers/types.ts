@@ -1,4 +1,4 @@
-import { HDNodeWallet } from "ethers";
+import { HDNodeWallet, Provider } from "ethers";
 import { ethers } from "hardhat"
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
@@ -14,9 +14,9 @@ export enum KeyGenMode {
 };
 
 export class Validator {
-    static async create() {
-        const stakingWallet = ethers.Wallet.createRandom(ethers.provider);
-        const miningWallet = ethers.Wallet.createRandom(ethers.provider);
+    static async create(provider: Provider) {
+        const stakingWallet = ethers.Wallet.createRandom(provider);
+        const miningWallet = ethers.Wallet.createRandom(provider);
         
         const ipAddress = ethers.zeroPadValue("0xc0a80102", 16); // value for tests "192.168.1.2" 
         const port = '0xbd6';

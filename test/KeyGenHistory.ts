@@ -222,12 +222,12 @@ describe('KeyGenHistory', () => {
         otherValidators = new Array<Validator>();
 
         for (let i = 0; i < 3; ++i) {
-            const validator = await Validator.create();
+            const validator = await Validator.create(ethers.provider);
             initialValidators.push(validator);
         }
 
         for (let i = 0; i < 5; ++i) {
-            const validator = await Validator.create();
+            const validator = await Validator.create(ethers.provider);
             otherValidators.push(validator);
         }
 
