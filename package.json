@@ -5,8 +5,8 @@
     "main": "index.js",
     "scripts": {
         "compile": "npx hardhat compile",
-        "test": "npx hardhat test",
-        "coverage": "npx hardhat coverage",
+        "test": "npx hardhat clean && npx hardhat test",
+        "coverage": "npx hardhat clean && npx hardhat coverage",
         "docs-publish": "npx hardhat docgen && cd docs/website && npm i && npm run publish-gh-pages",
         "docs-start": "npx hardhat docgen && cd docs/website && npm i && npm start",
         "flat": "bash scripts/flatten.sh ./contracts",
