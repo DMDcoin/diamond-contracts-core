@@ -35,6 +35,7 @@ library Secp256k1Utils {
     }
 
     function _extractPoints(bytes memory publicKey) private pure returns (bytes32 x, bytes32 y) {
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             x := mload(add(publicKey, 0x20))
             y := mload(add(publicKey, 0x40))
