@@ -339,7 +339,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         _disableInitializers();
     }
 
-    /// @dev Fallback function. Prevents direct sending native coins to this contract.
+    /// @dev Receive function. Prevents direct sending native coins to this contract.
     receive() external payable {
         revert NotPayable();
     }

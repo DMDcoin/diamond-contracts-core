@@ -1,5 +1,6 @@
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { ethers, HDNodeWallet } from "ethers";
+import { HDNodeWallet } from "ethers";
+import { ethers } from "hardhat"
+import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
 export const ZeroIpAddress = ethers.zeroPadBytes("0x00", 16);
 
@@ -13,21 +14,35 @@ export enum KeyGenMode {
 };
 
 export class Validator {
-    private publicKeyWallet: HDNodeWallet;
-    public ipAddress: string;
-    public port: string;
+    static async create() {
+        const stakingWallet = ethers.Wallet.createRandom(ethers.provider);
+        const miningWallet = ethers.Wallet.createRandom(ethers.provider);
+        
+        const ipAddress = ethers.zeroPadValue("0xc0a80102", 16); // value for tests "192.168.1.2" 
+        const port = '0xbd6';
 
-    constructor(
-        public staking: HardhatEthersSigner,
-        public mining: HardhatEthersSigner,
-    ) {
-        this.publicKeyWallet = ethers.Wallet.createRandom();
-        this.ipAddress = ZeroIpAddress;
-        this.port = '0xbd6';
+        const initBalance = ethers.parseEther("1000000");
+
+        await helpers.setBalance(stakingWallet.address, initBalance);
+        await helpers.setBalance(miningWallet.address, initBalance);
+
+        return new this(
+            stakingWallet,
+            miningWallet,
+            ipAddress,
+            port
+        );
     }
 
+    constructor(
+        public staking: HDNodeWallet,
+        public mining: HDNodeWallet,
+        public ipAddress: string,
+        public port: string,
+    ) { }
+
     publicKey(): string {
-        return this.publicKeyWallet.signingKey.publicKey;
+        return "0x".concat(this.mining.signingKey.publicKey.slice(4));
     }
 
     miningAddress(): string {

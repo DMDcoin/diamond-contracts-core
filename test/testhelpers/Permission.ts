@@ -1,18 +1,22 @@
-import { ethers } from "hardhat";
-import { BaseContract, TransactionResponse } from "ethers";
+import { BaseContract, HDNodeWallet, TransactionResponse } from "ethers";
 
 import { TxPermissionHbbft } from "../../src/types";
 import { expect } from "chai";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 export class Permission<T extends BaseContract> {
   public constructor(public permissionContract: TxPermissionHbbft, public contract: T, public logOutput = false) { }
 
-  public async callFunction(functionName: string, from: string, params: any[]): Promise<TransactionResponse> {
+  public async callFunction(
+    functionName: string,
+    from: HardhatEthersSigner | HDNodeWallet,
+    params: any[],
+  ): Promise<TransactionResponse> {
     //keyGenHistory.interface.encodeFunctionData()
     const asEncoded = this.contract.interface.encodeFunctionData(functionName, params);
     if (this.logOutput) {
       console.log('calling: ', functionName);
-      console.log('from: ', from)
+      console.log('from: ', from.address)
       console.log('params: ', params);
       console.log('encodedCall: ', asEncoded);
     }
@@ -22,9 +26,8 @@ export class Permission<T extends BaseContract> {
     //console.log('upcomingEpochNumber: ', numberFromContract.toString());
     //console.log('numberFromContract2', numberFromContract2.toString());
 
-
     const allowedTxType = await this.permissionContract.allowedTxTypes(
-      from,
+      from.address,
       await this.contract.getAddress(),
       0n /* value */,
       0n /* gas price */,
@@ -44,7 +47,7 @@ export class Permission<T extends BaseContract> {
 
     // we know now, that this call is allowed.
     // so we can execute it.
-    return (await ethers.getSigner(from)).sendTransaction({
+    return from.sendTransaction({
       to: await this.contract.getAddress(),
       data: asEncoded
     });
