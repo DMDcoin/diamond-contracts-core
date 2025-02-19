@@ -33,6 +33,7 @@ const chainIds = {
     alpha2: 777012,
     alpha4: 777018,
     alpha5: 777019,
+    beta1: 27272,
 };
 
 const config: HardhatUserConfig = {
@@ -82,6 +83,14 @@ const config: HardhatUserConfig = {
                 },
 
             },
+            {
+                network: "beta1",
+                chainId: 27272,
+                urls: {
+                    apiURL: "https://beta-explorer.bit.diamonds/api",
+                    browserURL: "https://beta-explorer.bit.diamonds",
+                },
+            },
         ],
     },
     contractSizer: {
@@ -112,6 +121,19 @@ const config: HardhatUserConfig = {
             allowUnlimitedContractSize: true,
             hardfork: "istanbul",
             minGasPrice: 0
+        },
+        beta1: {
+            //url: "http://62.171.133.46:55100",
+            url: "https://beta-rpc.bit.diamonds",
+            accounts: {
+                mnemonic: getMnemonic(),
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
+            gasPrice: 1000000000,
+            hardfork: "london",
         },
         local: {
             url: "http://127.0.0.1:8540",

@@ -78,6 +78,11 @@ async function main() {
         throw new Error("Please set proxy admin OWNER address in a .env file");
     }
 
+
+    let signers = await ethers.getSigners();
+    const address = await signers[0].getAddress();
+    console.log("signer address:", address);
+
     const networkId = process.env.NETWORK_ID;
     const proxyAdminOwner = process.env.OWNER;
 
