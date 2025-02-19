@@ -85,7 +85,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
     error AnnounceBlockNumberTooOld();
     error CantAnnounceAvailability();
-    error EpochNotYetzFinished();
+    error EpochNotYetFinished();
     error InitialAddressesLengthMismatch();
     error InitialValidatorsEmpty();
     error InvalidAddressPair();
@@ -251,8 +251,8 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// as well as marking them unavailable.
     function handleFailedKeyGeneration() external onlyBlockRewardContract {
         // we should only kick out nodes if the nodes have been really to late.
-        if (block.timestamp < stakingContract.stakingFixedEpochEndTime()) {
-            revert EpochNotYetzFinished();
+        if (block.timestamp < stakingContract.actualEpochEndTime()) {
+            revert EpochNotYetFinished();
         }
 
         if (stakingContract.getPoolsToBeElected().length == 0) {
@@ -290,15 +290,15 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         // temporary array to keep track of the good validators.
         // not all storage slots might be used.
         // we asume that there is at minimum 1 bad validator.
-        address[] memory goodValidators = new address[](_pendingValidators.length - 1);
+        uint256 pendingValidatorsCount = _pendingValidators.length;
+
+        address[] memory goodValidators = new address[](pendingValidatorsCount - 1);
         uint256 goodValidatorsCount = 0;
 
         (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) = keyGenHistoryContract
             .getNumberOfKeyFragmentsWritten();
 
-        //address[] memory badValidators = new address[];
-
-        for (uint256 i = 0; i < _pendingValidators.length; i++) {
+        for (uint256 i = 0; i < pendingValidatorsCount; ++i) {
             // get mining address for this pool.
             // if the mining address did his job (writing PART or ACKS).
             // add it to the good pool.
@@ -308,12 +308,12 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
             // the write the information required for the current state.
             bool isGood = false;
 
-            if (_pendingValidators.length > numberOfPartsWritten) {
+            if (pendingValidatorsCount > numberOfPartsWritten) {
                 // case 1: missing part scenario.
                 // pending validator that missed out writing their part ?
                 // maybe make a more precise length check in the future here ?
                 isGood = keyGenHistoryContract.getPart(miningAddress).length > 0;
-            } else if (_pendingValidators.length > numberOfAcksWritten) {
+            } else if (pendingValidatorsCount > numberOfAcksWritten) {
                 // case 2: parts were written, but did this validator also write it's ACKS ??
                 // Note: we do not really need to check if the validator has written his part,
                 // since all validators managed to write it's part.
@@ -350,7 +350,7 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         // we might only set a subset to the newValidatorSet function,
         // since the last indexes of the array are holding unused slots.
         address[] memory forcedPools = new address[](goodValidatorsCount);
-        for (uint256 i = 0; i < goodValidatorsCount; i++) {
+        for (uint256 i = 0; i < goodValidatorsCount; ++i) {
             forcedPools[i] = goodValidators[i];
         }
 
@@ -650,8 +650,9 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
         // now: block.timestamp
 
-        if (block.timestamp > stakingContract.stakingFixedEpochEndTime()) {
-            stakingContract.notifyNetworkOfftimeDetected(block.timestamp - stakingContract.stakingFixedEpochEndTime());
+        uint256 actualEpochEndTime = stakingContract.actualEpochEndTime();
+        if (block.timestamp > actualEpochEndTime) {
+            stakingContract.notifyNetworkOfftimeDetected(block.timestamp - actualEpochEndTime);
         }
     }
 

@@ -46,7 +46,7 @@
         "@types/node": "^20.12.13",
         "dotenv": "^16.4.5",
         "ethers": "^6.12.1",
-        "hardhat": "^2.22.10",
+        "hardhat": "^2.22.17",
         "hardhat-contract-sizer": "^2.10.0",
         "hardhat-tracer": "^3.1.0",
         "lodash": "^4.17.21",

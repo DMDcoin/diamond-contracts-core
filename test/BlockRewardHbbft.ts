@@ -812,7 +812,7 @@ describe('BlockRewardHbbft', () => {
         });
     });
 
-    describe('early epoch end', async () => {
+    describe('notifyEarlyEpochEnd', async () => {
         beforeEach(async () => {
             await blockRewardHbbft.resetEarlyEpochEnd();
         });
