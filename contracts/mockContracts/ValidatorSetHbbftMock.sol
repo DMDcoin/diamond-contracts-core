@@ -74,6 +74,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         }
     }
 
+    function addPendingValidator(address _mining) external {
+        _pendingValidators.push(_mining);
+    }
+
     // =============================================== Getters ========================================================
 
     function getRandomIndex(

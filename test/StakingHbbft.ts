@@ -2785,6 +2785,14 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
+        it('should restrict calling notifiyEarlyEpochEnd to block reward contract', async () => {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+            const caller = accounts[10];
+
+            await expect(stakingHbbft.connect(caller).notifiyEarlyEpochEnd(0n))
+                .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
+        });
+
         it('should restrict calling setStakingEpochStartTime to validator set contract', async () => {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
@@ -2849,7 +2857,7 @@ describe('StakingHbbft', () => {
 
         await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-        if (receipt!.logs.length > 0) {
+        if (isEpochEndBlock && receipt!.logs.length > 0) {
             // Emulate minting native coins
             const event = blockRewardContract.interface.parseLog(receipt!.logs[0]);
 
@@ -2878,8 +2886,6 @@ describe('StakingHbbft', () => {
     ) {
         const tsBeforeTimeTravel = await helpers.time.latest();
         const endTimeOfCurrentEpoch = await stakingContract.stakingFixedEpochEndTime();
-        // console.log('tsBefore:', tsBeforeTimeTravel.toString());
-        // console.log('endTimeOfCurrentEpoch:', endTimeOfCurrentEpoch.toString());
 
         if (endTimeOfCurrentEpoch < tsBeforeTimeTravel) {
             console.error('Trying to timetravel back in time !!');

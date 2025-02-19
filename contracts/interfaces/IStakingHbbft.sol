@@ -34,7 +34,30 @@ interface IStakingHbbft {
 
     function notifyNetworkOfftimeDetected(uint256) external;
 
+    function notifiyEarlyEpochEnd(uint256 timestamp) external;
+
     function updatePoolLikelihood(address mining, uint256 validatorScore) external;
+
+    function restake(
+        address _poolStakingAddress,
+        uint256 validatorReward
+    ) external payable;
+
+    function snapshotPoolStakeAmounts(
+        uint256 _epoch,
+        address _stakingPool
+    ) external;
+
+    function getPoolValidatorStakeAmount(
+        uint256 _epoch,
+        address _stakingPool
+    ) external view returns (uint256);
+
+    function setValidatorInternetAddress(
+        address,
+        bytes16,
+        bytes2
+    ) external;
 
     function getPoolPublicKey(address _poolAddress)
         external
@@ -65,12 +88,6 @@ interface IStakingHbbft {
 
     function poolDelegators(address) external view returns (address[] memory);
 
-    function setValidatorInternetAddress(
-        address,
-        bytes16,
-        bytes2
-    ) external;
-
     function stakeAmount(address, address) external view returns (uint256);
 
     function stakeAmountTotal(address) external view returns (uint256);
@@ -91,18 +108,5 @@ interface IStakingHbbft {
 
     function stakingEpochStartBlock() external view returns (uint256);
 
-    function restake(
-        address _poolStakingAddress,
-        uint256 validatorReward
-    ) external payable;
-
-    function snapshotPoolStakeAmounts(
-        uint256 _epoch,
-        address _stakingPool
-    ) external;
-
-    function getPoolValidatorStakeAmount(
-        uint256 _epoch,
-        address _stakingPool
-    ) external view returns (uint256);
+    function actualEpochEndTime() external view returns (uint256);
 }

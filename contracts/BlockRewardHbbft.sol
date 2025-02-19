@@ -221,7 +221,7 @@ contract BlockRewardHbbft is
      * Requirements:
      * - Only the contract owner can call this function.
      * - The _shareNominator value must be within the allowed range.
-     * 
+     *
      * Emits a {SetGovernancePotShareNominator} event.
      */
     function setGovernancePotShareNominator(
@@ -388,21 +388,20 @@ contract BlockRewardHbbft is
 
     function _closeBlock(IStakingHbbft stakingContract) private {
         uint256 phaseTransitionTime = stakingContract.startTimeOfNextPhaseTransition();
-
-        address[] memory miningAddresses = validatorSetContract.getValidators();
+        bool isPhaseTransition = block.timestamp >= phaseTransitionTime;
 
         // TODO: Problem occurs here if there are not regular blocks:
         // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
 
-        //we are in a transition to phase 2 if the time for it arrived,
+        // we are in a transition to phase 2 if the time for it arrived,
         // and we do not have pendingValidators yet.
-        bool isPhaseTransition = block.timestamp >= phaseTransitionTime;
         bool toBeUpscaled = false;
-        if (miningAddresses.length * 3 <= (validatorSetContract.maxValidators() * 2)) {
+        uint256 currentValidatorsCount = validatorSetContract.getCurrentValidatorsCount();
+        if (currentValidatorsCount * 3 <= (validatorSetContract.maxValidators() * 2)) {
             uint256 amountToBeElected = stakingContract.getPoolsToBeElected().length;
             if (
                 (amountToBeElected > 0) &&
-                validatorSetContract.getValidatorCountSweetSpot(amountToBeElected) > miningAddresses.length
+                validatorSetContract.getValidatorCountSweetSpot(amountToBeElected) > currentValidatorsCount
             ) {
                 toBeUpscaled = true;
             }
@@ -415,16 +414,22 @@ contract BlockRewardHbbft is
             // Choose new validators
             validatorSetContract.newValidatorSet();
 
+            // notify staking contract this epoch will end earlier due to
+            // upscaling or too many validators were marked as faulty
+            if (!isPhaseTransition) {
+                stakingContract.notifiyEarlyEpochEnd(block.timestamp);
+            }
+
             // in any case we reset early epoch end flag because
-            // the validator set change already in progress
+            // the validator set change was initiated
             earlyEpochEnd = false;
-        } else if (block.timestamp >= stakingContract.stakingFixedEpochEndTime()) {
+        } else if (block.timestamp >= stakingContract.actualEpochEndTime()) {
             validatorSetContract.handleFailedKeyGeneration();
         }
 
+        // reset early epoch end flag if notification was received,
+        // but network already in keygen phase
         if (earlyEpochEnd && pendingValidatorsCount != 0) {
-            // reset early epoch end flag if notification was received,
-            // but network already in keygen phase
             earlyEpochEnd = false;
         }
 
