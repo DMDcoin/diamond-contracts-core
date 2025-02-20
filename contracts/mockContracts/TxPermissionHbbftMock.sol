@@ -49,4 +49,8 @@ contract TxPermissionHbbftMock is TxPermissionHbbft {
     function setConnectivityTracker(address _connectivityTracker) external {
         connectivityTracker = IConnectivityTrackerHbbft(_connectivityTracker);
     }
+
+    function testGetSliceUInt256(uint256 begin, bytes memory data) public pure returns (uint256) {
+        return _getSliceUInt256(begin, data);
+    }
 }

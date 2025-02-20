@@ -1,4 +1,5 @@
 import { ethers, network, upgrades } from "hardhat";
+import { HDNodeWallet } from "ethers";
 import { expect } from "chai";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
@@ -18,6 +19,8 @@ import {
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
 import { GovernanceAddress, deployDao } from "./testhelpers/daoDeployment";
+import { Validator } from "./testhelpers/types";
+import { splitPublicKeys } from "./testhelpers/utils";
 
 // one epoch in 1 day.
 const STAKING_FIXED_EPOCH_DURATION = 86400n;
@@ -200,7 +203,7 @@ describe('BlockRewardHbbft', () => {
         // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
         // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
         // Public keys corresponding to the three private keys above.
-        initialValidatorsPubKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
+        initialValidatorsPubKeys = splitPublicKeys
             ([
                 '0x52be8f332b0404dff35dd0b2ba44993a9d3dc8e770b9ce19a849dff948f1e14c57e7c8219d522c1a4cce775adbee5330f222520f0afdabfdb4a4501ceeb8dcee',
                 '0x99edf3f524a6f73e7f5d561d0030fc6bcc3e4bd33971715617de7791e12d9bdf6258fa65b74e7161bbbf7ab36161260f56f68336a6f65599dc37e7f2e397f845',
@@ -305,15 +308,12 @@ describe('BlockRewardHbbft', () => {
         await callReward(_blockReward, true);
     }
 
-    async function announceAvailability(pool: string): Promise<void> {
-        const blockNumber = await ethers.provider.getBlockNumber()
-        const block = await ethers.provider.getBlock(blockNumber);
-
-        const poolSigner = await ethers.getSigner(pool);
+    async function announceAvailability(poolSigner: HardhatEthersSigner | HDNodeWallet): Promise<void> {
+        const block = await ethers.provider.getBlock("latest");
 
         // we know now, that this call is allowed.
         // so we can execute it.
-        await validatorSetHbbft.connect(poolSigner).announceAvailability(blockNumber, block!.hash!);
+        await validatorSetHbbft.connect(poolSigner).announceAvailability(block!.number, block!.hash!);
     }
 
     async function getValidatorStake(validatorAddr: string): Promise<bigint> {
@@ -812,7 +812,7 @@ describe('BlockRewardHbbft', () => {
         });
     });
 
-    describe('early epoch end', async () => {
+    describe('notifyEarlyEpochEnd', async () => {
         beforeEach(async () => {
             await blockRewardHbbft.resetEarlyEpochEnd();
         });
@@ -1199,35 +1199,34 @@ describe('BlockRewardHbbft', () => {
         expect(actualValidatorReward).to.be.closeTo(expectedValidatorReward, expectedValidatorReward / 10000n);
     });
 
-    
+    it("upscaling: add multiple validator pools and upscale if needed", async () => {
+        const additionalValidators = new Array<Validator>();
+        const additionalValidatorsCount = 25;
 
-    it("upscaling: add multiple validator pools and upscale if needed.", async () => {
-        const accountAddresses = accounts.map(item => item.address);
-        const additionalValidators = accountAddresses.slice(7, 52 + 1); // accounts[7...32]
-        const additionalStakingAddresses = accountAddresses.slice(53, 99 + 1); // accounts[33...59]
+        for (let i = 0; i < additionalValidatorsCount; ++i) {
+            const validator = await Validator.create(ethers.provider);
+            additionalValidators.push(validator);
+        }
 
-        expect(additionalValidators).to.be.lengthOf(46);
-        expect(additionalStakingAddresses).to.be.lengthOf(46);
+        expect(additionalValidators).to.be.lengthOf(additionalValidatorsCount);
 
         await network.provider.send("evm_setIntervalMining", [8]);
 
-        for (let i = 0; i < additionalValidators.length; i++) {
-            let stakingAddress = await ethers.getSigner(additionalStakingAddresses[i]);
-            let miningAddress = await ethers.getSigner(additionalValidators[i]);
-
-            await stakingHbbft.connect(stakingAddress).addPool(
-                miningAddress.address,
+        for (const validator of additionalValidators) {
+            await stakingHbbft.connect(validator.staking).addPool(
+                validator.miningAddress(),
                 ethers.ZeroAddress,
                 0n,
-                ethers.zeroPadBytes("0x00", 64),
-                ethers.zeroPadBytes("0x00", 16),
+                validator.publicKey(),
+                validator.ipAddress,
                 { value: MIN_STAKE }
             );
-            await announceAvailability(miningAddress.address);
+            await announceAvailability(validator.mining);
             await mine();
 
             let toBeElected = (await stakingHbbft.getPoolsToBeElected()).length;
             let pendingValidators = (await validatorSetHbbft.getPendingValidators()).length
+
             if (toBeElected > 4 && toBeElected <= 19 && pendingValidators == 0) {
                 expect(await validatorSetHbbft.getValidatorCountSweetSpot((await stakingHbbft.getPoolsToBeElected()).length))
                     .to.be.equal((await validatorSetHbbft.getValidators()).length);
@@ -1237,13 +1236,16 @@ describe('BlockRewardHbbft', () => {
         await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
         await timeTravelToEndEpoch(stakingHbbft, blockRewardHbbft);
 
+        const maxValidators = await validatorSetHbbft.maxValidators()
+
         // after epoch was finalized successfully, validator set length is healthy
-        expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
-        expect(await stakingHbbft.getPoolsToBeElected()).to.be.lengthOf(49);
+        expect(await validatorSetHbbft.getValidators())
+            .to.be.lengthOf(maxValidators);
+        expect(await stakingHbbft.getPoolsToBeElected())
+            .to.be.lengthOf(initialValidators.length + additionalValidatorsCount);
     })
 
     it("upscaling: removing validators up to 16", async () => {
-
         while ((await validatorSetHbbft.getValidators()).length > 16) {
             await mine();
             const validators = await validatorSetHbbft.getValidators();

@@ -143,7 +143,7 @@ describe('CertifierHbbft contract', () => {
                 .withArgs(caller.address);
         });
 
-        it("should sertify address", async function () {
+        it("should certify address", async function () {
             const { certifier } = await loadFixture(deployContracts);
             const who = accounts[4];
 
@@ -168,6 +168,20 @@ describe('CertifierHbbft contract', () => {
             await expect(certifier.connect(owner).revoke(who.address))
                 .to.emit(certifier, "Revoked")
                 .withArgs(who.address);
+
+            expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
+            expect(await certifier.certified(who.address)).to.be.false;
+        });
+
+        it("should do nothing if revoking from uncertified address", async function () {
+            const { certifier } = await loadFixture(deployContracts);
+            const who = accounts[9];
+
+            expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
+            expect(await certifier.certified(who.address)).to.be.false;
+
+            await expect(certifier.connect(owner).revoke(who.address))
+                .to.not.emit(certifier, "Revoked");
 
             expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
             expect(await certifier.certified(who.address)).to.be.false;

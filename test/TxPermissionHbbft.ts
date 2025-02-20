@@ -15,6 +15,7 @@ import {
 } from "../src/types";
 
 import { getTestPartNAcks } from './testhelpers/data';
+import { KeyGenMode } from "./testhelpers/types";
 
 const EmptyBytes = ethers.hexlify(new Uint8Array());
 const validatorInactivityThreshold = BigInt(365 * 86400); // 1 year
@@ -32,15 +33,6 @@ enum AllowedTxTypeMask {
     Private = 0x08,
     All = 0xffffffff
 };
-
-enum KeyGenMode {
-    NotAPendingValidator,
-    WritePart,
-    WaitForOtherParts,
-    WriteAck,
-    WaitForOtherAcks,
-    AllKeysDone
-}
 
 describe('TxPermissionHbbft', () => {
     let owner: HardhatEthersSigner;
@@ -385,6 +377,15 @@ describe('TxPermissionHbbft', () => {
             expect(await txPermission.contractVersion()).to.equal(contractVersion);
         });
 
+        it('should revert when accessing data out of bounds', async function () {
+            const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+            const smallData = ethers.hexlify(new Uint8Array(10));
+            await expect(
+                txPermission.testGetSliceUInt256(30, smallData)
+            ).to.be.revertedWithCustomError(txPermission, "ReadOutOfBounds");
+        });
+
         describe('addAllowedSender()', async function () {
             it("should restrict calling addAllowedSender to contract owner", async function () {
                 const { txPermission } = await helpers.loadFixture(deployContractsFixture);
@@ -411,7 +412,7 @@ describe('TxPermissionHbbft', () => {
                 const sender = accounts[10];
 
                 expect(await txPermission.isSenderAllowed(sender.address)).to.be.false;
-                
+
                 await expect(txPermission.connect(owner).addAllowedSender(sender.address))
                     .to.emit(txPermission, "AddAllowedSender")
                     .withArgs(sender.address);
@@ -1381,7 +1382,7 @@ describe('TxPermissionHbbft', () => {
                     );
 
                     const abiCoder = new ethers.AbiCoder();
-                    const additionalArg =  abiCoder.encode(["address"], [reporter.address]);
+                    const additionalArg = abiCoder.encode(["address"], [reporter.address]);
 
                     const result = await txPermission.allowedTxTypes(
                         reporter.address,

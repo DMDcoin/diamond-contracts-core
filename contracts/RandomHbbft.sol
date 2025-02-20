@@ -33,6 +33,14 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     /// @dev The address of the `ValidatorSet` contract.
     IValidatorSetHbbft public validatorSetContract;
 
+    /// @dev Emitted by `setCurrentSeed` function when `seed` value was set
+    /// for specified `blockNum`.
+    ///
+    /// @param blockNum Block number
+    /// @param seed Corresponding seed value
+    /// @param healthy Network healthiness state
+    event SetCurrentSeed(uint256 indexed blockNum, uint256 indexed seed, bool indexed healthy);
+
     // ============================================== Modifiers =======================================================
 
     /// @dev Ensures the caller is the SYSTEM_ADDRESS. See https://wiki.parity.io/Validator-Set.html
@@ -73,9 +81,13 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     function setCurrentSeed(uint256 _currentSeed) external onlySystem {
         randomHistory[block.number] = _currentSeed;
 
-        if (!validatorSetContract.isFullHealth()) {
+        bool healthy = validatorSetContract.isFullHealth();
+
+        if (!healthy) {
             unhealthiness.set(block.number);
         }
+
+        emit SetCurrentSeed(block.number, _currentSeed, healthy);
     }
 
     ///@dev returns current random seed
