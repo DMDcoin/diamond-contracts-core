@@ -1,5 +1,5 @@
 import { ethers, network, upgrades } from "hardhat";
-import { TransactionResponse } from "ethers";
+import { HDNodeWallet, TransactionResponse } from "ethers";
 import { expect } from "chai";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
@@ -16,9 +16,9 @@ import {
 } from "../src/types";
 
 import { Permission } from "./testhelpers/Permission";
-import { random } from "./utils/utils";
+import { random, splitPublicKeys } from "./testhelpers/utils";
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
-import { KeyGenMode } from "./testhelpers/types";
+import { KeyGenMode, Validator } from "./testhelpers/types";
 import { getTestPartNAcks } from './testhelpers/data';
 
 // one epoch in 1 day.
@@ -543,11 +543,16 @@ describe('ValidatorSetHbbft', () => {
         });
 
         it('should allow validator candidates to write and read their IP address', async () => {
-            let validators = accounts.slice(1, 5);
-            let pools = accounts.slice(5, 9);
+            const validators = new Array<Validator>();
+            for (let i = 0; i < 4; ++i) {
+                const validator = await Validator.create();
+                validators.push(validator);
+            }
 
-            let initialMiningAddr = [validators[0].address];
-            let initialStakingAddr = [pools[0].address];
+            let initialMiningAddr = [validators[0].miningAddress()];
+            let initialStakingAddr = [validators[0].stakingAddress()];
+            let initialPublicKeys = splitPublicKeys([validators[0].publicKey()]);
+            let initialIpAddresses = [validators[0].ipAddress];
 
             const stubAddress = owner.address;
 
@@ -615,7 +620,6 @@ describe('ValidatorSetHbbft', () => {
 
             await txPermission.waitForDeployment();
 
-
             let stakingParams = {
                 _candidateMinStake: 1000,
                 _delegatorMinStake: 100,
@@ -628,17 +632,14 @@ describe('ValidatorSetHbbft', () => {
                 _bonusScoreContract: await bonusScoreContractMock.getAddress(),
             };
 
-            const fakePK = "0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae";
-            const fakeIP = "0x00000000000000000000000000000001"
-
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             const stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
                 [
                     owner.address,
-                    stakingParams, // initializer structure
-                    [fakePK, fakePK], // _publicKeys
-                    [fakeIP] // _internetAddresses
+                    stakingParams,     // initializer structure
+                    initialPublicKeys, // _publicKeys
+                    initialIpAddresses // _internetAddresses
                 ],
                 { initializer: 'initialize' }
             ) as unknown as StakingHbbftMock;
@@ -658,18 +659,16 @@ describe('ValidatorSetHbbft', () => {
             expect(await stakingHbbft.getPools()).to.be.not.empty;
 
             let ipLast = 1;
-            for (let pool of pools) {
-                if (await stakingHbbft.isPoolActive(pool.address)) {
-                    const validatorAddress = await validatorSetHbbft.miningByStakingAddress(pool.address);
-                    const ipAddress = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 0, ipLast]);
+            for (const pool of validators) {
+                if (await stakingHbbft.isPoolActive(pool.stakingAddress())) {
+                    const ipAddress = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 0, ipLast++]);
                     const port = 30303;
 
-                    await setValidatorInternetAddress(validatorSetPermission, validatorAddress, ipAddress, port);
-                    const writtenIP = await getValidatorInternetAddress(stakingHbbft, pool.address);
+                    await setValidatorInternetAddress(validatorSetPermission, pool.mining, ipAddress, port);
+                    const writtenIP = await getValidatorInternetAddress(stakingHbbft, pool.stakingAddress());
 
                     expect(writtenIP).to.deep.equal({ ipAddress: ipAddress, port: BigInt(port) });
                 }
-                ipLast++;
             }
         });
     });
@@ -742,44 +741,39 @@ describe('ValidatorSetHbbft', () => {
         it('should choose validators randomly', async () => {
             const { validatorSetHbbft, stakingHbbft, randomHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const stakingAddresses = accountAddresses.slice(7, 29 + 3); // accounts[7...31]
-            let miningAddresses = [];
-
-            for (let i = 0; i < stakingAddresses.length; i++) {
-                // Generate new candidate mining address
-                let candidateMiningAddress = '0x';
-                for (let i = 0; i < 20; i++) {
-                    let randomByte = random(0, 255).toString(16);
-                    if (randomByte.length % 2) {
-                        randomByte = '0' + randomByte;
-                    }
-                    candidateMiningAddress += randomByte;
-                }
-                miningAddresses.push(candidateMiningAddress.toLowerCase());
+            const validators = new Array<Validator>();
+            for (let i = 0; i < 25; ++i) {
+                const valdiator = await Validator.create();
+                validators.push(valdiator);
             }
 
             const stakeUnit = ethers.parseEther('1');
 
             // Emulate staking by the candidates into their own pool
-            for (let i = 0; i < stakingAddresses.length; i++) {
+            for (let i = 0; i < validators.length; i++) {
                 const stakeAmount = stakeUnit * BigInt(i + 1);
-                await stakingHbbft.connect(await ethers.getSigner(stakingAddresses[i])).addPool(
-                    miningAddresses[i],
+
+                await stakingHbbft.connect(validators[i].staking).addPool(
+                    validators[i].miningAddress(),
                     ethers.ZeroAddress,
                     0n,
-                    ethers.zeroPadBytes("0x00", 64),
-                    ethers.zeroPadBytes("0x00", 16),
+                    validators[i].publicKey(),
+                    validators[i].ipAddress,
                     { value: stakeAmount }
                 );
-                expect(await stakingHbbft.stakeAmount(stakingAddresses[i], stakingAddresses[i])).to.equal(stakeAmount);
+
+                const stakingAddr = validators[i].stakingAddress();
+
+                expect(await stakingHbbft.stakeAmount(stakingAddr, stakingAddr)).to.equal(stakeAmount);
             }
 
             // Check pools of the new candidates
-            expect(await stakingHbbft.getPoolsToBeElected()).to.be.deep.equal(stakingAddresses);
+            expect(await stakingHbbft.getPoolsToBeElected())
+                .to.be.deep.equal(validators.map(x => x.stakingAddress()));
             const poolsLikelihood = await stakingHbbft.getPoolsLikelihood();
 
             let likelihoodSum = 0n;
-            for (let i = 0; i < stakingAddresses.length; i++) {
+            for (let i = 0; i < validators.length; i++) {
                 const poolLikelihood = stakeUnit * BigInt(i + 1);
 
                 expect(poolsLikelihood[0][i]).to.be.equal(poolLikelihood);
@@ -805,8 +799,9 @@ describe('ValidatorSetHbbft', () => {
 
             expect(await validatorSetHbbft.maxValidators()).to.be.equal(newValidators.length)
 
+            const miningAddresses = validators.map(x => x.miningAddress());
             for (let i = 0; i < newValidators.length; i++) {
-                expect(miningAddresses.indexOf(newValidators[i].toLowerCase())).to.be.gte(0n);
+                expect(miningAddresses.indexOf(newValidators[i])).to.be.gte(0n);
             }
         });
     });
@@ -1219,30 +1214,19 @@ describe('ValidatorSetHbbft', () => {
                 await validatorSetHbbft.addPendingValidator(mining.address);
             }
 
-            const newValidatorStaking = accounts[16];
-            const newValidatorMining = accounts[17];
+            const newValidator = await Validator.create();
 
-            await owner.sendTransaction({
-                to: newValidatorStaking.address,
-                value: await stakingHbbft.candidateMinStake() + ethers.parseEther("10"),
-            });
-
-            await owner.sendTransaction({
-                to: newValidatorMining.address,
-                value: ethers.parseEther("10"),
-            });
-
-            await stakingHbbft.connect(newValidatorStaking).addPool(
-                newValidatorMining.address,
+            await stakingHbbft.connect(newValidator.staking).addPool(
+                newValidator.miningAddress(),
                 ethers.ZeroAddress,
                 0n,
-                ZeroPublicKey,
-                ZeroIpAddress,
+                newValidator.publicKey(),
+                newValidator.ipAddress,
                 { value: await stakingHbbft.candidateMinStake() }
             );
 
             const lastBlock = await ethers.provider.getBlock('latest');
-            await validatorSetHbbft.connect(newValidatorMining).announceAvailability(lastBlock!.number, lastBlock!.hash!);
+            await validatorSetHbbft.connect(newValidator.mining).announceAvailability(lastBlock!.number, lastBlock!.hash!);
 
             expect(
                 await stakingHbbft.getPoolsToBeElected(),
@@ -1274,7 +1258,7 @@ describe('ValidatorSetHbbft', () => {
                 "keygen round counter should be increased",
             ).to.equal(previousKeyGenRound + 1n);
 
-            expect(await validatorSetHbbft.getPendingValidators()).to.deep.eq([newValidatorMining.address]);
+            expect(await validatorSetHbbft.getPendingValidators()).to.deep.eq([newValidator.miningAddress()]);
             expect(
                 await stakingHbbft.currentKeyGenExtraTimeWindow(),
                 "keygen extra time window should also include network offtime"
@@ -1487,32 +1471,21 @@ describe('ValidatorSetHbbft', () => {
         it('should return false for other validators', async function () {
             const { validatorSetHbbft, stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
-            const validatorStaking = accounts[16];
-            const validatorMining = accounts[17];
+            const validator = await Validator.create();
 
-            await owner.sendTransaction({
-                to: validatorStaking.address,
-                value: await stakingHbbft.candidateMinStake() + ethers.parseEther("10"),
-            });
-
-            await owner.sendTransaction({
-                to: validatorMining.address,
-                value: ethers.parseEther("10"),
-            });
-
-            await stakingHbbft.connect(validatorStaking).addPool(
-                validatorMining.address,
+            await stakingHbbft.connect(validator.staking).addPool(
+                validator.miningAddress(),
                 ethers.ZeroAddress,
                 0n,
-                ZeroPublicKey,
-                ZeroIpAddress,
+                validator.publicKey(),
+                validator.ipAddress,
                 { value: await stakingHbbft.candidateMinStake() }
             );
 
             const lastBlock = await ethers.provider.getBlock('latest');
-            await validatorSetHbbft.connect(validatorMining).announceAvailability(lastBlock!.number, lastBlock!.hash!);
+            await validatorSetHbbft.connect(validator.mining).announceAvailability(lastBlock!.number, lastBlock!.hash!);
 
-            expect(await validatorSetHbbft.isValidatorOrPending(validatorMining)).to.be.false;
+            expect(await validatorSetHbbft.isValidatorOrPending(validator.miningAddress())).to.be.false;
         });
     });
 
@@ -1895,7 +1868,7 @@ function parseHexString(str: string): Uint8Array {
 
 async function setValidatorInternetAddress(
     validatorSetPermission: Permission<ValidatorSetHbbftMock>,
-    miner: string,
+    miner: HDNodeWallet,
     ipAddress: Uint8Array,
     port: number
 ): Promise<TransactionResponse> {

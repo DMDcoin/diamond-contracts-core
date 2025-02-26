@@ -13,13 +13,15 @@ import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 
 import { Unauthorized, ZeroAddress, ZeroGasPrice } from "./lib/Errors.sol";
-import { TransferUtils } from "./utils/TransferUtils.sol";
 import { ValueGuards } from "./lib/ValueGuards.sol";
+import { TransferUtils } from "./utils/TransferUtils.sol";
+import { Secp256k1Utils } from "./utils/Secp256k1Utils.sol";
 
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
 contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft, ValueGuards {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using Secp256k1Utils for bytes;
 
     EnumerableSet.AddressSet private _pools;
     EnumerableSet.AddressSet private _poolsInactive;
@@ -291,9 +293,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
     error InvalidNodeOperatorConfiguration(address _operator, uint256 _share);
     error InvalidNodeOperatorShare(uint256 _share);
+    error InvalidPublicKey();
     error WithdrawNotAllowed();
     error ZeroWidthrawAmount();
     error ZeroWidthrawDisallowPeriod();
+    error MiningAddressPublicKeyMismatch();
 
     // ============================================== Modifiers =======================================================
 
@@ -335,7 +339,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         _disableInitializers();
     }
 
-    /// @dev Fallback function. Prevents direct sending native coins to this contract.
+    /// @dev Receive function. Prevents direct sending native coins to this contract.
     receive() external payable {
         revert NotPayable();
     }
@@ -517,6 +521,15 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         address stakingAddress = msg.sender;
         uint256 amount = msg.value;
         validatorSetContract.setStakingAddress(_miningAddress, stakingAddress);
+
+        if (!_publicKey.isValidPublicKey()) {
+            revert InvalidPublicKey();
+        }
+
+        if (_publicKey.computeAddress() != _miningAddress) {
+            revert MiningAddressPublicKeyMismatch();
+        }
+
         // The staking address and the staker are the same.
         poolInfo[stakingAddress].publicKey = _publicKey;
         poolInfo[stakingAddress].internetAddress = _ip;

@@ -33,38 +33,27 @@ const SystemAccountAddress = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
 describe('Early Epoch End', async function () {
     let owner: HardhatEthersSigner;
+    let stubAccount: HardhatEthersSigner;
     let accounts: HardhatEthersSigner[];
-    let stubAddress: string;
 
     let initialValidators: Array<Validator>;
     let pendingValidators: Array<Validator>;
 
     before(async () => {
-        [owner, ...accounts] = await ethers.getSigners();
+        [owner, stubAccount, ...accounts] = await ethers.getSigners();
 
-        initialValidators = new Array();
-        pendingValidators = new Array();
+        initialValidators = new Array<Validator>();
+        pendingValidators = new Array<Validator>();
 
-        const initialValidatorAccounts = accounts.slice(0, 6);
-        const pendingValidatorAccounts = accounts.slice(6, 12)
-
-        accounts = accounts.slice(12);
-
-        for (let i = 0; i < initialValidatorAccounts.length; i += 2) {
-            initialValidators.push(new Validator(
-                initialValidatorAccounts[i],
-                initialValidatorAccounts[i + 1],
-            ));
+        for (let i = 0; i < 3; ++i) {
+            const validator = await Validator.create();
+            initialValidators.push(validator);
         }
 
-        for (let i = 0; i < pendingValidatorAccounts.length; i += 2) {
-            pendingValidators.push(new Validator(
-                pendingValidatorAccounts[i],
-                pendingValidatorAccounts[i + 1],
-            ));
+        for (let i = 0; i < 3; ++i) {
+            const validator = await Validator.create();
+            pendingValidators.push(validator);
         }
-
-        stubAddress = accounts[0].address;
     });
 
     async function announceAvailability(validator: Validator, validatorSet: ValidatorSetHbbftMock) {
@@ -91,12 +80,12 @@ describe('Early Epoch End', async function () {
         await deployDao();
 
         const validatorSetParams = {
-            blockRewardContract: stubAddress,
-            randomContract: stubAddress,
-            stakingContract: stubAddress,
-            keyGenHistoryContract: stubAddress,
+            blockRewardContract: stubAccount.address,
+            randomContract: stubAccount.address,
+            stakingContract: stubAccount.address,
+            keyGenHistoryContract: stubAccount.address,
             bonusScoreContract: await bonusScoreContractMock.getAddress(),
-            connectivityTrackerContract: stubAddress,
+            connectivityTrackerContract: stubAccount.address,
             validatorInactivityThreshold: validatorInactivityThreshold,
         }
 
@@ -162,7 +151,7 @@ describe('Early Epoch End', async function () {
                 await certifierContract.getAddress(),
                 await validatorSetContract.getAddress(),
                 await keyGenHistoryContract.getAddress(),
-                stubAddress,
+                stubAccount.address,
                 owner.address
             ],
             { initializer: 'initialize' }
@@ -176,7 +165,7 @@ describe('Early Epoch End', async function () {
             [
                 owner.address,
                 await validatorSetContract.getAddress(),
-                stubAddress,
+                stubAccount.address,
             ],
             { initializer: 'initialize' }
         ) as unknown as BlockRewardHbbftMock;
