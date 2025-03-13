@@ -10,7 +10,7 @@ import {
     ValidatorSetHbbftMock,
 } from "../src/types";
 
-import { random, range } from "./utils/utils";
+import { random, range } from "./testhelpers/utils";
 
 const minStake = ethers.parseEther('1');
 const maxStake = ethers.parseEther('100000');
@@ -194,14 +194,17 @@ describe('RandomHbbft', () => {
         });
 
         it('should set current seed by system', async function () {
-            const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+            const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
             const systemSigner = await impersonateSystemAcc();
 
             const blockNumber = await helpers.time.latestBlock();
             const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
+            const healthy = await randomHbbft.isFullHealth();
 
-            await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
+            await expect(randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed))
+                .to.emit(randomHbbft, "SetCurrentSeed")
+                .withArgs(blockNumber + 1, randomSeed, healthy);
 
             expect(await randomHbbft.getSeedHistoric(blockNumber + 1)).to.equal(randomSeed);
 
@@ -231,11 +234,9 @@ describe('RandomHbbft', () => {
     });
 
     describe("FullHealth()", async function () {
-
         it('should display health correctly', async () => {
-
             const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
-            const validators = await validatorSetHbbft.getValidators(); 
+            const validators = await validatorSetHbbft.getValidators();
             expect(validators.length).to.be.equal(25);
             expect((await randomHbbft.isFullHealth())).to.be.equal(true);
             await validatorSetHbbft.kickValidator(validators[1]);
@@ -298,6 +299,46 @@ describe('RandomHbbft', () => {
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
             const result = await randomHbbft.isFullHealthsHistoric(blocks);
             expect(result).to.be.deep.equal(expected);
+        });
+
+        it('should be consistent in block healthiness tracking', async () => {
+            const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+            const systemSigner = await impersonateSystemAcc();
+            const validators = await validatorSetHbbft.getValidators();
+
+            const blocksSeedHealth = new Map<number, boolean>();
+
+            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
+            expect(await randomHbbft.isFullHealth()).to.be.true;
+
+            // Block 1: Set to unhealthy by kicking a validator
+            await validatorSetHbbft.kickValidator(validators[0]);
+            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(24);
+            expect(await randomHbbft.isFullHealth()).to.be.false;
+
+            // Block 2: Set current seed, should be unhealthy since validators count decreased
+            await randomHbbft.connect(systemSigner).setCurrentSeed(random(0, Number.MAX_SAFE_INTEGER));
+            expect(await randomHbbft.isFullHealthHistoric(await helpers.time.latestBlock())).to.be.false;
+            blocksSeedHealth.set(await helpers.time.latestBlock(), false);
+
+            // Block 3: Simulate returning to healthy state
+            await validatorSetHbbft.setValidatorsNum(25);
+            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
+            expect(await randomHbbft.isFullHealth()).to.be.true;
+
+            await randomHbbft.connect(systemSigner).setCurrentSeed(random(0, Number.MAX_SAFE_INTEGER));
+            expect(await randomHbbft.isFullHealthHistoric(await helpers.time.latestBlock())).to.be.true;
+            blocksSeedHealth.set(await helpers.time.latestBlock(), true);
+
+            // Block 4: Another block
+            await randomHbbft.connect(systemSigner).setCurrentSeed(random(0, Number.MAX_SAFE_INTEGER));
+            blocksSeedHealth.set(await helpers.time.latestBlock(), true);
+
+            for (const [blockNum, healthyValue] of blocksSeedHealth) {
+                expect(await randomHbbft.isFullHealthHistoric(blockNum)).to.eq(healthyValue);
+            }
+
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
     })
 });

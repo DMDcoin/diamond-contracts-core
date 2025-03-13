@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
 
-describe("Transfer utils library", function () {
+describe("TransferUtils library", function () {
     let users: HardhatEthersSigner[];
 
     before(async function () {

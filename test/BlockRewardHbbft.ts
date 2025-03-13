@@ -1,9 +1,8 @@
-import { ethers, network, upgrades } from "hardhat";
+import { ethers, upgrades } from "hardhat";
+import { HDNodeWallet } from "ethers";
 import { expect } from "chai";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import * as helpers from "@nomicfoundation/hardhat-network-helpers";
-import * as _ from "lodash";
-import fp from "lodash/fp";
 
 import {
     BlockRewardHbbftMock,
@@ -18,6 +17,8 @@ import {
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
 import { GovernanceAddress, deployDao } from "./testhelpers/daoDeployment";
+import { Validator } from "./testhelpers/types";
+import { splitPublicKeys } from "./testhelpers/utils";
 
 // one epoch in 1 day.
 const STAKING_FIXED_EPOCH_DURATION = 86400n;
@@ -38,13 +39,15 @@ const validatorInactivityThreshold = 365n * 86400n // 1 year
 let contractDeployCounter = 0;
 
 describe('BlockRewardHbbft', () => {
+    const additionalValidatorsCount = 25;
+
     let owner: HardhatEthersSigner;
     let accounts: HardhatEthersSigner[];
     let initialValidators: string[];
     let initialStakingAddresses: string[];
     let initialValidatorsPubKeys;
     let initialValidatorsIpAddresses;
-    let validators;
+    let additionalValidators: Validator[];
 
     let candidateMinStake: bigint;
     let delegatorMinStake: bigint;
@@ -58,6 +61,8 @@ describe('BlockRewardHbbft', () => {
     let stubAddress: string;
 
     before(async () => {
+        await helpers.reset();
+
         [owner, ...accounts] = await ethers.getSigners();
         const accountAddresses = accounts.map(item => item.address);
 
@@ -65,6 +70,14 @@ describe('BlockRewardHbbft', () => {
 
         initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
         initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
+
+        additionalValidators = new Array<Validator>();
+        for (let i = 0; i < additionalValidatorsCount; ++i) {
+            const validator = await Validator.create();
+            additionalValidators.push(validator);
+        }
+
+        expect(additionalValidators).to.be.lengthOf(additionalValidatorsCount);
 
         expect(initialStakingAddresses).to.be.lengthOf(3);
         expect(initialStakingAddresses[0]).to.not.be.equal(ethers.ZeroAddress);
@@ -200,7 +213,7 @@ describe('BlockRewardHbbft', () => {
         // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
         // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
         // Public keys corresponding to the three private keys above.
-        initialValidatorsPubKeys = fp.flatMap((x: string) => [x.substring(0, 66), '0x' + x.substring(66, 130)])
+        initialValidatorsPubKeys = splitPublicKeys
             ([
                 '0x52be8f332b0404dff35dd0b2ba44993a9d3dc8e770b9ce19a849dff948f1e14c57e7c8219d522c1a4cce775adbee5330f222520f0afdabfdb4a4501ceeb8dcee',
                 '0x99edf3f524a6f73e7f5d561d0030fc6bcc3e4bd33971715617de7791e12d9bdf6258fa65b74e7161bbbf7ab36161260f56f68336a6f65599dc37e7f2e397f845',
@@ -256,10 +269,6 @@ describe('BlockRewardHbbft', () => {
     }
 
     async function callReward(_blockReward: BlockRewardHbbftMock, isEpochEndBlock: boolean) {
-        // console.log('getting validators...');
-        // note: this call used to crash because of a internal problem with a previous call of evm_mine and evm_increase_time https://github.com/DMDcoin/diamond-contracts-core/issues/13
-        // const validators = await validatorSetHbbft.getValidators();
-        // console.log('got validators:', validators);
         const systemSigner = await impersonateAcc(SystemAccountAddress);
 
         await _blockReward.connect(systemSigner).reward(isEpochEndBlock);
@@ -305,15 +314,12 @@ describe('BlockRewardHbbft', () => {
         await callReward(_blockReward, true);
     }
 
-    async function announceAvailability(pool: string): Promise<void> {
-        const blockNumber = await ethers.provider.getBlockNumber()
-        const block = await ethers.provider.getBlock(blockNumber);
-
-        const poolSigner = await ethers.getSigner(pool);
+    async function announceAvailability(poolSigner: HardhatEthersSigner | HDNodeWallet): Promise<void> {
+        const block = await ethers.provider.getBlock("latest");
 
         // we know now, that this call is allowed.
         // so we can execute it.
-        await validatorSetHbbft.connect(poolSigner).announceAvailability(blockNumber, block!.hash!);
+        await validatorSetHbbft.connect(poolSigner).announceAvailability(block!.number, block!.hash!);
     }
 
     async function getValidatorStake(validatorAddr: string): Promise<bigint> {
@@ -968,15 +974,13 @@ describe('BlockRewardHbbft', () => {
         //lets spin up the time until the beginning of the Transition phase.
         await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
 
-        let pendingValidators = await validatorSetHbbft.getPendingValidators();
+        const pendingValidators = await validatorSetHbbft.getPendingValidators();
 
-        expect(
-            _.isEqual(_.sortBy(pendingValidators), _.sortBy([
-                accounts[1].address,
-                accounts[2].address,
-                accounts[3].address
-            ]))
-        ).to.be.true;
+        expect(pendingValidators).to.deep.eq([
+            accounts[1].address,
+            accounts[2].address,
+            accounts[3].address
+        ]);
 
         // now we are in phase 2.
         // Nodes are now responsible for creating a key together.
@@ -995,14 +999,12 @@ describe('BlockRewardHbbft', () => {
         // pending validators get deleted after being finalized
         expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
 
-        validators = await validatorSetHbbft.getValidators();
-        expect(
-            _.isEqual(_.sortBy(validators), _.sortBy([
-                accounts[1].address,
-                accounts[2].address,
-                accounts[3].address
-            ]))
-        ).to.be.true;
+        const validators = await validatorSetHbbft.getValidators();
+        expect(validators).to.deep.eq([
+            accounts[1].address,
+            accounts[2].address,
+            accounts[3].address
+        ]);
 
         for (let i = 0; i < validators.length; i++) {
             const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validators[i]);
@@ -1199,35 +1201,22 @@ describe('BlockRewardHbbft', () => {
         expect(actualValidatorReward).to.be.closeTo(expectedValidatorReward, expectedValidatorReward / 10000n);
     });
 
-    
-
-    it("upscaling: add multiple validator pools and upscale if needed.", async () => {
-        const accountAddresses = accounts.map(item => item.address);
-        const additionalValidators = accountAddresses.slice(7, 52 + 1); // accounts[7...32]
-        const additionalStakingAddresses = accountAddresses.slice(53, 99 + 1); // accounts[33...59]
-
-        expect(additionalValidators).to.be.lengthOf(46);
-        expect(additionalStakingAddresses).to.be.lengthOf(46);
-
-        await network.provider.send("evm_setIntervalMining", [8]);
-
-        for (let i = 0; i < additionalValidators.length; i++) {
-            let stakingAddress = await ethers.getSigner(additionalStakingAddresses[i]);
-            let miningAddress = await ethers.getSigner(additionalValidators[i]);
-
-            await stakingHbbft.connect(stakingAddress).addPool(
-                miningAddress.address,
+    it("upscaling: add multiple validator pools and upscale if needed", async () => {
+        for (const validator of additionalValidators) {
+            await stakingHbbft.connect(validator.staking).addPool(
+                validator.miningAddress(),
                 ethers.ZeroAddress,
                 0n,
-                ethers.zeroPadBytes("0x00", 64),
-                ethers.zeroPadBytes("0x00", 16),
+                validator.publicKey(),
+                validator.ipAddress,
                 { value: MIN_STAKE }
             );
-            await announceAvailability(miningAddress.address);
+            await announceAvailability(validator.mining);
             await mine();
 
             let toBeElected = (await stakingHbbft.getPoolsToBeElected()).length;
             let pendingValidators = (await validatorSetHbbft.getPendingValidators()).length
+
             if (toBeElected > 4 && toBeElected <= 19 && pendingValidators == 0) {
                 expect(await validatorSetHbbft.getValidatorCountSweetSpot((await stakingHbbft.getPoolsToBeElected()).length))
                     .to.be.equal((await validatorSetHbbft.getValidators()).length);
@@ -1237,13 +1226,15 @@ describe('BlockRewardHbbft', () => {
         await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
         await timeTravelToEndEpoch(stakingHbbft, blockRewardHbbft);
 
+        const maxValidators = await validatorSetHbbft.maxValidators()
+
         // after epoch was finalized successfully, validator set length is healthy
-        expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
-        expect(await stakingHbbft.getPoolsToBeElected()).to.be.lengthOf(49);
+        expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(maxValidators);
+        expect(await stakingHbbft.getPoolsToBeElected())
+            .to.be.lengthOf(initialValidators.length + additionalValidatorsCount);
     })
 
     it("upscaling: removing validators up to 16", async () => {
-
         while ((await validatorSetHbbft.getValidators()).length > 16) {
             await mine();
             const validators = await validatorSetHbbft.getValidators();
@@ -1258,14 +1249,13 @@ describe('BlockRewardHbbft', () => {
 
     it("upscaling: mining twice shouldn't change pending validator set", async () => {
         await callReward(blockRewardHbbft, false);
-        expect(await validatorSetHbbft.getPendingValidators()).to.be.lengthOf(25);
-        let pendingValidators = await validatorSetHbbft.getPendingValidators();
+
+        const pendingValidators = await validatorSetHbbft.getPendingValidators();
+        expect(pendingValidators).to.be.lengthOf(25);
 
         await callReward(blockRewardHbbft, false);
 
-        expect(
-            _.isEqual(_.sortBy(pendingValidators), _.sortBy(await validatorSetHbbft.getPendingValidators()))
-        ).to.be.true;
+        expect(await validatorSetHbbft.getPendingValidators()).to.deep.eq(pendingValidators);
     });
 
     it("upscaling: set is scaled to 25", async () => {
@@ -1273,7 +1263,5 @@ describe('BlockRewardHbbft', () => {
 
         expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
         expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
-
-        await network.provider.send("evm_setIntervalMining", [0]);
     });
 });
