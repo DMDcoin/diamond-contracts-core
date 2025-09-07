@@ -742,7 +742,7 @@ describe('BlockRewardHbbft', () => {
             // Following pot values and default payout fractions will result in 0 pool reward value
             const potValue = 90000n;
             await blockRewardContract.addToDeltaPot({ value: potValue });
-            await blockRewardContract.addToReinsertPot({ value: potValue });
+            await blockRewardContract.sendCoins({ value: potValue });
 
             expect(await blockRewardContract.deltaPot()).to.be.eq(potValue);
             expect(await blockRewardContract.reinsertPot()).to.be.eq(potValue);
@@ -785,7 +785,7 @@ describe('BlockRewardHbbft', () => {
             // Following pot values and default payout fractions will result in 0 pool reward value
             const potValue = ethers.parseEther('1');
             await blockRewardContract.addToDeltaPot({ value: potValue });
-            await blockRewardContract.addToReinsertPot({ value: potValue });
+            await blockRewardContract.sendCoins({ value: potValue });
 
             expect(await blockRewardContract.deltaPot()).to.be.eq(potValue);
             expect(await blockRewardContract.reinsertPot()).to.be.eq(potValue);
@@ -1067,7 +1067,7 @@ describe('BlockRewardHbbft', () => {
 
         const addedToReinsertPot = ethers.parseEther('60');
 
-        await blockRewardHbbft.addToReinsertPot({ value: addedToReinsertPot });
+        await blockRewardHbbft.sendCoins({ value: addedToReinsertPot });
         expect(await blockRewardHbbft.reinsertPot()).to.be.equal(addedToReinsertPot);
 
         const initialGovernancePotBalance = await getCurrentGovernancePotValue();

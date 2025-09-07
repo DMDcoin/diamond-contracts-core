@@ -868,11 +868,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 governanceShare = totalAbandonedAmount / 2;
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
 
+        address blockRewarAddress = validatorSetContract.blockRewardContract();
         IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
         address governanceAddress = blockRewardHbbft.getGovernanceAddress();
 
-        // slither-disable-next-line arbitrary-send-eth
-        blockRewardHbbft.addToReinsertPot{ value: reinsertShare }();
+        TransferUtils.transferNative(blockRewarAddress, reinsertShare);
         TransferUtils.transferNative(governanceAddress, governanceShare);
 
         emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
@@ -1575,9 +1575,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
 
     /// @dev For deployment, the length of stakingTransitionTimeframeLength was chosen not long enough, leading to bonus score losses.
-    /// see https://github.com/DMDcoin/Beta1/issues/6 for more infos. 
+    /// see https://github.com/DMDcoin/Beta1/issues/6 for more infos.
     function updateStakingTransitionTimeframeLength() external {
-
         stakingTransitionTimeframeLength = 900;
     }
 }
