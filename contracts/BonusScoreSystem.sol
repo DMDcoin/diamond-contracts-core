@@ -10,11 +10,12 @@ import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/
 import { ScoringFactor, IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
 import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
+import { ValueGuards } from "./lib/ValueGuards.sol";
 
 /// @dev Stores validators bonus score based on their behavior.
 /// Validator with a higher bonus score has a higher likelihood to be elected.
-contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IBonusScoreSystem {
-    uint256 public constant DEFAULT_STAND_BY_FACTOR = 15;
+contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, ValueGuards, IBonusScoreSystem {
+    uint256 public standByFactor;
     uint256 public constant DEFAULT_NO_STAND_BY_FACTOR = 15;
     uint256 public constant DEFAULT_NO_KEY_WRITE_FACTOR = 100;
     uint256 public constant DEFAULT_BAD_PERF_FACTOR = 100;
@@ -47,6 +48,10 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// @param factor Scoring factor type.
     /// @param value New scoring factor bonus/penalty value.
     event UpdateScoringFactor(ScoringFactor indexed factor, uint256 value);
+
+    /// @dev Emitted by the `setStandByFactor` function when standby factor is changed.
+    /// @param standByFactor New standby factor value.
+    event SetStandByFactor(uint256 standByFactor);
 
     error InvalidIntervalStartTimestamp();
 
@@ -87,11 +92,34 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         __Ownable_init(_owner);
         __ReentrancyGuard_init();
 
+        // Initialize ValueGuards for standByFactor
+        uint256[] memory standByFactorAllowedParams = new uint256[](9);
+        for (uint256 i = 0; i < standByFactorAllowedParams.length; ++i) {
+            standByFactorAllowedParams[i] = 10 + i * 5;
+        }
+
+        __initAllowedChangeableParameter(
+            this.setStandByFactor.selector,
+            this.standByFactor.selector,
+            standByFactorAllowedParams
+        );
+
+        standByFactor = 20;
+
         validatorSetHbbft = _validatorSetHbbft;
         connectivityTracker = _connectivityTracker;
         stakingHbbft = IStakingHbbft(_stakingHbbft);
 
         _setInitialScoringFactors();
+    }
+
+    /// @dev Sets the standby factor value.
+    /// @param _standByFactor The new standby factor value.
+    function setStandByFactor(uint256 _standByFactor) external onlyOwner withinAllowedRange(_standByFactor) {
+        standByFactor = _standByFactor;
+        _factors[ScoringFactor.StandByBonus] = _standByFactor;
+
+        emit SetStandByFactor(_standByFactor);
     }
 
     /// @dev Reward a validator who could not get into the current set, but was available.
@@ -150,7 +178,7 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
 
     /// @dev Initialize default scoring factors bonus/penalty values.
     function _setInitialScoringFactors() private {
-        _factors[ScoringFactor.StandByBonus] = DEFAULT_STAND_BY_FACTOR;
+        _factors[ScoringFactor.StandByBonus] = standByFactor;
         _factors[ScoringFactor.NoStandByPenalty] = DEFAULT_NO_STAND_BY_FACTOR;
         _factors[ScoringFactor.NoKeyWritePenalty] = DEFAULT_NO_KEY_WRITE_FACTOR;
         _factors[ScoringFactor.BadPerformancePenalty] = DEFAULT_BAD_PERF_FACTOR;
