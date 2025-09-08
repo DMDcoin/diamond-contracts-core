@@ -14,10 +14,12 @@ import {
     ConnectivityTrackerHbbftMock
 } from "../src/types";
 
-
 import { getTestPartNAcks } from './testhelpers/data';
 import { Permission } from "./testhelpers/Permission";
 import { deployDao } from "./testhelpers/daoDeployment";
+import { Validator } from "./testhelpers/types";
+import { HDNodeWallet } from "ethers";
+import { splitPublicKeys } from "./testhelpers/utils";
 
 // you can set this to true for debugging uses.
 const logOutput = false;
@@ -40,12 +42,11 @@ const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
 describe('KeyGenHistory', () => {
     let owner: HardhatEthersSigner;
     let accounts: HardhatEthersSigner[];
-    let accountAddresses: string[];
-    let miningAddresses: string[];
-    let stakingAddresses: string[];
-    let initializingMiningAddresses: string[];
-    let initializingStakingAddresses: string[];
+    let initialValidators: Validator[];
+    let otherValidators: Validator[];
     let stubAddress: string;
+
+    let initMiningAddresses: string[];
 
     let keyGenHistory: KeyGenHistory;
     let txPermission: TxPermissionHbbft;
@@ -56,22 +57,6 @@ describe('KeyGenHistory', () => {
     let randomHbbft: RandomHbbft;
     let certifier: CertifierHbbft;
     let keyGenHistoryPermission: Permission<KeyGenHistory>;
-
-    //this info does not match the mininAccounts, but thats not a problem for this tests.
-    let publicKeys = [
-        '0x1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1',
-        '0x1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB1',
-        '0x2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2',
-        '0x2BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB2',
-        '0x3AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3',
-        '0x3BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB3'
-    ];
-
-
-    let initialValidatorsIpAddresses = [
-        '0x10100000000000000000000000000000',
-        '0x20200000000000000000000000000000',
-        '0x30300000000000000000000000000000'];
 
     const { parts, acks } = getTestPartNAcks();
 
@@ -109,13 +94,11 @@ describe('KeyGenHistory', () => {
         console.log(info + ' pools toBeElected: ', toBeElected);
     }
 
-
     async function printEarlyEpochEndInfo() {
-
         if (!logOutput) {
             return;
         }
-        
+
         const epoch = await stakingHbbft.stakingEpoch();
         const keyGenRound = await keyGenHistory.currentKeyGenRound();
         const isEarlyEpochEnd = await blockRewardHbbft.earlyEpochEnd();
@@ -123,34 +106,50 @@ describe('KeyGenHistory', () => {
         console.log(`epoch ${epoch} keyGenRound ${keyGenRound} isEarlyEpochEnd ${isEarlyEpochEnd}`);
 
     }
+
     // checks if a validator is able to write parts for free
     // and executes it.
     // NOTE: It does not really send the transaction with 0 gas price,
     // because that would only work if the network nodes would already
     // run on the test contracts deployed here.
-    async function writePart(upcommingEpochNumber: string, round: string, parts: any, from: string) {
-        await keyGenHistoryPermission.callFunction('writePart', from, [upcommingEpochNumber, round, parts]);
+    async function writePart(
+        upcomingEpochNumber: string,
+        round: string,
+        parts: any,
+        from: HardhatEthersSigner | HDNodeWallet,
+    ) {
+        await keyGenHistoryPermission.callFunction('writePart', from, [upcomingEpochNumber, round, parts]);
     }
 
-    async function writeAcks(upcommingEpochNumber: string, round: string, parts: any, from: string) {
-        await keyGenHistoryPermission.callFunction('writeAcks', from, [upcommingEpochNumber, round, parts]);
+    async function writeAcks(
+        upcomingEpochNumber: string,
+        round: string,
+        parts: any,
+        from: HardhatEthersSigner | HDNodeWallet,
+    ) {
+        await keyGenHistoryPermission.callFunction('writeAcks', from, [upcomingEpochNumber, round, parts]);
     }
 
-    async function announceAvailability(pool: string) {
+    async function announceAvailability(mining: HardhatEthersSigner | HDNodeWallet) {
+        const block = await ethers.provider.getBlock("latest");
 
-        const blockNumber = await ethers.provider.getBlockNumber()
-        const block = await ethers.provider.getBlock(blockNumber);
         const asEncoded = validatorSetHbbft.interface.encodeFunctionData(
             "announceAvailability",
-            [blockNumber, block!.hash!]
+            [block!.number, block!.hash!]
         );
         if (logOutput) {
             console.log('calling: announceAvailability');
-            console.log('pool: ', pool)
+            console.log('pool mining: ', mining.address)
             console.log('ecodedCall: ', asEncoded);
         }
 
-        const allowedTxType = await txPermission.allowedTxTypes(pool, await validatorSetHbbft.getAddress(), '0x0' /* value */, '0x0' /* gas price */, asEncoded);
+        const allowedTxType = await txPermission.allowedTxTypes(
+            mining.address,
+            await validatorSetHbbft.getAddress(),
+            '0x0', /* value */
+            '0x0', /* gas price */
+            asEncoded
+        );
 
         //console.log(allowedTxType.typesMask.toString());
         // don't ask to cache this result.
@@ -165,12 +164,11 @@ describe('KeyGenHistory', () => {
 
         // we know now, that this call is allowed.
         // so we can execute it.
-        let respone = await (await ethers.getSigner(pool)).sendTransaction({ to: await validatorSetHbbft.getAddress(), data: asEncoded });
+        let respone = await mining.sendTransaction({ to: await validatorSetHbbft.getAddress(), data: asEncoded });
         await respone.wait();
     }
 
     async function callReward() {
-
         // mimic the behavor of the nodes here:
         // if The Validators managed to write the correct number
         // of Acks and Parts, we are happy and set a "true"
@@ -178,7 +176,6 @@ describe('KeyGenHistory', () => {
         // note: the Nodes they DO check if the ACKS and PARTS
         // make it possible to generate a treshold key here,
         // but within the tests, we just mimic this behavior.
-
 
         const systemSigner = await impersonateSystemAcc();
         let isEpochEndBlock = false;
@@ -211,8 +208,6 @@ describe('KeyGenHistory', () => {
     }
 
     async function timeTravelToEndEpoch() {
-
-
         const endTimeOfCurrentEpoch = await stakingHbbft.stakingFixedEpochEndTime();
 
         await helpers.time.increaseTo(endTimeOfCurrentEpoch);
@@ -223,17 +218,27 @@ describe('KeyGenHistory', () => {
         [owner, ...accounts] = await ethers.getSigners();
         stubAddress = owner.address;
 
-        accountAddresses = accounts.map(item => item.address);
+        initialValidators = new Array<Validator>();
+        otherValidators = new Array<Validator>();
 
-        miningAddresses = accountAddresses.slice(11, 20);
-        stakingAddresses = accountAddresses.slice(21, 30);
+        for (let i = 0; i < 3; ++i) {
+            const validator = await Validator.create();
+            initialValidators.push(validator);
+        }
 
-        initializingMiningAddresses = miningAddresses.slice(0, 3);
-        initializingStakingAddresses = stakingAddresses.slice(0, 3);
+        for (let i = 0; i < 5; ++i) {
+            const validator = await Validator.create();
+            otherValidators.push(validator);
+        }
+
+        initMiningAddresses = initialValidators.map(x => x.miningAddress());
+        
+        const initStakingAddresses = initialValidators.map(x => x.stakingAddress());
+        const initPublicKeys = splitPublicKeys(initialValidators.map(x => x.publicKey()));
 
         if (logOutput) {
-            console.log('initial Mining Addresses', initializingMiningAddresses);
-            console.log('initial Staking Addresses', initializingStakingAddresses);
+            console.log('initial Mining Addresses', initMiningAddresses);
+            console.log('initial Staking Addresses', initStakingAddresses);
         }
 
         await deployDao();
@@ -262,9 +267,9 @@ describe('KeyGenHistory', () => {
             ValidatorSetFactory,
             [
                 owner.address,
-                validatorSetParams,           // _params
-                initializingMiningAddresses,  // _initialMiningAddresses
-                initializingStakingAddresses, // _initialStakingAddresses
+                validatorSetParams,    // _params
+                initMiningAddresses,   // _initialMiningAddresses
+                initStakingAddresses,  // _initialStakingAddresses
             ],
             { initializer: 'initialize' }
         ) as unknown as ValidatorSetHbbftMock;
@@ -299,7 +304,7 @@ describe('KeyGenHistory', () => {
         const stakingParams = {
             _validatorSetContract: await validatorSetHbbft.getAddress(),
             _bonusScoreContract: await bonusScoreContractMock.getAddress(),
-            _initialStakingAddresses: initializingStakingAddresses,
+            _initialStakingAddresses: initStakingAddresses,
             _delegatorMinStake: delegatorMinStake,
             _candidateMinStake: candidateMinStake,
             _maxStake: maxStake,
@@ -314,8 +319,8 @@ describe('KeyGenHistory', () => {
             [
                 owner.address,
                 stakingParams,
-                publicKeys,
-                initialValidatorsIpAddresses
+                initPublicKeys,
+                initialValidators.map(x => x.ipAddress)
             ],
             { initializer: 'initialize' }
         ) as unknown as StakingHbbftMock;
@@ -328,7 +333,7 @@ describe('KeyGenHistory', () => {
             [
                 owner.address,
                 await validatorSetHbbft.getAddress(),
-                initializingMiningAddresses,
+                initMiningAddresses,
                 parts,
                 acks
             ],
@@ -375,7 +380,7 @@ describe('KeyGenHistory', () => {
 
         const validators = await validatorSetHbbft.getValidators();
 
-        expect(validators).to.be.deep.equal(initializingMiningAddresses);
+        expect(validators).to.be.deep.equal(initMiningAddresses);
     });
 
     describe('initialize', async () => {
@@ -386,7 +391,7 @@ describe('KeyGenHistory', () => {
                 [
                     ethers.ZeroAddress,
                     stubAddress,
-                    initializingMiningAddresses,
+                    initMiningAddresses,
                     parts,
                     acks
                 ],
@@ -401,7 +406,7 @@ describe('KeyGenHistory', () => {
                 [
                     owner.address,
                     ethers.ZeroAddress,
-                    initializingMiningAddresses,
+                    initMiningAddresses,
                     parts,
                     acks
                 ],
@@ -432,7 +437,7 @@ describe('KeyGenHistory', () => {
                 [
                     owner.address,
                     stubAddress,
-                    initializingMiningAddresses,
+                    initMiningAddresses,
                     [],
                     acks
                 ],
@@ -448,7 +453,7 @@ describe('KeyGenHistory', () => {
                 [
                     owner.address,
                     stubAddress,
-                    initializingMiningAddresses,
+                    initMiningAddresses,
                     parts,
                     []
                 ],
@@ -463,7 +468,7 @@ describe('KeyGenHistory', () => {
                 [
                     owner.address,
                     stubAddress,
-                    initializingMiningAddresses,
+                    initMiningAddresses,
                     parts,
                     acks
                 ],
@@ -475,10 +480,51 @@ describe('KeyGenHistory', () => {
             await expect(contract.initialize(
                 owner.address,
                 stubAddress,
-                initializingMiningAddresses,
+                initMiningAddresses,
                 parts,
                 acks
             )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
+        });
+
+        it('should initialize and set parts, acks', async () => {
+            const KeyGenFactoryFactory = await ethers.getContractFactory("KeyGenHistory");
+            const keyGenHistory = await upgrades.deployProxy(
+                KeyGenFactoryFactory,
+                [
+                    owner.address,
+                    await validatorSetHbbft.getAddress(),
+                    initMiningAddresses,
+                    parts,
+                    acks
+                ],
+                { initializer: 'initialize' }
+            ) as unknown as KeyGenHistory;
+
+            await keyGenHistory.waitForDeployment();
+
+            let actualPartsCount = 0;
+            let actualAcksCount = 0;
+            for (const miningAddress of initMiningAddresses) {
+                const storedPart = await keyGenHistory.getPart(miningAddress);
+                const storedAcksLength = await keyGenHistory.getAcksLength(miningAddress);
+
+                if (storedPart.length > 0) {
+                    actualPartsCount++;
+                }
+
+                if (storedAcksLength > 0) {
+                    actualAcksCount++;
+                }
+            }
+
+            const [
+                numberOfPartsWritten,
+                numberOfAcksWritten
+            ] = await keyGenHistory.getNumberOfKeyFragmentsWritten();
+
+            expect(await keyGenHistory.getCurrentKeyGenRound()).to.eq(1n);
+            expect(numberOfPartsWritten).to.eq(actualPartsCount);
+            expect(numberOfAcksWritten).to.eq(actualAcksCount);
         });
     });
 
@@ -506,7 +552,7 @@ describe('KeyGenHistory', () => {
         it('should revert writePart for wrong epoch', async () => {
             const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
 
-            const caller = await ethers.getSigner(miningAddresses[0]);
+            const caller = initialValidators[0].mining;
             const epoch = await stakingHbbft.stakingEpoch();
 
             await expect(keyGenHistory.connect(caller).writePart(epoch, roundCounter, parts[0]))
@@ -516,7 +562,7 @@ describe('KeyGenHistory', () => {
         it('should revert writePart for wrong round', async () => {
             const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
 
-            const caller = await ethers.getSigner(miningAddresses[0]);
+            const caller = initialValidators[0].mining;
             const epoch = await stakingHbbft.stakingEpoch();
 
             const wrongRound = roundCounter + 1n;
@@ -529,7 +575,7 @@ describe('KeyGenHistory', () => {
         it('should revert writePart by non-pending validator', async () => {
             const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
 
-            const caller = await ethers.getSigner(miningAddresses[0]);
+            const caller = initialValidators[0].mining;
             const epoch = await stakingHbbft.stakingEpoch();
 
             await expect(keyGenHistory.connect(caller).writePart(epoch + 1n, roundCounter, parts[0]))
@@ -540,7 +586,7 @@ describe('KeyGenHistory', () => {
         it('should revert writeAcks for wrong epoch', async () => {
             const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
 
-            const caller = await ethers.getSigner(miningAddresses[0]);
+            const caller = initialValidators[0].mining;
             const epoch = await stakingHbbft.stakingEpoch();
 
             await expect(keyGenHistory.connect(caller).writeAcks(epoch, roundCounter, acks[0]))
@@ -550,7 +596,7 @@ describe('KeyGenHistory', () => {
         it('should revert writeAcks for wrong round', async () => {
             const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
 
-            const caller = await ethers.getSigner(miningAddresses[0]);
+            const caller = initialValidators[0].mining;
             const epoch = await stakingHbbft.stakingEpoch();
 
             const wrongRound = roundCounter + 1n;
@@ -563,7 +609,7 @@ describe('KeyGenHistory', () => {
         it('should revert writeAcks by non-pending validator', async () => {
             const roundCounter = await keyGenHistory.getCurrentKeyGenRound();
 
-            const caller = await ethers.getSigner(miningAddresses[0]);
+            const caller = initialValidators[0].mining;
             const epoch = await stakingHbbft.stakingEpoch();
 
             await expect(keyGenHistory.connect(caller).writeAcks(epoch + 1n, roundCounter, acks[0]))
@@ -571,32 +617,31 @@ describe('KeyGenHistory', () => {
                 .withArgs(caller.address);
         });
 
-        it('failed KeyGeneration, availability.', async () => {
+        it('failed KeyGeneration, availability', async () => {
             const currentTS = await helpers.time.latest();
-            const newPoolStakingAddress = stakingAddresses[4];
-            const newPoolMiningAddress = miningAddresses[4];
+            const validator = otherValidators[0];
 
             if (logOutput) {
                 console.log('currentTS:', currentTS);
-                console.log('newPoolStakingAddress:', newPoolStakingAddress);
-                console.log('newPoolMiningAddress:', newPoolMiningAddress);
+                console.log('newPoolStakingAddress:', validator.stakingAddress());
+                console.log('newPoolMiningAddress:', validator.miningAddress());
             }
 
-            expect(await stakingHbbft.isPoolActive(newPoolStakingAddress)).to.be.false;
+            expect(await stakingHbbft.isPoolActive(validator.stakingAddress())).to.be.false;
 
-            await stakingHbbft.connect(await ethers.getSigner(newPoolStakingAddress)).addPool(
-                newPoolMiningAddress,
+            await stakingHbbft.connect(validator.staking).addPool(
+                validator.miningAddress(),
                 ethers.ZeroAddress,
                 0n,
-                ethers.zeroPadBytes("0x00", 64),
-                ethers.zeroPadBytes("0x00", 16),
+                validator.publicKey(),
+                validator.ipAddress,
                 { value: candidateMinStake }
             );
 
             //await stakingHbbft.addPool(miningAddresses[5], '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
             //'0x00000000000000000000000000000000', {from: stakingAddresses[5], value: candidateMinStake});
 
-            expect(await stakingHbbft.isPoolActive(newPoolStakingAddress)).to.be.true;
+            expect(await stakingHbbft.isPoolActive(validator.stakingAddress())).to.be.true;
 
             //await stakingHbbft.stake(stakingAddresses[0], {from: stakingAddresses[0], value: candidateMinStake});
             //await stakingHbbft.stake(stakingAddresses[1], {from: stakingAddresses[1], value: candidateMinStake});
@@ -619,7 +664,7 @@ describe('KeyGenHistory', () => {
             await printValidatorState('after failure:');
 
             expect(await stakingHbbft.getPoolsToBeElected()).to.be.empty;
-            expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([newPoolStakingAddress]);
+            expect(await stakingHbbft.getPoolsInactive()).to.be.deep.equal([validator.stakingAddress()]);
 
             // pending validators still should not have changed, since we dit not call end block.
             // WIP: this test currently failes. one of the initial validators takes over the list of pending validators
@@ -630,11 +675,11 @@ describe('KeyGenHistory', () => {
 
             // announcing availability.
             // this should place us back on the list of active and available pools.
-            await announceAvailability(newPoolMiningAddress);
+            await announceAvailability(validator.mining);
             await printValidatorState('after announceAvailability:');
 
             // pool is available again!
-            expect(await stakingHbbft.getPoolsToBeElected()).to.be.deep.equal([newPoolStakingAddress]);
+            expect(await stakingHbbft.getPoolsToBeElected()).to.be.deep.equal([validator.stakingAddress()]);
             expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
 
             // the original validators took over.
@@ -647,18 +692,18 @@ describe('KeyGenHistory', () => {
 
             // since there was never  another electable candidate, the system should still
             // tread the one and only pending validator still as pending validator.
-            expect(pendingValidators).to.be.deep.equal([newPoolMiningAddress]);
+            expect(pendingValidators).to.be.deep.equal([validator.miningAddress()]);
 
             // since the initial round was failed, we are in the second round.
             const currentRoundCounter = '2';
 
-            await writePart('1', currentRoundCounter, parts[0], pendingValidators[0]);
+            await writePart('1', currentRoundCounter, parts[0], validator.mining);
 
             //confirm that part was written.
             //TODO! what was it supposed to be? , partFromBc, 'parts read from the blockchain require to be equal to the written data.'
             expect(await keyGenHistory.getPart(pendingValidators[0])).to.be.equal(ethers.hexlify(parts[0]));
 
-            await writeAcks('1', currentRoundCounter, acks[0], pendingValidators[0]);
+            await writeAcks('1', currentRoundCounter, acks[0], validator.mining);
             await timeTravelToEndEpoch();
 
             await printValidatorState('epoch1 start:');
@@ -668,17 +713,15 @@ describe('KeyGenHistory', () => {
             await printValidatorState('epoch1 phase2:');
 
             // // now write the ACK and the PART:
-            await writePart('2', '1', parts[0], newPoolMiningAddress);
-            await writeAcks('2', '1', acks[0], newPoolMiningAddress);
-
-            const newPoolSigner = await ethers.getSigner(newPoolMiningAddress);
+            await writePart('2', '1', parts[0], validator.mining);
+            await writeAcks('2', '1', acks[0], validator.mining);
 
             await expect(
-                keyGenHistory.connect(newPoolSigner).writePart(2n, 1n, parts[0])
+                keyGenHistory.connect(validator.mining).writePart(2n, 1n, parts[0])
             ).to.be.revertedWithCustomError(keyGenHistory, "PartsAlreadySubmitted");
 
             await expect(
-                keyGenHistory.connect(newPoolSigner).writeAcks(2n, 1n, acks[0])
+                keyGenHistory.connect(validator.mining).writeAcks(2n, 1n, acks[0])
             ).to.be.revertedWithCustomError(keyGenHistory, "AcksAlreadySubmitted");
 
             // it's now job of the current validators to verify the correct write of the PARTS and ACKS
@@ -692,7 +735,7 @@ describe('KeyGenHistory', () => {
             expect(await stakingHbbft.stakingEpoch()).to.be.equal(2n);
 
             // // now the new node should be a validator.
-            expect(await validatorSetHbbft.getValidators()).to.be.deep.equal([newPoolMiningAddress]);
+            expect(await validatorSetHbbft.getValidators()).to.be.deep.equal([validator.miningAddress()]);
         });
 
         it('1/2 KeyGeneration - PART Failure', async () => {
@@ -707,29 +750,19 @@ describe('KeyGenHistory', () => {
 
             const connectivityTrackerCaller = await ethers.getImpersonatedSigner(await connectivityTracker.getAddress());
 
-            
-            await blockRewardHbbft.connect(connectivityTrackerCaller).notifyEarlyEpochEnd({ gasPrice: "0"});
-
+            await blockRewardHbbft.connect(connectivityTrackerCaller).notifyEarlyEpochEnd({ gasPrice: "0" });
             await printEarlyEpochEndInfo();
 
-            const poolMiningAddress1 = miningAddresses[4];
+            const validator = otherValidators[0];
+            expect(await validatorSetHbbft.validatorAvailableSince(validator.miningAddress())).to.be.not.equal(0n);
 
-            // address1 is already picked up and a validator.
-            // we double check if he is also marked for being available:
-
-
-            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress1)).to.be.not.equal(0n);
-
-            const poolStakingAddress2 = stakingAddresses[5];
-            const poolMiningAddress2 = miningAddresses[5];
-
-
-            await stakingHbbft.connect(await ethers.getSigner(poolStakingAddress2)).addPool(
-                poolMiningAddress2,
+            const additionalValidator = otherValidators[1];
+            await stakingHbbft.connect(additionalValidator.staking).addPool(
+                additionalValidator.miningAddress(),
                 ethers.ZeroAddress,
                 0n,
-                ethers.zeroPadBytes("0x00", 64),
-                ethers.zeroPadBytes("0x00", 16),
+                additionalValidator.publicKey(),
+                additionalValidator.ipAddress,
                 { value: candidateMinStake }
             );
 
@@ -741,8 +774,8 @@ describe('KeyGenHistory', () => {
             // but pending validator 1 misses out to write it's part.
             await printEarlyEpochEndInfo();
 
-            await writePart('3', '1', parts[0], poolMiningAddress2);
-            await expect(writeAcks('3', '1', acks[0], poolMiningAddress2)).to.be.rejected;
+            await writePart('3', '1', parts[0], additionalValidator.mining);
+            await expect(writeAcks('3', '1', acks[0], additionalValidator.mining)).to.be.rejected;
 
             if (logOutput) {
                 console.log('numberOfPartsWritten: ', await keyGenHistory.numberOfPartsWritten());
@@ -759,25 +792,22 @@ describe('KeyGenHistory', () => {
 
             // we expect Validator 1 now to be marked as unavailable,
             // since he failed to write his key.
-            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress1)).to.be.equal(0n);
+            expect(await validatorSetHbbft.validatorAvailableSince(validator.miningAddress())).to.be.equal(0n);
 
             // and only validator 2 is part of the Set.
             // validator 2 needs to write his keys again.
-            expect(await validatorSetHbbft.getPendingValidators()).to.be.deep.equal([poolMiningAddress2]);
-
+            expect(await validatorSetHbbft.getPendingValidators()).to.be.deep.equal([additionalValidator.miningAddress()]);
 
             // console.log("isEarlyEpochEnd 2 - 2:", await blockRewardHbbft.earlyEpochEnd());
             await printEarlyEpochEndInfo();
 
-            await writePart('3', '2', parts[0], poolMiningAddress2);
-            await writeAcks('3', '2', acks[0], poolMiningAddress2);
+            await writePart('3', '2', parts[0], additionalValidator.mining);
+            await writeAcks('3', '2', acks[0], additionalValidator.mining);
 
             await callReward();
 
-
             expect(await stakingHbbft.stakingEpoch()).to.be.equal(3n);
-            expect(await validatorSetHbbft.getValidators()).to.be.deep.equal([poolMiningAddress2]);
-
+            expect(await validatorSetHbbft.getValidators()).to.be.deep.equal([additionalValidator.miningAddress()]);
         });
 
         it('1/2 KeyGeneration - ACKS Failure', async () => {
@@ -789,20 +819,20 @@ describe('KeyGenHistory', () => {
             // system goes into an extra key gen round,
             // without the failing party as pending validator.
 
-            const poolMiningAddress1 = miningAddresses[4];
-            const poolMiningAddress2 = miningAddresses[5];
+            const validator1 = otherValidators[0];
+            const validator2 = otherValidators[1];
 
             let pools = await stakingHbbft.getPools();
 
             // address1 is already picked up and a validator.
             // we double check if he is also marked for being available:
-            await announceAvailability(poolMiningAddress1);
-            await announceAvailability(poolMiningAddress2);
+            await announceAvailability(validator1.mining);
+            await announceAvailability(validator2.mining);
 
             pools = await stakingHbbft.getPools();
 
-            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress1)).to.be.not.equal(0n);
-            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress2)).to.be.not.equal(0n);
+            expect(await validatorSetHbbft.validatorAvailableSince(validator1.miningAddress())).to.be.not.equal(0n);
+            expect(await validatorSetHbbft.validatorAvailableSince(validator2.miningAddress())).to.be.not.equal(0n);
 
             await timeTravelToTransition();
             await printValidatorState('validator2 pending:');
@@ -811,10 +841,10 @@ describe('KeyGenHistory', () => {
             // but pending validator 1 misses out to write it's part.
             await printEarlyEpochEndInfo();
 
-            await writePart('4', '1', parts[0], poolMiningAddress2);
-            await writePart('4', '1', parts[0], poolMiningAddress1);
+            await writePart('4', '1', parts[0], validator2.mining);
+            await writePart('4', '1', parts[0], validator1.mining);
 
-            await writeAcks('4', '1', acks[0], poolMiningAddress1);
+            await writeAcks('4', '1', acks[0], validator1.mining);
 
             if (logOutput) {
                 console.log('numberOfPartsWritten: ', await keyGenHistory.numberOfPartsWritten());
@@ -830,11 +860,11 @@ describe('KeyGenHistory', () => {
 
             // we expect Validator 2 now to be marked as unavailable,
             // since he failed to write his key.
-            expect(await validatorSetHbbft.validatorAvailableSince(poolMiningAddress2)).to.be.equal(0n);
+            expect(await validatorSetHbbft.validatorAvailableSince(validator2.miningAddress())).to.be.equal(0n);
 
             // and only validator 2 is part of the Set.
             // validator 2 needs to write his keys again.
-            expect(await validatorSetHbbft.getPendingValidators()).to.be.deep.equal([poolMiningAddress1]);
+            expect(await validatorSetHbbft.getPendingValidators()).to.be.deep.equal([validator1.miningAddress()]);
 
             // we are in another round,
             expect(await keyGenHistory.getCurrentKeyGenRound()).to.be.equal(2n);
@@ -851,18 +881,23 @@ describe('KeyGenHistory', () => {
         });
 
         it("Mining addresses with pools should be certified by default", async () => {
-            expect(await certifier.certified(miningAddresses[1])).to.be.true;
-            expect(await certifier.certifiedExplicitly(miningAddresses[1])).to.be.false;
+            const miningAddress = initialValidators[1].miningAddress();
+
+            expect(await certifier.certified(miningAddress)).to.be.true;
+            expect(await certifier.certifiedExplicitly(miningAddress)).to.be.false;
         })
 
         it("Should be able to revoke from non-validators", async () => {
             await certifier.connect(owner).revoke(accounts[35].address);
+
             expect(await certifier.certified(accounts[35].address)).to.be.false;
         });
 
         it("Shouldn't be able to revoke from working validators", async () => {
-            await certifier.connect(owner).revoke(miningAddresses[1]);
-            expect(await certifier.certified(miningAddresses[1])).to.be.true;
+            const miningAddress = initialValidators[1].miningAddress();
+
+            await certifier.connect(owner).revoke(miningAddress);
+            expect(await certifier.certified(miningAddress)).to.be.true;
         })
 
         it("Shouldn't be able to certify zero address", async () => {

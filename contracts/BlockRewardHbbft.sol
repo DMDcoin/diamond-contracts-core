@@ -54,9 +54,6 @@ contract BlockRewardHbbft is
     /// the number is the divisor of the fraction. 60 means 1/60 of the delta pool gets payed out.
     uint256 public deltaPotPayoutFraction;
 
-    /// @dev the reinsertPot holds all coins that are designed for getting reinserted into the coin circulation.
-    uint256 public reinsertPot;
-
     /// @dev each epoch reward, one Fraction of the reinsert pool gets payed out.
     /// the number is the divisor of the fraction. 60 means 1/60 of the reinsert pool gets payed out.
     uint256 public reinsertPotPayoutFraction;
@@ -119,10 +116,10 @@ contract BlockRewardHbbft is
 
     // =============================================== Setters ========================================================
 
-    /// @dev Receive function. Prevents direct sending native coins to this contract.
-    receive() external payable {
-        reinsertPot += msg.value;
-    }
+    /// @dev Receive function.
+    // The receive function is empty, to allow maximum compatibility for stocking the reinsert pot.
+    // see also: https://github.com/DMDcoin/diamond-contracts-core/issues/301
+    receive() external payable {}
 
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `InitializerHbbft` contract or owner.
@@ -171,18 +168,6 @@ contract BlockRewardHbbft is
         deltaPot += msg.value;
     }
 
-    /// @dev adds the transfered value to the reinsert pot.
-    /// everyone is allowed to pile up the resinsert pot,
-    /// the reinsert pot reinserts coins back into the payout cycle.
-    /// this is used by smart contracts of the ecosystem,
-    /// DAO decisions to fund the reinsert pot from the DAO Pool
-    /// and manual by hand.
-    /// There is no permission check,
-    /// everyone is welcomed to pile up the reinsert pot.
-    function addToReinsertPot() external payable {
-        reinsertPot += msg.value;
-    }
-
     /// @dev Notify block reward contract, that current epoch must be closed earlier.
     ///
     /// https://github.com/DMDcoin/diamond-contracts-core/issues/92
@@ -221,7 +206,7 @@ contract BlockRewardHbbft is
      * Requirements:
      * - Only the contract owner can call this function.
      * - The _shareNominator value must be within the allowed range.
-     * 
+     *
      * Emits a {SetGovernancePotShareNominator} event.
      */
     function setGovernancePotShareNominator(
@@ -241,6 +226,14 @@ contract BlockRewardHbbft is
     /// got a non-zero reward.
     function epochsPoolGotRewardFor(address _miningAddress) external view returns (uint256[] memory) {
         return _epochsPoolGotRewardFor[_miningAddress];
+    }
+
+    /// @dev Returns the current balance of the Reinsert pot.
+    /// Funds, that are not exclusively defined as delta pot funds,
+    /// belong to the reinsert pot.
+    function reinsertPot() external view returns (uint256) {
+        // the Total Reinsert pot is the current balance minus the delta pot
+        return address(this).balance - deltaPot;
     }
 
     ///@dev Calculates and returns the percentage of the current epoch.
@@ -277,9 +270,6 @@ contract BlockRewardHbbft is
         }
 
         deltaPot -= shares.deltaPotAmount;
-        reinsertPot -= shares.reinsertPotAmount;
-
-        TransferUtils.transferNative(governancePotAddress, shares.governancePotAmount);
 
         uint256 distributedAmount = shares.governancePotAmount;
         uint256 rewardToDistribute = shares.totalRewards - distributedAmount;
@@ -312,13 +302,15 @@ contract BlockRewardHbbft is
 
                 _savePoolRewardStats(_stakingEpoch, miningAddress, poolReward);
 
-                stakingContract.restake{ value: poolReward }(poolStakingAddress, minValidatorRewardPercent);
-
                 distributedAmount += poolReward;
+
+                stakingContract.restake{ value: poolReward }(poolStakingAddress, minValidatorRewardPercent);
             }
         }
 
         nativeRewardUndistributed = shares.totalRewards - distributedAmount;
+
+        TransferUtils.transferNative(governancePotAddress, shares.governancePotAmount);
 
         // slither-disable-end reentrancy-eth
 
@@ -388,21 +380,20 @@ contract BlockRewardHbbft is
 
     function _closeBlock(IStakingHbbft stakingContract) private {
         uint256 phaseTransitionTime = stakingContract.startTimeOfNextPhaseTransition();
-
-        address[] memory miningAddresses = validatorSetContract.getValidators();
+        bool isPhaseTransition = block.timestamp >= phaseTransitionTime;
 
         // TODO: Problem occurs here if there are not regular blocks:
         // https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
 
-        //we are in a transition to phase 2 if the time for it arrived,
+        // we are in a transition to phase 2 if the time for it arrived,
         // and we do not have pendingValidators yet.
-        bool isPhaseTransition = block.timestamp >= phaseTransitionTime;
         bool toBeUpscaled = false;
-        if (miningAddresses.length * 3 <= (validatorSetContract.maxValidators() * 2)) {
+        uint256 currentValidatorsCount = validatorSetContract.getCurrentValidatorsCount();
+        if (currentValidatorsCount * 3 <= (validatorSetContract.maxValidators() * 2)) {
             uint256 amountToBeElected = stakingContract.getPoolsToBeElected().length;
             if (
                 (amountToBeElected > 0) &&
-                validatorSetContract.getValidatorCountSweetSpot(amountToBeElected) > miningAddresses.length
+                validatorSetContract.getValidatorCountSweetSpot(amountToBeElected) > currentValidatorsCount
             ) {
                 toBeUpscaled = true;
             }
@@ -415,16 +406,22 @@ contract BlockRewardHbbft is
             // Choose new validators
             validatorSetContract.newValidatorSet();
 
+            // notify staking contract this epoch will end earlier due to
+            // upscaling or too many validators were marked as faulty
+            if (!isPhaseTransition) {
+                stakingContract.notifiyEarlyEpochEnd(block.timestamp);
+            }
+
             // in any case we reset early epoch end flag because
-            // the validator set change already in progress
+            // the validator set change was initiated
             earlyEpochEnd = false;
-        } else if (block.timestamp >= stakingContract.stakingFixedEpochEndTime()) {
+        } else if (block.timestamp >= stakingContract.actualEpochEndTime()) {
             validatorSetContract.handleFailedKeyGeneration();
         }
 
+        // reset early epoch end flag if notification was received,
+        // but network already in keygen phase
         if (earlyEpochEnd && pendingValidatorsCount != 0) {
-            // reset early epoch end flag if notification was received,
-            // but network already in keygen phase
             earlyEpochEnd = false;
         }
 
@@ -494,7 +491,7 @@ contract BlockRewardHbbft is
             100;
 
         shares.reinsertPotAmount =
-            (reinsertPot * numValidators * epochPercent) /
+            (this.reinsertPot() * numValidators * epochPercent) /
             reinsertPotPayoutFraction /
             maxValidators /
             100;

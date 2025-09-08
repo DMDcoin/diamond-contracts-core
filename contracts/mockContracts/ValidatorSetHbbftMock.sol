@@ -48,7 +48,7 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
 
         if (count < num) {
             address validator = _currentValidators[0];
-            for (uint256 i = count; i <= num; ++i) {
+            for (uint256 i = count; i < num; ++i) {
                 _currentValidators.push(validator);
             }
         } else if (count > num) {
@@ -72,6 +72,10 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
                 return;
             }
         }
+    }
+
+    function addPendingValidator(address _mining) external {
+        _pendingValidators.push(_mining);
     }
 
     // =============================================== Getters ========================================================

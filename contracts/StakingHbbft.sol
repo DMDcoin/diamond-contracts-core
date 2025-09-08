@@ -13,13 +13,15 @@ import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
 import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
 
 import { Unauthorized, ZeroAddress, ZeroGasPrice } from "./lib/Errors.sol";
-import { TransferUtils } from "./utils/TransferUtils.sol";
 import { ValueGuards } from "./lib/ValueGuards.sol";
+import { TransferUtils } from "./utils/TransferUtils.sol";
+import { Secp256k1Utils } from "./utils/Secp256k1Utils.sol";
 
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
 contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft, ValueGuards {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using Secp256k1Utils for bytes;
 
     EnumerableSet.AddressSet private _pools;
     EnumerableSet.AddressSet private _poolsInactive;
@@ -149,6 +151,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     /// @dev The epoch number in which the operator's address can be changed.
     mapping(address => uint256) public poolNodeOperatorLastChangeEpoch;
+
+    /// @dev The timestamp of the block when early epoch end mechanism was triggered
+    /// due to validator set upscaling or faulty validators.
+    uint256 public earlyEpochEndTriggerTime;
 
     // ============================================== Constants =======================================================
 
@@ -287,9 +293,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
     error InvalidNodeOperatorConfiguration(address _operator, uint256 _share);
     error InvalidNodeOperatorShare(uint256 _share);
+    error InvalidPublicKey();
     error WithdrawNotAllowed();
     error ZeroWidthrawAmount();
     error ZeroWidthrawDisallowPeriod();
+    error MiningAddressPublicKeyMismatch();
 
     // ============================================== Modifiers =======================================================
 
@@ -331,7 +339,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         _disableInitializers();
     }
 
-    /// @dev Fallback function. Prevents direct sending native coins to this contract.
+    /// @dev Receive function. Prevents direct sending native coins to this contract.
     receive() external payable {
         revert NotPayable();
     }
@@ -456,6 +464,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function incrementStakingEpoch() external onlyValidatorSetContract {
         stakingEpoch++;
         currentKeyGenExtraTimeWindow = 0;
+        earlyEpochEndTriggerTime = 0;
     }
 
     /// @dev Notifies hbbft staking contract that the
@@ -475,10 +484,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// to write their keys.
     /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
     function notifyNetworkOfftimeDetected(uint256 detectedOfflineTime) public onlyValidatorSetContract {
-        currentKeyGenExtraTimeWindow =
-            currentKeyGenExtraTimeWindow +
-            detectedOfflineTime +
-            stakingTransitionTimeframeLength;
+        currentKeyGenExtraTimeWindow += (detectedOfflineTime + stakingTransitionTimeframeLength);
     }
 
     /// @dev Notifies hbbft staking contract that a validator
@@ -490,6 +496,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             _addPoolActive(_stakingAddress, true);
             _setLikelihood(_stakingAddress);
         }
+    }
+
+    function notifiyEarlyEpochEnd(uint256 timestamp) external onlyBlockRewardContract {
+        earlyEpochEndTriggerTime = timestamp;
     }
 
     /// @dev Adds a new candidate's pool to the list of active pools (see the `getPools` getter) and
@@ -511,6 +521,15 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         address stakingAddress = msg.sender;
         uint256 amount = msg.value;
         validatorSetContract.setStakingAddress(_miningAddress, stakingAddress);
+
+        if (!_publicKey.isValidPublicKey()) {
+            revert InvalidPublicKey();
+        }
+
+        if (_publicKey.computeAddress() != _miningAddress) {
+            revert MiningAddressPublicKeyMismatch();
+        }
+
         // The staking address and the staker are the same.
         poolInfo[stakingAddress].publicKey = _publicKey;
         poolInfo[stakingAddress].internetAddress = _ip;
@@ -849,11 +868,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 governanceShare = totalAbandonedAmount / 2;
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
 
+        address blockRewarAddress = validatorSetContract.blockRewardContract();
         IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
         address governanceAddress = blockRewardHbbft.getGovernanceAddress();
 
-        // slither-disable-next-line arbitrary-send-eth
-        blockRewardHbbft.addToReinsertPot{ value: reinsertShare }();
+        TransferUtils.transferNative(blockRewarAddress, reinsertShare);
         TransferUtils.transferNative(governanceAddress, governanceShare);
 
         emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
@@ -1076,6 +1095,17 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             stakingFixedEpochDuration +
             currentKeyGenExtraTimeWindow -
             (stakingFixedEpochDuration == 0 ? 0 : 1);
+    }
+
+    function earlyEpochEndTime() public view returns (uint256) {
+        return
+            earlyEpochEndTriggerTime == 0
+                ? 0
+                : earlyEpochEndTriggerTime + stakingTransitionTimeframeLength + currentKeyGenExtraTimeWindow;
+    }
+
+    function actualEpochEndTime() public view returns (uint256) {
+        return earlyEpochEndTriggerTime == 0 ? stakingFixedEpochEndTime() : earlyEpochEndTime();
     }
 
     /// @dev Adds the specified staking address to the array of active pools returned by
@@ -1545,9 +1575,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
 
     /// @dev For deployment, the length of stakingTransitionTimeframeLength was chosen not long enough, leading to bonus score losses.
-    /// see https://github.com/DMDcoin/Beta1/issues/6 for more infos. 
+    /// see https://github.com/DMDcoin/Beta1/issues/6 for more infos.
     function updateStakingTransitionTimeframeLength() external {
-
         stakingTransitionTimeframeLength = 900;
     }
 }

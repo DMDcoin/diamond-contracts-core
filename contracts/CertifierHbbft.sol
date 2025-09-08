@@ -75,7 +75,12 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
     /// Can only be called by the `owner`.
     /// @param _who The address for which transactions with a zero gas price must be denied.
     function revoke(address _who) external onlyOwner {
+        if (!_certified[_who]) {
+            return;
+        }
+
         _certified[_who] = false;
+
         emit Revoked(_who);
     }
 
@@ -92,18 +97,6 @@ contract CertifierHbbft is Initializable, OwnableUpgradeable, ICertifier {
         }
 
         address stakingAddress = validatorSetContract.stakingByMiningAddress(_who);
-        if (stakingAddress == address(0)) {
-            //if there is no staking address registered to this pool
-            return false;
-        }
-
-        // we generally certify every active node,
-        // since the node cache the list of certifiers
-        // and the permission contracts checks anyway,
-        // if the specific 0 gas transaction is allowed or not.
-        // IStakingHbbft stakingContract = IStakingHbbft(
-        //     validatorSetContract.getStakingContract()
-        // );
         return stakingAddress != address(0);
     }
 
