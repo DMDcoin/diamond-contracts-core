@@ -174,7 +174,7 @@ describe('StakingHbbft', () => {
         };
     }
 
-    before(async function() {
+    before(async function () {
         [owner, ...accounts] = await ethers.getSigners();
 
         initialValidators = new Array<Validator>();
@@ -188,8 +188,8 @@ describe('StakingHbbft', () => {
         expect(initialValidators).to.be.lengthOf(3);
     });
 
-    describe('addPool', async function() {
-        it('should create a new pool and emit event', async function() {
+    describe('addPool', async function () {
+        it('should create a new pool and emit event', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             expect(await stakingHbbft.isPoolActive(candidate.stakingAddress())).to.be.false;
@@ -214,7 +214,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.isPoolActive(candidate.stakingAddress())).to.be.true;
         });
 
-        it('should create pool and set node operator configuration', async function() {
+        it('should create pool and set node operator configuration', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             expect(await stakingHbbft.isPoolActive(candidate.stakingAddress())).to.be.false;
@@ -237,7 +237,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.poolNodeOperatorShare(candidate.stakingAddress())).to.equal(nodeOperatorShare);
         });
 
-        it('should fail if created with overstaked pool', async function() {
+        it('should fail if created with overstaked pool', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
@@ -251,7 +251,7 @@ describe('StakingHbbft', () => {
                 .withArgs(candidate.stakingAddress(), candidate.stakingAddress());
         });
 
-        it('should fail if mining address is 0', async function() {
+        it('should fail if mining address is 0', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
@@ -264,7 +264,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroAddress");
         });
 
-        it('should fail if mining address is equal to staking', async function() {
+        it('should fail if mining address is equal to staking', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
@@ -277,7 +277,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(validatorSetHbbft, "InvalidAddressPair");
         });
 
-        it('should fail if the pool with the same mining/staking address is already existing', async function() {
+        it('should fail if the pool with the same mining/staking address is already existing', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const otherCandidate = await Validator.create();
@@ -373,7 +373,7 @@ describe('StakingHbbft', () => {
             ));
         });
 
-        it('should fail if gasPrice is 0', async function() {
+        it('should fail if gasPrice is 0', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
@@ -386,7 +386,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
-        it('should fail if staking amount is 0', async function() {
+        it('should fail if staking amount is 0', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
@@ -399,7 +399,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount");
         });
 
-        it('should fail if staking amount is less than CANDIDATE_MIN_STAKE', async function() {
+        it('should fail if staking amount is less than CANDIDATE_MIN_STAKE', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
@@ -412,7 +412,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "InsufficientStakeAmount");
         });
 
-        it('should revert for invalid public key', async function() {
+        it('should revert for invalid public key', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const publicKey = candidate.publicKey().slice(0, -2) + "ff";
@@ -427,7 +427,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "InvalidPublicKey");
         });
 
-        it('should revert if mining address and corresponding public key mismatched', async function() {
+        it('should revert if mining address and corresponding public key mismatched', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const otherValidator = await Validator.create();
@@ -442,7 +442,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "MiningAddressPublicKeyMismatch");
         });
 
-        it('should increase stake amount', async function() {
+        it('should increase stake amount', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const amount = minStake * 2n;
@@ -460,7 +460,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountTotal(candidate.stakingAddress())).to.equal(amount);
         });
 
-        it('should be able to add more than one pool', async function() {
+        it('should be able to add more than one pool', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const otherCandidate = await Validator.create();
@@ -509,7 +509,7 @@ describe('StakingHbbft', () => {
             ]);
         });
 
-        it("should not allow adding more than MAX_CANDIDATES pools", async function() {
+        it("should not allow adding more than MAX_CANDIDATES pools", async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const maxCandidates = await stakingHbbft.getMaxCandidates();
@@ -532,7 +532,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.isPoolActive(candidate.stakingAddress())).to.be.false;
         });
 
-        it('should remove added pool from the list of inactive pools', async function() {
+        it('should remove added pool from the list of inactive pools', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.addPoolInactiveMock(candidate.stakingAddress());
@@ -551,7 +551,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
         });
 
-        it.skip('should fail if staking time is inside disallowed range', async function() {
+        it.skip('should fail if staking time is inside disallowed range', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(candidate.staking).addPool(
@@ -576,8 +576,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('setNodeOperator', async function() {
-        it('should revert for non-existing pool', async function() {
+    describe('setNodeOperator', async function () {
+        it('should revert for non-existing pool', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const operator = ethers.Wallet.createRandom().address;
@@ -588,7 +588,7 @@ describe('StakingHbbft', () => {
                 .withArgs(candidate.stakingAddress());
         });
 
-        it('should not allow to change node operator twice within same epoch', async function() {
+        it('should not allow to change node operator twice within same epoch', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.connect(candidate.staking).addPool(
@@ -619,7 +619,7 @@ describe('StakingHbbft', () => {
                 .withArgs(stakingEpoch);
         });
 
-        it('should not allow zero address and non-zero percent', async function() {
+        it('should not allow zero address and non-zero percent', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.connect(candidate.staking).addPool(
@@ -643,7 +643,7 @@ describe('StakingHbbft', () => {
                 .withArgs(operator, share);
         });
 
-        it('should not exceed max share percent', async function() {
+        it('should not exceed max share percent', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.connect(candidate.staking).addPool(
@@ -667,7 +667,7 @@ describe('StakingHbbft', () => {
                 .withArgs(share);
         });
 
-        it('should change pool node operator configuration', async function() {
+        it('should change pool node operator configuration', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.connect(candidate.staking).addPool(
@@ -695,8 +695,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('contract balance', async function() {
-        it('should not allow to change balance by sending native coins', async function() {
+    describe('contract balance', async function () {
+        it('should not allow to change balance by sending native coins', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(owner.sendTransaction({ to: await stakingHbbft.getAddress(), value: 1n }))
@@ -705,7 +705,7 @@ describe('StakingHbbft', () => {
             expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(0n);
         });
 
-        it('should increase balance using payable functions', async function() {
+        it('should increase balance using payable functions', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(0n);
@@ -729,11 +729,11 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('incrementStakingEpoch', async function() {
+    describe('incrementStakingEpoch', async function () {
         let stakingContract: StakingHbbftMock;
         let validatorSetContract: HardhatEthersSigner;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             stakingContract = stakingHbbft;
@@ -742,20 +742,20 @@ describe('StakingHbbft', () => {
             await stakingHbbft.setValidatorMockSetAddress(await validatorSetContract.getAddress());
         });
 
-        it('should increment if called by the ValidatorSet', async function() {
+        it('should increment if called by the ValidatorSet', async function () {
             expect(await stakingContract.stakingEpoch()).to.be.equal(0n);
             await stakingContract.connect(validatorSetContract).incrementStakingEpoch();
 
             expect(await stakingContract.stakingEpoch()).to.be.equal(1n);
         });
 
-        it('can only be called by ValidatorSet contract', async function() {
+        it('can only be called by ValidatorSet contract', async function () {
             await expect(stakingContract.connect(accounts[8]).incrementStakingEpoch())
                 .to.be.revertedWithCustomError(stakingContract, "Unauthorized");
         });
     });
 
-    describe('initialize', async function() {
+    describe('initialize', async function () {
         const validatorSetContract = ethers.Wallet.createRandom().address;
         const bonusScoreContract = ethers.Wallet.createRandom().address;
 
@@ -768,7 +768,7 @@ describe('StakingHbbft', () => {
             initStakingAddresses = initialValidators.map(x => x.stakingAddress());
             initPublicKeys = splitPublicKeys(initialValidators.map(x => x.publicKey()));
             initIpAddresses = initialValidators.map(x => x.ipAddress);
-            
+
             stakingParams = {
                 _validatorSetContract: validatorSetContract,
                 _bonusScoreContract: bonusScoreContract,
@@ -782,7 +782,7 @@ describe('StakingHbbft', () => {
             };
         });
 
-        it('should initialize successfully', async function() {
+        it('should initialize successfully', async function () {
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             const stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
@@ -812,7 +812,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.candidateMinStake()).to.be.equal(minStake)
         });
 
-        it('should set the corresponding public keys', async function() {
+        it('should set the corresponding public keys', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             for (const validator of initialValidators) {
@@ -820,7 +820,7 @@ describe('StakingHbbft', () => {
             }
         });
 
-        it('should set the corresponding IP addresses', async function() {
+        it('should set the corresponding IP addresses', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             for (const validator of initialValidators) {
@@ -830,7 +830,7 @@ describe('StakingHbbft', () => {
             }
         });
 
-        it('should fail if owner = address(0)', async function() {
+        it('should fail if owner = address(0)', async function () {
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             await expect(upgrades.deployProxy(
                 StakingHbbftFactory,
@@ -844,7 +844,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroAddress");
         });
 
-        it('should fail if ValidatorSet contract address is zero', async function() {
+        it('should fail if ValidatorSet contract address is zero', async function () {
             const params = {
                 ...stakingParams,
                 _validatorSetContract: ethers.ZeroAddress
@@ -863,7 +863,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroAddress");
         });
 
-        it('should fail if delegatorMinStake is zero', async function() {
+        it('should fail if delegatorMinStake is zero', async function () {
             const params = {
                 ...stakingParams,
                 _delegatorMinStake: 0
@@ -883,7 +883,7 @@ describe('StakingHbbft', () => {
                 .withArgs(minStake, 0);
         });
 
-        it('should fail if candidateMinStake is zero', async function() {
+        it('should fail if candidateMinStake is zero', async function () {
             const params = {
                 ...stakingParams,
                 _candidateMinStake: 0
@@ -903,7 +903,7 @@ describe('StakingHbbft', () => {
                 .withArgs(0, minStake);
         });
 
-        it('should fail if already initialized', async function() {
+        it('should fail if already initialized', async function () {
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
             const stakingHbbft = await upgrades.deployProxy(
                 StakingHbbftFactory,
@@ -926,7 +926,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "InvalidInitialization");
         });
 
-        it('should fail if stakingEpochDuration is 0', async function() {
+        it('should fail if stakingEpochDuration is 0', async function () {
             const params = {
                 ...stakingParams,
                 _stakingFixedEpochDuration: 0
@@ -945,7 +945,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidFixedEpochDuration");
         });
 
-        it('should fail if stakingWithdrawDisallowPeriod is 0', async function() {
+        it('should fail if stakingWithdrawDisallowPeriod is 0', async function () {
             const params = {
                 ...stakingParams,
                 _stakingWithdrawDisallowPeriod: 0n
@@ -964,7 +964,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroWidthrawDisallowPeriod");
         });
 
-        it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async function() {
+        it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async function () {
             const params = {
                 ...stakingParams,
                 _stakingWithdrawDisallowPeriod: 120954n
@@ -983,7 +983,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidFixedEpochDuration");
         });
 
-        it('should fail if some staking address is 0', async function() {
+        it('should fail if some staking address is 0', async function () {
             const stakingAddresses = initStakingAddresses.slice();
             stakingAddresses[0] = ethers.ZeroAddress;
 
@@ -1005,7 +1005,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroAddress");
         });
 
-        it('should fail if timewindow is 0', async function() {
+        it('should fail if timewindow is 0', async function () {
             const params = {
                 ...stakingParams,
                 _stakingTransitionTimeframeLength: 0,
@@ -1024,7 +1024,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidTransitionTimeFrame");
         });
 
-        it('should fail if transition timewindow is smaller than the staking time window', async function() {
+        it('should fail if transition timewindow is smaller than the staking time window', async function () {
             const params = {
                 ...stakingParams,
                 _stakingTransitionTimeframeLength: stakingFixedEpochDuration,
@@ -1043,7 +1043,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidTransitionTimeFrame");
         });
 
-        it('should revert for empty initial staking addresses list', async function() {
+        it('should revert for empty initial staking addresses list', async function () {
             const params = {
                 ...stakingParams,
                 _initialStakingAddresses: [],
@@ -1062,7 +1062,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "InitialStakingPoolsListEmpty");
         });
 
-        it('should revert for maxStake <= candidate min stake', async function() {
+        it('should revert for maxStake <= candidate min stake', async function () {
             const params = {
                 ...stakingParams,
                 _maxStake: minStake
@@ -1081,7 +1081,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidMaxStakeAmount");
         });
 
-        it('should revert for public keys / staking addresses count mismatch', async function() {
+        it('should revert for public keys / staking addresses count mismatch', async function () {
             const lessPublicKeys = initPublicKeys.slice(0, -2);
 
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
@@ -1097,7 +1097,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidPublicKeysCount");
         });
 
-        it('should revert for ip addresses / staking addresses count mismatch', async function() {
+        it('should revert for ip addresses / staking addresses count mismatch', async function () {
             const lessIpAddresses = initIpAddresses.slice(0, -1);
 
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
@@ -1114,12 +1114,12 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('moveStake', async function() {
+    describe('moveStake', async function () {
         let delegator: HardhatEthersSigner;
         let stakingContract: StakingHbbftMock;
         const stakeAmount = minStake * 2n;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             delegator = accounts[7];
@@ -1142,7 +1142,7 @@ describe('StakingHbbft', () => {
             );
         });
 
-        it('should move entire stake', async function() {
+        it('should move entire stake', async function () {
             // we can move the stake, since the staking address is not part of the active validator set,
             // since we never did never a time travel.
             // If we do, the stakingAddresses are blocked to withdraw without an orderwithdraw.
@@ -1157,7 +1157,7 @@ describe('StakingHbbft', () => {
             expect(await stakingContract.stakeAmount(to, delegator.address)).to.be.equal(stakeAmount);
         });
 
-        it('should move part of the stake', async function() {
+        it('should move part of the stake', async function () {
             const from = initialValidators[0].stakingAddress();
             const to = initialValidators[1].stakingAddress();
 
@@ -1169,7 +1169,7 @@ describe('StakingHbbft', () => {
             expect(await stakingContract.stakeAmount(to, delegator.address)).to.be.equal(minStake);
         });
 
-        it('should move part of the stake', async function() {
+        it('should move part of the stake', async function () {
             const sourcePool = initialValidators[0].stakingAddress();
             const targetPool = initialValidators[1].stakingAddress();
 
@@ -1186,7 +1186,7 @@ describe('StakingHbbft', () => {
             expect(await stakingContract.stakeAmount(targetPool, delegator.address)).to.be.equal(stakeAmount + moveAmount);
         });
 
-        it('should fail for zero gas price', async function() {
+        it('should fail for zero gas price', async function () {
             const from = initialValidators[0].stakingAddress();
             const to = initialValidators[1].stakingAddress();
 
@@ -1198,7 +1198,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingContract, "ZeroGasPrice");
         });
 
-        it('should fail if the source and destination addresses are the same', async function() {
+        it('should fail if the source and destination addresses are the same', async function () {
             const pool = initialValidators[0].stakingAddress();
 
             await expect(stakingContract.connect(delegator).moveStake(
@@ -1208,7 +1208,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingContract, "InvalidMoveStakePoolsAddress");
         });
 
-        it('should fail if the staker tries to move more than they have', async function() {
+        it('should fail if the staker tries to move more than they have', async function () {
             const from = initialValidators[0].stakingAddress();
             const to = initialValidators[1].stakingAddress();
 
@@ -1219,7 +1219,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingContract, "MaxAllowedWithdrawExceeded");
         });
 
-        it('should fail if the staker tries to overstake by moving stake.', async function() {
+        it('should fail if the staker tries to overstake by moving stake.', async function () {
             // stake source pool and target pool to the max.
             // then move 1 from source to target - that should be the drop on the hot stone.
             const sourcePool = initialValidators[0].stakingAddress();
@@ -1242,14 +1242,14 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('stake', async function() {
+    describe('stake', async function () {
         let delegatorAddress: HardhatEthersSigner;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             delegatorAddress = accounts[7];
         });
 
-        it('should be zero initially', async function() {
+        it('should be zero initially', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].stakingAddress();
@@ -1258,7 +1258,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmount(pool, delegatorAddress.address)).to.be.equal(0n);
         });
 
-        it('should place a stake', async function() {
+        it('should place a stake', async function () {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1280,7 +1280,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(candidateMinStake + delegatorMinStake);
         });
 
-        it('should fail for zero gas price', async function() {
+        it('should fail for zero gas price', async function () {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1291,14 +1291,14 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
-        it('should fail for a zero staking pool address', async function() {
+        it('should fail for a zero staking pool address', async function () {
             const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.connect(delegatorAddress).stake(ethers.ZeroAddress, { value: delegatorMinStake }))
                 .to.be.revertedWithCustomError(stakingHbbft, "ZeroAddress");
         });
 
-        it('should fail for a non-existing pool', async function() {
+        it('should fail for a non-existing pool', async function () {
             const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = accounts[10].address;
@@ -1308,7 +1308,7 @@ describe('StakingHbbft', () => {
                 .withArgs(pool);
         });
 
-        it('should fail for a zero amount', async function() {
+        it('should fail for a zero amount', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1318,7 +1318,7 @@ describe('StakingHbbft', () => {
                 .withArgs(pool, delegatorAddress.address);
         });
 
-        it('should fail if a candidate stakes less than CANDIDATE_MIN_STAKE', async function() {
+        it('should fail if a candidate stakes less than CANDIDATE_MIN_STAKE', async function () {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1331,7 +1331,7 @@ describe('StakingHbbft', () => {
                 .withArgs(pool.address, pool.address);
         });
 
-        it('should fail if a delegator stakes less than DELEGATOR_MIN_STAKE', async function() {
+        it('should fail if a delegator stakes less than DELEGATOR_MIN_STAKE', async function () {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1346,7 +1346,7 @@ describe('StakingHbbft', () => {
                 .withArgs(pool.address, delegatorAddress.address);
         });
 
-        it('should fail if a delegator stakes more than maxStake', async function() {
+        it('should fail if a delegator stakes more than maxStake', async function () {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1359,7 +1359,7 @@ describe('StakingHbbft', () => {
                 .withArgs(pool.address, delegatorAddress.address);
         });
 
-        it('should fail if a delegator stakes into an empty pool', async function() {
+        it('should fail if a delegator stakes into an empty pool', async function () {
             const { stakingHbbft, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1372,7 +1372,7 @@ describe('StakingHbbft', () => {
                 .withArgs(pool.address);
         });
 
-        it('should increase a stake amount', async function() {
+        it('should increase a stake amount', async function () {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1387,7 +1387,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmount(pool.address, delegatorAddress.address)).to.be.equal(delegatorMinStake * 2n);
         });
 
-        it('should increase the stakeAmountByCurrentEpoch', async function() {
+        it('should increase the stakeAmountByCurrentEpoch', async function () {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1402,7 +1402,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, delegatorAddress.address)).to.be.equal(delegatorMinStake * 2n);
         });
 
-        it('should increase a total stake amount', async function() {
+        it('should increase a total stake amount', async function () {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1417,7 +1417,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(candidateMinStake + delegatorMinStake * 2n);
         });
 
-        it('should add a delegator to the pool', async function() {
+        it('should add a delegator to the pool', async function () {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1431,7 +1431,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.poolDelegators(pool.address)).to.be.deep.equal([delegatorAddress.address]);
         });
 
-        it("should update pool's likelihood", async function() {
+        it("should update pool's likelihood", async function () {
             const { stakingHbbft, candidateMinStake, delegatorMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1456,7 +1456,7 @@ describe('StakingHbbft', () => {
             expect(likelihoodInfo.sum).to.be.equal(candidateMinStake + delegatorMinStake * 2n);
         });
 
-        it('should decrease the balance of the staker and increase the balance of the Staking contract', async function() {
+        it('should decrease the balance of the staker and increase the balance of the Staking contract', async function () {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1470,7 +1470,7 @@ describe('StakingHbbft', () => {
             expect(await ethers.provider.getBalance(await stakingHbbft.getAddress())).to.be.equal(candidateMinStake);
         });
 
-        it('should not create stake snapshot on epoch 0', async function() {
+        it('should not create stake snapshot on epoch 0', async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -1505,7 +1505,7 @@ describe('StakingHbbft', () => {
                 .to.be.equal(0n);
         });
 
-        it('should create stake snapshot if staking on an active validator', async function() {
+        it('should create stake snapshot if staking on an active validator', async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -1543,7 +1543,7 @@ describe('StakingHbbft', () => {
                 .to.be.equal(stakingEpoch);
         });
 
-        it.skip('should only success in the allowed staking window', async function() {
+        it.skip('should only success in the allowed staking window', async function () {
             const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1553,14 +1553,14 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('removePool', async function() {
+    describe('removePool', async function () {
         let initStakingAddresses: string[];
 
         before(async function () {
             initStakingAddresses = initialValidators.map(x => x.stakingAddress());
         });
 
-        it('should remove a pool', async function() {
+        it('should remove a pool', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             expect(await stakingHbbft.getPools()).to.be.deep.equal(initStakingAddresses);
@@ -1576,7 +1576,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
         });
 
-        it('can only be called by the ValidatorSetHbbft contract', async function() {
+        it('can only be called by the ValidatorSetHbbft contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.setValidatorMockSetAddress(accounts[7].address);
@@ -1584,7 +1584,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it("shouldn't fail when removing a nonexistent pool", async function() {
+        it("shouldn't fail when removing a nonexistent pool", async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             expect(await stakingHbbft.getPools()).to.be.deep.equal(initStakingAddresses);
@@ -1595,7 +1595,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.getPools()).to.be.deep.equal(initStakingAddresses);
         });
 
-        it('should add/remove a pool to/from the utility lists', async function() {
+        it('should add/remove a pool to/from the utility lists', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             // The first validator places stake for themselves
@@ -1627,8 +1627,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('removePools', async function() {
-        it('should restrict calling removePools to validator set contract', async function() {
+    describe('removePools', async function () {
+        it('should restrict calling removePools to validator set contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
@@ -1637,8 +1637,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('removeMyPool', async function() {
-        it('should fail for zero gas price', async function() {
+    describe('removeMyPool', async function () {
+        it('should fail for zero gas price', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const validatorSetSigner = await impersonateAcc(await validatorSetHbbft.getAddress());
@@ -1649,7 +1649,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
-        it('should fail for initial validator during the initial staking epoch', async function() {
+        it('should fail for initial validator during the initial staking epoch', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const validator = initialValidators[0];
@@ -1670,16 +1670,16 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('withdraw', async function() {
+    describe('withdraw', async function () {
         const stakeAmount = minStake * 2n;
 
         let delegatorAddress: HardhatEthersSigner;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             delegatorAddress = accounts[7];
         });
 
-        it('should withdraw a stake', async function() {
+        it('should withdraw a stake', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1712,7 +1712,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(stakeAmount);
         });
 
-        it('should fail for zero gas price', async function() {
+        it('should fail for zero gas price', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const staker = initialValidators[1].staking;
@@ -1725,7 +1725,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
-        it('should fail for a zero pool address', async function() {
+        it('should fail for a zero pool address', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const staker = initialValidators[1].staking;
@@ -1737,7 +1737,7 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
         });
 
-        it('should fail for a zero amount', async function() {
+        it('should fail for a zero amount', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const staker = initialValidators[1].staking;
@@ -1749,7 +1749,7 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(staker).withdraw(staker.address, stakeAmount);
         });
 
-        it('should fail if non-zero residue is less than CANDIDATE_MIN_STAKE', async function() {
+        it('should fail if non-zero residue is less than CANDIDATE_MIN_STAKE', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const candidateMinStake = await stakingHbbft.candidateMinStake();
@@ -1766,7 +1766,7 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(pool).withdraw(pool.address, candidateMinStake);
         });
 
-        it('should fail if non-zero residue is less than DELEGATOR_MIN_STAKE', async function() {
+        it('should fail if non-zero residue is less than DELEGATOR_MIN_STAKE', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const delegatorMinStake = await stakingHbbft.delegatorMinStake();
@@ -1784,7 +1784,7 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(delegatorAddress).withdraw(pool.address, delegatorMinStake);
         });
 
-        it('should fail if withdraw more than staked', async function() {
+        it('should fail if withdraw more than staked', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1801,7 +1801,7 @@ describe('StakingHbbft', () => {
             await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
         });
 
-        it('should revert orderWithdraw with gasPrice = 0', async function() {
+        it('should revert orderWithdraw with gasPrice = 0', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.orderWithdraw(
@@ -1811,7 +1811,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
-        it('should revert orderWithdraw with pool = address(0)', async function() {
+        it('should revert orderWithdraw with pool = address(0)', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.orderWithdraw(
@@ -1820,7 +1820,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroAddress");
         });
 
-        it('should revert orderWithdraw with amount = 0', async function() {
+        it('should revert orderWithdraw with amount = 0', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.orderWithdraw(
@@ -1829,7 +1829,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "ZeroWidthrawAmount");
         });
 
-        it('should fail if withdraw already ordered amount', async function() {
+        it('should fail if withdraw already ordered amount', async function () {
             const { stakingHbbft, validatorSetHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const systemSigner = await impersonateAcc(SystemAccountAddress);
@@ -1911,7 +1911,7 @@ describe('StakingHbbft', () => {
             await helpers.stopImpersonatingAccount(systemSigner.address);
         });
 
-        it('should decrease likelihood', async function() {
+        it('should decrease likelihood', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1932,7 +1932,7 @@ describe('StakingHbbft', () => {
             expect(likelihoodInfo.sum).to.be.equal(stakeAmount / 2n);
         });
 
-        it.skip("shouldn't allow withdrawing during the stakingWithdrawDisallowPeriod", async function() {
+        it.skip("shouldn't allow withdrawing during the stakingWithdrawDisallowPeriod", async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const pool = initialValidators[1].staking;
@@ -1953,11 +1953,11 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('recoverAbandonedStakes', async function() {
+    describe('recoverAbandonedStakes', async function () {
         let stakingPool: HDNodeWallet;
         let stakers: HardhatEthersSigner[];
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             stakingPool = initialValidators[0].staking;
 
             stakers = accounts.slice(7, 15);
@@ -1968,6 +1968,17 @@ describe('StakingHbbft', () => {
             poolAddress: string,
             amount: bigint,
             stakers: HardhatEthersSigner[]
+        ) {
+            for (let staker of stakers) {
+                expect(await stakingContract.connect(staker).stake(poolAddress, { value: amount }));
+            }
+        }
+
+        async function stakeWithWallet(
+            stakingContract: StakingHbbftMock,
+            poolAddress: string,
+            amount: bigint,
+            stakers: HDNodeWallet[]
         ) {
             for (let staker of stakers) {
                 expect(await stakingContract.connect(staker).stake(poolAddress, { value: amount }));
@@ -1989,21 +2000,21 @@ describe('StakingHbbft', () => {
             expect(poolsInactive).to.include(poolAddress);
         }
 
-        it("should revert with invalid gas price", async function() {
+        it("should revert with invalid gas price", async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.recoverAbandonedStakes({ gasPrice: 0n }))
                 .to.be.revertedWithCustomError(stakingHbbft, "ZeroGasPrice");
         });
 
-        it("should revert if there is no inactive pools", async function() {
+        it("should revert if there is no inactive pools", async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.recoverAbandonedStakes())
                 .to.be.revertedWithCustomError(stakingHbbft, "NoStakesToRecover");
         });
 
-        it("should revert if validator inactive, but not abandonded", async function() {
+        it("should revert if validator inactive, but not abandonded", async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -2012,6 +2023,7 @@ describe('StakingHbbft', () => {
             } = await helpers.loadFixture(deployContractsFixture);
 
             const expectedTotalStakes = candidateMinStake + delegatorMinStake * BigInt(stakers.length);
+
 
             await stake(stakingHbbft, stakingPool.address, candidateMinStake, [stakingPool])
             await stake(stakingHbbft, stakingPool.address, delegatorMinStake, stakers);
@@ -2025,7 +2037,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "NoStakesToRecover");
         });
 
-        it("should recover abandoned stakes", async function() {
+        it("should recover abandoned stakes", async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -2044,6 +2056,7 @@ describe('StakingHbbft', () => {
             const expectedTotalStakes = candidateMinStake + delegatorMinStake * BigInt(stakers.length);
             const caller = accounts[5];
 
+            // we need to get a HardhatEthersSigner from the HDNodeWallet
             await stake(stakingHbbft, stakingPool.address, candidateMinStake, [stakingPool])
             await stake(stakingHbbft, stakingPool.address, delegatorMinStake, stakers);
             expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(expectedTotalStakes);
@@ -2072,7 +2085,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(0);
         });
 
-        it("should recover abandoned stakes, mark pool as abandoned and remove from inactive pools", async function() {
+        it("should recover abandoned stakes, mark pool as abandoned and remove from inactive pools", async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -2095,7 +2108,7 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.abandonedAndRemoved(stakingPool.address)).to.be.true;
         });
 
-        it("should return maxWithdrawAllowed = 0 if pool was abandoned and removed", async function() {
+        it("should return maxWithdrawAllowed = 0 if pool was abandoned and removed", async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -2121,7 +2134,7 @@ describe('StakingHbbft', () => {
             }
         });
 
-        it("should disallow staking to abandoned pool", async function() {
+        it("should disallow staking to abandoned pool", async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -2148,7 +2161,7 @@ describe('StakingHbbft', () => {
                 .withArgs(stakingPool.address);
         });
 
-        it("should not allow stake withdrawal if pool was abandoned", async function() {
+        it("should not allow stake withdrawal if pool was abandoned", async function () {
             const {
                 stakingHbbft,
                 validatorSetHbbft,
@@ -2156,7 +2169,7 @@ describe('StakingHbbft', () => {
                 delegatorMinStake
             } = await helpers.loadFixture(deployContractsFixture);
 
-            await stake(stakingHbbft, stakingPool.address, candidateMinStake, [stakingPool])
+            await stake(stakingHbbft, stakingPool.address, candidateMinStake, [stakingPool]);
             await stake(stakingHbbft, stakingPool.address, delegatorMinStake, stakers);
 
             await setValidatorInactive(stakingHbbft, validatorSetHbbft, stakingPool.address);
@@ -2181,8 +2194,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('restake', async function() {
-        it('should allow calling only to BlockReward contract', async function() {
+    describe('restake', async function () {
+        it('should allow calling only to BlockReward contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const caller = accounts[5];
@@ -2190,7 +2203,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should do nothing if zero value provided', async function() {
+        it('should do nothing if zero value provided', async function () {
             const { stakingHbbft, blockRewardHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const caller = await impersonateAcc(await blockRewardHbbft.getAddress());
@@ -2202,8 +2215,8 @@ describe('StakingHbbft', () => {
             )).to.not.emit(stakingHbbft, "RestakeReward");
         });
 
-        describe('without node operator', async function() {
-            it('should restake all rewards to validator without delegators', async function() {
+        describe('without node operator', async function () {
+            it('should restake all rewards to validator without delegators', async function () {
                 const {
                     stakingHbbft,
                     blockRewardHbbft,
@@ -2253,7 +2266,7 @@ describe('StakingHbbft', () => {
                 }
             });
 
-            it('should restake delegators rewards according to stakes', async function() {
+            it('should restake delegators rewards according to stakes', async function () {
                 const {
                     stakingHbbft,
                     blockRewardHbbft,
@@ -2367,8 +2380,8 @@ describe('StakingHbbft', () => {
             });
         });
 
-        describe('with node operator', async function() {
-            it('should not distribute to node operator with 0% share', async function() {
+        describe('with node operator', async function () {
+            it('should not distribute to node operator with 0% share', async function () {
                 const {
                     stakingHbbft,
                     blockRewardHbbft,
@@ -2431,7 +2444,7 @@ describe('StakingHbbft', () => {
                 }
             });
 
-            it('should include node operators in reward distribution', async function() {
+            it('should include node operators in reward distribution', async function () {
                 const {
                     stakingHbbft,
                     blockRewardHbbft,
@@ -2564,7 +2577,7 @@ describe('StakingHbbft', () => {
                 }
             });
 
-            it('should send operator share to new address if it was changed', async function() {
+            it('should send operator share to new address if it was changed', async function () {
                 const {
                     stakingHbbft,
                     blockRewardHbbft,
@@ -2652,8 +2665,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('setDelegatorMinStake', async function() {
-        it('should allow calling only to contract owner', async function() {
+    describe('setDelegatorMinStake', async function () {
+        it('should allow calling only to contract owner', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const caller = accounts[5];
@@ -2662,7 +2675,7 @@ describe('StakingHbbft', () => {
                 .withArgs(caller.address);
         });
 
-        it('should set delegator min stake', async function() {
+        it('should set delegator min stake', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const minStakeValue = ethers.parseEther('150')
             await stakingHbbft.setDelegatorMinStake(minStakeValue);
@@ -2670,8 +2683,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('snapshotPoolStakeAmounts', async function() {
-        it('should allow calling only by BlockReward contract', async function() {
+    describe('snapshotPoolStakeAmounts', async function () {
+        it('should allow calling only by BlockReward contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const caller = accounts[5];
@@ -2681,7 +2694,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should create validator stake snapshot after epoch close', async function() {
+        it('should create validator stake snapshot after epoch close', async function () {
             const {
                 stakingHbbft,
                 blockRewardHbbft,
@@ -2722,14 +2735,14 @@ describe('StakingHbbft', () => {
         let stakingHbbft: StakingHbbftMock;
         let validator: Validator;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             const { stakingHbbft: _stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             stakingHbbft = _stakingHbbft;
 
             validator = initialValidators[1];
         });
 
-        it('should update own pool info using setPoolInfo', async function() {
+        it('should update own pool info using setPoolInfo', async function () {
             const port = '0x6987';
 
             expect(await stakingHbbft.connect(validator.staking).setPoolInfo(
@@ -2745,8 +2758,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe('other functions', async function() {
-        it('should restrict calling notifyKeyGenFailed to validator set contract', async function() {
+    describe('other functions', async function () {
+        it('should restrict calling notifyKeyGenFailed to validator set contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
@@ -2754,7 +2767,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should restrict calling notifyNetworkOfftimeDetected to validator set contract', async function() {
+        it('should restrict calling notifyNetworkOfftimeDetected to validator set contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
@@ -2762,7 +2775,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should restrict calling notifyAvailability to validator set contract', async function() {
+        it('should restrict calling notifyAvailability to validator set contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
@@ -2772,7 +2785,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should restrict calling notifiyEarlyEpochEnd to block reward contract', async function() {
+        it('should restrict calling notifiyEarlyEpochEnd to block reward contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
@@ -2780,7 +2793,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should restrict calling setStakingEpochStartTime to validator set contract', async function() {
+        it('should restrict calling setStakingEpochStartTime to validator set contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
@@ -2788,7 +2801,7 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should restrict calling setValidatorInternetAddress to validator set contract', async function() {
+        it('should restrict calling setValidatorInternetAddress to validator set contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
@@ -2799,7 +2812,7 @@ describe('StakingHbbft', () => {
             )).to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should update validator ip:port using setValidatorInternetAddress', async function() {
+        it('should update validator ip:port using setValidatorInternetAddress', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const validator = initialValidators[1];
@@ -2819,8 +2832,8 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe.skip('setStakingTransitionTimeframeLength', async function() {
-        it('should allow calling only to contract owner', async function() {
+    describe.skip('setStakingTransitionTimeframeLength', async function () {
+        it('should allow calling only to contract owner', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const caller = accounts[5];
@@ -2829,21 +2842,21 @@ describe('StakingHbbft', () => {
                 .withArgs(caller.address);
         });
 
-        it('should set staking transition time frame length', async function() {
+        it('should set staking transition time frame length', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.setStakingTransitionTimeframeLength(300n);
             expect(await stakingHbbft.stakingTransitionTimeframeLength()).to.be.equal(300n);
         });
 
-        it('should not set staking transition time frame length to low value', async function() {
+        it('should not set staking transition time frame length to low value', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.setStakingTransitionTimeframeLength(9n))
                 .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingTransitionTimeframe");
         });
 
-        it('should not set staking transition time frame length to high value', async function() {
+        it('should not set staking transition time frame length to high value', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await expect(stakingHbbft.setStakingTransitionTimeframeLength(100000n))
@@ -2852,8 +2865,8 @@ describe('StakingHbbft', () => {
 
     });
 
-    describe.skip('setStakingFixedEpochDuration', async function() {
-        it('should allow calling only to contract owner', async function() {
+    describe.skip('setStakingFixedEpochDuration', async function () {
+        it('should allow calling only to contract owner', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             const caller = accounts[5];
@@ -2862,14 +2875,14 @@ describe('StakingHbbft', () => {
                 .withArgs(caller.address);
         });
 
-        it('should set staking fixed epoch transition', async function() {
+        it('should set staking fixed epoch transition', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.setStakingFixedEpochDuration(600000n);
             expect(await stakingHbbft.stakingFixedEpochDuration()).to.be.equal(600000n);
         });
 
-        it('should not set staking transition time frame length to low value', async function() {
+        it('should not set staking transition time frame length to low value', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             let tranitionTimeFrame = await stakingHbbft.stakingTransitionTimeframeLength();

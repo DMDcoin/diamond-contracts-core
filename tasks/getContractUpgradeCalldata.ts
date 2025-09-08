@@ -34,6 +34,8 @@ task("getUpgradeCalldata", "Get contract upgrade calldata to use in DAO proposal
 
         const [deployer] = await hre.ethers.getSigners();
 
+        console.log("using address for deployment: ", deployer.address);
+
         const proxyAddress = KnownContracts.get(contract)!;
         const contractFactory = await hre.ethers.getContractFactory(contract, deployer) as ContractFactory;
 

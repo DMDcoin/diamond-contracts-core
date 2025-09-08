@@ -1,7 +1,7 @@
 {
     "name": "diamond-contracts-core",
-    "version": "0.8.9",
-    "description": "Smart contracts for DPoS",
+    "version": "0.10.0",
+    "description": "Staking and Hbbft shared key management for DMD Diamond",
     "main": "index.js",
     "scripts": {
         "compile": "npx hardhat compile",
