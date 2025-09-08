@@ -254,6 +254,215 @@ describe("BonusScoreSystem", function () {
         });
     });
 
+    describe('setStandByFactor (ValueGuards)', async () => {
+        it('should initialize with default standByFactor value of 20', async function () {
+            const bonusScoreSystemFactory = await ethers.getContractFactory("BonusScoreSystem");
+            const bonusScoreSystem = await upgrades.deployProxy(
+                bonusScoreSystemFactory,
+                [randomWallet(), randomWallet(), randomWallet(), randomWallet()],
+                { initializer: 'initialize' }
+            );
+
+            await bonusScoreSystem.waitForDeployment();
+
+            expect(await bonusScoreSystem.standByFactor()).to.equal(20);
+        });
+
+        it('should restrict calling to contract owner', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+            const caller = users[2];
+
+            await expect(bonusScoreSystem.connect(caller).setStandByFactor(25))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "OwnableUnauthorizedAccount")
+                .withArgs(caller.address);
+        });
+
+        it('should allow single step increase from default value (20 to 25)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.setStandByFactor(25))
+                .to.emit(bonusScoreSystem, "SetStandByFactor")
+                .withArgs(25);
+
+            expect(await bonusScoreSystem.standByFactor()).to.equal(25);
+            expect(await bonusScoreSystem.getScoringFactorValue(ScoringFactor.StandByBonus)).to.equal(25);
+        });
+
+        it('should allow single step decrease from default value (20 to 15)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.setStandByFactor(15))
+                .to.emit(bonusScoreSystem, "SetStandByFactor")
+                .withArgs(15);
+
+            expect(await bonusScoreSystem.standByFactor()).to.equal(15);
+            expect(await bonusScoreSystem.getScoringFactorValue(ScoringFactor.StandByBonus)).to.equal(15);
+        });
+
+        it('should reject multi-step changes (20 to 30)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.setStandByFactor(30))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange")
+                .withArgs(30);
+        });
+
+        it('should reject multi-step changes (20 to 10)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.setStandByFactor(10))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange")
+                .withArgs(10);
+        });
+
+        it('should reject values outside allowed range (5)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.setStandByFactor(5))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange")
+                .withArgs(5);
+        });
+
+        it('should reject values outside allowed range (55)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.setStandByFactor(55))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange")
+                .withArgs(55);
+        });
+
+        it('should reject non-step values within range (22)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            await expect(bonusScoreSystem.setStandByFactor(22))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange")
+                .withArgs(22);
+        });
+
+        it('should allow step-by-step traversal to minimum value (20 → 15 → 10)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            // First step: 20 → 15
+            await bonusScoreSystem.setStandByFactor(15);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(15);
+
+            // Second step: 15 → 10
+            await bonusScoreSystem.setStandByFactor(10);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(10);
+
+            // Verify we can't go below minimum
+            await expect(bonusScoreSystem.setStandByFactor(5))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange")
+                .withArgs(5);
+        });
+
+        it('should allow step-by-step traversal to maximum value (20 → 25 → 30 → 35 → 40 → 45 → 50)', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            const steps = [25, 30, 35, 40, 45, 50];
+            
+            for (const step of steps) {
+                await bonusScoreSystem.setStandByFactor(step);
+                expect(await bonusScoreSystem.standByFactor()).to.equal(step);
+            }
+
+            // Verify we can't go above maximum
+            await expect(bonusScoreSystem.setStandByFactor(55))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange")
+                .withArgs(55);
+        });
+
+        it('should allow bidirectional movement between adjacent values', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            // Start at 20, go to 25
+            await bonusScoreSystem.setStandByFactor(25);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(25);
+
+            // Go back to 20
+            await bonusScoreSystem.setStandByFactor(20);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(20);
+
+            // Go to 15
+            await bonusScoreSystem.setStandByFactor(15);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(15);
+
+            // Go back to 20
+            await bonusScoreSystem.setStandByFactor(20);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(20);
+        });
+
+        it('should validate transitions from boundary values', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            // Navigate to minimum value (10)
+            await bonusScoreSystem.setStandByFactor(15);
+            await bonusScoreSystem.setStandByFactor(10);
+
+            // From 10, can only go to 15
+            await expect(bonusScoreSystem.setStandByFactor(5))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
+            
+            await expect(bonusScoreSystem.setStandByFactor(20))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
+
+            await bonusScoreSystem.setStandByFactor(15);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(15);
+
+            // Navigate to maximum value (50)
+            const stepsToMax = [20, 25, 30, 35, 40, 45, 50];
+            for (const step of stepsToMax) {
+                await bonusScoreSystem.setStandByFactor(step);
+            }
+
+            // From 50, can only go to 45
+            await expect(bonusScoreSystem.setStandByFactor(55))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
+            
+            await expect(bonusScoreSystem.setStandByFactor(40))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
+
+            await bonusScoreSystem.setStandByFactor(45);
+            expect(await bonusScoreSystem.standByFactor()).to.equal(45);
+        });
+
+        it('should validate all allowed values can be set in sequence', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+            
+            const allowedValues = [10, 15, 20, 25, 30, 35, 40, 45, 50];
+            
+            // Test ascending sequence
+            let currentValue = 20; // starting value
+            for (let i = allowedValues.indexOf(currentValue) + 1; i < allowedValues.length; i++) {
+                await bonusScoreSystem.setStandByFactor(allowedValues[i]);
+                expect(await bonusScoreSystem.standByFactor()).to.equal(allowedValues[i]);
+                currentValue = allowedValues[i];
+            }
+
+            // Test descending sequence
+            for (let i = allowedValues.indexOf(currentValue) - 1; i >= 0; i--) {
+                await bonusScoreSystem.setStandByFactor(allowedValues[i]);
+                expect(await bonusScoreSystem.standByFactor()).to.equal(allowedValues[i]);
+                currentValue = allowedValues[i];
+            }
+        });
+
+        it('should update internal _factors mapping when standByFactor changes', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+
+            // Initial state
+            expect(await bonusScoreSystem.getScoringFactorValue(ScoringFactor.StandByBonus)).to.equal(20);
+
+            // Change to 25
+            await bonusScoreSystem.setStandByFactor(25);
+            expect(await bonusScoreSystem.getScoringFactorValue(ScoringFactor.StandByBonus)).to.equal(25);
+
+            // Change to 30
+            await bonusScoreSystem.setStandByFactor(30);
+            expect(await bonusScoreSystem.getScoringFactorValue(ScoringFactor.StandByBonus)).to.equal(30);
+        });
+    });
+
     describe.skip('updateScoringFactor', async () => {
         const TestCases = [
             { factor: ScoringFactor.StandByBonus, value: 20 },
