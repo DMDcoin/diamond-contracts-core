@@ -51,39 +51,6 @@ const config: HardhatUserConfig = {
                 },
             },
             {
-                network: "alpha",
-                chainId: 777012,
-                urls: {
-                    apiURL: "https://explorer.uniq.diamonds/api",
-                    browserURL: "http://explorer.uniq.diamonds",
-                },
-            },
-            {
-                network: "alpha2",
-                chainId: 777012,
-                urls: {
-                    apiURL: "https://explorer.uniq.diamonds/api",
-                    browserURL: "http://explorer.uniq.diamonds",
-                },
-            },
-            {
-                network: "alpha3",
-                chainId: 777016,
-                urls: {
-                    apiURL: "http://185.187.170.209:4000/api",
-                    browserURL: "http://185.187.170.209:4000/",
-                },
-            },
-            {
-                network: "alpha4",
-                chainId: 777018,
-                urls: {
-                    apiURL: "http://62.171.133.46:4400/api",
-                    browserURL: "http://62.171.133.46:4400",
-                },
-
-            },
-            {
                 network: "beta1",
                 chainId: 27272,
                 urls: {
@@ -91,6 +58,14 @@ const config: HardhatUserConfig = {
                     browserURL: "https://beta-explorer.bit.diamonds",
                 },
             },
+            {
+                network: "testnet",
+                chainId: 37373,
+                urls: {
+                    apiURL: "http://62.171.133.46:4000/api",
+                    browserURL: "http://62.171.133.46:4000",
+                },
+              },
         ],
     },
     contractSizer: {
@@ -134,6 +109,17 @@ const config: HardhatUserConfig = {
             },
             gasPrice: 1000000000,
             hardfork: "london",
+        },
+        testnet: {
+            url: "http://62.171.133.46:20100",
+            accounts: {
+              mnemonic: getMnemonic(),
+              path: "m/44'/60'/0'/0",
+              initialIndex: 0,
+              count: 20,
+              passphrase: "",
+            },
+            gasPrice: 1000000000,
         },
         local: {
             url: "http://127.0.0.1:8540",
