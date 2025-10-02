@@ -708,10 +708,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         address staker = msg.sender;
 
-        if (!areStakeAndWithdrawAllowed()) {
-            revert WithdrawNotAllowed();
-        }
-
         uint256 newOrderedAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
         uint256 newOrderedAmountTotal = orderedWithdrawAmountTotal[_poolStakingAddress];
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][staker];
@@ -800,10 +796,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         if (stakingEpoch <= orderWithdrawEpoch[_poolStakingAddress][staker]) {
             revert CannotClaimWithdrawOrderYet(_poolStakingAddress, staker);
-        }
-
-        if (!areStakeAndWithdrawAllowed()) {
-            revert WithdrawNotAllowed();
         }
 
         uint256 claimAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
@@ -969,22 +961,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         return snapshotPoolValidatorStakeAmount[_epoch][_stakingPool];
     }
 
-    /// @dev Determines whether staking/withdrawal operations are allowed at the moment.
-    /// Used by all staking/withdrawal functions.
-    function areStakeAndWithdrawAllowed() public pure returns (bool) {
-        //experimental change to always allow to stake withdraw.
-        //see https://github.com/DMDcoin/hbbft-posdao-contracts/issues/14 for discussion.
-        return true;
-
-        // used for testing
-        // if (stakingFixedEpochDuration == 0){
-        //     return true;
-        // }
-        // uint256 currentTimestamp = block.timestamp;
-        // uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
-        // return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
-    }
-
     /// @dev Returns a flag indicating whether a specified address is in the `pools` array.
     /// See the `getPools` getter.
     /// @param _stakingAddress The staking address of the pool.
@@ -1005,7 +981,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function maxWithdrawAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        if (!areStakeAndWithdrawAllowed() || abandonedAndRemoved[_poolStakingAddress]) {
+        if (abandonedAndRemoved[_poolStakingAddress]) {
             return 0;
         }
 
@@ -1036,10 +1012,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @param _staker The staker address that is going to order the withdrawal.
     function maxWithdrawOrderAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
-
-        if (!areStakeAndWithdrawAllowed()) {
-            return 0;
-        }
 
         if (!validatorSetContract.isValidatorOrPending(miningAddress)) {
             // If the pool is a candidate (not an active validator and not pending one),
@@ -1342,8 +1314,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         if (abandonedAndRemoved[_poolStakingAddress]) {
             revert PoolAbandoned(_poolStakingAddress);
         }
-
-        //require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
 
         bool selfStake = _staker == _poolStakingAddress;
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker] + _amount;

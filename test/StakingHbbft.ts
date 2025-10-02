@@ -550,30 +550,6 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.isPoolActive(candidate.stakingAddress())).to.be.true;
             expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
         });
-
-        it.skip('should fail if staking time is inside disallowed range', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(stakingHbbft.connect(candidate.staking).addPool(
-                candidate.miningAddress(),
-                ethers.ZeroAddress,
-                0n,
-                candidate.publicKey(),
-                candidate.ipAddress,
-                { value: minStake },
-            )).to.be.revertedWith("Stake: disallowed period");
-
-            await helpers.time.increase(2);
-
-            await stakingHbbft.connect(candidate.staking).addPool(
-                candidate.miningAddress(),
-                ethers.ZeroAddress,
-                0n,
-                candidate.publicKey(),
-                candidate.ipAddress,
-                { value: minStake },
-            );
-        });
     });
 
     describe('setNodeOperator', async function () {
@@ -1542,15 +1518,6 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.getStakeSnapshotLastEpoch(pool.address, delegator.address))
                 .to.be.equal(stakingEpoch);
         });
-
-        it.skip('should only success in the allowed staking window', async function () {
-            const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = initialValidators[1].staking;
-
-            await expect(stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake }))
-                .to.be.revertedWith("Stake: disallowed period");
-        });
     });
 
     describe('removePool', async function () {
@@ -1930,26 +1897,6 @@ describe('StakingHbbft', () => {
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
             expect(likelihoodInfo.likelihoods[0]).to.be.equal(stakeAmount / 2n);
             expect(likelihoodInfo.sum).to.be.equal(stakeAmount / 2n);
-        });
-
-        it.skip("shouldn't allow withdrawing during the stakingWithdrawDisallowPeriod", async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = initialValidators[1].staking;
-
-            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
-
-            //await stakingHbbft.setCurrentBlockNumber(117000);
-            //await validatorSetHbbft.setCurrentBlockNumber(117000);
-            await expect(stakingHbbft.connect(pool).withdraw(
-                pool.address,
-                stakeAmount,
-            )).to.be.revertedWith("Stake: disallowed period");
-
-            //await stakingHbbft.setCurrentBlockNumber(116000);
-            //await validatorSetHbbft.setCurrentBlockNumber(116000);
-
-            await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
         });
     });
 
