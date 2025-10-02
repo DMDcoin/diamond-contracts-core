@@ -73,8 +73,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// The first parameter is the pool staking address, the second one is the staker address.
     mapping(address => mapping(address => uint256)) public stakeAmount;
 
-    /// @dev The duration period (in blocks) at the end of staking epoch during which
-    /// participants are not allowed to stake/withdraw/order/claim their staking coins.
+    /// @dev deprecated
     uint256 public stakingWithdrawDisallowPeriod;
 
     /// @dev The serial number of the current staking epoch.
@@ -287,16 +286,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error InvalidMoveStakePoolsAddress();
     error InvalidOrderWithdrawAmount(address pool, address delegator, int256 amount);
     error InvalidPublicKeysCount();
-    error InvalidStakingTransitionTimeframe();
-    error InvalidStakingFixedEpochDuration();
     error InvalidTransitionTimeFrame();
     error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
     error InvalidNodeOperatorConfiguration(address _operator, uint256 _share);
     error InvalidNodeOperatorShare(uint256 _share);
     error InvalidPublicKey();
-    error WithdrawNotAllowed();
     error ZeroWidthrawAmount();
-    error ZeroWidthrawDisallowPeriod();
     error MiningAddressPublicKeyMismatch();
 
     // ============================================== Modifiers =======================================================
@@ -355,7 +350,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     ///  _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts.
     ///  _stakingTransitionTimeframeLength Length of the timeframe in seconds for the transition
     /// to the new validator set.
-    ///  _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
+    ///  _stakingWithdrawDisallowPeriod Deprecated. Left to not break compatibility.
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
         address _contractOwner,
@@ -416,7 +411,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         maxStakeAmount = stakingParams._maxStake;
 
         stakingFixedEpochDuration = stakingParams._stakingFixedEpochDuration;
-        stakingWithdrawDisallowPeriod = stakingParams._stakingWithdrawDisallowPeriod;
 
         // note: this might be still 0 when created in the genesis block.
         stakingEpochStartTime = block.timestamp;
@@ -498,7 +492,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
     }
 
-    function notifiyEarlyEpochEnd(uint256 timestamp) external onlyBlockRewardContract {
+    function notifyEarlyEpochEnd(uint256 timestamp) external onlyBlockRewardContract {
         earlyEpochEndTriggerTime = timestamp;
     }
 
@@ -708,10 +702,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         address staker = msg.sender;
 
-        if (!areStakeAndWithdrawAllowed()) {
-            revert WithdrawNotAllowed();
-        }
-
         uint256 newOrderedAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
         uint256 newOrderedAmountTotal = orderedWithdrawAmountTotal[_poolStakingAddress];
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][staker];
@@ -802,10 +792,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             revert CannotClaimWithdrawOrderYet(_poolStakingAddress, staker);
         }
 
-        if (!areStakeAndWithdrawAllowed()) {
-            revert WithdrawNotAllowed();
-        }
-
         uint256 claimAmount = orderedWithdrawAmount[_poolStakingAddress][staker];
         if (claimAmount == 0) {
             revert ZeroWidthrawAmount();
@@ -868,11 +854,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 governanceShare = totalAbandonedAmount / 2;
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
 
-        address blockRewarAddress = validatorSetContract.blockRewardContract();
+        address blockRewardAddress = validatorSetContract.blockRewardContract();
         IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
         address governanceAddress = blockRewardHbbft.getGovernanceAddress();
 
-        TransferUtils.transferNative(blockRewarAddress, reinsertShare);
+        TransferUtils.transferNative(blockRewardAddress, reinsertShare);
         TransferUtils.transferNative(governanceAddress, governanceShare);
 
         emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);
@@ -969,22 +955,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         return snapshotPoolValidatorStakeAmount[_epoch][_stakingPool];
     }
 
-    /// @dev Determines whether staking/withdrawal operations are allowed at the moment.
-    /// Used by all staking/withdrawal functions.
-    function areStakeAndWithdrawAllowed() public pure returns (bool) {
-        //experimental change to always allow to stake withdraw.
-        //see https://github.com/DMDcoin/hbbft-posdao-contracts/issues/14 for discussion.
-        return true;
-
-        // used for testing
-        // if (stakingFixedEpochDuration == 0){
-        //     return true;
-        // }
-        // uint256 currentTimestamp = block.timestamp;
-        // uint256 allowedDuration = stakingFixedEpochDuration - stakingWithdrawDisallowPeriod;
-        // return currentTimestamp - stakingEpochStartTime > allowedDuration; //TODO: should be < not <=?
-    }
-
     /// @dev Returns a flag indicating whether a specified address is in the `pools` array.
     /// See the `getPools` getter.
     /// @param _stakingAddress The staking address of the pool.
@@ -1005,7 +975,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function maxWithdrawAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
-        if (!areStakeAndWithdrawAllowed() || abandonedAndRemoved[_poolStakingAddress]) {
+        if (abandonedAndRemoved[_poolStakingAddress]) {
             return 0;
         }
 
@@ -1036,10 +1006,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @param _staker The staker address that is going to order the withdrawal.
     function maxWithdrawOrderAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
-
-        if (!areStakeAndWithdrawAllowed()) {
-            return 0;
-        }
 
         if (!validatorSetContract.isValidatorOrPending(miningAddress)) {
             // If the pool is a candidate (not an active validator and not pending one),
@@ -1215,15 +1181,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
 
     function _validateStakingParams(StakingParams calldata params) private pure {
-        if (
-            params._stakingFixedEpochDuration == 0 ||
-            params._stakingFixedEpochDuration <= params._stakingWithdrawDisallowPeriod
-        ) {
+        if (params._stakingFixedEpochDuration == 0) {
             revert InvalidFixedEpochDuration();
-        }
-
-        if (params._stakingWithdrawDisallowPeriod == 0) {
-            revert ZeroWidthrawDisallowPeriod();
         }
 
         if (
@@ -1342,8 +1301,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         if (abandonedAndRemoved[_poolStakingAddress]) {
             revert PoolAbandoned(_poolStakingAddress);
         }
-
-        //require(areStakeAndWithdrawAllowed(), "Stake: disallowed period");
 
         bool selfStake = _staker == _poolStakingAddress;
         uint256 newStakeAmount = stakeAmount[_poolStakingAddress][_staker] + _amount;
