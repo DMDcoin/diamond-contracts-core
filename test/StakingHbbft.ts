@@ -2785,11 +2785,11 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should restrict calling notifiyEarlyEpochEnd to block reward contract', async function () {
+        it('should restrict calling notifyEarlyEpochEnd to block reward contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
-            await expect(stakingHbbft.connect(caller).notifiyEarlyEpochEnd(0n))
+            await expect(stakingHbbft.connect(caller).notifyEarlyEpochEnd(0n))
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 

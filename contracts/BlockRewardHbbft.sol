@@ -409,7 +409,7 @@ contract BlockRewardHbbft is
             // notify staking contract this epoch will end earlier due to
             // upscaling or too many validators were marked as faulty
             if (!isPhaseTransition) {
-                stakingContract.notifiyEarlyEpochEnd(block.timestamp);
+                stakingContract.notifyEarlyEpochEnd(block.timestamp);
             }
 
             // in any case we reset early epoch end flag because

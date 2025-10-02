@@ -498,7 +498,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
     }
 
-    function notifiyEarlyEpochEnd(uint256 timestamp) external onlyBlockRewardContract {
+    function notifyEarlyEpochEnd(uint256 timestamp) external onlyBlockRewardContract {
         earlyEpochEndTriggerTime = timestamp;
     }
 
@@ -868,11 +868,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 governanceShare = totalAbandonedAmount / 2;
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
 
-        address blockRewarAddress = validatorSetContract.blockRewardContract();
+        address blockRewardAddress = validatorSetContract.blockRewardContract();
         IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
         address governanceAddress = blockRewardHbbft.getGovernanceAddress();
 
-        TransferUtils.transferNative(blockRewarAddress, reinsertShare);
+        TransferUtils.transferNative(blockRewardAddress, reinsertShare);
         TransferUtils.transferNative(governanceAddress, governanceShare);
 
         emit RecoverAbandonedStakes(msg.sender, reinsertShare, governanceShare);

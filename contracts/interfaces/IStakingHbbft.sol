@@ -34,7 +34,7 @@ interface IStakingHbbft {
 
     function notifyNetworkOfftimeDetected(uint256) external;
 
-    function notifiyEarlyEpochEnd(uint256 timestamp) external;
+    function notifyEarlyEpochEnd(uint256 timestamp) external;
 
     function updatePoolLikelihood(address mining, uint256 validatorScore) external;
 
