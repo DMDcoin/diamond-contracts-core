@@ -774,7 +774,7 @@ describe('StakingHbbft', () => {
             await stakingHbbft.waitForDeployment();
 
             expect(await stakingHbbft.stakingFixedEpochDuration()).to.be.equal(stakingFixedEpochDuration);
-            expect(await stakingHbbft.stakingWithdrawDisallowPeriod()).to.be.equal(stakingWithdrawDisallowPeriod);
+            expect(await stakingHbbft.stakingWithdrawDisallowPeriod()).to.be.equal(0);
             expect(await stakingHbbft.validatorSetContract()).to.be.equal(validatorSetContract)
 
             for (const stakingAddress of initStakingAddresses) {
@@ -906,44 +906,6 @@ describe('StakingHbbft', () => {
             const params = {
                 ...stakingParams,
                 _stakingFixedEpochDuration: 0
-            }
-
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-            await expect(upgrades.deployProxy(
-                StakingHbbftFactory,
-                [
-                    owner.address,
-                    params,
-                    initPublicKeys, // _publicKeys
-                    initIpAddresses // _internetAddresses
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidFixedEpochDuration");
-        });
-
-        it('should fail if stakingWithdrawDisallowPeriod is 0', async function () {
-            const params = {
-                ...stakingParams,
-                _stakingWithdrawDisallowPeriod: 0n
-            }
-
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-            await expect(upgrades.deployProxy(
-                StakingHbbftFactory,
-                [
-                    owner.address,
-                    params,
-                    initPublicKeys, // _publicKeys
-                    initIpAddresses // _internetAddresses
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroWidthrawDisallowPeriod");
-        });
-
-        it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async function () {
-            const params = {
-                ...stakingParams,
-                _stakingWithdrawDisallowPeriod: 120954n
             }
 
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");

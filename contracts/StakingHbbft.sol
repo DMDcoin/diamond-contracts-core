@@ -73,8 +73,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// The first parameter is the pool staking address, the second one is the staker address.
     mapping(address => mapping(address => uint256)) public stakeAmount;
 
-    /// @dev The duration period (in blocks) at the end of staking epoch during which
-    /// participants are not allowed to stake/withdraw/order/claim their staking coins.
+    /// @dev deprecated
     uint256 public stakingWithdrawDisallowPeriod;
 
     /// @dev The serial number of the current staking epoch.
@@ -287,16 +286,12 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error InvalidMoveStakePoolsAddress();
     error InvalidOrderWithdrawAmount(address pool, address delegator, int256 amount);
     error InvalidPublicKeysCount();
-    error InvalidStakingTransitionTimeframe();
-    error InvalidStakingFixedEpochDuration();
     error InvalidTransitionTimeFrame();
     error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
     error InvalidNodeOperatorConfiguration(address _operator, uint256 _share);
     error InvalidNodeOperatorShare(uint256 _share);
     error InvalidPublicKey();
-    error WithdrawNotAllowed();
     error ZeroWidthrawAmount();
-    error ZeroWidthrawDisallowPeriod();
     error MiningAddressPublicKeyMismatch();
 
     // ============================================== Modifiers =======================================================
@@ -355,7 +350,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     ///  _stakingFixedEpochDuration The fixed duration of each epoch before keyGen starts.
     ///  _stakingTransitionTimeframeLength Length of the timeframe in seconds for the transition
     /// to the new validator set.
-    ///  _stakingWithdrawDisallowPeriod The duration period at the end of a staking epoch
+    ///  _stakingWithdrawDisallowPeriod Deprecated. Left to not break compatibility.
     /// during which participants cannot stake/withdraw/order/claim their staking coins
     function initialize(
         address _contractOwner,
@@ -416,7 +411,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         maxStakeAmount = stakingParams._maxStake;
 
         stakingFixedEpochDuration = stakingParams._stakingFixedEpochDuration;
-        stakingWithdrawDisallowPeriod = stakingParams._stakingWithdrawDisallowPeriod;
 
         // note: this might be still 0 when created in the genesis block.
         stakingEpochStartTime = block.timestamp;
@@ -1187,15 +1181,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
 
     function _validateStakingParams(StakingParams calldata params) private pure {
-        if (
-            params._stakingFixedEpochDuration == 0 ||
-            params._stakingFixedEpochDuration <= params._stakingWithdrawDisallowPeriod
-        ) {
+        if (params._stakingFixedEpochDuration == 0) {
             revert InvalidFixedEpochDuration();
-        }
-
-        if (params._stakingWithdrawDisallowPeriod == 0) {
-            revert ZeroWidthrawDisallowPeriod();
         }
 
         if (
