@@ -463,44 +463,6 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe.skip('updateScoringFactor', async () => {
-        const TestCases = [
-            { factor: ScoringFactor.StandByBonus, value: 20 },
-            { factor: ScoringFactor.NoStandByPenalty, value: 50 },
-            { factor: ScoringFactor.NoKeyWritePenalty, value: 200 },
-            { factor: ScoringFactor.BadPerformancePenalty, value: 199 },
-        ];
-
-        it('should restrict calling to contract owner', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            const caller = users[2];
-
-            await expect(bonusScoreSystem.connect(caller).updateScoringFactor(ScoringFactor.StandByBonus, 1))
-                .to.be.revertedWithCustomError(bonusScoreSystem, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should not allow zero factor value', async function () {
-            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-
-            await expect(bonusScoreSystem.updateScoringFactor(ScoringFactor.StandByBonus, 0))
-                .to.be.revertedWithCustomError(bonusScoreSystem, "ZeroFactorValue");
-        });
-
-        TestCases.forEach((args) => {
-            it(`should set scoring factor ${ScoringFactor[args.factor]} and emit event`, async function () {
-                const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-
-                await expect(
-                    bonusScoreSystem.updateScoringFactor(args.factor, args.value)
-                ).to.emit(bonusScoreSystem, "UpdateScoringFactor")
-                    .withArgs(args.factor, args.value);
-
-                expect(await bonusScoreSystem.getScoringFactorValue(args.factor)).to.equal(args.value);
-            });
-        });
-    });
-
     describe('getScoringFactorValue', async () => {
         it('should revert for unknown scoring factor', async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);

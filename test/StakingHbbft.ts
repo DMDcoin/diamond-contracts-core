@@ -2779,65 +2779,6 @@ describe('StakingHbbft', () => {
         });
     });
 
-    describe.skip('setStakingTransitionTimeframeLength', async function () {
-        it('should allow calling only to contract owner', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[5];
-            await expect(stakingHbbft.connect(caller).setStakingTransitionTimeframeLength(300n))
-                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should set staking transition time frame length', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await stakingHbbft.setStakingTransitionTimeframeLength(300n);
-            expect(await stakingHbbft.stakingTransitionTimeframeLength()).to.be.equal(300n);
-        });
-
-        it('should not set staking transition time frame length to low value', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(stakingHbbft.setStakingTransitionTimeframeLength(9n))
-                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingTransitionTimeframe");
-        });
-
-        it('should not set staking transition time frame length to high value', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(stakingHbbft.setStakingTransitionTimeframeLength(100000n))
-                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingTransitionTimeframe");
-        });
-
-    });
-
-    describe.skip('setStakingFixedEpochDuration', async function () {
-        it('should allow calling only to contract owner', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[5];
-            await expect(stakingHbbft.connect(caller).setStakingFixedEpochDuration(600000n))
-                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should set staking fixed epoch transition', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await stakingHbbft.setStakingFixedEpochDuration(600000n);
-            expect(await stakingHbbft.stakingFixedEpochDuration()).to.be.equal(600000n);
-        });
-
-        it('should not set staking transition time frame length to low value', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            let tranitionTimeFrame = await stakingHbbft.stakingTransitionTimeframeLength();
-            await expect(stakingHbbft.setStakingFixedEpochDuration(tranitionTimeFrame))
-                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingFixedEpochDuration");
-        });
-    });
-
     async function callReward(blockRewardContract: BlockRewardHbbftMock, isEpochEndBlock: boolean) {
         const systemSigner = await impersonateAcc(SystemAccountAddress);
 
