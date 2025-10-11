@@ -550,30 +550,6 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.isPoolActive(candidate.stakingAddress())).to.be.true;
             expect(await stakingHbbft.getPoolsInactive()).to.be.empty;
         });
-
-        it.skip('should fail if staking time is inside disallowed range', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(stakingHbbft.connect(candidate.staking).addPool(
-                candidate.miningAddress(),
-                ethers.ZeroAddress,
-                0n,
-                candidate.publicKey(),
-                candidate.ipAddress,
-                { value: minStake },
-            )).to.be.revertedWith("Stake: disallowed period");
-
-            await helpers.time.increase(2);
-
-            await stakingHbbft.connect(candidate.staking).addPool(
-                candidate.miningAddress(),
-                ethers.ZeroAddress,
-                0n,
-                candidate.publicKey(),
-                candidate.ipAddress,
-                { value: minStake },
-            );
-        });
     });
 
     describe('setNodeOperator', async function () {
@@ -798,7 +774,7 @@ describe('StakingHbbft', () => {
             await stakingHbbft.waitForDeployment();
 
             expect(await stakingHbbft.stakingFixedEpochDuration()).to.be.equal(stakingFixedEpochDuration);
-            expect(await stakingHbbft.stakingWithdrawDisallowPeriod()).to.be.equal(stakingWithdrawDisallowPeriod);
+            expect(await stakingHbbft.stakingWithdrawDisallowPeriod()).to.be.equal(0);
             expect(await stakingHbbft.validatorSetContract()).to.be.equal(validatorSetContract)
 
             for (const stakingAddress of initStakingAddresses) {
@@ -930,44 +906,6 @@ describe('StakingHbbft', () => {
             const params = {
                 ...stakingParams,
                 _stakingFixedEpochDuration: 0
-            }
-
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-            await expect(upgrades.deployProxy(
-                StakingHbbftFactory,
-                [
-                    owner.address,
-                    params,
-                    initPublicKeys, // _publicKeys
-                    initIpAddresses // _internetAddresses
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(StakingHbbftFactory, "InvalidFixedEpochDuration");
-        });
-
-        it('should fail if stakingWithdrawDisallowPeriod is 0', async function () {
-            const params = {
-                ...stakingParams,
-                _stakingWithdrawDisallowPeriod: 0n
-            }
-
-            const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-            await expect(upgrades.deployProxy(
-                StakingHbbftFactory,
-                [
-                    owner.address,
-                    params,
-                    initPublicKeys, // _publicKeys
-                    initIpAddresses // _internetAddresses
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(StakingHbbftFactory, "ZeroWidthrawDisallowPeriod");
-        });
-
-        it('should fail if stakingWithdrawDisallowPeriod >= stakingEpochDuration', async function () {
-            const params = {
-                ...stakingParams,
-                _stakingWithdrawDisallowPeriod: 120954n
             }
 
             const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
@@ -1542,15 +1480,6 @@ describe('StakingHbbft', () => {
             expect(await stakingHbbft.getStakeSnapshotLastEpoch(pool.address, delegator.address))
                 .to.be.equal(stakingEpoch);
         });
-
-        it.skip('should only success in the allowed staking window', async function () {
-            const { stakingHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = initialValidators[1].staking;
-
-            await expect(stakingHbbft.connect(pool).stake(pool.address, { value: candidateMinStake }))
-                .to.be.revertedWith("Stake: disallowed period");
-        });
     });
 
     describe('removePool', async function () {
@@ -1930,26 +1859,6 @@ describe('StakingHbbft', () => {
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
             expect(likelihoodInfo.likelihoods[0]).to.be.equal(stakeAmount / 2n);
             expect(likelihoodInfo.sum).to.be.equal(stakeAmount / 2n);
-        });
-
-        it.skip("shouldn't allow withdrawing during the stakingWithdrawDisallowPeriod", async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const pool = initialValidators[1].staking;
-
-            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
-
-            //await stakingHbbft.setCurrentBlockNumber(117000);
-            //await validatorSetHbbft.setCurrentBlockNumber(117000);
-            await expect(stakingHbbft.connect(pool).withdraw(
-                pool.address,
-                stakeAmount,
-            )).to.be.revertedWith("Stake: disallowed period");
-
-            //await stakingHbbft.setCurrentBlockNumber(116000);
-            //await validatorSetHbbft.setCurrentBlockNumber(116000);
-
-            await stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount);
         });
     });
 
@@ -2785,11 +2694,11 @@ describe('StakingHbbft', () => {
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
-        it('should restrict calling notifiyEarlyEpochEnd to block reward contract', async function () {
+        it('should restrict calling notifyEarlyEpochEnd to block reward contract', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
             const caller = accounts[10];
 
-            await expect(stakingHbbft.connect(caller).notifiyEarlyEpochEnd(0n))
+            await expect(stakingHbbft.connect(caller).notifyEarlyEpochEnd(0n))
                 .to.be.revertedWithCustomError(stakingHbbft, "Unauthorized");
         });
 
@@ -2829,65 +2738,6 @@ describe('StakingHbbft', () => {
             const poolInfo = await stakingHbbft.poolInfo(validator.stakingAddress());
             expect(poolInfo.internetAddress).to.equal(validator.ipAddress);
             expect(poolInfo.port).to.equal(port);
-        });
-    });
-
-    describe.skip('setStakingTransitionTimeframeLength', async function () {
-        it('should allow calling only to contract owner', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[5];
-            await expect(stakingHbbft.connect(caller).setStakingTransitionTimeframeLength(300n))
-                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should set staking transition time frame length', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await stakingHbbft.setStakingTransitionTimeframeLength(300n);
-            expect(await stakingHbbft.stakingTransitionTimeframeLength()).to.be.equal(300n);
-        });
-
-        it('should not set staking transition time frame length to low value', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(stakingHbbft.setStakingTransitionTimeframeLength(9n))
-                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingTransitionTimeframe");
-        });
-
-        it('should not set staking transition time frame length to high value', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await expect(stakingHbbft.setStakingTransitionTimeframeLength(100000n))
-                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingTransitionTimeframe");
-        });
-
-    });
-
-    describe.skip('setStakingFixedEpochDuration', async function () {
-        it('should allow calling only to contract owner', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            const caller = accounts[5];
-            await expect(stakingHbbft.connect(caller).setStakingFixedEpochDuration(600000n))
-                .to.be.revertedWithCustomError(stakingHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
-        });
-
-        it('should set staking fixed epoch transition', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            await stakingHbbft.setStakingFixedEpochDuration(600000n);
-            expect(await stakingHbbft.stakingFixedEpochDuration()).to.be.equal(600000n);
-        });
-
-        it('should not set staking transition time frame length to low value', async function () {
-            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
-
-            let tranitionTimeFrame = await stakingHbbft.stakingTransitionTimeframeLength();
-            await expect(stakingHbbft.setStakingFixedEpochDuration(tranitionTimeFrame))
-                .to.be.revertedWithCustomError(stakingHbbft, "InvalidStakingFixedEpochDuration");
         });
     });
 
