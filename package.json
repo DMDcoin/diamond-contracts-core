@@ -1,6 +1,6 @@
 {
     "name": "diamond-contracts-core",
-    "version": "0.10.0",
+    "version": "4.0.0",
     "description": "Staking and Hbbft shared key management for DMD Diamond",
     "main": "index.js",
     "scripts": {
