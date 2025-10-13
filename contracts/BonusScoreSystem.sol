@@ -16,7 +16,7 @@ import { ValueGuards } from "./lib/ValueGuards.sol";
 /// Validator with a higher bonus score has a higher likelihood to be elected.
 contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, ValueGuards, IBonusScoreSystem {
     uint256 public standByFactor;
-    uint256 public constant DEFAULT_NO_STAND_BY_FACTOR = 15;
+    uint256 public constant DEFAULT_NO_STAND_BY_FACTOR = 20;
     uint256 public constant DEFAULT_NO_KEY_WRITE_FACTOR = 100;
     uint256 public constant DEFAULT_BAD_PERF_FACTOR = 100;
 
