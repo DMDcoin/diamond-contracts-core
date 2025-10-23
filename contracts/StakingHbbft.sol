@@ -17,6 +17,8 @@ import { ValueGuards } from "./lib/ValueGuards.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 import { Secp256k1Utils } from "./utils/Secp256k1Utils.sol";
 
+// import "forge-std/console.sol";
+
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
 contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft, ValueGuards {
@@ -652,6 +654,13 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         uint256 poolReward = msg.value;
         uint256 totalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_poolStakingAddress];
+
+        // console.log("epoch - %d", stakingEpoch);
+
+        // console.log("pool - %s total stake snapshot = %d", _poolStakingAddress, snapshotPoolTotalStakeAmount[stakingEpoch][_poolStakingAddress]);
+        // console.log("pool - %s self  stake snapshot = %d", _poolStakingAddress, snapshotPoolValidatorStakeAmount[stakingEpoch][_poolStakingAddress]);
+        // console.log("pool - %s node operator = %s", _poolStakingAddress, poolNodeOperator[_poolStakingAddress]);
+        // console.log("pool - %s reward = %d", _poolStakingAddress, poolReward);
 
         PoolRewardShares memory shares = _splitPoolReward(_poolStakingAddress, poolReward, _validatorMinRewardPercent);
 
@@ -1463,7 +1472,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function _rewardNodeOperator(address _stakingAddress, uint256 _operatorShare) private {
         address nodeOperator = poolNodeOperator[_stakingAddress];
 
-        if (!_poolDelegators[_stakingAddress].contains(nodeOperator)) {
+        // Only add node operator to delegators list if they're not the validator themselves
+        // Validators should never be in the delegators list as they receive validator rewards separately
+        if (nodeOperator != _stakingAddress && !_poolDelegators[_stakingAddress].contains(nodeOperator)) {
             _addPoolDelegator(_stakingAddress, nodeOperator);
         }
 
