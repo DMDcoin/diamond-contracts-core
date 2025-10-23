@@ -17,8 +17,6 @@ import { ValueGuards } from "./lib/ValueGuards.sol";
 import { TransferUtils } from "./utils/TransferUtils.sol";
 import { Secp256k1Utils } from "./utils/Secp256k1Utils.sol";
 
-// import "forge-std/console.sol";
-
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
 contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft, ValueGuards {
@@ -292,6 +290,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
     error InvalidNodeOperatorConfiguration(address _operator, uint256 _share);
     error InvalidNodeOperatorShare(uint256 _share);
+    error InvalidNodeOperatorAddress(address _operator);
     error InvalidPublicKey();
     error ZeroWidthrawAmount();
     error MiningAddressPublicKeyMismatch();
@@ -654,13 +653,6 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         uint256 poolReward = msg.value;
         uint256 totalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_poolStakingAddress];
-
-        // console.log("epoch - %d", stakingEpoch);
-
-        // console.log("pool - %s total stake snapshot = %d", _poolStakingAddress, snapshotPoolTotalStakeAmount[stakingEpoch][_poolStakingAddress]);
-        // console.log("pool - %s self  stake snapshot = %d", _poolStakingAddress, snapshotPoolValidatorStakeAmount[stakingEpoch][_poolStakingAddress]);
-        // console.log("pool - %s node operator = %s", _poolStakingAddress, poolNodeOperator[_poolStakingAddress]);
-        // console.log("pool - %s reward = %d", _poolStakingAddress, poolReward);
 
         PoolRewardShares memory shares = _splitPoolReward(_poolStakingAddress, poolReward, _validatorMinRewardPercent);
 
@@ -1448,6 +1440,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         address _operatorAddress,
         uint256 _operatorSharePercent
     ) private {
+        if (_operatorAddress == _stakingAddress) {
+            revert InvalidNodeOperatorAddress(_operatorAddress);
+        }
+
         if (_operatorSharePercent > MAX_NODE_OPERATOR_SHARE_PERCENT) {
             revert InvalidNodeOperatorShare(_operatorSharePercent);
         }

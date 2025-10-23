@@ -55,6 +55,13 @@ contract StakingHbbftMock is StakingHbbft {
         bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
     }
 
+    function setNodeOperatorMock(address poolStakingAddress, address operator, uint256 share) public {
+        poolNodeOperator[poolStakingAddress] = operator;
+        poolNodeOperatorShare[poolStakingAddress] = share;
+
+        poolNodeOperatorLastChangeEpoch[poolStakingAddress] = stakingEpoch;
+    }
+
     // =============================================== Getters ========================================
     function getMaxCandidates() external pure returns (uint256) {
         return _getMaxCandidates();

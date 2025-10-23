@@ -564,6 +564,25 @@ describe('StakingHbbft', () => {
                 .withArgs(candidate.stakingAddress());
         });
 
+        it('should not allow to set pool staking address as node operator', async function() {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.connect(candidate.staking).addPool(
+                candidate.miningAddress(),
+                ethers.ZeroAddress,
+                0n,
+                candidate.publicKey(),
+                candidate.ipAddress,
+                { value: minStake }
+            );
+
+            const share = 1000;
+
+            await expect(stakingHbbft.connect(candidate.staking).setNodeOperator(candidate.stakingAddress(), share))
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidNodeOperatorAddress")
+                .withArgs(candidate.stakingAddress());
+        });
+
         it('should not allow to change node operator twice within same epoch', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -2706,10 +2725,13 @@ describe('StakingHbbft', () => {
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
             // Set validator as node operator
-            await stakingHbbft.connect(validator.staking).setNodeOperator(
+            await stakingHbbft.connect(validator.staking).setNodeOperatorMock(
+                validator.stakingAddress(),
                 validator.stakingAddress(),
                 nodeOperatorShare
             );
+            
+            expect(await stakingHbbft.poolNodeOperator(validator.stakingAddress())).to.eq(validator.stakingAddress());
 
             await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), {value: minStakeDelegators});
 
@@ -2727,7 +2749,6 @@ describe('StakingHbbft', () => {
                 await blockRewardHbbft.connect(systemSigner).reward(true);
                 await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-                const epoch = await stakingHbbft.stakingEpoch();
                 delegators = await stakingHbbft.poolDelegators(validator.stakingAddress());
 
                 const validatorStake = await stakingHbbft.stakeAmount(validator.stakingAddress(), validator.stakingAddress());
