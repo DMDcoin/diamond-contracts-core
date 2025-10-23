@@ -832,6 +832,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
             uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
             stakeAmountTotal[stakingAddress] = 0;
+            stakeAmount[stakingAddress][stakingAddress] = 0;
             totalStakedAmount -= gatheredPerStakingAddress;
 
             address[] memory delegators = poolDelegators(stakingAddress);
@@ -1276,7 +1277,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 newValue = stakeAmountTotal[_poolStakingAddress] * validatorBonusScore;
 
         _poolsLikelihood[index] = newValue;
-        _poolsLikelihoodSum = _poolsLikelihoodSum - oldValue + newValue;
+        _poolsLikelihoodSum = _poolsLikelihoodSum + newValue - oldValue;
     }
 
     /// @dev The internal function used by the `_stake` and `moveStake` functions.

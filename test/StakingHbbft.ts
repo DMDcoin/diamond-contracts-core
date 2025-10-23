@@ -1992,6 +1992,12 @@ describe('StakingHbbft', () => {
             );
 
             expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(0);
+            expect(await stakingHbbft.stakeAmount(stakingPool.address, stakingPool.address)).to.equal(0);
+            expect(await stakingHbbft.poolDelegators(stakingPool.address)).to.be.empty;
+
+            for (const staker of stakers) {
+                expect(await stakingHbbft.stakeAmount(stakingPool.address, staker.address)).to.equal(0);
+            }
         });
 
         it("should recover abandoned stakes, mark pool as abandoned and remove from inactive pools", async function () {
