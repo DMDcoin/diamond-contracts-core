@@ -418,6 +418,56 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         stakingTransitionTimeframeLength = stakingParams._stakingTransitionTimeframeLength;
     }
 
+    // Epoch 22 incident fix initializer
+    function initializeV2() external reinitializer(2) {
+        // Search for misconfigured node operators and reset them if any exist
+        address[] memory allPools = _pools.values();
+        for (uint256 i = 0; i < allPools.length; ++i) {
+            address _pool = allPools[i];
+
+            // If the pool is configured correctly, just in case,
+            // check whether it was affected and continue.
+            if (_pool != poolNodeOperator[_pool]) {
+                if (_poolDelegators[_pool].contains(_pool)) {
+                    _poolDelegators[_pool].remove(_pool);
+                }
+
+                continue;
+            }
+
+            // Reset node operator configuration
+            poolNodeOperator[_pool] = address(0);
+            poolNodeOperatorShare[_pool] = 0;
+            poolNodeOperatorLastChangeEpoch[_pool] = 0;
+
+            // Remove the pool as its own delegator added there by mistake
+            _poolDelegators[_pool].remove(_pool);
+
+            uint256 snapshotedPoolTotalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_pool];
+            uint256 expectedValidatorSelfStake = snapshotedPoolTotalStake;
+            address[] memory delegators = _poolDelegators[_pool].values();
+
+            // Fix inconsistent validator stake data in snapshot
+            for (uint256 j = 0; j < delegators.length; ++j) {
+                // small guard, just in case
+                if (delegators[j] == _pool) {
+                    continue;
+                }
+
+                // Subtract snapshoted delegators stake from snapshoted total pool stake
+                // to get 'actual' snapshoted validator stake.
+                expectedValidatorSelfStake -= _delegatorStakeSnapshot[_pool][delegators[j]][stakingEpoch];
+            }
+
+            if (expectedValidatorSelfStake > snapshotedPoolTotalStake) {
+                // In case problem more complex and we were unable to fix it by recalculating
+                snapshotPoolValidatorStakeAmount[stakingEpoch][_pool] = snapshotedPoolTotalStake;
+            } else {
+                snapshotPoolValidatorStakeAmount[stakingEpoch][_pool] = expectedValidatorSelfStake;
+            }
+        }
+    }
+
     /**
      * @dev Sets the minimum stake required for delegators.
      * @param _minStake The new minimum stake amount.
