@@ -25,6 +25,8 @@ const getMnemonic = () => {
     }
 };
 
+
+
 // Ensure that we have all the environment variables we need.
 const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : ethers.Mnemonic.entropyToPhrase(ethers.randomBytes(32));
 
@@ -65,7 +67,15 @@ const config: HardhatUserConfig = {
                     apiURL: "http://62.171.133.46:4000/api",
                     browserURL: "http://62.171.133.46:4000",
                 },
-              },
+            },
+            {
+                network: "mainnet",
+                chainId: 17771,
+                urls: {
+                    apiURL: "https://explorer.bit.diamonds/api",
+                    browserURL: "https://explorer.bit.diamonds"
+                }
+            }
         ],
     },
     contractSizer: {
@@ -194,7 +204,10 @@ const config: HardhatUserConfig = {
             url: "http://127.0.0.1:8545",
             timeout: 1_000_000
         },
-
+        mainnet: {
+            url: "https://rpc.bit.diamonds",
+            chainId: 17771
+        }
     },
     paths: {
         artifacts: "./artifacts",

@@ -564,6 +564,25 @@ describe('StakingHbbft', () => {
                 .withArgs(candidate.stakingAddress());
         });
 
+        it('should not allow to set pool staking address as node operator', async function() {
+            const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
+
+            await stakingHbbft.connect(candidate.staking).addPool(
+                candidate.miningAddress(),
+                ethers.ZeroAddress,
+                0n,
+                candidate.publicKey(),
+                candidate.ipAddress,
+                { value: minStake }
+            );
+
+            const share = 1000;
+
+            await expect(stakingHbbft.connect(candidate.staking).setNodeOperator(candidate.stakingAddress(), share))
+                .to.be.revertedWithCustomError(stakingHbbft, "InvalidNodeOperatorAddress")
+                .withArgs(candidate.stakingAddress());
+        });
+
         it('should not allow to change node operator twice within same epoch', async function () {
             const { stakingHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContractsFixture);
 
@@ -1992,6 +2011,12 @@ describe('StakingHbbft', () => {
             );
 
             expect(await stakingHbbft.stakeAmountTotal(stakingPool.address)).to.be.equal(0);
+            expect(await stakingHbbft.stakeAmount(stakingPool.address, stakingPool.address)).to.equal(0);
+            expect(await stakingHbbft.poolDelegators(stakingPool.address)).to.be.empty;
+
+            for (const staker of stakers) {
+                expect(await stakingHbbft.stakeAmount(stakingPool.address, staker.address)).to.equal(0);
+            }
         });
 
         it("should recover abandoned stakes, mark pool as abandoned and remove from inactive pools", async function () {
@@ -2664,6 +2689,76 @@ describe('StakingHbbft', () => {
             expect(poolInfo.publicKey).to.equal(validator.publicKey());
             expect(poolInfo.internetAddress).to.equal(validator.ipAddress);
             expect(poolInfo.port).to.equal(port);
+        });
+    });
+
+    // The issue happened due to pool staking address set as node operator.
+    // As a result, the pool's staking address was included in the list of delegators
+    // and received extra epoch rewards that it shouldn't have received.
+    //
+    // https://github.com/DMDcoin/Diamond/issues/6
+    describe('Epoch 22 incident', async function () {
+        it('should not add node operator to delegators if poolStaking==nodeOperator', async function () {
+            const {
+                stakingHbbft,
+                blockRewardHbbft,
+                validatorSetHbbft
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator = accounts[10];
+            const nodeOperatorShare = 2000n; // 20% -> 100% of fixed validator rewards goes to the node operator
+
+            await stakingHbbft.connect(validator.staking).stake(
+                validator.stakingAddress(),
+                {value: minStake}
+            );
+
+            const latestBlock = await ethers.provider.getBlock('latest');
+            await validatorSetHbbft.connect(validator.mining).announceAvailability(
+                latestBlock!.number,
+                latestBlock!.hash!
+            );
+
+            let systemSigner = await impersonateAcc(SystemAccountAddress);
+            await blockRewardHbbft.connect(systemSigner).reward(true);
+            await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+            // Set validator as node operator
+            await stakingHbbft.connect(validator.staking).setNodeOperatorMock(
+                validator.stakingAddress(),
+                validator.stakingAddress(),
+                nodeOperatorShare
+            );
+            
+            expect(await stakingHbbft.poolNodeOperator(validator.stakingAddress())).to.eq(validator.stakingAddress());
+
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), {value: minStakeDelegators});
+
+            let delegators = await stakingHbbft.poolDelegators(validator.stakingAddress());
+
+            for (let i = 0; i < 10; i++) {
+                const deltaPotValue = 498417145652170827726272n;
+                await blockRewardHbbft.addToDeltaPot({value: deltaPotValue});
+
+                const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+                await helpers.time.increaseTo(fixedEpochEndTime + 1n);
+                await helpers.mine(1);
+
+                systemSigner = await impersonateAcc(SystemAccountAddress);
+                await blockRewardHbbft.connect(systemSigner).reward(true);
+                await helpers.stopImpersonatingAccount(SystemAccountAddress);
+
+                delegators = await stakingHbbft.poolDelegators(validator.stakingAddress());
+
+                const validatorStake = await stakingHbbft.stakeAmount(validator.stakingAddress(), validator.stakingAddress());
+                const totalStake = await stakingHbbft.stakeAmountTotal(validator.stakingAddress());
+                const delegatorStake = await stakingHbbft.stakeAmount(validator.stakingAddress(), delegator.address);
+
+                expect(delegators.includes(validator.stakingAddress())).to.be.false;
+                expect(validatorStake).lte(totalStake);
+                expect(validatorStake + delegatorStake).lte(totalStake);
+            }
         });
     });
 

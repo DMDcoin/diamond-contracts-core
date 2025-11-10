@@ -18,19 +18,24 @@ let KnownContracts = new Map<string, string>([
 
 
 task("getUpgradeCalldata", "Get contract upgrade calldata to use in DAO proposal")
+    .addFlag("noStorageCheck", "Skip OpenZeppelin storage layout check")
     .addParam("contract", "The core contract address to upgrade")
     .addOptionalParam("output", "Output file name", undefined, types.string)
     .addOptionalParam("impl", "Address of new core contract implementation", undefined, types.string)
     .addOptionalParam("initFunc", "Initialization or reinitialization function", undefined, types.string)
     .addOptionalVariadicPositionalParam("constructorArgsParams", "Contract constructor arguments.", [])
     .setAction(async (taskArgs, hre) => {
-        const { contract, output, impl, initFunc, constructorArgsParams } = taskArgs;
+        const { noStorageCheck, contract, output, impl, initFunc, constructorArgsParams } = taskArgs;
 
         if (!KnownContracts.has(contract)) {
             throw new Error(`${contract} is unknown`);
         }
 
-        await hre.run("validate-storage", { contract: contract });
+        if (!noStorageCheck) {
+            await hre.run("validate-storage", { contract: contract });
+        } else {
+            console.log("WARNING: Storage layout checks skipped!")
+        }
 
         const [deployer] = await hre.ethers.getSigners();
 

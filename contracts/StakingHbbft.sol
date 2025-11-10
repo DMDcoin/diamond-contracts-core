@@ -290,6 +290,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     error InvalidWithdrawAmount(address pool, address delegator, uint256 amount);
     error InvalidNodeOperatorConfiguration(address _operator, uint256 _share);
     error InvalidNodeOperatorShare(uint256 _share);
+    error InvalidNodeOperatorAddress(address _operator);
     error InvalidPublicKey();
     error ZeroWidthrawAmount();
     error MiningAddressPublicKeyMismatch();
@@ -415,6 +416,56 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         // note: this might be still 0 when created in the genesis block.
         stakingEpochStartTime = block.timestamp;
         stakingTransitionTimeframeLength = stakingParams._stakingTransitionTimeframeLength;
+    }
+
+    // Epoch 22 incident fix initializer
+    function initializeV2() external reinitializer(2) {
+        // Search for misconfigured node operators and reset them if any exist
+        address[] memory allPools = _pools.values();
+        for (uint256 i = 0; i < allPools.length; ++i) {
+            address _pool = allPools[i];
+
+            // If the pool is configured correctly, just in case,
+            // check whether it was affected and continue.
+            if (_pool != poolNodeOperator[_pool]) {
+                if (_poolDelegators[_pool].contains(_pool)) {
+                    _poolDelegators[_pool].remove(_pool);
+                }
+
+                continue;
+            }
+
+            // Reset node operator configuration
+            poolNodeOperator[_pool] = address(0);
+            poolNodeOperatorShare[_pool] = 0;
+            poolNodeOperatorLastChangeEpoch[_pool] = 0;
+
+            // Remove the pool as its own delegator added there by mistake
+            _poolDelegators[_pool].remove(_pool);
+
+            uint256 snapshotedPoolTotalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_pool];
+            uint256 expectedValidatorSelfStake = snapshotedPoolTotalStake;
+            address[] memory delegators = _poolDelegators[_pool].values();
+
+            // Fix inconsistent validator stake data in snapshot
+            for (uint256 j = 0; j < delegators.length; ++j) {
+                // small guard, just in case
+                if (delegators[j] == _pool) {
+                    continue;
+                }
+
+                // Subtract snapshoted delegators stake from snapshoted total pool stake
+                // to get 'actual' snapshoted validator stake.
+                expectedValidatorSelfStake -= _delegatorStakeSnapshot[_pool][delegators[j]][stakingEpoch];
+            }
+
+            if (expectedValidatorSelfStake > snapshotedPoolTotalStake) {
+                // In case problem more complex and we were unable to fix it by recalculating
+                snapshotPoolValidatorStakeAmount[stakingEpoch][_pool] = snapshotedPoolTotalStake;
+            } else {
+                snapshotPoolValidatorStakeAmount[stakingEpoch][_pool] = expectedValidatorSelfStake;
+            }
+        }
     }
 
     /**
@@ -832,6 +883,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
             uint256 gatheredPerStakingAddress = stakeAmountTotal[stakingAddress];
             stakeAmountTotal[stakingAddress] = 0;
+            stakeAmount[stakingAddress][stakingAddress] = 0;
             totalStakedAmount -= gatheredPerStakingAddress;
 
             address[] memory delegators = poolDelegators(stakingAddress);
@@ -1276,7 +1328,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 newValue = stakeAmountTotal[_poolStakingAddress] * validatorBonusScore;
 
         _poolsLikelihood[index] = newValue;
-        _poolsLikelihoodSum = _poolsLikelihoodSum - oldValue + newValue;
+        _poolsLikelihoodSum = _poolsLikelihoodSum + newValue - oldValue;
     }
 
     /// @dev The internal function used by the `_stake` and `moveStake` functions.
@@ -1438,6 +1490,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         address _operatorAddress,
         uint256 _operatorSharePercent
     ) private {
+        if (_operatorAddress == _stakingAddress) {
+            revert InvalidNodeOperatorAddress(_operatorAddress);
+        }
+
         if (_operatorSharePercent > MAX_NODE_OPERATOR_SHARE_PERCENT) {
             revert InvalidNodeOperatorShare(_operatorSharePercent);
         }
@@ -1462,7 +1518,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     function _rewardNodeOperator(address _stakingAddress, uint256 _operatorShare) private {
         address nodeOperator = poolNodeOperator[_stakingAddress];
 
-        if (!_poolDelegators[_stakingAddress].contains(nodeOperator)) {
+        // Only add node operator to delegators list if they're not the validator themselves
+        // Validators should never be in the delegators list as they receive validator rewards separately
+        if (nodeOperator != _stakingAddress && !_poolDelegators[_stakingAddress].contains(nodeOperator)) {
             _addPoolDelegator(_stakingAddress, nodeOperator);
         }
 
