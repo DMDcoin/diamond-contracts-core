@@ -16,7 +16,7 @@ export function splitPublicKeys(publicKeys: string[]): string[] {
 
 export async function impersonateAcc(accAddress: string) {
     await helpers.impersonateAccount(accAddress);
-    await helpers.setBalance(accAddress, ethers.parseEther("100"));
+    await helpers.setBalance(accAddress, ethers.parseEther("100000"));
 
     return await ethers.getSigner(accAddress);
 }

@@ -564,7 +564,7 @@ describe('StakingHbbft', () => {
                 .withArgs(candidate.stakingAddress());
         });
 
-        it('should not allow to set pool staking address as node operator', async function() {
+        it('should not allow to set pool staking address as node operator', async function () {
             const { stakingHbbft } = await helpers.loadFixture(deployContractsFixture);
 
             await stakingHbbft.connect(candidate.staking).addPool(
@@ -2711,7 +2711,7 @@ describe('StakingHbbft', () => {
 
             await stakingHbbft.connect(validator.staking).stake(
                 validator.stakingAddress(),
-                {value: minStake}
+                { value: minStake }
             );
 
             const latestBlock = await ethers.provider.getBlock('latest');
@@ -2730,16 +2730,16 @@ describe('StakingHbbft', () => {
                 validator.stakingAddress(),
                 nodeOperatorShare
             );
-            
+
             expect(await stakingHbbft.poolNodeOperator(validator.stakingAddress())).to.eq(validator.stakingAddress());
 
-            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), {value: minStakeDelegators});
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: minStakeDelegators });
 
             let delegators = await stakingHbbft.poolDelegators(validator.stakingAddress());
 
             for (let i = 0; i < 10; i++) {
                 const deltaPotValue = 498417145652170827726272n;
-                await blockRewardHbbft.addToDeltaPot({value: deltaPotValue});
+                await blockRewardHbbft.addToDeltaPot({ value: deltaPotValue });
 
                 const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
                 await helpers.time.increaseTo(fixedEpochEndTime + 1n);
@@ -2759,6 +2759,351 @@ describe('StakingHbbft', () => {
                 expect(validatorStake).lte(totalStake);
                 expect(validatorStake + delegatorStake).lte(totalStake);
             }
+        });
+    });
+
+    // Another issue in rewards distribution, which caused pool self stake
+    // to be higher than pool total stake. Fix includes updates
+    // in orderWithdraw, restake, _snapshotDelegatorStake and _getDelegatorStake functions.
+    describe('Epoch 79 incident', async function () {
+        async function verifyStakeConsistency(
+            stakingHbbft: StakingHbbftMock,
+            poolAddress: string,
+            delegators: string[],
+            toleranceEther: string = "0"
+        ) {
+            const validatorStake = await stakingHbbft.stakeAmount(poolAddress, poolAddress);
+            const totalStake = await stakingHbbft.stakeAmountTotal(poolAddress);
+
+            let sumOfStakes = validatorStake;
+            for (const delegator of delegators) {
+                const delegatorStake = await stakingHbbft.stakeAmount(poolAddress, delegator);
+                sumOfStakes += delegatorStake;
+            }
+
+            expect(sumOfStakes).to.be.lte(totalStake);
+
+            const diff = totalStake - sumOfStakes;
+            const tolerance = ethers.parseEther(toleranceEther) + 100n;
+
+            expect(diff).to.be.lte(tolerance);
+
+            return { sumOfStakes, totalStake, diff };
+        }
+
+        it("should handle multiple withdraw orders and cancels", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator = accounts[10];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("400") });
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+
+            for (let i = 0; i < 5; i++) {
+                await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), ethers.parseEther("100"));
+                await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), ethers.parseEther("-100"));
+            }
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            let caller = await impersonateAcc(blockRewardAddress);
+            await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("100") });
+            await helpers.stopImpersonatingAccount(caller.address);
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+        });
+
+        it("should handle delegator mid-epoch stakes", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator1 = accounts[10];
+            const delegator2 = accounts[11];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            await stakingHbbft.connect(delegator1).stake(validator.stakingAddress(), { value: ethers.parseEther("400") });
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            const epoch1 = await stakingHbbft.stakingEpoch();
+            expect(epoch1).to.equal(1n);
+
+            const delegator2StakeAmount = ethers.parseEther("500");
+            await stakingHbbft.connect(delegator2).stake(validator.stakingAddress(), { value: delegator2StakeAmount });
+
+            const delegator2StakeBefore = await stakingHbbft.stakeAmount(validator.stakingAddress(), delegator2.address);
+            expect(delegator2StakeBefore).to.equal(delegator2StakeAmount);
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            const epoch2 = await stakingHbbft.stakingEpoch();
+            expect(epoch2).to.equal(2n);
+
+            const delegator2StakeAfterEpoch1 = await stakingHbbft.stakeAmount(validator.stakingAddress(), delegator2.address);
+            expect(delegator2StakeAfterEpoch1).to.equal(delegator2StakeAmount);
+
+            let caller = await impersonateAcc(blockRewardAddress);
+            await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("100") });
+            await helpers.stopImpersonatingAccount(caller.address);
+
+            const delegator2StakeAfterRewards = await stakingHbbft.stakeAmount(validator.stakingAddress(), delegator2.address);
+            expect(delegator2StakeAfterRewards).to.be.gt(delegator2StakeAmount);
+
+            await verifyStakeConsistency(
+                stakingHbbft,
+                validator.stakingAddress(),
+                [delegator1.address, delegator2.address]
+            );
+        });
+
+        it("should handle full withdraw and stake again", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator = accounts[10];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("400") });
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+
+            await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), ethers.parseEther("400"));
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("300") });
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            let caller = await impersonateAcc(blockRewardAddress);
+            await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("100") });
+            await helpers.stopImpersonatingAccount(caller.address);
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+        });
+
+        it("should handle multiple delegators actions", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator1 = accounts[10];
+            const delegator2 = accounts[11];
+            const delegator3 = accounts[12];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            await stakingHbbft.connect(delegator1).stake(validator.stakingAddress(), { value: ethers.parseEther("300") });
+            await stakingHbbft.connect(delegator2).stake(validator.stakingAddress(), { value: ethers.parseEther("400") });
+            await stakingHbbft.connect(delegator3).stake(validator.stakingAddress(), { value: ethers.parseEther("200") });
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            const delegators = [delegator1.address, delegator2.address, delegator3.address];
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), delegators);
+
+            await stakingHbbft.connect(delegator1).orderWithdraw(validator.stakingAddress(), ethers.parseEther("150"));
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            await stakingHbbft.connect(delegator1).orderWithdraw(validator.stakingAddress(), ethers.parseEther("-150"));
+            await stakingHbbft.connect(delegator3).stake(validator.stakingAddress(), { value: ethers.parseEther("100") });
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), delegators);
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            let caller = await impersonateAcc(blockRewardAddress);
+            await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("100") });
+            await helpers.stopImpersonatingAccount(caller.address);
+
+            await verifyStakeConsistency(
+                stakingHbbft,
+                validator.stakingAddress(),
+                delegators,
+                "10"
+            );
+        });
+
+        it("should handle random orderWitdhraw/cancel requests", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegators = [accounts[10], accounts[11], accounts[12]];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            for (const delegator of delegators) {
+                await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("300") });
+            }
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            const delegatorAddresses = delegators.map(d => d.address);
+
+            for (let epoch = 0; epoch < 10; ++epoch) {
+                const delegatorIdx = epoch % 3;
+                const delegator = delegators[delegatorIdx];
+
+                if (epoch % 2 === 0) {
+                    const maxWithdraw = await stakingHbbft.maxWithdrawOrderAllowed(validator.stakingAddress(), delegator.address);
+                    if (maxWithdraw >= ethers.parseEther("50")) {
+                        await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), ethers.parseEther("50"));
+                    }
+                } else {
+                    const orderedAmount = await stakingHbbft.orderedWithdrawAmount(validator.stakingAddress(), delegator.address);
+                    if (orderedAmount > 0n) {
+                        await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), -orderedAmount);
+                    }
+                }
+
+                await callReward(blockRewardHbbft, false);
+                await callReward(blockRewardHbbft, true);
+
+                let caller = await impersonateAcc(blockRewardAddress);
+                await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("50") });
+                await helpers.stopImpersonatingAccount(caller.address);
+
+                await verifyStakeConsistency(
+                    stakingHbbft,
+                    validator.stakingAddress(),
+                    delegatorAddresses,
+                    String(epoch + 2)
+                );
+            }
+
+            const finalValidator = await stakingHbbft.stakeAmount(validator.stakingAddress(), validator.stakingAddress());
+            const finalTotal = await stakingHbbft.stakeAmountTotal(validator.stakingAddress());
+
+            await verifyStakeConsistency(
+                stakingHbbft,
+                validator.stakingAddress(),
+                delegatorAddresses,
+                "15"
+            );
+
+            expect(finalValidator).to.be.lte(finalTotal);
+        });
+
+        it("should handle validator stake withdraw order", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator = accounts[10];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("400") });
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            let caller = await impersonateAcc(blockRewardAddress);
+            await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("100") });
+            await helpers.stopImpersonatingAccount(caller.address);
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+        });
+
+        it("should handle rapid stake/withdraw cycle", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator = accounts[10];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("2000") });
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            for (let i = 0; i < 20; i++) {
+                if (i % 2 === 0) {
+                    await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("10") });
+                } else {
+                    const maxOrder = await stakingHbbft.maxWithdrawOrderAllowed(validator.stakingAddress(), delegator.address);
+                    if (maxOrder >= ethers.parseEther("10")) {
+                        await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), ethers.parseEther("10"));
+                    }
+                }
+            }
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            let caller = await impersonateAcc(blockRewardAddress);
+            await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("100") });
+            await helpers.stopImpersonatingAccount(caller.address);
+
+            await verifyStakeConsistency(stakingHbbft, validator.stakingAddress(), [delegator.address]);
+        });
+
+        it("should keep stake data consistent after orderWithdraw/cancel", async function () {
+            const { stakingHbbft, blockRewardHbbft, candidateMinStake } = await helpers.loadFixture(deployContractsFixture);
+
+            const validator = initialValidators[0];
+            const delegator = accounts[10];
+            const blockRewardAddress = await blockRewardHbbft.getAddress();
+
+            await stakingHbbft.connect(validator.staking).stake(validator.stakingAddress(), { value: candidateMinStake });
+            await stakingHbbft.connect(delegator).stake(validator.stakingAddress(), { value: ethers.parseEther("400") });
+
+            await callReward(blockRewardHbbft, false);
+            await callReward(blockRewardHbbft, true);
+
+            for (let i = 0; i < 5; ++i) {
+                await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), ethers.parseEther("200"));
+
+                await callReward(blockRewardHbbft, false);
+                await callReward(blockRewardHbbft, true);
+
+                await stakingHbbft.connect(delegator).orderWithdraw(validator.stakingAddress(), ethers.parseEther("-200"));
+
+                let caller = await impersonateAcc(blockRewardAddress);
+                await stakingHbbft.connect(caller).restake(validator.stakingAddress(), 30n, { value: ethers.parseEther("100") });
+                await helpers.stopImpersonatingAccount(caller.address);
+
+                const result = await verifyStakeConsistency(
+                    stakingHbbft,
+                    validator.stakingAddress(),
+                    [delegator.address],
+                );
+
+                expect(result.diff).to.be.lte(100n);
+            }
+
+            const finalValidator = await stakingHbbft.stakeAmount(validator.stakingAddress(), validator.stakingAddress());
+            const finalTotal = await stakingHbbft.stakeAmountTotal(validator.stakingAddress());
+
+            expect(finalValidator).to.be.lte(finalTotal);
         });
     });
 
