@@ -420,50 +420,27 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     // Epoch 79 incident fix initializer
     function initializeV3() external reinitializer(3) {
-        // Search for misconfigured node operators and reset them if any exist
+        uint256 _epoch = stakingEpoch;
         address[] memory allPools = _pools.values();
+
         for (uint256 i = 0; i < allPools.length; ++i) {
             address _pool = allPools[i];
 
-            // If the pool is configured correctly, just in case,
-            // check whether it was affected and continue.
-            if (_pool != poolNodeOperator[_pool]) {
-                if (_poolDelegators[_pool].contains(_pool)) {
-                    _poolDelegators[_pool].remove(_pool);
-                }
+            bool validSnapshot = snapshotPoolTotalStakeAmount[_epoch][_pool] >=
+                snapshotPoolValidatorStakeAmount[_epoch][_pool];
 
+            bool validStake = stakeAmountTotal[_pool] >= stakeAmount[_pool][_pool];
+
+            if (validStake && validSnapshot) {
                 continue;
             }
 
-            // Reset node operator configuration
-            poolNodeOperator[_pool] = address(0);
-            poolNodeOperatorShare[_pool] = 0;
-            poolNodeOperatorLastChangeEpoch[_pool] = 0;
-
-            // Remove the pool as its own delegator added there by mistake
-            _poolDelegators[_pool].remove(_pool);
-
-            uint256 snapshotedPoolTotalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_pool];
-            uint256 expectedValidatorSelfStake = snapshotedPoolTotalStake;
-            address[] memory delegators = _poolDelegators[_pool].values();
-
-            // Fix inconsistent validator stake data in snapshot
-            for (uint256 j = 0; j < delegators.length; ++j) {
-                // small guard, just in case
-                if (delegators[j] == _pool) {
-                    continue;
-                }
-
-                // Subtract snapshoted delegators stake from snapshoted total pool stake
-                // to get 'actual' snapshoted validator stake.
-                expectedValidatorSelfStake -= _delegatorStakeSnapshot[_pool][delegators[j]][stakingEpoch];
+            if (!validSnapshot) {
+                snapshotPoolValidatorStakeAmount[_epoch][_pool] = snapshotPoolTotalStakeAmount[_epoch][_pool];
             }
 
-            if (expectedValidatorSelfStake > snapshotedPoolTotalStake) {
-                // In case problem more complex and we were unable to fix it by recalculating
-                snapshotPoolValidatorStakeAmount[stakingEpoch][_pool] = snapshotedPoolTotalStake;
-            } else {
-                snapshotPoolValidatorStakeAmount[stakingEpoch][_pool] = expectedValidatorSelfStake;
+            if (!validStake) {
+                stakeAmount[_pool][_pool] = stakeAmountTotal[_pool];
             }
         }
     }
@@ -1606,7 +1583,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         address _delegator,
         uint256 _delegatorsShare,
         uint256 _totalStake
-    ) private  returns (uint256) {
+    ) private returns (uint256) {
         uint256 delegatorStake = _getDelegatorStake(stakingEpoch, _poolStakingAddress, _delegator);
 
         if (delegatorStake == 0) {
