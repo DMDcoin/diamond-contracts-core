@@ -2553,7 +2553,7 @@ describe('StakingHbbft', () => {
                 let potsShares = await blockRewardHbbft.getPotsShares(validators.length);
 
                 let validatorRewards = potsShares.totalRewards - potsShares.governancePotAmount;
-                let poolReward = validatorRewards;
+                let poolReward = validatorRewards / BigInt(validators.length);
 
                 let poolTotalStake = await stakingHbbft.stakeAmountTotal(validator.stakingAddress());
 
