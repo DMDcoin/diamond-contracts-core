@@ -27,7 +27,7 @@ const getMnemonic = () => {
 
 // Create variable with `npx hardhat vars set DEV_DEPLOYER_PRIVATE_KEY`
 // Input prompt will be displayed. Potentially "more safe" replacement of .env files.
-const DEV_DEPLOYER_PRIVATE_KEY = vars.get("DEV_DEPLOYER_PRIVATE_KEY");
+// const DEV_DEPLOYER_PRIVATE_KEY = vars.get("DEV_DEPLOYER_PRIVATE_KEY");
 
 // Ensure that we have all the environment variables we need.
 const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : ethers.Mnemonic.entropyToPhrase(ethers.randomBytes(32));
@@ -209,7 +209,7 @@ const config: HardhatUserConfig = {
         mainnet: {
             url: "https://rpc.bit.diamonds",
             chainId: 17771,
-            accounts: [DEV_DEPLOYER_PRIVATE_KEY],
+            // accounts: [DEV_DEPLOYER_PRIVATE_KEY],
             hardfork: "london",
         }
     },
