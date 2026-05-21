@@ -37,7 +37,7 @@ contract BlockRewardHbbft is
     /// delegators) of the specified pool (mining address) for the specified staking epoch.
     mapping(uint256 => mapping(address => uint256)) public epochPoolNativeReward;
 
-    /// @dev The total reward amount in native coins which is not yet distributed among pools.
+    /// @dev Unused, to be removed in the next upgrade.
     uint256 public nativeRewardUndistributed;
 
     /// @dev The validator's min reward percent which was actual at the specified staking epoch.
@@ -269,8 +269,6 @@ contract BlockRewardHbbft is
             return 0;
         }
 
-        deltaPot -= shares.deltaPotAmount;
-
         uint256 distributedAmount = shares.governancePotAmount;
         uint256 rewardToDistribute = shares.totalRewards - distributedAmount;
 
@@ -280,15 +278,17 @@ contract BlockRewardHbbft is
             validators
         );
 
-        // No rewards distributed in this epoch
+        // No rewards distributed in this epoch. Undistributed rewards remain in the pots.
         if (numRewardedValidators == 0) {
-            nativeRewardUndistributed = shares.totalRewards - distributedAmount;
-
             return 0;
         }
 
-        // Share the reward equally among the validators.
-        uint256 poolReward = rewardToDistribute / numRewardedValidators;
+        deltaPot -= shares.deltaPotAmount;
+
+        // Share the reward among the validators.
+        // The validator must receive only its own share (e.g. 1/25).
+        // Undistributed rewards will stay in the reinsert pot.
+        uint256 poolReward = rewardToDistribute / numValidators;
         uint256 minValidatorRewardPercent = validatorMinRewardPercent[_stakingEpoch];
 
         if (poolReward != 0) {
@@ -307,8 +307,6 @@ contract BlockRewardHbbft is
                 stakingContract.restake{ value: poolReward }(poolStakingAddress, minValidatorRewardPercent);
             }
         }
-
-        nativeRewardUndistributed = shares.totalRewards - distributedAmount;
 
         TransferUtils.transferNative(governancePotAddress, shares.governancePotAmount);
 
@@ -446,7 +444,7 @@ contract BlockRewardHbbft is
         uint256 stakingEpoch,
         address[] memory validators
     ) private view returns (uint256, bool[] memory) {
-        // Indicates whether the validator is entitled to share the rewartds or not.
+        // Indicates whether the validator is entitled to share the rewards or not.
         bool[] memory isRewardedValidator = new bool[](validators.length);
 
         uint256 currentEpochStartTime = stakingContract.stakingEpochStartTime();
@@ -490,13 +488,23 @@ contract BlockRewardHbbft is
             maxValidators /
             100;
 
+        if (shares.deltaPotAmount > deltaPot) {
+            shares.deltaPotAmount = deltaPot;
+        }
+
+        uint256 reinsertPotValue = this.reinsertPot();
+
         shares.reinsertPotAmount =
-            (this.reinsertPot() * numValidators * epochPercent) /
+            (reinsertPotValue * numValidators * epochPercent) /
             reinsertPotPayoutFraction /
             maxValidators /
             100;
 
-        shares.totalRewards = nativeRewardUndistributed + shares.deltaPotAmount + shares.reinsertPotAmount;
+        if (shares.reinsertPotAmount > reinsertPotValue) {
+            shares.reinsertPotAmount = reinsertPotValue;
+        }
+
+        shares.totalRewards = shares.deltaPotAmount + shares.reinsertPotAmount;
 
         shares.governancePotAmount =
             (shares.totalRewards * governancePotShareNominator) /
