@@ -1,6 +1,6 @@
 import fs from "fs";
 import { ethers } from "ethers";
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, vars } from "hardhat/config";
 
 import 'dotenv/config'
 import "@nomicfoundation/hardhat-toolbox";
@@ -25,7 +25,9 @@ const getMnemonic = () => {
     }
 };
 
-
+// Create variable with `npx hardhat vars set DEV_DEPLOYER_PRIVATE_KEY`
+// Input prompt will be displayed. Potentially "more safe" replacement of .env files.
+const DEV_DEPLOYER_PRIVATE_KEY = vars.get("DEV_DEPLOYER_PRIVATE_KEY");
 
 // Ensure that we have all the environment variables we need.
 const mnemonic: string = process.env.MNEMONIC ? process.env.MNEMONIC : ethers.Mnemonic.entropyToPhrase(ethers.randomBytes(32));
@@ -206,7 +208,9 @@ const config: HardhatUserConfig = {
         },
         mainnet: {
             url: "https://rpc.bit.diamonds",
-            chainId: 17771
+            chainId: 17771,
+            accounts: [DEV_DEPLOYER_PRIVATE_KEY],
+            hardfork: "london",
         }
     },
     paths: {
