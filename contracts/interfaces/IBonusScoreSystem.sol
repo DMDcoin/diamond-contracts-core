@@ -5,7 +5,8 @@ enum ScoringFactor {
     StandByBonus,
     NoStandByPenalty,
     NoKeyWritePenalty,
-    BadPerformancePenalty
+    BadPerformancePenalty,
+    WithdrawReset
 }
 
 interface IBonusScoreSystem {
@@ -18,4 +19,6 @@ interface IBonusScoreSystem {
     function penaliseNoKeyWrite(address mining) external;
 
     function penaliseBadPerformance(address mining, uint256 time) external;
+
+    function resetBonusScore(address mining) external;
 }

@@ -58,6 +58,10 @@ contract BonusScoreSystemMock is IBonusScoreSystem {
         validatorScore[mining] = value;
     }
 
+    function resetBonusScore(address mining) external {
+        validatorScore[mining] = MIN_SCORE;
+    }
+
     function getValidatorScore(address mining) external view returns (uint256) {
         return Math.max(validatorScore[mining], MIN_SCORE);
     }

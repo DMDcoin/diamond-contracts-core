@@ -25,8 +25,10 @@ contract ReentrancyAttacker {
             bonusScoreSystem.penaliseNoStandBy(mining, timeArgValue);
         } else if (funcId == IBonusScoreSystem.penaliseBadPerformance.selector){
             bonusScoreSystem.penaliseBadPerformance(mining, timeArgValue);
-        } else {
+        } else if (funcId == IBonusScoreSystem.penaliseNoKeyWrite.selector) {
             bonusScoreSystem.penaliseNoKeyWrite(mining);
+        } else {
+            bonusScoreSystem.resetBonusScore(mining);
         }
     }
 
@@ -41,8 +43,10 @@ contract ReentrancyAttacker {
             bonusScoreSystem.penaliseNoStandBy(mining, timeArgValue);
         } else if (funcId == IBonusScoreSystem.penaliseBadPerformance.selector){
             bonusScoreSystem.penaliseBadPerformance(mining, timeArgValue);
-        } else {
+        } else if (funcId == IBonusScoreSystem.penaliseNoKeyWrite.selector) {
             bonusScoreSystem.penaliseNoKeyWrite(mining);
+        } else {
+            bonusScoreSystem.resetBonusScore(mining);
         }
     }
 }

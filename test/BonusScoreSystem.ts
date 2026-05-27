@@ -23,7 +23,8 @@ enum ScoringFactor {
     StandByBonus,
     NoStandByPenalty,
     NoKeyWritePenalty,
-    BadPerformancePenalty
+    BadPerformancePenalty,
+    WithdrawReset,
 }
 
 const ScoringFactors = [
@@ -142,12 +143,8 @@ describe("BonusScoreSystem", function () {
     }
 
     async function impersonateAcc(accAddress: string) {
+        await helpers.setBalance(accAddress, ethers.parseEther("10"));
         await helpers.impersonateAccount(accAddress);
-
-        await owner.sendTransaction({
-            to: accAddress,
-            value: ethers.parseEther('10'),
-        });
 
         return await ethers.getSigner(accAddress);
     }
@@ -360,7 +357,7 @@ describe("BonusScoreSystem", function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
 
             const steps = [25, 30, 35, 40, 45, 50];
-            
+
             for (const step of steps) {
                 await bonusScoreSystem.setStandByFactor(step);
                 expect(await bonusScoreSystem.standByFactor()).to.equal(step);
@@ -402,7 +399,7 @@ describe("BonusScoreSystem", function () {
             // From 10, can only go to 15
             await expect(bonusScoreSystem.setStandByFactor(5))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
-            
+
             await expect(bonusScoreSystem.setStandByFactor(20))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
 
@@ -418,7 +415,7 @@ describe("BonusScoreSystem", function () {
             // From 50, can only go to 45
             await expect(bonusScoreSystem.setStandByFactor(55))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
-            
+
             await expect(bonusScoreSystem.setStandByFactor(40))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "NewValueOutOfRange");
 
@@ -428,9 +425,9 @@ describe("BonusScoreSystem", function () {
 
         it('should validate all allowed values can be set in sequence', async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
-            
+
             const allowedValues = [10, 15, 20, 25, 30, 35, 40, 45, 50];
-            
+
             // Test ascending sequence
             let currentValue = 20; // starting value
             for (let i = allowedValues.indexOf(currentValue) + 1; i < allowedValues.length; i++) {
@@ -467,7 +464,7 @@ describe("BonusScoreSystem", function () {
         it('should revert for unknown scoring factor', async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
 
-            const unknownFactor = ScoringFactor.BadPerformancePenalty + 1;
+            const unknownFactor = ScoringFactor.WithdrawReset + 1;
 
             await expect(
                 bonusScoreSystem.getScoringFactorValue(unknownFactor)
@@ -1109,6 +1106,51 @@ describe("BonusScoreSystem", function () {
 
             await expect(reentrancyAttacker.attack(mining, timestamp))
                 .to.be.revertedWithCustomError(bonusScoreSystem, "ReentrancyGuardReentrantCall");
+        });
+    });
+
+    describe('resetBonusScore', async () => {
+        it('should restrict calling to StakingHbbft contract', async function () {
+            const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
+            const caller = users[5];
+
+            await expect(bonusScoreSystem.connect(caller).resetBonusScore(randomWallet()))
+                .to.be.revertedWithCustomError(bonusScoreSystem, "Unauthorized");
+        });
+
+        it('should set validator score to MIN_SCORE', async function() {
+            const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+            const scoreBefore = 256n;
+
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const caller = await impersonateAcc(await stakingHbbft.getAddress());
+            
+            expect(await bonusScoreSystem.connect(caller).resetBonusScore(validator));
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.eq(MIN_SCORE);
+
+            await helpers.stopImpersonatingAccount(caller.address);
+        })
+
+        it('should emit event', async function () {
+            const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
+
+            const validator = initialValidators[0];
+
+            const scoreBefore = 1000n;
+            const scoreAfter = MIN_SCORE;
+            await increaseScore(bonusScoreSystem, validator, scoreBefore);
+            expect(await bonusScoreSystem.getValidatorScore(validator)).to.equal(scoreBefore);
+
+            const caller = await impersonateAcc(await stakingHbbft.getAddress());
+            await expect(bonusScoreSystem.connect(caller).resetBonusScore(validator))
+                .to.emit(bonusScoreSystem, "ValidatorScoreChanged")
+                .withArgs(validator, ScoringFactor.WithdrawReset, scoreAfter);
+
+            await helpers.stopImpersonatingAccount(caller.address);
         });
     });
 });
