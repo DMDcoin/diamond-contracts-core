@@ -9,6 +9,7 @@ import {
     ValidatorSetHbbftMock,
     StakingHbbftMock,
     KeyGenHistory,
+    BonusScoreSystemMock
 } from "../src/types";
 
 import { getNValidatorsPartNAcks } from "./testhelpers/data";
@@ -53,7 +54,7 @@ describe('StakingHbbft', () => {
         await deployDao();
 
         const bonusScoreContractMockFactory = await ethers.getContractFactory("BonusScoreSystemMock");
-        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy();
+        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy() as unknown as BonusScoreSystemMock;
         await bonusScoreContractMock.waitForDeployment();
 
         const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
@@ -170,7 +171,8 @@ describe('StakingHbbft', () => {
             randomHbbft,
             keyGenHistory,
             candidateMinStake,
-            delegatorMinStake
+            delegatorMinStake,
+            bonusScoreContractMock
         };
     }
 
@@ -1878,6 +1880,51 @@ describe('StakingHbbft', () => {
             likelihoodInfo = await stakingHbbft.getPoolsLikelihood();
             expect(likelihoodInfo.likelihoods[0]).to.be.equal(stakeAmount / 2n);
             expect(likelihoodInfo.sum).to.be.equal(stakeAmount / 2n);
+        });
+
+        it('should reset bonus score on full withdraw by pool owner', async function () {
+            const {
+                stakingHbbft,
+                validatorSetHbbft,
+                bonusScoreContractMock,
+            } = await helpers.loadFixture(deployContractsFixture);
+
+            const pool = initialValidators[1].staking;
+
+            expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, pool.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmount(pool.address, delegatorAddress.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, delegatorAddress.address)).to.be.equal(0n);
+
+            await stakingHbbft.connect(pool).stake(pool.address, { value: stakeAmount });
+            expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.be.equal(stakeAmount);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, pool.address)).to.be.equal(stakeAmount);
+
+            await stakingHbbft.connect(delegatorAddress).stake(pool.address, { value: stakeAmount });
+            expect(await stakingHbbft.stakeAmount(pool.address, delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingHbbft.stakeAmountByCurrentEpoch(pool.address, delegatorAddress.address)).to.be.equal(stakeAmount);
+            expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(stakeAmount * 2n);
+
+            const miningAddress = await validatorSetHbbft.miningByStakingAddress(pool.address);
+            const score = 512n;
+            const minScore = 1n;
+            await bonusScoreContractMock.setValidatorScore(miningAddress, score);
+
+            expect(await bonusScoreContractMock.getValidatorScore(miningAddress)).to.eq(score);
+
+            await expect(stakingHbbft.connect(pool).withdraw(pool.address, stakeAmount))
+                .to.emit(stakingHbbft, "WithdrewStake")
+                .withArgs(
+                    pool.address,
+                    pool.address,
+                    0n,
+                    stakeAmount
+                );
+
+            expect(await bonusScoreContractMock.getValidatorScore(miningAddress)).to.eq(minScore);
+
+            expect(await stakingHbbft.stakeAmount(pool.address, pool.address)).to.be.equal(0n);
+            expect(await stakingHbbft.stakeAmountTotal(pool.address)).to.be.equal(stakeAmount);
         });
     });
 
