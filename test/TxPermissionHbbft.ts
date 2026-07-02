@@ -508,6 +508,46 @@ describe('TxPermissionHbbft', () => {
 
                 expect(await txPermission.minimumGasPrice()).to.equal(minGasPrice);
             });
+
+            it("should set allowed minimum gas price value range", async function () {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                const funcSelector = txPermission.interface.getFunction("setMinimumGasPrice").selector;
+                const allowedRange = (await txPermission.getAllowedParamsRangeWithSelector(funcSelector)).range;
+
+                const expectedRange = [
+                    ethers.parseUnits("0.1", "gwei"),
+                    ethers.parseUnits("0.2", "gwei"),
+                    ethers.parseUnits("0.4", "gwei"),
+                    ethers.parseUnits("0.6", "gwei"),
+                    ethers.parseUnits("0.8", "gwei"),
+                    ethers.parseUnits("1", "gwei"),
+                    ethers.parseUnits("2", "gwei"),
+                    ethers.parseUnits("4", "gwei"),
+                    ethers.parseUnits("6", "gwei"),
+                    ethers.parseUnits("8", "gwei"),
+                    ethers.parseUnits("10", "gwei"),
+                    ethers.parseUnits("15", "gwei"),
+                    ethers.parseUnits("20", "gwei"),
+                    ethers.parseUnits("30", "gwei"),
+                    ethers.parseUnits("40", "gwei"),
+                    ethers.parseUnits("50", "gwei"),
+                ]
+
+                expect(allowedRange).to.deep.eq(expectedRange);
+            });
+
+            it("should set minimumGasPrice to 50 gwei in V2", async function() {
+                const { txPermission } = await helpers.loadFixture(deployContractsFixture);
+
+                const defaultGasPrice = ethers.parseUnits("1", "gwei");
+                expect(await txPermission.minimumGasPrice()).to.eq(defaultGasPrice);
+
+                await txPermission.initializeV2();
+
+                const expectedGasPrice = ethers.parseUnits("50", "gwei");
+                expect(await txPermission.minimumGasPrice()).to.eq(expectedGasPrice);
+            });
         });
 
         describe('setBlockGasLimit()', async function () {

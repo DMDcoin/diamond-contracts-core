@@ -118,6 +118,7 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
     /// @dev Initializes the contract at network startup.
     /// Can only be called by the constructor of the `Initializer` contract or owner.
+    /// Current initialized version = 2.
     /// @param _allowed The addresses for which transactions of any type must be allowed.
     /// See the `allowedTxTypes` getter.
     /// @param _certifier The address of the `Certifier` contract. It is used by `allowedTxTypes` function to know
@@ -156,35 +157,29 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         minimumGasPrice = DEFAULT_GAS_PRICE;
         blockGasLimit = DEFAULT_BLOCK_GAS_LIMIT;
 
-        uint256[] memory minGasPriceAllowedParams = new uint256[](11);
-        minGasPriceAllowedParams[0] = 0.1 gwei;
-        minGasPriceAllowedParams[1] = 0.2 gwei;
-        minGasPriceAllowedParams[2] = 0.4 gwei;
-        minGasPriceAllowedParams[3] = 0.6 gwei;
-        minGasPriceAllowedParams[4] = 0.8 gwei;
-        minGasPriceAllowedParams[5] = 1 gwei;
-        minGasPriceAllowedParams[6] = 2 gwei;
-        minGasPriceAllowedParams[7] = 4 gwei;
-        minGasPriceAllowedParams[8] = 6 gwei;
-        minGasPriceAllowedParams[9] = 8 gwei;
-        minGasPriceAllowedParams[10] = 10 gwei;
-
         __initAllowedChangeableParameter(
             this.setMinimumGasPrice.selector,
             this.minimumGasPrice.selector,
-            minGasPriceAllowedParams
+            _minGasPriceAllowedParams()
         );
-
-        uint256[] memory blockGasLimitAllowedParams = new uint256[](10);
-        for (uint256 i = 0; i < blockGasLimitAllowedParams.length; ++i) {
-            blockGasLimitAllowedParams[i] = (i + 1) * 1e8;
-        }
 
         __initAllowedChangeableParameter(
             this.setBlockGasLimit.selector,
             this.blockGasLimit.selector,
-            blockGasLimitAllowedParams
+            _blockGasLimitAllowedParams()
         );
+    }
+
+    /// @notice Increases the range of possible parameters for minimumGasPrice value.
+    /// Set current minimumGasPrice = 50 gwei.
+    function initializeV2() external reinitializer(2) {
+        __initAllowedChangeableParameter(
+            this.setMinimumGasPrice.selector,
+            this.minimumGasPrice.selector,
+            _minGasPriceAllowedParams()
+        );
+
+        minimumGasPrice = 50 gwei;
     }
 
     /// @dev Adds the address for which transactions of any type must be allowed.
@@ -513,5 +508,38 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         }
 
         return result;
+    }
+
+    function _blockGasLimitAllowedParams() private pure returns (uint256[] memory) {
+        uint256[] memory blockGasLimitAllowedParams = new uint256[](10);
+
+        for (uint256 i = 0; i < blockGasLimitAllowedParams.length; ++i) {
+            blockGasLimitAllowedParams[i] = (i + 1) * 1e8;
+        }
+
+        return blockGasLimitAllowedParams;
+    }
+
+    function _minGasPriceAllowedParams() private pure returns (uint256[] memory) {
+        uint256[] memory minGasPriceAllowedParams = new uint256[](16);
+
+        minGasPriceAllowedParams[0] = 0.1 gwei;
+        minGasPriceAllowedParams[1] = 0.2 gwei;
+        minGasPriceAllowedParams[2] = 0.4 gwei;
+        minGasPriceAllowedParams[3] = 0.6 gwei;
+        minGasPriceAllowedParams[4] = 0.8 gwei;
+        minGasPriceAllowedParams[5] = 1 gwei;
+        minGasPriceAllowedParams[6] = 2 gwei;
+        minGasPriceAllowedParams[7] = 4 gwei;
+        minGasPriceAllowedParams[8] = 6 gwei;
+        minGasPriceAllowedParams[9] = 8 gwei;
+        minGasPriceAllowedParams[10] = 10 gwei;
+        minGasPriceAllowedParams[11] = 15 gwei;
+        minGasPriceAllowedParams[12] = 20 gwei;
+        minGasPriceAllowedParams[13] = 30 gwei;
+        minGasPriceAllowedParams[14] = 40 gwei;
+        minGasPriceAllowedParams[15] = 50 gwei;
+
+        return minGasPriceAllowedParams;
     }
 }
