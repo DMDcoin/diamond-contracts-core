@@ -29,7 +29,7 @@ contract TestRewardCall is Test {
             uint256 delegatorStake = staking.stakeAmount(buggedPool, delegators[i]);
         }
 
-        staking.initializeV2();
+        // staking.initializeV2();
 
         blockReward.reward(true);
 

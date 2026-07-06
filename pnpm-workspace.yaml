@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+  keccak: true
+  node-hid: true
+  usb: true
