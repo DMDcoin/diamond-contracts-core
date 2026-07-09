@@ -4,6 +4,7 @@ import hardhatToolboxViem from "@nomicfoundation/hardhat-toolbox-viem";
 import hardhatLedger from "@nomicfoundation/hardhat-ledger";
 import hardhatFoundry from "@nomicfoundation/hardhat-foundry";
 import hardhatContractSizer from '@solidstate/hardhat-contract-sizer';
+import hardhatUpgrades from '@openzeppelin/hardhat-upgrades';
 
 // Set encrypted variables using:
 // pnpm hardhat keystore set DEV_DEPLOYER_PRIVATE_KEY
@@ -17,6 +18,7 @@ export default defineConfig({
         hardhatLedger,
         hardhatFoundry,
         hardhatContractSizer,
+        hardhatUpgrades,
     ],
     solidity: {
         version: "0.8.25",

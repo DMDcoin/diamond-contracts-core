@@ -2,4 +2,5 @@ allowBuilds:
   esbuild: true
   keccak: true
   node-hid: true
+  secp256k1: true
   usb: true

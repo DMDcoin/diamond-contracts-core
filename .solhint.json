@@ -5,6 +5,7 @@
     "code-complexity": ["warn", 25],
     "function-max-lines": ["warn", 160],
     "func-visibility": ["warn", { "ignoreConstructors": true }],
-    "max-states-count": ["warn", 40]
+    "max-states-count": ["warn", 40],
+    "use-natspec": "off"
   }
 }
