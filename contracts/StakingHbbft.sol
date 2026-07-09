@@ -1444,6 +1444,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             } else {
                 _removePool(_poolStakingAddress);
             }
+
+            bonusScoreContract.resetBonusScore(miningAddress);
         } else {
             _removePoolDelegator(_poolStakingAddress, _staker);
 

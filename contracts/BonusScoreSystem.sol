@@ -69,6 +69,13 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         _;
     }
 
+    modifier onlyStakingContract() {
+        if (msg.sender != address(stakingHbbft)) {
+            revert Unauthorized();
+        }
+        _;
+    }
+
     /// @dev Contract initializer.
     /// @param _owner Contract owner address.
     /// @param _validatorSetHbbft ValidatorSetHbbft contract address.
@@ -152,6 +159,12 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         _updateValidatorScore(mining, ScoringFactor.BadPerformancePenalty, time);
     }
 
+    /// @dev Reset validator score (set score = MIN_SCORE), used if it's stake has been fully withdrawn.
+    /// @param mining Validator mining address
+    function resetBonusScore(address mining) external onlyStakingContract {
+        _resetScore(mining);
+    }
+
     /// @dev Returns current bonus/penalty value for specified scoring factor `factor`
     /// @param factor Type of scoring factor.
     /// @return value Scoring factor value.
@@ -228,6 +241,14 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         stakingHbbft.updatePoolLikelihood(mining, newScore);
 
         emit ValidatorScoreChanged(mining, factor, newScore);
+    }
+
+    function _resetScore(address mining) private {
+        uint256 newScore = MIN_SCORE;
+
+        _validatorScore[mining] = newScore;
+
+        emit ValidatorScoreChanged(mining, ScoringFactor.WithdrawReset, newScore);
     }
 
     function _getAccumulatedScorePoints(ScoringFactor factor, uint256 timeInterval) private view returns (uint256) {
