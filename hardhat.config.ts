@@ -1,10 +1,9 @@
-import { english, generateMnemonic } from 'viem/accounts'
+import { english, generateMnemonic } from "viem/accounts";
 import { configVariable, defineConfig } from "hardhat/config";
 import hardhatToolboxViem from "@nomicfoundation/hardhat-toolbox-viem";
 import hardhatLedger from "@nomicfoundation/hardhat-ledger";
 import hardhatFoundry from "@nomicfoundation/hardhat-foundry";
-import hardhatContractSizer from '@solidstate/hardhat-contract-sizer';
-import hardhatUpgrades from '@openzeppelin/hardhat-upgrades';
+import hardhatContractSizer from "@solidstate/hardhat-contract-sizer";
 
 // Set encrypted variables using:
 // pnpm hardhat keystore set DEV_DEPLOYER_PRIVATE_KEY
@@ -12,15 +11,21 @@ import hardhatUpgrades from '@openzeppelin/hardhat-upgrades';
 const accounts = [configVariable("DEV_DEPLOYER_PRIVATE_KEY")];
 const mnemonic = configVariable("MNEMONIC") || generateMnemonic(english);
 
+const proxyContractsToBuild = [
+    "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol",
+    "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol",
+    "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol",
+];
+
 export default defineConfig({
     plugins: [
         hardhatToolboxViem,
         hardhatLedger,
         hardhatFoundry,
         hardhatContractSizer,
-        hardhatUpgrades,
     ],
     solidity: {
+        npmFilesToBuild: proxyContractsToBuild,
         version: "0.8.25",
         settings: {
             optimizer: {
@@ -34,12 +39,12 @@ export default defineConfig({
         },
     },
     networks: {
-        hardhat: {
+        default: {
             type: "edr-simulated",
             accounts: {
                 count: 100,
                 mnemonic,
-                accountsBalance: "1000000000000000000000000000"
+                accountsBalance: "1000000000000000000000000000",
             },
             chainId: 31337,
             allowUnlimitedContractSize: true,
@@ -90,7 +95,7 @@ export default defineConfig({
             chainType: "l1",
             url: "https://rpc.bit.diamonds",
             chainId: 17771,
-            accounts: accounts
+            accounts: accounts,
         },
         forked: {
             type: "http",
@@ -101,7 +106,7 @@ export default defineConfig({
         },
     },
     coverage: {
-        skipFiles: ["interfaces", "upgradeability", "mockContracts"],
+        skipFiles: ["interfaces", "mocks"],
     },
     paths: {
         sources: "./contracts",
