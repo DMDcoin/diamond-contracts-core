@@ -728,10 +728,12 @@ describe("BlockRewardHbbft", function () {
         });
     });
 
-    it("should get governance address", async function () {
-        const { blockReward } = await helpers.loadFixture(deployContractsFixture);
+    describe("getGovernanceAddress", async function () {
+        it("should get governance address", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
 
-        assert.equal(await blockReward.read.getGovernanceAddress(), GovernanceAddress);
+            assert.equal(await blockReward.read.getGovernanceAddress(), GovernanceAddress);
+        });
     });
 
     describe("staking epochs lifecycle", async function () {
@@ -1053,13 +1055,12 @@ describe("BlockRewardHbbft", function () {
             const { blockReward, validatorSet, staking, params } = contracts;
 
             for (const validator of additionalValidators) {
-                const uncompressedPublicKey = validator.publicKey();
                 await staking.write.addPool(
                     [
                         validator.miningAddress() as Address,
                         zeroAddress,
                         0n,
-                        `0x${uncompressedPublicKey.slice(4)}`,
+                        validator.publicKey(),
                         validator.ipAddress as `0x${string}`,
                     ],
                     { account: validator.staking, value: params.candidateMinStake },

@@ -38,10 +38,10 @@ export class Validator {
         public mining: Account,
         public ipAddress: Hex,
         public port: string,
-    ) {}
+    ) { }
 
     publicKey(): Hex {
-        return this.mining.publicKey!;
+        return `0x${this.mining.publicKey!.slice(4)}`
     }
 
     miningAddress(): Address {

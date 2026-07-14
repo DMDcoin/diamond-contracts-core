@@ -1,23 +1,23 @@
 import hre from "hardhat";
-import { Account, pad, parseEther } from "viem";
+import { Account, parseEther } from "viem";
 import type { ContractReturnType } from "@nomicfoundation/hardhat-viem/types";
 
-import type {} from "../../artifacts/contracts/mocks/BlockRewardHbbftMock.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/mocks/BonusScoreSystemMock.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/mocks/ConnectivityTrackerHbbftMock.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/mocks/DaoMock.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/mocks/StakingHbbftMock.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/CertifierHbbft.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/KeyGenHistory.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/RandomHbbft.sol/artifacts.js";
-import type {} from "../../artifacts/contracts/TxPermissionHbbft.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/mocks/BlockRewardHbbftMock.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/mocks/BonusScoreSystemMock.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/mocks/ConnectivityTrackerHbbftMock.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/mocks/DaoMock.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/mocks/StakingHbbftMock.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/CertifierHbbft.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/KeyGenHistory.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/RandomHbbft.sol/artifacts.js";
+import type { } from "../../artifacts/contracts/TxPermissionHbbft.sol/artifacts.js";
 
 import { getNValidatorsPartNAcks } from "./data.js";
 import { splitPublicKeys } from "./utils.js";
 import { deployProxy } from "./proxy.js";
 import { deployDao } from "./dao.js";
-import { Validator } from "./types.js";
+import { Validator, ZeroIpAddress } from "./types.js";
 import { createRandomWallet } from "./wallet.js";
 
 // one epoch in 1 day.
@@ -163,11 +163,11 @@ async function deployCoreContracts(owner: Account, params: Required<DeploymentPa
     });
 
     const initialValidatorsPubKeys = splitPublicKeys(
-        initialValidators.map((validator) => `0x${validator.publicKey().slice(4)}`),
+        initialValidators.map((validator) => validator.publicKey()),
     );
 
     // The IP addresses are irrelevant for these unit tests, just initialize them to 0.
-    const initialValidatorsIpAddresses = Array(initialValidators.length).fill(pad("0x00", { size: 16 }));
+    const initialValidatorsIpAddresses = Array(initialValidators.length).fill(ZeroIpAddress);
 
     const stakingParams = {
         _validatorSetContract: validatorSet.address,
