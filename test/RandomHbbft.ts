@@ -1,38 +1,49 @@
-import { ethers, upgrades } from "hardhat";
-import { expect } from "chai";
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import * as helpers from "@nomicfoundation/hardhat-network-helpers";
-import fp from "lodash/fp";
+import assert from "node:assert/strict";
+import { describe, it, before } from "node:test";
+import hre from "hardhat";
 
-import {
-    RandomHbbft,
-    StakingHbbftMock,
-    ValidatorSetHbbftMock,
-} from "../src/types";
+import { Hex, parseEther, zeroAddress, type Address } from "viem";
 
-import { random, range } from "./testhelpers/utils";
+import type { } from "../artifacts/contracts/RandomHbbft.sol/artifacts.js";
+import type { } from "../artifacts/contracts/mocks/StakingHbbftMock.sol/artifacts.js";
+import type { } from "../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
 
-const minStake = ethers.parseEther('1');
-const maxStake = ethers.parseEther('100000');
+import { random, range, splitPublicKeys } from "./fixtures/utils.js";
+import { deployProxy } from "./fixtures/proxy.js";
+import { Validator, ZeroIpAddress } from "./fixtures/types.js";
+import { createRandomWallet } from "./fixtures/wallet.js";
+
+const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
+
+type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
+
+const minStake = parseEther("1");
+const maxStake = parseEther("100000");
 
 // one epoch in 1 day.
 const stakingFixedEpochDuration = 86400n;
 // the transition time window is 1 hour.
 const stakingTransitionTimeframeLength = 3600n;
 const stakingWithdrawDisallowPeriod = 1n;
-const validatorInactivityThreshold = 365 * 86400 // 1 year
+const validatorInactivityThreshold = 365n * 86400n; // 1 year
 
-const SystemAccountAddress = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
-const ZeroIpAddress = ethers.zeroPadBytes("0x00", 16);
+const SystemAccountAddress: Address = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
-describe('RandomHbbft', () => {
-    let owner: HardhatEthersSigner;
-    let accounts: HardhatEthersSigner[];
-    let initialValidators: string[];
-    let initialStakingAddresses: string[];
-    let stubAddress: string
+describe("RandomHbbft", () => {
+    let owner: TestWalletClient;
+    let accounts: TestWalletClient[];
+    let stubAddress: Hex;
 
     async function deployContracts() {
+        const initialValidators = new Array<Validator>();
+        for (let i = 0; i < 25; ++i) {
+            const validator = await Validator.create();
+            initialValidators.push(validator);
+        }
+
+        const initialMiningAddresses = initialValidators.map((validator) => validator.miningAddress());
+        const initialStakingAddresses = initialValidators.map((validator) => validator.stakingAddress());
+
         const validatorSetParams = {
             blockRewardContract: stubAddress,
             randomContract: stubAddress,
@@ -41,36 +52,25 @@ describe('RandomHbbft', () => {
             bonusScoreContract: stubAddress,
             connectivityTrackerContract: stubAddress,
             validatorInactivityThreshold: validatorInactivityThreshold,
-        }
+        };
 
-        const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbft = await upgrades.deployProxy(
-            ValidatorSetFactory,
-            [
-                owner.address,
+        const validatorSetHbbft = await deployProxy(hhViem, "ValidatorSetHbbftMock", {
+            initArgs: [
+                owner.account.address,
                 validatorSetParams,      // _params
-                initialValidators,       // _initialMiningAddresses
+                initialMiningAddresses,  // _initialMiningAddresses
                 initialStakingAddresses, // _initialStakingAddresses
             ],
-            { initializer: 'initialize' }
-        ) as unknown as ValidatorSetHbbftMock;
+            initializer: "initialize",
+        });
 
-        await validatorSetHbbft.waitForDeployment();
+        const randomHbbft = await deployProxy(hhViem, "RandomHbbft", {
+            initArgs: [owner.account.address, validatorSetHbbft.address],
+            initializer: "initialize",
+        });
 
-        const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-        const randomHbbft = await upgrades.deployProxy(
-            RandomHbbftFactory,
-            [
-                owner.address,
-                await validatorSetHbbft.getAddress()
-            ],
-            { initializer: 'initialize' }
-        ) as unknown as RandomHbbft;
-
-        await randomHbbft.waitForDeployment();
-
-        let stakingParams = {
-            _validatorSetContract: await validatorSetHbbft.getAddress(),
+        const stakingParams = {
+            _validatorSetContract: validatorSetHbbft.address,
             _bonusScoreContract: stubAddress,
             _initialStakingAddresses: initialStakingAddresses,
             _delegatorMinStake: minStake,
@@ -78,267 +78,264 @@ describe('RandomHbbft', () => {
             _maxStake: maxStake,
             _stakingFixedEpochDuration: stakingFixedEpochDuration,
             _stakingTransitionTimeframeLength: stakingTransitionTimeframeLength,
-            _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod
+            _stakingWithdrawDisallowPeriod: stakingWithdrawDisallowPeriod,
         };
 
-        let initialValidatorsPubKeys: string[] = [];
-        let initialValidatorsIpAddresses: string[] = [];
+        // The exact key values are irrelevant for these unit tests.
+        const initialValidatorsPubKeys = splitPublicKeys(initialValidators.map((validator) => validator.publicKey()));
+        const initialValidatorsIpAddresses = initialStakingAddresses.map(() => ZeroIpAddress);
 
-        for (let i = 0; i < initialStakingAddresses.length; i++) {
-            initialValidatorsPubKeys.push(ethers.Wallet.createRandom().signingKey.publicKey);
-            initialValidatorsIpAddresses.push(ZeroIpAddress);
-        }
-
-        let initialValidatorsPubKeysSplit = fp.flatMap(
-            (x: string) => [
-                x.substring(0, 66),
-                "0x" + x.substring(66, 130),
-            ])(initialValidatorsPubKeys);
-
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-        const stakingHbbft = await upgrades.deployProxy(
-            StakingHbbftFactory,
-            [
-                owner.address,
+        const stakingHbbft = await deployProxy(hhViem, "StakingHbbftMock", {
+            initArgs: [
+                owner.account.address,
                 stakingParams,
-                initialValidatorsPubKeysSplit, // _publicKeys
-                initialValidatorsIpAddresses // _internetAddresses
+                initialValidatorsPubKeys,       // _publicKeys
+                initialValidatorsIpAddresses,   // _internetAddresses
             ],
-            { initializer: 'initialize' }
-        ) as unknown as StakingHbbftMock;
-
-        await stakingHbbft.waitForDeployment();
-
-        await validatorSetHbbft.setRandomContract(await randomHbbft.getAddress());
-        await validatorSetHbbft.setStakingContract(await stakingHbbft.getAddress());
-
-        return { randomHbbft, validatorSetHbbft, stakingHbbft };
-    }
-
-    async function impersonateSystemAcc() {
-        await helpers.impersonateAccount(SystemAccountAddress);
-
-        await owner.sendTransaction({
-            to: SystemAccountAddress,
-            value: ethers.parseEther('10'),
+            initializer: "initialize",
         });
 
-        return await ethers.getSigner(SystemAccountAddress);
+        await validatorSetHbbft.write.setRandomContract([randomHbbft.address]);
+        await validatorSetHbbft.write.setStakingContract([stakingHbbft.address]);
+
+        return { initialValidators, randomHbbft, validatorSetHbbft, stakingHbbft };
+    }
+
+    async function impersonateSystemAcc(): Promise<Address> {
+        await helpers.impersonateAccount(SystemAccountAddress);
+        await helpers.setBalance(SystemAccountAddress, parseEther("10"));
+
+        return SystemAccountAddress;
     }
 
     before(async function () {
-        [owner, ...accounts] = await ethers.getSigners();
+        [owner, ...accounts] = await hhViem.getWalletClients();
 
-        stubAddress = owner.address;
-
-        const accountAddresses = accounts.map(item => item.address);
-
-        initialValidators = accountAddresses.slice(1, 25 + 1); // accounts[1...25]
-        initialStakingAddresses = accountAddresses.slice(26, 51); // accounts[26...50]
-
-        expect(initialValidators.length).to.be.equal(25);
-        expect(initialStakingAddresses.length).to.be.equal(25);
+        stubAddress = createRandomWallet().address;
     });
 
-    describe('Initializer', async () => {
+    describe("Initializer", async () => {
         it("should revert initialization with validator contract = address(0)", async () => {
-            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-            await expect(upgrades.deployProxy(
-                RandomHbbftFactory,
-                [
-                    stubAddress,
-                    ethers.ZeroAddress
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(RandomHbbftFactory, "ZeroAddress");
+            const implementation = await hhViem.deployContract("RandomHbbft");
+
+            await hhViem.assertions.revertWithCustomError(
+                deployProxy(hhViem, "RandomHbbft", {
+                    initArgs: [stubAddress, zeroAddress],
+                    initializer: "initialize",
+                }),
+                implementation,
+                "ZeroAddress",
+            );
         });
 
         it("should revert initialization with owner = address(0)", async () => {
-            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-            await expect(upgrades.deployProxy(
-                RandomHbbftFactory,
-                [
-                    ethers.ZeroAddress,
-                    stubAddress,
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(RandomHbbftFactory, "ZeroAddress");
+            const implementation = await hhViem.deployContract("RandomHbbft");
+
+            await hhViem.assertions.revertWithCustomError(
+                deployProxy(hhViem, "RandomHbbft", {
+                    initArgs: [zeroAddress, stubAddress],
+                    initializer: "initialize",
+                }),
+                implementation,
+                "ZeroAddress",
+            );
         });
 
         it("should not allow initialization if initialized contract", async () => {
-            const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-            const contract = await upgrades.deployProxy(
-                RandomHbbftFactory,
-                [
-                    stubAddress,
-                    stubAddress,
-                ],
-                { initializer: 'initialize' }
+            const contract = await deployProxy(hhViem, "RandomHbbft", {
+                initArgs: [stubAddress, stubAddress],
+                initializer: "initialize",
+            });
+
+            await hhViem.assertions.revertWithCustomError(
+                contract.write.initialize([stubAddress, stubAddress]),
+                contract,
+                "InvalidInitialization",
             );
-
-            await contract.waitForDeployment();
-
-            await expect(contract.initialize(
-                stubAddress,
-                stubAddress,
-            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
         });
     });
 
     describe("currentSeed()", async () => {
-        it('setCurrentSeed must revert if called by non-owner', async () => {
+        it("setCurrentSeed must revert if called by non-owner", async () => {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
-            await expect(randomHbbft.setCurrentSeed(100n))
-                .to.be.revertedWithCustomError(randomHbbft, "Unauthorized");
+            await hhViem.assertions.revertWithCustomError(
+                randomHbbft.write.setCurrentSeed([100n]),
+                randomHbbft,
+                "Unauthorized",
+            );
         });
 
-        it('should set current seed by system', async function () {
+        it("should set current seed by system", async function () {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
-            const systemSigner = await impersonateSystemAcc();
+            const systemAccount = await impersonateSystemAcc();
 
             const blockNumber = await helpers.time.latestBlock();
             const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
-            const healthy = await randomHbbft.isFullHealth();
+            const healthy = await randomHbbft.read.isFullHealth();
 
-            await expect(randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed))
-                .to.emit(randomHbbft, "SetCurrentSeed")
-                .withArgs(blockNumber + 1, randomSeed, healthy);
+            await hhViem.assertions.emitWithArgs(
+                randomHbbft.write.setCurrentSeed([randomSeed], { account: systemAccount }),
+                randomHbbft,
+                "SetCurrentSeed",
+                [BigInt(blockNumber + 1), randomSeed, healthy],
+            );
 
-            expect(await randomHbbft.getSeedHistoric(blockNumber + 1)).to.equal(randomSeed);
+            assert.equal(await randomHbbft.read.getSeedHistoric([BigInt(blockNumber + 1)]), randomSeed);
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it('last 10 seeds must be equal to last 10 elements in the array', async () => {
+        it("last 10 seeds must be equal to last 10 elements in the array", async () => {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
-            const systemSigner = await impersonateSystemAcc();
-            let seedsArray = new Array<bigint>();
+            const systemAccount = await impersonateSystemAcc();
+            const seedsArray = new Array<bigint>();
 
             for (let i = 0; i < 100; ++i) {
-                let randomSeed = random(0, Number.MAX_SAFE_INTEGER);
+                const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
                 seedsArray.push(randomSeed);
 
-                await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
+                await randomHbbft.write.setCurrentSeed([randomSeed], { account: systemAccount });
             }
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-            let currentBlock = await helpers.time.latestBlock();
+            const currentBlock = await helpers.time.latestBlock();
 
-            expect(await randomHbbft.currentSeed()).to.be.equal(seedsArray[seedsArray.length - 1]);
-            expect(await randomHbbft.getSeedsHistoric(range(currentBlock - 9, currentBlock + 1))).to.be.deep.equal(seedsArray.slice(-10));
+            assert.equal(await randomHbbft.read.currentSeed(), seedsArray[seedsArray.length - 1]);
+            assert.deepEqual(
+                await randomHbbft.read.getSeedsHistoric([
+                    range(currentBlock - 9, currentBlock + 1).map(BigInt),
+                ]),
+                seedsArray.slice(-10),
+            );
         });
     });
 
     describe("FullHealth()", async function () {
-        it('should display health correctly', async () => {
-            const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
-            const validators = await validatorSetHbbft.getValidators();
-            expect(validators.length).to.be.equal(25);
-            expect((await randomHbbft.isFullHealth())).to.be.equal(true);
-            await validatorSetHbbft.kickValidator(validators[1]);
-            expect((await randomHbbft.isFullHealth())).to.be.equal(false);
-        })
+        it("should display health correctly", async () => {
+            const { initialValidators, randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
-        it('should mark unhealty blocks', async () => {
-            const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+            const validators = await validatorSetHbbft.read.getValidators();
+            assert.equal(validators.length, initialValidators.length);
+            assert.equal(await randomHbbft.read.isFullHealth(), true);
 
-            const validators = await validatorSetHbbft.getValidators();
-            expect(validators.length).to.be.equal(25);
-            expect(await randomHbbft.isFullHealth()).to.be.equal(true);
+            await validatorSetHbbft.write.kickValidator([validators[1]]);
+            assert.equal(await randomHbbft.read.isFullHealth(), false);
+        });
 
-            const systemSigner = await impersonateSystemAcc();
-            await validatorSetHbbft.kickValidator(validators[0]);
+        it("should mark unhealty blocks", async () => {
+            const { initialValidators, randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+
+            const validators = await validatorSetHbbft.read.getValidators();
+            assert.equal(validators.length, initialValidators.length);
+            assert.equal(await randomHbbft.read.isFullHealth(), true);
+
+            const systemAccount = await impersonateSystemAcc();
+            await validatorSetHbbft.write.kickValidator([validators[0]]);
 
             const blockNumber = await helpers.time.latestBlock();
             const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
-            await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
+            await randomHbbft.write.setCurrentSeed([randomSeed], { account: systemAccount });
 
-            expect(await randomHbbft.getSeedHistoric(blockNumber + 1)).to.equal(randomSeed);
-            expect(await randomHbbft.isFullHealthHistoric(blockNumber + 1)).to.equal(false);
-            expect(await helpers.time.latestBlock()).to.be.equal(blockNumber + 1);
+            assert.equal(await randomHbbft.read.getSeedHistoric([BigInt(blockNumber + 1)]), randomSeed);
+            assert.equal(await randomHbbft.read.isFullHealthHistoric([BigInt(blockNumber + 1)]), false);
+            assert.equal(await helpers.time.latestBlock(), blockNumber + 1);
+
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it('should get full health historic array ', async () => {
+        it("should get full health historic array ", async () => {
             const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
-            const systemSigner = await impersonateSystemAcc();
+            const systemAccount = await impersonateSystemAcc();
 
-            let blocks = new Array<bigint>();
-            let expected = new Array<boolean>();
+            const blocks = new Array<bigint>();
+            const expected = new Array<boolean>();
 
-            expect(await randomHbbft.isFullHealth()).to.be.equal(true);
-            const validators = await validatorSetHbbft.getValidators();
+            assert.equal(await randomHbbft.read.isFullHealth(), true);
+            const validators = await validatorSetHbbft.read.getValidators();
 
             let startBlock = await helpers.time.latestBlock();
 
             for (let i = 0; i < 50; ++i) {
                 const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
-                await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
+                await randomHbbft.write.setCurrentSeed([randomSeed], { account: systemAccount });
+
                 blocks.push(BigInt(startBlock + i + 1));
                 expected.push(true);
             }
 
-            expect(await randomHbbft.isFullHealth()).to.be.equal(true);
-            await validatorSetHbbft.kickValidator(validators[0]);
+            assert.equal(await randomHbbft.read.isFullHealth(), true);
+            await validatorSetHbbft.write.kickValidator([validators[0]]);
             startBlock = await helpers.time.latestBlock();
 
             for (let i = 0; i < 50; ++i) {
                 const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
-
-                await randomHbbft.connect(systemSigner).setCurrentSeed(randomSeed);
+                await randomHbbft.write.setCurrentSeed([randomSeed], { account: systemAccount });
 
                 blocks.push(BigInt(startBlock + i + 1));
                 expected.push(false);
             }
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
-            const result = await randomHbbft.isFullHealthsHistoric(blocks);
-            expect(result).to.be.deep.equal(expected);
+
+            assert.deepEqual(await randomHbbft.read.isFullHealthsHistoric([blocks]), expected);
         });
 
-        it('should be consistent in block healthiness tracking', async () => {
-            const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
-            const systemSigner = await impersonateSystemAcc();
-            const validators = await validatorSetHbbft.getValidators();
+        it("should be consistent in block healthiness tracking", async () => {
+            const { initialValidators, randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
+
+            const systemAccount = await impersonateSystemAcc();
+            const validators = await validatorSetHbbft.read.getValidators();
 
             const blocksSeedHealth = new Map<number, boolean>();
 
-            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
-            expect(await randomHbbft.isFullHealth()).to.be.true;
+            assert.equal((await validatorSetHbbft.read.getValidators()).length, initialValidators.length);
+            assert.equal(await randomHbbft.read.isFullHealth(), true);
 
             // Block 1: Set to unhealthy by kicking a validator
-            await validatorSetHbbft.kickValidator(validators[0]);
-            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(24);
-            expect(await randomHbbft.isFullHealth()).to.be.false;
+            await validatorSetHbbft.write.kickValidator([validators[0]]);
+            assert.equal((await validatorSetHbbft.read.getValidators()).length, initialValidators.length - 1);
+            assert.equal(await randomHbbft.read.isFullHealth(), false);
 
             // Block 2: Set current seed, should be unhealthy since validators count decreased
-            await randomHbbft.connect(systemSigner).setCurrentSeed(random(0, Number.MAX_SAFE_INTEGER));
-            expect(await randomHbbft.isFullHealthHistoric(await helpers.time.latestBlock())).to.be.false;
-            blocksSeedHealth.set(await helpers.time.latestBlock(), false);
+            await randomHbbft.write.setCurrentSeed(
+                [random(0, Number.MAX_SAFE_INTEGER)],
+                { account: systemAccount },
+            );
+            let latestBlock = await helpers.time.latestBlock();
+            assert.equal(await randomHbbft.read.isFullHealthHistoric([BigInt(latestBlock)]), false);
+            blocksSeedHealth.set(latestBlock, false);
 
             // Block 3: Simulate returning to healthy state
-            await validatorSetHbbft.setValidatorsNum(25);
-            expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
-            expect(await randomHbbft.isFullHealth()).to.be.true;
+            await validatorSetHbbft.write.setValidatorsNum([25n]);
+            assert.equal((await validatorSetHbbft.read.getValidators()).length, initialValidators.length);
+            assert.equal(await randomHbbft.read.isFullHealth(), true);
 
-            await randomHbbft.connect(systemSigner).setCurrentSeed(random(0, Number.MAX_SAFE_INTEGER));
-            expect(await randomHbbft.isFullHealthHistoric(await helpers.time.latestBlock())).to.be.true;
-            blocksSeedHealth.set(await helpers.time.latestBlock(), true);
+            await randomHbbft.write.setCurrentSeed(
+                [random(0, Number.MAX_SAFE_INTEGER)],
+                { account: systemAccount },
+            );
+            latestBlock = await helpers.time.latestBlock();
+            assert.equal(await randomHbbft.read.isFullHealthHistoric([BigInt(latestBlock)]), true);
+            blocksSeedHealth.set(latestBlock, true);
 
             // Block 4: Another block
-            await randomHbbft.connect(systemSigner).setCurrentSeed(random(0, Number.MAX_SAFE_INTEGER));
-            blocksSeedHealth.set(await helpers.time.latestBlock(), true);
+            await randomHbbft.write.setCurrentSeed(
+                [random(0, Number.MAX_SAFE_INTEGER)],
+                { account: systemAccount },
+            );
+            latestBlock = await helpers.time.latestBlock();
+            blocksSeedHealth.set(latestBlock, true);
 
             for (const [blockNum, healthyValue] of blocksSeedHealth) {
-                expect(await randomHbbft.isFullHealthHistoric(blockNum)).to.eq(healthyValue);
+                assert.equal(await randomHbbft.read.isFullHealthHistoric([BigInt(blockNum)]), healthyValue);
             }
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
-    })
+    });
 });
