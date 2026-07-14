@@ -9,7 +9,8 @@ import hardhatContractSizer from "@solidstate/hardhat-contract-sizer";
 // pnpm hardhat keystore set DEV_DEPLOYER_PRIVATE_KEY
 // pnpm hardhat keystore set MNEMONIC
 const accounts = [configVariable("DEV_DEPLOYER_PRIVATE_KEY")];
-const mnemonic = configVariable("MNEMONIC") || generateMnemonic(english);
+const mnemonic = configVariable("MNEMONIC");
+const testMnemonic = generateMnemonic(english);
 
 const proxyContractsToBuild = [
     "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol",
@@ -43,7 +44,7 @@ export default defineConfig({
             type: "edr-simulated",
             accounts: {
                 count: 100,
-                mnemonic,
+                mnemonic: testMnemonic,
                 accountsBalance: "1000000000000000000000000000",
             },
             chainId: 31337,
