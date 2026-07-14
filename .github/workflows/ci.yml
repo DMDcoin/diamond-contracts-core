@@ -31,7 +31,7 @@ jobs:
         run: pnpm install
 
       - name: Build
-        run: pnpm build
+        run: pnpm hardhat build
 
       - name: Run tests
         run: pnpm hardhat test
