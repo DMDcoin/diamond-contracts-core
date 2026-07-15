@@ -2,7 +2,7 @@ import { toHex } from "viem";
 
 /// gets a set of 3 real Acks and Parts for testing purposes
 export function getTestPartNAcks() {
-    const parts = [
+    const rawParts = [
         new Uint8Array([
             0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 162, 238, 181, 164, 119, 226, 238, 142, 43, 227, 179, 139,
             95, 25, 108, 237, 11, 190, 84, 64, 234, 22, 245, 210, 187, 24, 142, 145, 31, 26, 197, 119, 92, 171, 182, 30,
@@ -83,7 +83,7 @@ export function getTestPartNAcks() {
         ]),
     ];
 
-    const acks = [
+    const rawAcks = [
         [
             new Uint8Array([
                 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 0, 0, 0, 0, 0, 4, 49, 56, 206, 120, 208, 7,
@@ -304,6 +304,9 @@ export function getTestPartNAcks() {
             ]),
         ],
     ];
+    
+    const parts = rawParts.map((part) => toHex(part));
+    const acks = rawAcks.map((validatorAcks) => validatorAcks.map((ack) => toHex(ack)));
 
     return { parts, acks };
 }

@@ -10,25 +10,16 @@ import {
     type Address,
 } from "viem";
 
-import type { ContractReturnType } from "@nomicfoundation/hardhat-viem/types";
-
-import type { } from "../artifacts/contracts/BonusScoreSystem.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/ReentrancyAttacker.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/StakingHbbftMock.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
-
 import { splitPublicKeys } from "./fixtures/utils.js";
 import { deployProxy } from "./fixtures/proxy.js";
 import { createRandomWallet } from "./fixtures/wallet.js";
-import { Validator, ZeroIpAddress } from "./fixtures/types.js";
+import { Validator, ZeroIpAddress } from "./fixtures/validator.js";
+import { BonusScoreSystem, StakingHbbftMock } from "./fixtures/types.js";
 
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
 
 const publicClient = await hhViem.getPublicClient();
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
-
-type BonusScoreContract = ContractReturnType<"BonusScoreSystem">;
-type StakingContract = ContractReturnType<"StakingHbbftMock">;
 
 // one epoch in 12 hours.
 const STAKING_FIXED_EPOCH_DURATION = 43200n;
@@ -158,7 +149,7 @@ describe("BonusScoreSystem", function () {
     }
 
     async function getPoolLikelihood(
-        stakingHbbft: StakingContract,
+        stakingHbbft: StakingHbbftMock,
         stakingAddress: Address,
     ): Promise<bigint> {
         const poolsToBeElected = await stakingHbbft.read.getPoolsToBeElected();
@@ -173,7 +164,7 @@ describe("BonusScoreSystem", function () {
     }
 
     async function increaseScore(
-        bonusScoreContract: BonusScoreContract,
+        bonusScoreContract: BonusScoreSystem,
         validator: Address,
         score: bigint,
     ) {

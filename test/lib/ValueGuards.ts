@@ -4,8 +4,6 @@ import hre from "hardhat";
 
 import { toFunctionSelector, type Hex } from "viem";
 
-import type { } from "../../artifacts/contracts/mocks/ValueGuardsMock.sol/artifacts.js";
-
 import { deployProxy } from "../fixtures/proxy.js";
 
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();

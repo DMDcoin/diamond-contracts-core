@@ -12,27 +12,18 @@ import {
     type Address,
 } from "viem";
 
-import type { ContractReturnType } from "@nomicfoundation/hardhat-viem/types";
-
-import type { } from "../artifacts/contracts/ConnectivityTrackerHbbft.sol/artifacts.js";
-import type { } from "../artifacts/contracts/KeyGenHistory.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/BlockRewardHbbftMock.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/BonusScoreSystemMock.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/StakingHbbftMock.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
-
 import { getNValidatorsPartNAcks } from "./fixtures/data.js";
 import { splitPublicKeys } from "./fixtures/utils.js";
 import { deployProxy } from "./fixtures/proxy.js";
-import { Validator, ZeroIpAddress } from "./fixtures/types.js";
+import { Validator, ZeroIpAddress } from "./fixtures/validator.js";
 import { createRandomWallet } from "./fixtures/wallet.js";
+
+import type { StakingHbbftMock } from "./fixtures/types.js";
 
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
 
 const publicClient = await hhViem.getPublicClient();
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
-
-type StakingContract = ContractReturnType<"StakingHbbftMock">;
 
 const MinuteInSeconds = 60n;
 const HourInSeconds = MinuteInSeconds * 60n;
@@ -160,7 +151,7 @@ describe("ConnectivityTrackerHbbft", () => {
         return accAddress;
     }
 
-    async function setStakingEpochStartTime(caller: Address, stakingHbbft: StakingContract) {
+    async function setStakingEpochStartTime(caller: Address, stakingHbbft: StakingHbbftMock) {
         const signer = await impersonateAcc(caller);
 
         const latest = await helpers.time.latest();

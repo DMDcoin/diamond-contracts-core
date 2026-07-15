@@ -1,24 +1,25 @@
 import hre from "hardhat";
 import { Account, parseEther } from "viem";
-import type { ContractReturnType } from "@nomicfoundation/hardhat-viem/types";
-
-import type { } from "../../artifacts/contracts/mocks/BlockRewardHbbftMock.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/mocks/BonusScoreSystemMock.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/mocks/ConnectivityTrackerHbbftMock.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/mocks/DaoMock.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/mocks/StakingHbbftMock.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/CertifierHbbft.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/KeyGenHistory.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/RandomHbbft.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/TxPermissionHbbft.sol/artifacts.js";
 
 import { getNValidatorsPartNAcks } from "./data.js";
 import { splitPublicKeys } from "./utils.js";
 import { deployProxy } from "./proxy.js";
 import { deployDao } from "./dao.js";
-import { Validator, ZeroIpAddress } from "./types.js";
+import { Validator, ZeroIpAddress } from "./validator.js";
 import { createRandomWallet } from "./wallet.js";
+
+import type {
+    BlockRewardHbbftMock,
+    ValidatorSetHbbftMock,
+    StakingHbbftMock,
+    ConnectivityTrackerHbbftMock,
+    TxPermissionHbbft,
+    RandomHbbft,
+    KeyGenHistory,
+    CertifierHbbft,
+    BonusScoreSystemMock,
+    DaoMock,
+} from "./types.js";
 
 // one epoch in 1 day.
 export const STAKING_FIXED_EPOCH_DURATION = 86400n;
@@ -57,16 +58,16 @@ const DefaultDeploymentParams: Required<DeploymentParams> = {
 export interface DeployedContracts {
     params: Required<DeploymentParams>;
     initialValidators: Validator[];
-    blockReward: ContractReturnType<"BlockRewardHbbftMock">;
-    validatorSet: ContractReturnType<"ValidatorSetHbbftMock">;
-    staking: ContractReturnType<"StakingHbbftMock">;
-    connectivityTracker: ContractReturnType<"ConnectivityTrackerHbbftMock">;
-    txPermission: ContractReturnType<"TxPermissionHbbft">;
-    randomHbbft: ContractReturnType<"RandomHbbft">;
-    keyGenHistory: ContractReturnType<"KeyGenHistory">;
-    certifier: ContractReturnType<"CertifierHbbft">;
-    bonusScoreSystem: ContractReturnType<"BonusScoreSystemMock">;
-    dao: ContractReturnType<"DaoMock">;
+    blockReward: BlockRewardHbbftMock;
+    validatorSet: ValidatorSetHbbftMock;
+    staking: StakingHbbftMock;
+    connectivityTracker: ConnectivityTrackerHbbftMock;
+    txPermission: TxPermissionHbbft;
+    randomHbbft: RandomHbbft;
+    keyGenHistory: KeyGenHistory;
+    certifier: CertifierHbbft;
+    bonusScoreSystem: BonusScoreSystemMock;
+    dao: DaoMock;
 }
 
 export type DeploymentFixture = () => Promise<DeployedContracts>;

@@ -5,8 +5,6 @@ import hre from "hardhat";
 import { keccak256, toBytes, zeroHash, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
-import type { } from "../../artifacts/contracts/mocks/Secp256k1UtilsMock.sol/artifacts.js";
-
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
 
 const P = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F";

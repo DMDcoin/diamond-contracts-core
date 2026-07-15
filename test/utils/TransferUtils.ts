@@ -3,9 +3,6 @@ import hre from "hardhat";
 
 import { parseEther } from "viem";
 
-import type { } from "../../artifacts/contracts/mocks/TransferUtilsMock.sol/artifacts.js";
-import type { } from "../../artifacts/contracts/mocks/EtherReceiverMock.sol/artifacts.js";
-
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
 
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];

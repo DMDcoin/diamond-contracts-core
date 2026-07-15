@@ -4,12 +4,11 @@ import hre from "hardhat";
 
 import { type Account, type Address, getAddress, parseEther, parseEventLogs, parseUnits, zeroAddress } from "viem";
 
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-
 import { GovernanceAddress } from "./fixtures/dao.js";
 import { createDeploymentFixture, DeploymentFixture, type DeployedContracts } from "./fixtures/deployment.js";
-import { Validator } from "./fixtures/types.js";
+import { Validator } from "./fixtures/validator.js";
 import { deployProxy } from "./fixtures/proxy.js";
+import { createRandomWallet } from "./fixtures/wallet.js";
 
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
 
@@ -37,7 +36,7 @@ describe("BlockRewardHbbft", function () {
     before(async function () {
         [owner, ...accounts] = await hhViem.getWalletClients();
 
-        stubAddress = privateKeyToAccount(generatePrivateKey()).address;
+        stubAddress = createRandomWallet().address;
 
         additionalValidators = new Array<Validator>();
         for (let i = 0; i < additionalValidatorsCount; ++i) {

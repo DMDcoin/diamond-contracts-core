@@ -4,13 +4,9 @@ import hre from "hardhat";
 
 import { Hex, parseEther, zeroAddress, type Address } from "viem";
 
-import type { } from "../artifacts/contracts/RandomHbbft.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/StakingHbbftMock.sol/artifacts.js";
-import type { } from "../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
-
 import { random, range, splitPublicKeys } from "./fixtures/utils.js";
 import { deployProxy } from "./fixtures/proxy.js";
-import { Validator, ZeroIpAddress } from "./fixtures/types.js";
+import { Validator, ZeroIpAddress } from "./fixtures/validator.js";
 import { createRandomWallet } from "./fixtures/wallet.js";
 
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();

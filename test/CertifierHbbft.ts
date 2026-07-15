@@ -8,7 +8,7 @@ import type { } from "../artifacts/contracts/CertifierHbbft.sol/artifacts.js";
 import type { } from "../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
 
 import { deployProxy } from "./fixtures/proxy.js";
-import { Validator } from "./fixtures/types.js";
+import { Validator } from "./fixtures/validator.js";
 import { createRandomWallet } from "./fixtures/wallet.js";
 
 const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();

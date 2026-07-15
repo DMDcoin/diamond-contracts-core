@@ -1,23 +1,30 @@
-import { BaseContract, HDNodeWallet, TransactionResponse } from "ethers";
+import assert from "node:assert/strict";
 
-import { TxPermissionHbbft } from "../../src/types";
-import { expect } from "chai";
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { encodeFunctionData, type Abi, type Account, type Address, type Hex } from "viem";
+import type { NetworkConnection } from "hardhat/types/network";
 
-export class Permission<T extends BaseContract> {
+import type { TxPermissionHbbft } from "./types.js";
+
+export interface PermittedContract {
+    address: Address;
+    abi: Abi;
+}
+
+export class Permission<T extends PermittedContract> {
     public constructor(
+        public connection: NetworkConnection,
         public permissionContract: TxPermissionHbbft,
         public contract: T,
         public logOutput = false,
-    ) {}
+    ) { }
 
-    public async callFunction(
-        functionName: string,
-        from: HardhatEthersSigner | HDNodeWallet,
-        params: any[],
-    ): Promise<TransactionResponse> {
-        //keyGenHistory.interface.encodeFunctionData()
-        const asEncoded = this.contract.interface.encodeFunctionData(functionName, params);
+    public async callFunction(functionName: string, from: Account, params: unknown[]): Promise<Hex> {
+        const asEncoded = encodeFunctionData({
+            abi: this.contract.abi,
+            functionName,
+            args: params,
+        });
+
         if (this.logOutput) {
             console.log("calling: ", functionName);
             console.log("from: ", from.address);
@@ -25,37 +32,31 @@ export class Permission<T extends BaseContract> {
             console.log("encodedCall: ", asEncoded);
         }
 
-        //const numberFromContract = await txPermission._getSliceUInt256(4, asEncoded);
-        //const numberFromContract2 = await txPermission._decodeUInt256Param(4, asEncoded);
-        //console.log('upcomingEpochNumber: ', numberFromContract.toString());
-        //console.log('numberFromContract2', numberFromContract2.toString());
-
-        const allowedTxType = await this.permissionContract.allowedTxTypes(
+        const [typesMask, cache] = await this.permissionContract.read.allowedTxTypes([
             from.address,
-            await this.contract.getAddress(),
-            0n /* value */,
-            0n /* gas price */,
+            this.contract.address,
+            0n, // value
+            0n, // gas price
             asEncoded,
-        );
+        ]);
 
-        //console.log(allowedTxType.typesMask.toString());
         // don't ask to cache this result.
-        expect(allowedTxType.cache).to.be.false;
+        assert.equal(cache, false);
 
         /// 0x01 - basic transaction (e.g. ether transferring to user wallet);
         /// 0x02 - contract call;
         /// 0x04 - contract creation;
         /// 0x08 - private transaction.
 
-        expect(allowedTxType.typesMask).to.be.equal(
-            2n,
-            "Transaction should be allowed according to TxPermission Contract.",
-        );
+        assert.equal(typesMask, 2, "Transaction should be allowed according to TxPermission Contract.");
 
         // we know now, that this call is allowed.
         // so we can execute it.
-        return from.sendTransaction({
-            to: await this.contract.getAddress(),
+        const [wallet] = await this.connection.viem.getWalletClients();
+
+        return wallet.sendTransaction({
+            account: from,
+            to: this.contract.address,
             data: asEncoded,
         });
     }
