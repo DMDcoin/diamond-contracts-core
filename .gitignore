@@ -7,12 +7,15 @@ node_modules/
 coverageEnv/
 mythril/
 
-#hardhat specific files
+# hardhat specific files
 artifacts/
 cache/
 coverage/
 build/
 coverage.json
+
+# foundry specific files
+out/
 
 # Emacs backups
 \#*#
