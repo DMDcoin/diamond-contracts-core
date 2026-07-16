@@ -22,13 +22,13 @@ importers:
         version: 3.0.17(hardhat@3.9.1)
       '@nomicfoundation/hardhat-toolbox-viem':
         specifier: ^5.0.7
-        version: 5.0.7(2b023cc67a8ce45f23bfa2cf9265440a)
+        version: 5.0.7(c65a132cc94595606d00b7969e402837)
       '@nomicfoundation/hardhat-viem':
         specifier: ^3.0.9
-        version: 3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))
+        version: 3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))
       '@nomicfoundation/hardhat-viem-assertions':
         specifier: ^3.1.2
-        version: 3.1.2(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76)))(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))
+        version: 3.1.2(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76)))(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))
       '@openzeppelin/contracts':
         specifier: 5.0.2
         version: 5.0.2
@@ -41,9 +41,6 @@ importers:
       '@types/fs-extra':
         specifier: ^11.0.4
         version: 11.0.4
-      '@types/lodash':
-        specifier: ^4.17.24
-        version: 4.17.24
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
@@ -72,8 +69,8 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
       viem:
-        specifier: ^2.55.1
-        version: 2.55.1(typescript@7.0.2)(zod@3.25.76)
+        specifier: ^2.55.2
+        version: 2.55.2(typescript@7.0.2)(zod@3.25.76)
 
 packages:
 
@@ -731,9 +728,6 @@ packages:
 
   '@types/jsonfile@6.1.4':
     resolution: {integrity: sha512-D5qGUYwjvnNNextdU59/+fI+spnwtTFmyQP0h+PfIOSkNfpU6AOICUOkm4i0OnSk+NyjdPJrxCDro0sJsWlRpQ==}
-
-  '@types/lodash@4.17.24':
-    resolution: {integrity: sha512-gIW7lQLZbue7lRSWEFql49QJJWThrTFFeIMJdp3eH4tKoxm1OvEPg02rm4wCCSHS0cL3/Fizimb35b7k8atwsQ==}
 
   '@types/mocha@10.0.10':
     resolution: {integrity: sha512-xPyYSz1cMPnJQhl0CLMH68j3gprKZaTjG3s5Vi+fDgx+uhG9NOXwbVt52eFS8ECyXhyKcjDLCBEqBExKuiZb7Q==}
@@ -1876,8 +1870,8 @@ packages:
   v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
 
-  viem@2.55.1:
-    resolution: {integrity: sha512-sajvEmONS3dEDFh0jKXGugTU8ImyGoIV3sEHSWNRhgkH484v/+6DjZAplRhcdeqNV/VBxOs/l3raOG4NaXvX9A==}
+  viem@2.55.2:
+    resolution: {integrity: sha512-XlJeyNAZ96dQfOHlxLTK1FKgtWw/TtxENKNMBSBgxqALjiWiBWrFmSSzwwMivryKnBwkbt5E+90jSCLnVEilLA==}
     peerDependencies:
       typescript: '>=5.0.4'
     peerDependenciesMeta:
@@ -2384,15 +2378,15 @@ snapshots:
       '@nomicfoundation/hardhat-utils': 4.1.4
       hardhat: 3.9.1
 
-  '@nomicfoundation/hardhat-ignition-viem@3.1.6(@nomicfoundation/hardhat-ignition@3.1.8(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(hardhat@3.9.1))(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76)))(@nomicfoundation/ignition-core@3.1.8)(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))':
+  '@nomicfoundation/hardhat-ignition-viem@3.1.6(@nomicfoundation/hardhat-ignition@3.1.8(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(hardhat@3.9.1))(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76)))(@nomicfoundation/ignition-core@3.1.8)(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))':
     dependencies:
       '@nomicfoundation/hardhat-errors': 3.0.16
       '@nomicfoundation/hardhat-ignition': 3.1.8(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(hardhat@3.9.1)
       '@nomicfoundation/hardhat-verify': 3.0.21(hardhat@3.9.1)
-      '@nomicfoundation/hardhat-viem': 3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))
+      '@nomicfoundation/hardhat-viem': 3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))
       '@nomicfoundation/ignition-core': 3.1.8
       hardhat: 3.9.1
-      viem: 2.55.1(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.55.2(typescript@7.0.2)(zod@3.25.76)
 
   '@nomicfoundation/hardhat-ignition@3.1.8(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(hardhat@3.9.1)':
     dependencies:
@@ -2459,19 +2453,19 @@ snapshots:
       tsx: 4.23.1
       zod: 3.25.76
 
-  '@nomicfoundation/hardhat-toolbox-viem@5.0.7(2b023cc67a8ce45f23bfa2cf9265440a)':
+  '@nomicfoundation/hardhat-toolbox-viem@5.0.7(c65a132cc94595606d00b7969e402837)':
     dependencies:
       '@nomicfoundation/hardhat-ignition': 3.1.8(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(hardhat@3.9.1)
-      '@nomicfoundation/hardhat-ignition-viem': 3.1.6(@nomicfoundation/hardhat-ignition@3.1.8(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(hardhat@3.9.1))(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76)))(@nomicfoundation/ignition-core@3.1.8)(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))
+      '@nomicfoundation/hardhat-ignition-viem': 3.1.6(@nomicfoundation/hardhat-ignition@3.1.8(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(hardhat@3.9.1))(@nomicfoundation/hardhat-verify@3.0.21(hardhat@3.9.1))(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76)))(@nomicfoundation/ignition-core@3.1.8)(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))
       '@nomicfoundation/hardhat-keystore': 3.0.12(hardhat@3.9.1)
       '@nomicfoundation/hardhat-network-helpers': 3.0.11(hardhat@3.9.1)
       '@nomicfoundation/hardhat-node-test-runner': 3.0.17(hardhat@3.9.1)
       '@nomicfoundation/hardhat-verify': 3.0.21(hardhat@3.9.1)
-      '@nomicfoundation/hardhat-viem': 3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))
-      '@nomicfoundation/hardhat-viem-assertions': 3.1.2(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76)))(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))
+      '@nomicfoundation/hardhat-viem': 3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))
+      '@nomicfoundation/hardhat-viem-assertions': 3.1.2(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76)))(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))
       '@nomicfoundation/ignition-core': 3.1.8
       hardhat: 3.9.1
-      viem: 2.55.1(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.55.2(typescript@7.0.2)(zod@3.25.76)
 
   '@nomicfoundation/hardhat-utils@4.1.4':
     dependencies:
@@ -2495,20 +2489,20 @@ snapshots:
       hardhat: 3.9.1
       zod: 3.25.76
 
-  '@nomicfoundation/hardhat-viem-assertions@3.1.2(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76)))(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))':
+  '@nomicfoundation/hardhat-viem-assertions@3.1.2(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76)))(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))':
     dependencies:
       '@nomicfoundation/hardhat-errors': 3.0.16
       '@nomicfoundation/hardhat-utils': 4.1.4
-      '@nomicfoundation/hardhat-viem': 3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))
+      '@nomicfoundation/hardhat-viem': 3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))
       hardhat: 3.9.1
-      viem: 2.55.1(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.55.2(typescript@7.0.2)(zod@3.25.76)
 
-  '@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.1(typescript@7.0.2)(zod@3.25.76))':
+  '@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.1)(viem@2.55.2(typescript@7.0.2)(zod@3.25.76))':
     dependencies:
       '@nomicfoundation/hardhat-errors': 3.0.16
       '@nomicfoundation/hardhat-utils': 4.1.4
       hardhat: 3.9.1
-      viem: 2.55.1(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.55.2(typescript@7.0.2)(zod@3.25.76)
 
   '@nomicfoundation/hardhat-zod-utils@3.0.5(zod@3.25.76)':
     dependencies:
@@ -2702,8 +2696,6 @@ snapshots:
   '@types/jsonfile@6.1.4':
     dependencies:
       '@types/node': 26.1.1
-
-  '@types/lodash@4.17.24': {}
 
   '@types/mocha@10.0.10': {}
 
@@ -3816,7 +3808,7 @@ snapshots:
 
   v8-compile-cache-lib@3.0.1: {}
 
-  viem@2.55.1(typescript@7.0.2)(zod@3.25.76):
+  viem@2.55.2(typescript@7.0.2)(zod@3.25.76):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0

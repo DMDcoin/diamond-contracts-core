@@ -42,7 +42,6 @@
         "@openzeppelin/contracts-upgradeable": "5.0.2",
         "@solidstate/hardhat-contract-sizer": "^3.0.3",
         "@types/fs-extra": "^11.0.4",
-        "@types/lodash": "^4.17.24",
         "@types/mocha": "^10.0.10",
         "@types/node": "^26.1.1",
         "forge-std": "github:foundry-rs/forge-std#v1.16.1",
@@ -52,7 +51,7 @@
         "solhint": "^6.2.3",
         "ts-node": "^10.9.2",
         "typescript": "^7.0.2",
-        "viem": "^2.55.1"
+        "viem": "^2.55.2"
     },
     "prettier": "./.prettierrc.json",
     "type": "module"

@@ -17,6 +17,8 @@ import {
     type Hex,
 } from "viem";
 
+import type { } from "../artifacts/contracts/mocks/TxPermissionHbbftMock.sol/artifacts.js";
+
 import { getTestPartNAcks } from "./fixtures/data.js";
 import { deployProxy } from "./fixtures/proxy.js";
 import { KeyGenMode, AllowedTxTypeMask } from "./fixtures/types.js";
@@ -442,7 +444,7 @@ describe("TxPermissionHbbft", () => {
                 );
 
                 assert.equal(await txPermission.read.isSenderAllowed([sender]), false);
-                assert.ok(!(await txPermission.read.allowedSenders()).includes(getAddress(sender)));
+                assert.ok(!(await txPermission.read.allowedSenders()).includes(sender));
             });
         });
 
