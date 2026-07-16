@@ -33,11 +33,8 @@ jobs:
       - name: Build
         run: pnpm hardhat build
 
-      - name: Run tests
-        run: pnpm hardhat test
-
-      - name: Run coverage
-        run: pnpm hardhat coverage
+      - name: Run tests with coverage
+        run: pnpm hardhat test --coverage
 
       - name: Coveralls
         uses: coverallsapp/github-action@master
