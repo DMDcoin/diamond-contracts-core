@@ -45,14 +45,12 @@
         "@types/mocha": "^10.0.10",
         "@types/node": "^26.1.1",
         "hardhat": "^3.9.1",
-        "prettier": "3.9.5",
         "solc": "0.8.25",
         "solhint": "^6.2.3",
         "ts-node": "^10.9.2",
         "typescript": "^7.0.2",
         "viem": "^2.55.2"
     },
-    "prettier": "./.prettierrc.json",
     "type": "module",
     "devEngines": {
         "packageManager": {

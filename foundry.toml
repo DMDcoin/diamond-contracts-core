@@ -31,13 +31,13 @@ exclude_lints = [
 ]
 
 [fmt]
-line_length = 120
+line_length = 100
 tab_width = 4
 style = "space"
-bracket_spacing = true
+bracket_spacing = false
 multiline_func_header = "params_first_multi"
 number_underscore = "thousands"
-wrap_comments = true
+wrap_comments = false
 docs_style = "line"
 sort_imports = true
 prefer_compact = "none"
