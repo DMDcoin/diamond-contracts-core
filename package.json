@@ -10,9 +10,7 @@
         "docs-build": "forge doc",
         "clean": "pnpm hardhat clean",
         "flat": "bash scripts/flatten.sh ./contracts",
-        "mythril": "npm run flat && bash scripts/run_mythril.sh ./flat",
-        "solidity-docgen": "rm -rf docs/docs/api* && npm i && npx hardhat docgen --exclude interfaces,libs,ERC677BridgeTokenRewardable.sol . contracts docs && node docs/website/sidebars-fix.js",
-        "generate-uml": "sol2uml ./contracts -o docs/classDiagram.svg",
+        "mythril": "pnpm run flat && bash scripts/run_mythril.sh ./flat",
         "solhint": "./node_modules/.bin/solhint -f table 'contracts/**/*.sol'",
         "solhint:ci": "./node_modules/.bin/solhint --disc --max-warnings 0 -f compact 'contracts/**/*.sol' > /dev/null",
         "solhint:sarif-report": "./node_modules/.bin/solhint --disc -f sarif 'contracts/**/*.sol' > solhint_report.sarif",
@@ -56,7 +54,7 @@
         "packageManager": {
             "name": "pnpm",
             "version": ">=11.0.0 <12.0.0",
-            "onFail": "download"
+            "onFail": "error"
         }
     }
 }

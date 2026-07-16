@@ -6,6 +6,10 @@
     "function-max-lines": ["warn", 160],
     "func-visibility": ["warn", { "ignoreConstructors": true }],
     "max-states-count": ["warn", 40],
-    "use-natspec": "off"
+    "use-natspec": "off",
+    "gas-strict-inequalities": "off",
+    "gas-indexed-events": "off",
+    "gas-increment-by-one": "off",
+    "gas-calldata-parameters": "off"
   }
 }
