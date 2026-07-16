@@ -46,7 +46,7 @@ describe("TxPermissionHbbft", () => {
     let allowedSenders: Address[];
     let stubAddress: Address;
 
-    before(async () => {
+    before(async function () {
         [owner, ...accounts] = await hhViem.getWalletClients();
 
         allowedSenders = [
@@ -189,7 +189,7 @@ describe("TxPermissionHbbft", () => {
         return { mockValidatorSet, mockStaking };
     }
 
-    describe("deployment", async () => {
+    describe("deployment", async function () {
         it("should deploy and initialize contract", async function () {
             const certifierAddress = createRandomWallet().address;
             const validatorSetAddress = createRandomWallet().address;
@@ -220,7 +220,7 @@ describe("TxPermissionHbbft", () => {
             );
         });
 
-        it("should revert initialization with CertifierHbbft = address(0)", async () => {
+        it("should revert initialization with CertifierHbbft = address(0)", async function () {
             const implementation = await hhViem.deployContract("TxPermissionHbbftMock");
 
             await hhViem.assertions.revertWithCustomError(
@@ -233,7 +233,7 @@ describe("TxPermissionHbbft", () => {
             );
         });
 
-        it("should revert initialization with ValidatorSet = address(0)", async () => {
+        it("should revert initialization with ValidatorSet = address(0)", async function () {
             const implementation = await hhViem.deployContract("TxPermissionHbbftMock");
 
             await hhViem.assertions.revertWithCustomError(
@@ -246,7 +246,7 @@ describe("TxPermissionHbbft", () => {
             );
         });
 
-        it("should revert initialization with KeyGenHistory = address(0)", async () => {
+        it("should revert initialization with KeyGenHistory = address(0)", async function () {
             const implementation = await hhViem.deployContract("TxPermissionHbbftMock");
 
             await hhViem.assertions.revertWithCustomError(
@@ -259,7 +259,7 @@ describe("TxPermissionHbbft", () => {
             );
         });
 
-        it("should revert initialization with ConnectivityTracker = address(0)", async () => {
+        it("should revert initialization with ConnectivityTracker = address(0)", async function () {
             const implementation = await hhViem.deployContract("TxPermissionHbbftMock");
 
             await hhViem.assertions.revertWithCustomError(
@@ -272,7 +272,7 @@ describe("TxPermissionHbbft", () => {
             );
         });
 
-        it("should revert initialization with owner = address(0)", async () => {
+        it("should revert initialization with owner = address(0)", async function () {
             const implementation = await hhViem.deployContract("TxPermissionHbbftMock");
 
             await hhViem.assertions.revertWithCustomError(
@@ -285,7 +285,7 @@ describe("TxPermissionHbbft", () => {
             );
         });
 
-        it("should not allow initialization if initialized contract", async () => {
+        it("should not allow initialization if initialized contract", async function () {
             const contract = await deployProxy(hhViem, "TxPermissionHbbftMock", {
                 initArgs: [allowedSenders, stubAddress, stubAddress, stubAddress, stubAddress, owner.account.address],
                 initializer: "initialize",

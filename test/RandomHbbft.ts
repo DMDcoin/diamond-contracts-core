@@ -110,8 +110,8 @@ describe("RandomHbbft", () => {
         stubAddress = createRandomWallet().address;
     });
 
-    describe("Initializer", async () => {
-        it("should revert initialization with validator contract = address(0)", async () => {
+    describe("Initializer", async function () {
+        it("should revert initialization with validator contract = address(0)", async function () {
             const implementation = await hhViem.deployContract("RandomHbbft");
 
             await hhViem.assertions.revertWithCustomError(
@@ -124,7 +124,7 @@ describe("RandomHbbft", () => {
             );
         });
 
-        it("should revert initialization with owner = address(0)", async () => {
+        it("should revert initialization with owner = address(0)", async function () {
             const implementation = await hhViem.deployContract("RandomHbbft");
 
             await hhViem.assertions.revertWithCustomError(
@@ -137,7 +137,7 @@ describe("RandomHbbft", () => {
             );
         });
 
-        it("should not allow initialization if initialized contract", async () => {
+        it("should not allow initialization if initialized contract", async function () {
             const contract = await deployProxy(hhViem, "RandomHbbft", {
                 initArgs: [stubAddress, stubAddress],
                 initializer: "initialize",
@@ -151,8 +151,8 @@ describe("RandomHbbft", () => {
         });
     });
 
-    describe("currentSeed()", async () => {
-        it("setCurrentSeed must revert if called by non-owner", async () => {
+    describe("currentSeed()", async function () {
+        it("setCurrentSeed must revert if called by non-owner", async function () {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
             await hhViem.assertions.revertWithCustomError(
@@ -183,7 +183,7 @@ describe("RandomHbbft", () => {
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it("last 10 seeds must be equal to last 10 elements in the array", async () => {
+        it("last 10 seeds must be equal to last 10 elements in the array", async function () {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
             const systemAccount = await impersonateSystemAcc();
@@ -211,7 +211,7 @@ describe("RandomHbbft", () => {
     });
 
     describe("FullHealth()", async function () {
-        it("should display health correctly", async () => {
+        it("should display health correctly", async function () {
             const { initialValidators, randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
             const validators = await validatorSetHbbft.read.getValidators();
@@ -222,7 +222,7 @@ describe("RandomHbbft", () => {
             assert.equal(await randomHbbft.read.isFullHealth(), false);
         });
 
-        it("should mark unhealty blocks", async () => {
+        it("should mark unhealty blocks", async function () {
             const { initialValidators, randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
             const validators = await validatorSetHbbft.read.getValidators();
@@ -243,7 +243,7 @@ describe("RandomHbbft", () => {
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it("should get full health historic array ", async () => {
+        it("should get full health historic array ", async function () {
             const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
             const systemAccount = await impersonateSystemAcc();
@@ -281,7 +281,7 @@ describe("RandomHbbft", () => {
             assert.deepEqual(await randomHbbft.read.isFullHealthsHistoric([blocks]), expected);
         });
 
-        it("should be consistent in block healthiness tracking", async () => {
+        it("should be consistent in block healthiness tracking", async function () {
             const { initialValidators, randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
             const systemAccount = await impersonateSystemAcc();

@@ -200,7 +200,7 @@ describe("BonusScoreSystem", function () {
         await helpers.stopImpersonatingAccount(validatorSet);
     }
 
-    describe("Initializer", async () => {
+    describe("Initializer", async function () {
         const InitializeCases: Array<[Address, Address, Address, Address]> = [
             [zeroAddress, randomWallet(), randomWallet(), randomWallet()],
             [randomWallet(), zeroAddress, randomWallet(), randomWallet()],
@@ -223,7 +223,7 @@ describe("BonusScoreSystem", function () {
             });
         });
 
-        it("should not allow re-initialization", async () => {
+        it("should not allow re-initialization", async function () {
             const args: Array<Address> =
                 [randomWallet(), randomWallet(), randomWallet(), randomWallet()];
 
@@ -240,7 +240,7 @@ describe("BonusScoreSystem", function () {
         });
 
         ScoringFactors.forEach((args) => {
-            it(`should set initial scoring factor ${ScoringFactor[args.factor]}`, async () => {
+            it(`should set initial scoring factor ${ScoringFactor[args.factor]}`, async function () {
                 const bonusScoreSystem = await deployProxy(hhViem, "BonusScoreSystem", {
                     initArgs: [randomWallet(), randomWallet(), randomWallet(), randomWallet()],
                     initializer: "initialize",
@@ -254,7 +254,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("setStandByFactor (ValueGuards)", async () => {
+    describe("setStandByFactor (ValueGuards)", async function () {
         it("should initialize with default standByFactor value of 20", async function () {
             const bonusScoreSystem = await deployProxy(hhViem, "BonusScoreSystem", {
                 initArgs: [randomWallet(), randomWallet(), randomWallet(), randomWallet()],
@@ -482,7 +482,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("getScoringFactorValue", async () => {
+    describe("getScoringFactorValue", async function () {
         it("should revert for unknown scoring factor", async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
 
@@ -503,9 +503,9 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("getTimePerScorePoint", async () => {
+    describe("getTimePerScorePoint", async function () {
         ScoringFactors.forEach((args) => {
-            it(`should get time per ${ScoringFactor[args.factor]} factor point`, async () => {
+            it(`should get time per ${ScoringFactor[args.factor]} factor point`, async function () {
                 const { bonusScoreSystem, stakingHbbft } = await helpers.loadFixture(deployContracts);
                 const fixedEpochDuration = await stakingHbbft.read.stakingFixedEpochDuration();
 
@@ -519,7 +519,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("getValidatorScore", async () => {
+    describe("getValidatorScore", async function () {
         it("should return MIN_SCORE if not previously recorded", async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
 
@@ -529,7 +529,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("rewardStandBy", async () => {
+    describe("rewardStandBy", async function () {
         it("should restrict calling to ValidatorSet contract", async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
             const caller = users[2];
@@ -727,7 +727,7 @@ describe("BonusScoreSystem", function () {
             await helpers.stopImpersonatingAccount(validatorSet);
         });
 
-        it("should be non-reentrant", async () => {
+        it("should be non-reentrant", async function () {
             const { initialValidators, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
 
             const bonusScoreSystem = await deployProxy(hhViem, "BonusScoreSystem", {
@@ -758,7 +758,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("penaliseNoStandBy", async () => {
+    describe("penaliseNoStandBy", async function () {
         it("should restrict calling to ValidatorSet contract", async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
             const caller = users[3];
@@ -963,7 +963,7 @@ describe("BonusScoreSystem", function () {
             await helpers.stopImpersonatingAccount(validatorSet);
         });
 
-        it("should be non-reentrant", async () => {
+        it("should be non-reentrant", async function () {
             const { initialValidators, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
 
             const bonusScoreSystem = await deployProxy(hhViem, "BonusScoreSystem", {
@@ -994,7 +994,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("penaliseNoKeyWrite", async () => {
+    describe("penaliseNoKeyWrite", async function () {
         it("should restrict calling to ValidatorSet contract", async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
             const caller = users[4];
@@ -1099,7 +1099,7 @@ describe("BonusScoreSystem", function () {
             await helpers.stopImpersonatingAccount(validatorSet);
         });
 
-        it("should be non-reentrant", async () => {
+        it("should be non-reentrant", async function () {
             const { initialValidators, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
 
             const bonusScoreSystem = await deployProxy(hhViem, "BonusScoreSystem", {
@@ -1130,7 +1130,7 @@ describe("BonusScoreSystem", function () {
         });
     });
 
-    describe("penaliseBadPerformance", async () => {
+    describe("penaliseBadPerformance", async function () {
         it("should restrict calling to ConnectivityTracker contract", async function () {
             const { bonusScoreSystem } = await helpers.loadFixture(deployContracts);
             const caller = users[5];
@@ -1257,7 +1257,7 @@ describe("BonusScoreSystem", function () {
             await helpers.stopImpersonatingAccount(connectivityTracker);
         });
 
-        it("should be non-reentrant", async () => {
+        it("should be non-reentrant", async function () {
             const { initialValidators, validatorSetHbbft, reentrancyAttacker } = await helpers.loadFixture(deployContracts);
 
             const bonusScoreSystem = await deployProxy(hhViem, "BonusScoreSystem", {

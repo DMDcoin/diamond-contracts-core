@@ -66,8 +66,8 @@ describe("CertifierHbbft contract", () => {
         [owner, ...accounts] = await hhViem.getWalletClients();
     });
 
-    describe("Initializer", async () => {
-        it("should revert initialization with validator contract = address(0)", async () => {
+    describe("Initializer", async function () {
+        it("should revert initialization with validator contract = address(0)", async function () {
             const implementation = await hhViem.deployContract("CertifierHbbft");
 
             await hhViem.assertions.revertWithCustomError(
@@ -80,7 +80,7 @@ describe("CertifierHbbft contract", () => {
             );
         });
 
-        it("should revert initialization with owner = address(0)", async () => {
+        it("should revert initialization with owner = address(0)", async function () {
             const implementation = await hhViem.deployContract("CertifierHbbft");
 
             await hhViem.assertions.revertWithCustomError(
@@ -93,7 +93,7 @@ describe("CertifierHbbft contract", () => {
             );
         });
 
-        it("should not allow initialization if initialized contract", async () => {
+        it("should not allow initialization if initialized contract", async function () {
             const contract = await deployProxy(hhViem, "CertifierHbbft", {
                 initArgs: [[], accounts[1].account.address, owner.account.address],
                 initializer: "initialize",
@@ -107,7 +107,7 @@ describe("CertifierHbbft contract", () => {
         });
     });
 
-    describe("certification", async () => {
+    describe("certification", async function () {
         it("should restrict calling certify to contract owner", async function () {
             const { certifier } = await helpers.loadFixture(deployContracts);
 
