@@ -2,14 +2,18 @@ import assert from "node:assert/strict";
 import { describe, it, before } from "node:test";
 import hre from "hardhat";
 
-import { Hex, parseEther, zeroAddress, type Address } from "viem";
+import { Hex, parseEther, zeroAddress } from "viem";
 
+import { createNetworkFixtures, SystemAccountAddress } from "./fixtures/network.js";
 import { random, range, splitPublicKeys } from "./fixtures/utils.js";
 import { deployProxy } from "./fixtures/proxy.js";
 import { Validator, ZeroIpAddress } from "./fixtures/validator.js";
 import { createRandomWallet } from "./fixtures/wallet.js";
 
-const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
+const connection = await hre.network.getOrCreate();
+const { viem: hhViem, networkHelpers: helpers } = connection;
+
+const { impersonateAcc } = createNetworkFixtures(connection);
 
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
 
@@ -22,8 +26,6 @@ const stakingFixedEpochDuration = 86400n;
 const stakingTransitionTimeframeLength = 3600n;
 const stakingWithdrawDisallowPeriod = 1n;
 const validatorInactivityThreshold = 365n * 86400n; // 1 year
-
-const SystemAccountAddress: Address = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
 describe("RandomHbbft", () => {
     let owner: TestWalletClient;
@@ -97,13 +99,6 @@ describe("RandomHbbft", () => {
         return { initialValidators, randomHbbft, validatorSetHbbft, stakingHbbft };
     }
 
-    async function impersonateSystemAcc(): Promise<Address> {
-        await helpers.impersonateAccount(SystemAccountAddress);
-        await helpers.setBalance(SystemAccountAddress, parseEther("10"));
-
-        return SystemAccountAddress;
-    }
-
     before(async function () {
         [owner, ...accounts] = await hhViem.getWalletClients();
 
@@ -165,7 +160,7 @@ describe("RandomHbbft", () => {
         it("should set current seed by system", async function () {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
-            const systemAccount = await impersonateSystemAcc();
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
 
             const blockNumber = await helpers.time.latestBlock();
             const randomSeed = random(0, Number.MAX_SAFE_INTEGER);
@@ -186,7 +181,7 @@ describe("RandomHbbft", () => {
         it("last 10 seeds must be equal to last 10 elements in the array", async function () {
             const { randomHbbft } = await helpers.loadFixture(deployContracts);
 
-            const systemAccount = await impersonateSystemAcc();
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
             const seedsArray = new Array<bigint>();
 
             for (let i = 0; i < 100; ++i) {
@@ -229,7 +224,7 @@ describe("RandomHbbft", () => {
             assert.equal(validators.length, initialValidators.length);
             assert.equal(await randomHbbft.read.isFullHealth(), true);
 
-            const systemAccount = await impersonateSystemAcc();
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
             await validatorSetHbbft.write.kickValidator([validators[0]]);
 
             const blockNumber = await helpers.time.latestBlock();
@@ -246,7 +241,7 @@ describe("RandomHbbft", () => {
         it("should get full health historic array ", async function () {
             const { randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
-            const systemAccount = await impersonateSystemAcc();
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
 
             const blocks = new Array<bigint>();
             const expected = new Array<boolean>();
@@ -284,7 +279,7 @@ describe("RandomHbbft", () => {
         it("should be consistent in block healthiness tracking", async function () {
             const { initialValidators, randomHbbft, validatorSetHbbft } = await helpers.loadFixture(deployContracts);
 
-            const systemAccount = await impersonateSystemAcc();
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
             const validators = await validatorSetHbbft.read.getValidators();
 
             const blocksSeedHealth = new Map<number, boolean>();

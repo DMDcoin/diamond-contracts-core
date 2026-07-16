@@ -2,24 +2,33 @@ import assert from "node:assert/strict";
 import { describe, it, before } from "node:test";
 import hre from "hardhat";
 
-import { type Account, type Address, getAddress, parseEther, parseEventLogs, parseUnits, zeroAddress } from "viem";
+import { type Address, getAddress, parseEther, parseEventLogs, parseUnits, zeroAddress } from "viem";
 
 import { GovernanceAddress } from "./fixtures/dao.js";
 import { createDeploymentFixture, DeploymentFixture, type DeployedContracts } from "./fixtures/deployment.js";
+import { createNetworkFixtures, SystemAccountAddress } from "./fixtures/network.js";
+import { assertCloseTo } from "./fixtures/utils.js";
 import { Validator } from "./fixtures/validator.js";
 import { deployProxy } from "./fixtures/proxy.js";
 import { createRandomWallet } from "./fixtures/wallet.js";
 
-const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
+const connection = await hre.network.getOrCreate();
+const { viem: hhViem, networkHelpers: helpers } = connection;
+
+const {
+    impersonateAcc,
+    callReward,
+    timeTravelToTransition,
+    timeTravelToEndEpoch,
+    announceAvailability,
+} = createNetworkFixtures(connection);
 
 const publicClient = await hhViem.getPublicClient();
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
 
 type BlockRewardContract = DeployedContracts["blockReward"];
 type StakingContract = DeployedContracts["staking"];
-type ValidatorSetContract = DeployedContracts["validatorSet"];
 
-const SystemAccountAddress = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE" as Address;
 const addToDeltaPotValue = parseEther("60");
 
 describe("BlockRewardHbbft", function () {
@@ -47,42 +56,11 @@ describe("BlockRewardHbbft", function () {
         deployContractsFixture = createDeploymentFixture(owner.account);
     });
 
-    async function impersonateAcc(address: Address): Promise<Address> {
-        await helpers.impersonateAccount(address);
-        await helpers.setBalance(address, parseEther("10"));
-
-        return address;
-    }
-
-    async function callReward(blockReward: BlockRewardContract, isEpochEndBlock: boolean): Promise<void> {
-        const systemAccount = await impersonateAcc(SystemAccountAddress);
-
-        await blockReward.write.reward([isEpochEndBlock], { account: systemAccount });
-
-        await helpers.stopImpersonatingAccount(SystemAccountAddress);
-    }
-
     async function getCurrentGovernancePotValue(blockReward: BlockRewardContract): Promise<bigint> {
         const governancePotAddress = await blockReward.read.governancePotAddress();
         assert.notEqual(governancePotAddress, zeroAddress);
 
         return publicClient.getBalance({ address: governancePotAddress });
-    }
-
-    // time travels forward to the beginning of the next transition,
-    // and simulate a block mining (calling reward())
-    async function timeTravelToTransition(staking: StakingContract, blockReward: BlockRewardContract): Promise<void> {
-        const startTimeOfNextPhaseTransition = await staking.read.startTimeOfNextPhaseTransition();
-
-        await helpers.time.increaseTo(startTimeOfNextPhaseTransition);
-        await callReward(blockReward, false);
-    }
-
-    async function timeTravelToEndEpoch(staking: StakingContract, blockReward: BlockRewardContract): Promise<void> {
-        const endTimeOfCurrentEpoch = await staking.read.stakingFixedEpochEndTime();
-
-        await helpers.time.increaseTo(endTimeOfCurrentEpoch);
-        await callReward(blockReward, true);
     }
 
     async function finishEpochPrelim(
@@ -98,12 +76,6 @@ describe("BlockRewardHbbft", function () {
 
         await helpers.time.increaseTo(endTimeOfCurrentEpoch);
         await callReward(blockReward, true);
-    }
-
-    async function announceAvailability(validatorSet: ValidatorSetContract, account: Account | Address): Promise<void> {
-        const block = await publicClient.getBlock();
-
-        await validatorSet.write.announceAvailability([block.number, block.hash], { account });
     }
 
     async function getValidatorStake(
@@ -179,13 +151,6 @@ describe("BlockRewardHbbft", function () {
         const totalStake = await contracts.staking.read.stakeAmountTotal([stakingAddress]);
 
         return validatorFixedReward + ((totalReward - validatorFixedReward) * validatorStake) / totalStake;
-    }
-
-    function assertCloseTo(actual: bigint, expected: bigint, tolerance: bigint): void {
-        assert.ok(
-            actual >= expected - tolerance && actual <= expected + tolerance,
-            `expected ${actual} to be within ${tolerance} of ${expected}`,
-        );
     }
 
     describe("initialize", async function () {
@@ -705,7 +670,7 @@ describe("BlockRewardHbbft", function () {
 
             assert.equal(await blockReward.read.earlyEpochEnd(), false);
 
-            await timeTravelToTransition(staking, blockReward);
+            await timeTravelToTransition(blockReward, staking);
 
             const pendingValidators = await validatorSet.read.getPendingValidators();
             assert.ok(pendingValidators.length > 0);
@@ -751,8 +716,8 @@ describe("BlockRewardHbbft", function () {
 
             assert.deepEqual(await validatorSet.read.getPendingValidators(), []);
 
-            await timeTravelToTransition(staking, blockReward);
-            await timeTravelToEndEpoch(staking, blockReward);
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
             assert.equal(await staking.read.stakingEpoch(), 1n);
 
@@ -813,7 +778,7 @@ describe("BlockRewardHbbft", function () {
 
             assert.equal((await staking.read.getPoolsToBeElected()).length, 3);
 
-            await timeTravelToTransition(staking, blockReward);
+            await timeTravelToTransition(blockReward, staking);
 
             const pendingValidators = await validatorSet.read.getPendingValidators();
 
@@ -825,7 +790,7 @@ describe("BlockRewardHbbft", function () {
             assert.equal(await staking.read.stakingEpoch(), 1n);
             assert.equal(await blockReward.read.nativeRewardUndistributed(), 0n);
 
-            await timeTravelToEndEpoch(staking, blockReward);
+            await timeTravelToEndEpoch(blockReward, staking);
 
             const nextStakingEpoch = await staking.read.stakingEpoch();
             assert.equal(nextStakingEpoch, 2n);
@@ -878,8 +843,8 @@ describe("BlockRewardHbbft", function () {
 
             const initialGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
 
-            await timeTravelToTransition(staking, blockReward);
-            await timeTravelToEndEpoch(staking, blockReward);
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
             const currentGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
             const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
@@ -909,8 +874,8 @@ describe("BlockRewardHbbft", function () {
 
             const initialGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
 
-            await timeTravelToTransition(staking, blockReward);
-            await timeTravelToEndEpoch(staking, blockReward);
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
             const currentGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
             const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
@@ -1080,8 +1045,8 @@ describe("BlockRewardHbbft", function () {
                 }
             }
 
-            await timeTravelToTransition(staking, blockReward);
-            await timeTravelToEndEpoch(staking, blockReward);
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
             const maxValidators = await validatorSet.read.maxValidators();
 

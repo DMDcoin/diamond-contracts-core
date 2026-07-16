@@ -16,6 +16,7 @@ import {
     type Hex,
 } from "viem";
 
+import { createNetworkFixtures, SystemAccountAddress } from "./fixtures/network.js";
 import { Permission } from "./fixtures/permission.js";
 import { random, splitPublicKeys } from "./fixtures/utils.js";
 import { getNValidatorsPartNAcks, getTestPartNAcks } from "./fixtures/data.js";
@@ -26,6 +27,8 @@ import { deployProxy } from "./fixtures/proxy.js";
 
 const connection = await hre.network.getOrCreate();
 const { viem: hhViem, networkHelpers: helpers } = connection;
+
+const { impersonateAcc } = createNetworkFixtures(connection);
 
 const publicClient = await hhViem.getPublicClient();
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
@@ -39,8 +42,6 @@ const stakingWithdrawDisallowPeriod = 1n;
 const MAX_STAKE = parseEther("100000");
 
 const validatorInactivityThreshold = 365n * 86400n; // 1 year
-
-const SystemAccountAddress: Address = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
 describe("ValidatorSetHbbft", () => {
     let owner: TestWalletClient;
@@ -171,13 +172,6 @@ describe("ValidatorSetHbbft", () => {
             txPermission,
             connectivityTracker,
         };
-    }
-
-    async function impersonateAcc(address: Address): Promise<Address> {
-        await helpers.impersonateAccount(address);
-        await helpers.setBalance(address, parseEther("10"));
-
-        return address;
     }
 
     before(async function () {

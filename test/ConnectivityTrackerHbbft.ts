@@ -13,6 +13,7 @@ import {
 } from "viem";
 
 import { getNValidatorsPartNAcks } from "./fixtures/data.js";
+import { createNetworkFixtures } from "./fixtures/network.js";
 import { splitPublicKeys } from "./fixtures/utils.js";
 import { deployProxy } from "./fixtures/proxy.js";
 import { Validator, ZeroIpAddress } from "./fixtures/validator.js";
@@ -20,7 +21,10 @@ import { createRandomWallet } from "./fixtures/wallet.js";
 
 import type { StakingHbbftMock } from "./fixtures/types.js";
 
-const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
+const connection = await hre.network.getOrCreate();
+const { viem: hhViem, networkHelpers: helpers } = connection;
+
+const { impersonateAcc } = createNetworkFixtures(connection);
 
 const publicClient = await hhViem.getPublicClient();
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
@@ -142,13 +146,6 @@ describe("ConnectivityTrackerHbbft", () => {
             blockRewardHbbft,
             bonusScoreContractMock,
         };
-    }
-
-    async function impersonateAcc(accAddress: Address): Promise<Address> {
-        await helpers.impersonateAccount(accAddress);
-        await helpers.setBalance(accAddress, parseEther("10"));
-
-        return accAddress;
     }
 
     async function setStakingEpochStartTime(caller: Address, stakingHbbft: StakingHbbftMock) {

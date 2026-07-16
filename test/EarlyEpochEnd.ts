@@ -6,13 +6,16 @@ import { parseEther, zeroAddress, type Address } from "viem";
 
 import { getNValidatorsPartNAcks } from "./fixtures/data.js";
 import { deployDao } from "./fixtures/dao.js";
+import { createNetworkFixtures } from "./fixtures/network.js";
 import { deployProxy } from "./fixtures/proxy.js";
 import { splitPublicKeys } from "./fixtures/utils.js";
 import { Validator } from "./fixtures/validator.js";
-import type { BlockRewardHbbftMock, KeyGenHistory, ValidatorSetHbbftMock } from "./fixtures/types.js";
+import type { KeyGenHistory } from "./fixtures/types.js";
 
 const connection = await hre.network.getOrCreate();
 const { viem: hhViem, networkHelpers: helpers } = connection;
+
+const { impersonateAcc, callReward, announceAvailability } = createNetworkFixtures(connection);
 
 const publicClient = await hhViem.getPublicClient();
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
@@ -27,7 +30,6 @@ const reportDisallowPeriod = 15n * 60n;
 const candidateMinStake = parseEther("1");
 const delegatorMinStake = parseEther("100");
 
-const SystemAccountAddress: Address = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
 describe("Early Epoch End", async function () {
     let owner: TestWalletClient;
@@ -52,14 +54,6 @@ describe("Early Epoch End", async function () {
             pendingValidators.push(validator);
         }
     });
-
-    async function announceAvailability(validator: Validator, validatorSet: ValidatorSetHbbftMock) {
-        const latestBlock = await publicClient.getBlock();
-
-        await validatorSet.write.announceAvailability([latestBlock.number, latestBlock.hash], {
-            account: validator.mining,
-        });
-    }
 
     async function deployContractsFixture() {
         const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
@@ -173,7 +167,7 @@ describe("Early Epoch End", async function () {
                 value: candidateMinStake,
             });
 
-            await announceAvailability(validator, validatorSetContract);
+            await announceAvailability(validatorSetContract, validator.mining);
         }
 
         return {
@@ -186,21 +180,6 @@ describe("Early Epoch End", async function () {
     }
 
     describe("Early epoch end cases", async function () {
-        async function impersonateAcc(address: Address): Promise<Address> {
-            await helpers.impersonateAccount(address);
-            await helpers.setBalance(address, parseEther("10"));
-
-            return address;
-        }
-
-        async function callReward(_blockReward: BlockRewardHbbftMock, isEpochEndBlock: boolean) {
-            const systemAccount = await impersonateAcc(SystemAccountAddress);
-
-            await _blockReward.write.reward([isEpochEndBlock], { account: systemAccount });
-
-            await helpers.stopImpersonatingAccount(SystemAccountAddress);
-        }
-
         async function writePart(currentEpoch: bigint, validator: Validator, keyGenContract: KeyGenHistory) {
             const { parts } = getNValidatorsPartNAcks(1);
             const currentRound = await keyGenContract.read.currentKeyGenRound();
@@ -242,7 +221,7 @@ describe("Early Epoch End", async function () {
                 { account: additionalValidator.staking, value: candidateMinStake },
             );
 
-            await announceAvailability(additionalValidator, validatorSetContract);
+            await announceAvailability(validatorSetContract, additionalValidator.mining);
 
             // Configure staking epoch
             const validatorSetCaller = await impersonateAcc(validatorSetContract.address);
@@ -349,7 +328,7 @@ describe("Early Epoch End", async function () {
                 { account: additionalValidator.staking, value: candidateMinStake },
             );
 
-            await announceAvailability(additionalValidator, validatorSetContract);
+            await announceAvailability(validatorSetContract, additionalValidator.mining);
 
             // Configure staking epoch
             const validatorSetCaller = await impersonateAcc(validatorSetContract.address);
@@ -468,7 +447,7 @@ describe("Early Epoch End", async function () {
                     { account: validator.staking, value: candidateMinStake },
                 );
 
-                await announceAvailability(validator, validatorSetContract);
+                await announceAvailability(validatorSetContract, validator.mining);
             }
 
             assert.equal(

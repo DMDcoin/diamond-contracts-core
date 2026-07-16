@@ -13,6 +13,7 @@ import {
 
 import { getTestPartNAcks } from "./fixtures/data.js";
 import { deployDao } from "./fixtures/dao.js";
+import { createNetworkFixtures, SystemAccountAddress } from "./fixtures/network.js";
 import { Permission } from "./fixtures/permission.js";
 import { deployProxy } from "./fixtures/proxy.js";
 import { Validator } from "./fixtures/validator.js";
@@ -20,7 +21,6 @@ import { splitPublicKeys } from "./fixtures/utils.js";
 import type {
     BlockRewardHbbftMock,
     CertifierHbbft,
-    ConnectivityTrackerHbbft,
     ConnectivityTrackerHbbftMock,
     KeyGenHistory,
     RandomHbbft,
@@ -31,6 +31,8 @@ import type {
 
 const connection = await hre.network.getOrCreate();
 const { viem: hhViem, networkHelpers: helpers } = connection;
+
+const { impersonateAcc } = createNetworkFixtures(connection);
 
 const publicClient = await hhViem.getPublicClient();
 type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
@@ -50,8 +52,6 @@ const stakingTransitionwindowLength = 100n;
 const stakingWithdrawDisallowPeriod = 100n;
 
 const validatorInactivityThreshold = 365n * 86400n; // 1 year
-
-const SystemAccountAddress: Address = "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE";
 
 describe("KeyGenHistory", () => {
     let owner: TestWalletClient;
@@ -73,13 +73,6 @@ describe("KeyGenHistory", () => {
     let keyGenHistoryPermission: Permission<KeyGenHistory>;
 
     const { parts, acks } = getTestPartNAcks();
-
-    async function impersonateAcc(accAddress: Address): Promise<Address> {
-        await helpers.impersonateAccount(accAddress);
-        await helpers.setBalance(accAddress, parseEther("10"));
-
-        return accAddress;
-    }
 
     async function printValidatorState(info: string) {
         if (!logOutput) {
