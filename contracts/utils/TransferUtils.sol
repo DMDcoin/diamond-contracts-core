@@ -11,7 +11,7 @@ library TransferUtils {
         }
 
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, ) = recipient.call{ value: amount }("");
+        (bool success,) = recipient.call{value: amount}("");
         if (!success) {
             revert TransferFailed(recipient, amount);
         }

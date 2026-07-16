@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { ValidatorSetHbbft } from "../ValidatorSetHbbft.sol";
-import { IKeyGenHistory } from "../interfaces/IKeyGenHistory.sol";
-import { IStakingHbbft } from "../interfaces/IStakingHbbft.sol";
-import { IBonusScoreSystem } from "../interfaces/IBonusScoreSystem.sol";
+import {ValidatorSetHbbft} from "../ValidatorSetHbbft.sol";
+import {IBonusScoreSystem} from "../interfaces/IBonusScoreSystem.sol";
+import {IKeyGenHistory} from "../interfaces/IKeyGenHistory.sol";
+import {IStakingHbbft} from "../interfaces/IStakingHbbft.sol";
 
 contract ValidatorSetHbbftMock is ValidatorSetHbbft {
     receive() external payable {}
@@ -85,6 +85,8 @@ contract ValidatorSetHbbftMock is ValidatorSetHbbft {
         uint256 _likelihoodSum,
         uint256 _randomNumber
     ) public pure returns (uint256) {
-        return _getRandomIndex(_likelihood, _likelihoodSum, uint256(keccak256(abi.encode(_randomNumber))));
+        return _getRandomIndex(
+            _likelihood, _likelihoodSum, uint256(keccak256(abi.encode(_randomNumber)))
+        );
     }
 }

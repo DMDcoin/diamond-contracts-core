@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { IBonusScoreSystem } from "../interfaces/IBonusScoreSystem.sol";
+import {IBonusScoreSystem} from "../interfaces/IBonusScoreSystem.sol";
 
 contract BonusScoreSystemMock is IBonusScoreSystem {
     uint256 public constant DEFAULT_STAND_BY_FACTOR = 15;

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import { ValueGuards } from "../lib/ValueGuards.sol";
-
+import {ValueGuards} from "../lib/ValueGuards.sol";
 
 contract ValueGuardsMock is Initializable, OwnableUpgradeable, ValueGuards {
     uint256 public valueA;
@@ -25,15 +24,11 @@ contract ValueGuardsMock is Initializable, OwnableUpgradeable, ValueGuards {
         __Ownable_init(msg.sender);
 
         __initAllowedChangeableParameter(
-            this.setValueA.selector,
-            this.valueA.selector,
-            allowedRangeValueA
+            this.setValueA.selector, this.valueA.selector, allowedRangeValueA
         );
 
         __initAllowedChangeableParameter(
-            this.setValueB.selector,
-            this.getValueB.selector,
-            allowedRangeValueB
+            this.setValueB.selector, this.getValueB.selector, allowedRangeValueB
         );
 
         valueA = _initialValueA;
@@ -60,7 +55,11 @@ contract ValueGuardsMock is Initializable, OwnableUpgradeable, ValueGuards {
         return valueB;
     }
 
-    function initAllowedChangableParam(bytes4 setter, bytes4 getter, uint256[] memory params) external {
+    function initAllowedChangableParam(
+        bytes4 setter,
+        bytes4 getter,
+        uint256[] memory params
+    ) external {
         __initAllowedChangeableParameter(setter, getter, params);
     }
 }

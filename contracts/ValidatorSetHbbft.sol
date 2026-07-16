@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
-import { IRandomHbbft } from "./interfaces/IRandomHbbft.sol";
-import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
-import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
-import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
+import {IBonusScoreSystem} from "./interfaces/IBonusScoreSystem.sol";
+import {IKeyGenHistory} from "./interfaces/IKeyGenHistory.sol";
+import {IRandomHbbft} from "./interfaces/IRandomHbbft.sol";
+import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
+import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
+import {Unauthorized, ValidatorsListEmpty, ZeroAddress} from "./lib/Errors.sol";
 
 /// @dev Stores the current validator set and contains the logic for choosing new validators
 /// before each staking epoch. The logic uses a random seed generated and stored by the `RandomHbbft` contract.
@@ -295,8 +295,8 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         address[] memory goodValidators = new address[](pendingValidatorsCount - 1);
         uint256 goodValidatorsCount = 0;
 
-        (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) = keyGenHistoryContract
-            .getNumberOfKeyFragmentsWritten();
+        (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) =
+            keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
 
         for (uint256 i = 0; i < pendingValidatorsCount; ++i) {
             // get mining address for this pool.
@@ -390,7 +390,10 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// and should never be used as a pool before.
     /// @param _stakingAddress The staking address of the newly created pool. Cannot be equal to the `_miningAddress`
     /// and should never be used as a pool before.
-    function setStakingAddress(address _miningAddress, address _stakingAddress) external onlyStakingContract {
+    function setStakingAddress(
+        address _miningAddress,
+        address _stakingAddress
+    ) external onlyStakingContract {
         _setStakingAddress(_miningAddress, _stakingAddress);
     }
 
@@ -445,7 +448,11 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         return _currentValidators;
     }
 
-    function getPendingValidatorKeyGenerationMode(address _miningAddress) external view returns (KeyGenMode) {
+    function getPendingValidatorKeyGenerationMode(address _miningAddress)
+        external
+        view
+        returns (KeyGenMode)
+    {
         // enum KeyGenMode { NotAPendingValidator, WritePart, WaitForOtherParts,
         // WriteAck, WaitForOtherAcks, AllKeysDone }
 
@@ -456,8 +463,8 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         // since we got a part, maybe to validator is about to write his ack ?
         // he is allowed to write his ack, if all nodes have written their part.
 
-        (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) = keyGenHistoryContract
-            .getNumberOfKeyFragmentsWritten();
+        (uint128 numberOfPartsWritten, uint128 numberOfAcksWritten) =
+            keyGenHistoryContract.getNumberOfKeyFragmentsWritten();
 
         if (numberOfPartsWritten < _pendingValidators.length) {
             bytes memory part = keyGenHistoryContract.getPart(_miningAddress);
@@ -527,7 +534,11 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// @dev Returns the public key for the given stakingAddress
     /// @param _stakingAddress staking address of the wanted public key.
     /// @return public key of the _stakingAddress
-    function publicKeyByStakingAddress(address _stakingAddress) external view returns (bytes memory) {
+    function publicKeyByStakingAddress(address _stakingAddress)
+        external
+        view
+        returns (bytes memory)
+    {
         return stakingContract.getPoolPublicKey(_stakingAddress);
     }
 
@@ -558,7 +569,11 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     /// values: 1 - 4 - 7 - 10 - 13 - 16 - 19 - 22 - 25
     /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/84
     /// @return a sweet spot n for a given number n
-    function getValidatorCountSweetSpot(uint256 _possibleValidatorCount) public pure returns (uint256) {
+    function getValidatorCountSweetSpot(uint256 _possibleValidatorCount)
+        public
+        pure
+        returns (uint256)
+    {
         if (_possibleValidatorCount == 0) {
             revert InvalidPossibleValidatorCount();
         }
@@ -575,19 +590,25 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
     function _newValidatorSet(address[] memory _forcedPools) internal {
         address[] memory poolsToBeElected = stakingContract.getPoolsToBeElected();
 
-        uint256 numOfValidatorsToBeElected = poolsToBeElected.length >= maxValidators || poolsToBeElected.length == 0
+        uint256 numOfValidatorsToBeElected = poolsToBeElected.length >= maxValidators
+            || poolsToBeElected.length == 0
             ? maxValidators
             : getValidatorCountSweetSpot(poolsToBeElected.length);
 
         // Choose new validators > )
         if (poolsToBeElected.length > numOfValidatorsToBeElected) {
             uint256 poolsToBeElectedLength = poolsToBeElected.length;
-            (uint256[] memory likelihood, uint256 likelihoodSum) = stakingContract.getPoolsLikelihood();
+            (uint256[] memory likelihood, uint256 likelihoodSum) =
+                stakingContract.getPoolsLikelihood();
             address[] memory newValidators = new address[](numOfValidatorsToBeElected);
 
             uint256 indexNewValidator = 0;
             for (uint256 iForced = 0; iForced < _forcedPools.length; iForced++) {
-                for (uint256 iPoolToBeElected = 0; iPoolToBeElected < poolsToBeElectedLength; iPoolToBeElected++) {
+                for (
+                    uint256 iPoolToBeElected = 0;
+                    iPoolToBeElected < poolsToBeElectedLength;
+                    iPoolToBeElected++
+                ) {
                     if (poolsToBeElected[iPoolToBeElected] == _forcedPools[iForced]) {
                         newValidators[indexNewValidator] = _forcedPools[iForced];
                         indexNewValidator++;
@@ -596,7 +617,8 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
                         // by replacing it with the last element,
                         // and virtually reducing it's size.
                         poolsToBeElectedLength--;
-                        poolsToBeElected[iPoolToBeElected] = poolsToBeElected[poolsToBeElectedLength];
+                        poolsToBeElected[iPoolToBeElected] =
+                            poolsToBeElected[poolsToBeElectedLength];
                         likelihood[iPoolToBeElected] = likelihood[poolsToBeElectedLength];
                         break;
                     }
@@ -608,7 +630,8 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
             if (likelihood.length > 0 && likelihoodSum > 0) {
                 for (uint256 i = 0; i < newValidators.length; i++) {
                     randomNumber = uint256(keccak256(abi.encode(randomNumber ^ block.timestamp)));
-                    uint256 randomPoolIndex = _getRandomIndex(likelihood, likelihoodSum, randomNumber);
+                    uint256 randomPoolIndex =
+                        _getRandomIndex(likelihood, likelihoodSum, randomNumber);
                     newValidators[i] = poolsToBeElected[randomPoolIndex];
                     likelihoodSum -= likelihood[randomPoolIndex];
                     poolsToBeElectedLength--;
@@ -709,8 +732,9 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
                 address pvMiningAddress = _currentValidators[i];
                 address pvStakingAddress = stakingByMiningAddress[pvMiningAddress];
                 if (
-                    stakingContract.isPoolActive(pvStakingAddress) &&
-                    stakingContract.orderedWithdrawAmount(pvStakingAddress, pvStakingAddress) == 0
+                    stakingContract.isPoolActive(pvStakingAddress)
+                        && stakingContract.orderedWithdrawAmount(pvStakingAddress, pvStakingAddress)
+                            == 0
                 ) {
                     // The validator has an active pool and is not going to withdraw their
                     // entire stake, so this validator doesn't want to exit from the validator set
@@ -748,14 +772,15 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
         }
 
         if (
-            miningByStakingAddress[_stakingAddress] != address(0) ||
-            stakingByMiningAddress[_stakingAddress] != address(0)
+            miningByStakingAddress[_stakingAddress] != address(0)
+                || stakingByMiningAddress[_stakingAddress] != address(0)
         ) {
             revert StakingAddressAlreadyUsed(_stakingAddress);
         }
 
         if (
-            miningByStakingAddress[_miningAddress] != address(0) || stakingByMiningAddress[_miningAddress] != address(0)
+            miningByStakingAddress[_miningAddress] != address(0)
+                || stakingByMiningAddress[_miningAddress] != address(0)
         ) {
             revert MiningAddressAlreadyUsed(_miningAddress);
         }
@@ -828,11 +853,10 @@ contract ValidatorSetHbbft is Initializable, OwnableUpgradeable, IValidatorSetHb
 
     function _validateParams(ValidatorSetParams calldata _params) private pure {
         if (
-            _params.blockRewardContract == address(0) ||
-            _params.randomContract == address(0) ||
-            _params.stakingContract == address(0) ||
-            _params.keyGenHistoryContract == address(0) ||
-            _params.bonusScoreContract == address(0)
+            _params.blockRewardContract == address(0) || _params.randomContract == address(0)
+                || _params.stakingContract == address(0)
+                || _params.keyGenHistoryContract == address(0)
+                || _params.bonusScoreContract == address(0)
         ) {
             revert ZeroAddress();
         }

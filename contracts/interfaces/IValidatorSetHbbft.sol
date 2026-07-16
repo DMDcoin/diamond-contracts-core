@@ -36,10 +36,7 @@ interface IValidatorSetHbbft {
 
     function blockRewardContract() external view returns (address);
 
-    function canCallAnnounceAvailability(address _miningAddress)
-        external
-        view
-        returns (bool);
+    function canCallAnnounceAvailability(address _miningAddress) external view returns (bool);
 
     function getPendingValidators() external view returns (address[] memory);
 
@@ -53,10 +50,7 @@ interface IValidatorSetHbbft {
 
     function isPendingValidator(address) external view returns (bool);
 
-    function getPendingValidatorKeyGenerationMode(address)
-        external
-        view
-        returns (KeyGenMode);
+    function getPendingValidatorKeyGenerationMode(address) external view returns (KeyGenMode);
 
     function maxValidators() external view returns (uint256);
 
@@ -68,10 +62,7 @@ interface IValidatorSetHbbft {
 
     function stakingByMiningAddress(address) external view returns (address);
 
-    function publicKeyByStakingAddress(address)
-        external
-        view
-        returns (bytes memory);
+    function publicKeyByStakingAddress(address) external view returns (bytes memory);
 
     function getPublicKey(address) external view returns (bytes memory);
 
@@ -81,10 +72,7 @@ interface IValidatorSetHbbft {
 
     function isValidatorAbandoned(address) external view returns (bool);
 
-    function getValidatorCountSweetSpot(uint256)
-        external
-        view
-        returns (uint256);
+    function getValidatorCountSweetSpot(uint256) external view returns (uint256);
 
     function getCurrentValidatorsCount() external view returns (uint256);
 }

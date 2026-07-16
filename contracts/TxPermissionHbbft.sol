@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import { ICertifier } from "./interfaces/ICertifier.sol";
-import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
-import { ITxPermission } from "./interfaces/ITxPermission.sol";
-import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
-import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
+import {ICertifier} from "./interfaces/ICertifier.sol";
+import {IConnectivityTrackerHbbft} from "./interfaces/IConnectivityTrackerHbbft.sol";
+import {IKeyGenHistory} from "./interfaces/IKeyGenHistory.sol";
+import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
+import {ITxPermission} from "./interfaces/ITxPermission.sol";
+import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
 
-import { DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE } from "./lib/Constants.sol";
-import { ZeroAddress } from "./lib/Errors.sol";
-import { ValueGuards } from "./lib/ValueGuards.sol";
+import {DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE} from "./lib/Constants.sol";
+import {ZeroAddress} from "./lib/Errors.sol";
+import {ValueGuards} from "./lib/ValueGuards.sol";
 
 /// @dev Controls the use of zero gas price by validators in service transactions,
 /// protecting the network against "transaction spamming" by malicious validators.
@@ -85,16 +85,12 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
     // ============================================== Events ==========================================================
 
-    /**
-     * @dev Emitted when the minimum gas price is updated.
-     * @param _minGasPrice The new minimum gas price.
-     */
+    /// @dev Emitted when the minimum gas price is updated.
+    /// @param _minGasPrice The new minimum gas price.
     event SetMinimumGasPrice(uint256 _minGasPrice);
 
-    /**
-     * @dev Emitted when the block gas limit is updated.
-     * @param _blockGasLimit The new block gas limit.
-     */
+    /// @dev Emitted when the block gas limit is updated.
+    /// @param _blockGasLimit The new block gas limit.
     event SetBlockGasLimit(uint256 _blockGasLimit);
 
     event AddAllowedSender(address indexed _sender);
@@ -135,11 +131,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         address _contractOwner
     ) external initializer {
         if (
-            _contractOwner == address(0) ||
-            _certifier == address(0) ||
-            _validatorSet == address(0) ||
-            _keyGenHistoryContract == address(0) ||
-            _connectivityTracker == address(0)
+            _contractOwner == address(0) || _certifier == address(0) || _validatorSet == address(0)
+                || _keyGenHistoryContract == address(0) || _connectivityTracker == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -281,7 +274,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
     function allowedTxTypes(
         address _sender,
         address _to,
-        uint256 /*_value */,
+        uint256,
+        /*_value */
         uint256 _gasPrice,
         bytes memory _data
     ) external view returns (uint32 typesMask, bool cache) {
@@ -299,14 +293,17 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
         if (_to == address(validatorSetContract)) {
             if (signature == ANNOUNCE_AVAILABILITY_SIGNATURE) {
-                return (validatorSetContract.canCallAnnounceAvailability(_sender) ? CALL : NONE, false);
+                return
+                    (validatorSetContract.canCallAnnounceAvailability(_sender) ? CALL : NONE, false);
             }
 
             if (signature == SET_VALIDATOR_IP) {
                 address pool = validatorSetContract.stakingByMiningAddress(_sender);
                 if (pool != address(0)) {
                     return (
-                        IStakingHbbft(validatorSetContract.getStakingContract()).isPoolActive(pool) ? CALL : NONE,
+                        IStakingHbbft(validatorSetContract.getStakingContract()).isPoolActive(pool)
+                            ? CALL
+                            : NONE,
                         false
                     );
                 }
@@ -327,8 +324,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
             if (signature == WRITE_PART_SIGNATURE) {
                 if (
-                    validatorSetContract.getPendingValidatorKeyGenerationMode(_sender) ==
-                    IValidatorSetHbbft.KeyGenMode.WritePart
+                    validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                        == IValidatorSetHbbft.KeyGenMode.WritePart
                 ) {
                     //is the epoch parameter correct ?
 
@@ -340,7 +337,11 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
                     uint256 epochNumber = _getSliceUInt256(4, _data);
 
-                    if (epochNumber == IStakingHbbft(validatorSetContract.getStakingContract()).stakingEpoch() + 1) {
+                    if (
+                        epochNumber
+                            == IStakingHbbft(validatorSetContract.getStakingContract())
+                                    .stakingEpoch() + 1
+                    ) {
                         return (CALL, false);
                     } else {
                         return (NONE, false);
@@ -354,8 +355,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
 
             if (signature == WRITE_ACKS_SIGNATURE) {
                 if (
-                    validatorSetContract.getPendingValidatorKeyGenerationMode(_sender) ==
-                    IValidatorSetHbbft.KeyGenMode.WriteAck
+                    validatorSetContract.getPendingValidatorKeyGenerationMode(_sender)
+                        == IValidatorSetHbbft.KeyGenMode.WriteAck
                 ) {
                     // return if the data length is not big enough to pass a upcomingEpoch parameter.
                     // we could add an addition size check, that include the minimal size of the part as well.
@@ -366,8 +367,9 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
                     //is the correct epoch parameter passed ?
 
                     if (
-                        _getSliceUInt256(4, _data) ==
-                        IStakingHbbft(validatorSetContract.getStakingContract()).stakingEpoch() + 1
+                        _getSliceUInt256(4, _data)
+                            == IStakingHbbft(validatorSetContract.getStakingContract())
+                                    .stakingEpoch() + 1
                     ) {
                         return (CALL, false);
                     }
@@ -375,8 +377,9 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
                     // is the correct round passed ? (filters out messages from earlier key gen rounds.)
 
                     if (
-                        _getSliceUInt256(36, _data) ==
-                        IStakingHbbft(validatorSetContract.getStakingContract()).stakingEpoch() + 1
+                        _getSliceUInt256(36, _data)
+                            == IStakingHbbft(validatorSetContract.getStakingContract())
+                                    .stakingEpoch() + 1
                     ) {
                         return (CALL, false);
                     }
@@ -394,7 +397,8 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         }
 
         if (_to == address(connectivityTracker)) {
-            AllowanceCheckResult memory result = _handleCallToConnectivityTracker(_sender, signature, _data);
+            AllowanceCheckResult memory result =
+                _handleCallToConnectivityTracker(_sender, signature, _data);
             if (result.knownFunc) {
                 return (result.mask, result.cache);
             }
@@ -460,7 +464,11 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         return a;
     }
 
-    function _memcpy(bytes memory src, uint256 len, uint256 offset) internal pure returns (bytes memory) {
+    function _memcpy(
+        bytes memory src,
+        uint256 len,
+        uint256 offset
+    ) internal pure returns (bytes memory) {
         bytes memory result = new bytes(len);
 
         for (uint256 i = 0; i < len; ++i) {
@@ -479,26 +487,27 @@ contract TxPermissionHbbft is Initializable, OwnableUpgradeable, ITxPermission, 
         uint256 paramsSize = _calldata.length - 4 > 96 ? 96 : _calldata.length - 4;
         bytes memory params = _memcpy(_calldata, paramsSize, 4);
 
-        AllowanceCheckResult memory result = AllowanceCheckResult({ mask: NONE, knownFunc: true, cache: false });
+        AllowanceCheckResult memory result =
+            AllowanceCheckResult({mask: NONE, knownFunc: true, cache: false});
 
         if (selector == REPORT_MISSING_CONNECTIVITY_SELECTOR) {
-            (address validator, uint256 blockNumber, bytes32 blockHash) = abi.decode(
-                params,
-                (address, uint256, bytes32)
-            );
+            (address validator, uint256 blockNumber, bytes32 blockHash) =
+                abi.decode(params, (address, uint256, bytes32));
 
-            try connectivityTracker.checkReportMissingConnectivityCallable(sender, validator, blockNumber, blockHash) {
+            try connectivityTracker.checkReportMissingConnectivityCallable(
+                sender, validator, blockNumber, blockHash
+            ) {
                 result.mask = CALL;
             } catch {
                 result.mask = NONE;
             }
         } else if (selector == REPORT_RECONNECT_SELECTOR) {
-            (address validator, uint256 blockNumber, bytes32 blockHash) = abi.decode(
-                params,
-                (address, uint256, bytes32)
-            );
+            (address validator, uint256 blockNumber, bytes32 blockHash) =
+                abi.decode(params, (address, uint256, bytes32));
 
-            try connectivityTracker.checkReportReconnectCallable(sender, validator, blockNumber, blockHash) {
+            try connectivityTracker.checkReportReconnectCallable(
+                sender, validator, blockNumber, blockHash
+            ) {
                 result.mask = CALL;
             } catch {
                 result.mask = NONE;

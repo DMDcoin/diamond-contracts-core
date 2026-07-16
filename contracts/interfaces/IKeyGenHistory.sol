@@ -10,10 +10,7 @@ interface IKeyGenHistory {
 
     function getCurrentKeyGenRound() external view returns (uint256);
 
-    function getNumberOfKeyFragmentsWritten()
-        external
-        view
-        returns (uint128, uint128);
+    function getNumberOfKeyFragmentsWritten() external view returns (uint128, uint128);
 
     function notifyNewEpoch() external;
 

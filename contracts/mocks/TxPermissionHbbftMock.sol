@@ -2,9 +2,9 @@
 // solhint-disable one-contract-per-file
 pragma solidity =0.8.25;
 
-import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
-import { IConnectivityTrackerHbbft } from "../interfaces/IConnectivityTrackerHbbft.sol";
-import { TxPermissionHbbft } from "../TxPermissionHbbft.sol";
+import {TxPermissionHbbft} from "../TxPermissionHbbft.sol";
+import {IConnectivityTrackerHbbft} from "../interfaces/IConnectivityTrackerHbbft.sol";
+import {IValidatorSetHbbft} from "../interfaces/IValidatorSetHbbft.sol";
 
 contract MockStaking {
     uint256 public stakingEpoch;
@@ -32,7 +32,11 @@ contract MockValidatorSet {
         stakingContract = _address;
     }
 
-    function getPendingValidatorKeyGenerationMode(address) external view returns (IValidatorSetHbbft.KeyGenMode) {
+    function getPendingValidatorKeyGenerationMode(address)
+        external
+        view
+        returns (IValidatorSetHbbft.KeyGenMode)
+    {
         return keyGenMode;
     }
 

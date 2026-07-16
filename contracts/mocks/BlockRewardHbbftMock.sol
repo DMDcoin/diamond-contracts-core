@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { IConnectivityTrackerHbbft } from "../interfaces/IConnectivityTrackerHbbft.sol";
-import { BlockRewardHbbft } from "../BlockRewardHbbft.sol";
+import {BlockRewardHbbft} from "../BlockRewardHbbft.sol";
+import {IConnectivityTrackerHbbft} from "../interfaces/IConnectivityTrackerHbbft.sol";
 
 contract BlockRewardHbbftMock is BlockRewardHbbft {
     // =============================================== Setters ========================================================

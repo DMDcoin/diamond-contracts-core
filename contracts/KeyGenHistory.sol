@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import { IKeyGenHistory } from "./interfaces/IKeyGenHistory.sol";
-import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
-import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
+import {IKeyGenHistory} from "./interfaces/IKeyGenHistory.sol";
+import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
+import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
+import {Unauthorized, ValidatorsListEmpty, ZeroAddress} from "./lib/Errors.sol";
 
 contract KeyGenHistory is Initializable, OwnableUpgradeable, IKeyGenHistory {
     // =============================================== Storage ========================================================

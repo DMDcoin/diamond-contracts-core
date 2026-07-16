@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { StakingHbbft } from "../StakingHbbft.sol";
-import { IValidatorSetHbbft } from "../interfaces/IValidatorSetHbbft.sol";
-import { IBonusScoreSystem } from "../interfaces/IBonusScoreSystem.sol";
-import { Unauthorized } from "../lib/Errors.sol";
+import {StakingHbbft} from "../StakingHbbft.sol";
+import {IBonusScoreSystem} from "../interfaces/IBonusScoreSystem.sol";
+import {IValidatorSetHbbft} from "../interfaces/IValidatorSetHbbft.sol";
+import {Unauthorized} from "../lib/Errors.sol";
 
 contract StakingHbbftMock is StakingHbbft {
     IValidatorSetHbbft private validatorSetContractMock;
 
     modifier onlyValidatorSetContract() virtual override {
-        if (msg.sender != address(validatorSetContract) && msg.sender != address(validatorSetContractMock)) {
+        if (
+            msg.sender != address(validatorSetContract)
+                && msg.sender != address(validatorSetContractMock)
+        ) {
             revert Unauthorized();
         }
         _;
     }
+
     // =============================================== Setters ========================================================
 
     // Some unit tests requires impersonating staking contract, therefore
@@ -55,7 +59,11 @@ contract StakingHbbftMock is StakingHbbft {
         bonusScoreContract = IBonusScoreSystem(_bonusScoreContract);
     }
 
-    function setNodeOperatorMock(address poolStakingAddress, address operator, uint256 share) public {
+    function setNodeOperatorMock(
+        address poolStakingAddress,
+        address operator,
+        uint256 share
+    ) public {
         poolNodeOperator[poolStakingAddress] = operator;
         poolNodeOperatorShare[poolStakingAddress] = share;
 
@@ -67,11 +75,18 @@ contract StakingHbbftMock is StakingHbbft {
         return _getMaxCandidates();
     }
 
-    function getDelegatorStakeSnapshot(address pool, address delegator, uint256 epoch) external view returns (uint256) {
+    function getDelegatorStakeSnapshot(
+        address pool,
+        address delegator,
+        uint256 epoch
+    ) external view returns (uint256) {
         return _delegatorStakeSnapshot[pool][delegator][epoch];
     }
 
-    function getStakeSnapshotLastEpoch(address pool, address delegator) external view returns (uint256) {
+    function getStakeSnapshotLastEpoch(
+        address pool,
+        address delegator
+    ) external view returns (uint256) {
         return _stakeSnapshotLastEpoch[pool][delegator];
     }
 

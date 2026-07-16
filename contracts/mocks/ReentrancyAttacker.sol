@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity =0.8.25;
 
-import { IBonusScoreSystem } from "../interfaces/IBonusScoreSystem.sol";
+import {IBonusScoreSystem} from "../interfaces/IBonusScoreSystem.sol";
 
 contract ReentrancyAttacker {
     IBonusScoreSystem public bonusScoreSystem;
@@ -23,7 +23,7 @@ contract ReentrancyAttacker {
             bonusScoreSystem.rewardStandBy(mining, timeArgValue);
         } else if (funcId == IBonusScoreSystem.penaliseNoStandBy.selector) {
             bonusScoreSystem.penaliseNoStandBy(mining, timeArgValue);
-        } else if (funcId == IBonusScoreSystem.penaliseBadPerformance.selector){
+        } else if (funcId == IBonusScoreSystem.penaliseBadPerformance.selector) {
             bonusScoreSystem.penaliseBadPerformance(mining, timeArgValue);
         } else {
             bonusScoreSystem.penaliseNoKeyWrite(mining);
@@ -31,7 +31,7 @@ contract ReentrancyAttacker {
     }
 
     function stakingFixedEpochDuration() external pure returns (uint256) {
-        return 43200;
+        return 43_200;
     }
 
     function updatePoolLikelihood(address mining, uint256) external {
@@ -39,7 +39,7 @@ contract ReentrancyAttacker {
             bonusScoreSystem.rewardStandBy(mining, timeArgValue);
         } else if (funcId == IBonusScoreSystem.penaliseNoStandBy.selector) {
             bonusScoreSystem.penaliseNoStandBy(mining, timeArgValue);
-        } else if (funcId == IBonusScoreSystem.penaliseBadPerformance.selector){
+        } else if (funcId == IBonusScoreSystem.penaliseBadPerformance.selector) {
             bonusScoreSystem.penaliseBadPerformance(mining, timeArgValue);
         } else {
             bonusScoreSystem.penaliseNoKeyWrite(mining);

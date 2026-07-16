@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { TransferUtils } from "../utils/TransferUtils.sol";
+import {TransferUtils} from "../utils/TransferUtils.sol";
 
 contract TransferUtilsMock {
     using TransferUtils for address;
