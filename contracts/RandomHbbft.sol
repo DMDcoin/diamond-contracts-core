@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { BitMaps } from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
+import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import { IRandomHbbft } from "./interfaces/IRandomHbbft.sol";
-import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
-import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
+import {IRandomHbbft} from "./interfaces/IRandomHbbft.sol";
+import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
+import {SYSTEM_ADDRESS} from "./lib/Constants.sol";
+import {Unauthorized, ZeroAddress} from "./lib/Errors.sol";
 
 /// @dev Stores and uppdates a random seed that is used to form a new validator set by the
 /// `ValidatorSetHbbft.newValidatorSet` function.
@@ -96,7 +96,11 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
     }
 
     ///@dev returns an array of seeds from requested blocknumbers
-    function getSeedsHistoric(uint256[] calldata _blocknumbers) external view returns (uint256[] memory) {
+    function getSeedsHistoric(uint256[] calldata _blocknumbers)
+        external
+        view
+        returns (uint256[] memory)
+    {
         uint256 len = _blocknumbers.length;
         uint256[] memory output = new uint256[](len);
         for (uint256 i = 0; i < len; i++) {
@@ -120,10 +124,14 @@ contract RandomHbbft is Initializable, OwnableUpgradeable, IRandomHbbft {
         return !unhealthiness.get(_blocknumber);
     }
 
-    function isFullHealthsHistoric(uint256[] calldata _blocknumbers) external view returns (bool[] memory) {
+    function isFullHealthsHistoric(uint256[] calldata _blocknumbers)
+        external
+        view
+        returns (bool[] memory)
+    {
         uint256 len = _blocknumbers.length;
         bool[] memory output = new bool[](len);
-        for (uint256 i = 0; i < len; ) {
+        for (uint256 i = 0; i < len;) {
             {
                 output[i] = !unhealthiness.get(_blocknumbers[i]);
                 ++i;

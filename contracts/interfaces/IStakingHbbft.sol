@@ -38,36 +38,20 @@ interface IStakingHbbft {
 
     function updatePoolLikelihood(address mining, uint256 validatorScore) external;
 
-    function restake(
-        address _poolStakingAddress,
-        uint256 validatorReward
-    ) external payable;
+    function restake(address _poolStakingAddress, uint256 validatorReward) external payable;
 
-    function snapshotPoolStakeAmounts(
-        uint256 _epoch,
-        address _stakingPool
-    ) external;
+    function snapshotPoolStakeAmounts(uint256 _epoch, address _stakingPool) external;
 
     function getPoolValidatorStakeAmount(
         uint256 _epoch,
         address _stakingPool
     ) external view returns (uint256);
 
-    function setValidatorInternetAddress(
-        address,
-        bytes16,
-        bytes2
-    ) external;
+    function setValidatorInternetAddress(address, bytes16, bytes2) external;
 
-    function getPoolPublicKey(address _poolAddress)
-        external
-        view
-        returns (bytes memory);
+    function getPoolPublicKey(address _poolAddress) external view returns (bytes memory);
 
-    function getPoolsLikelihood()
-        external
-        view
-        returns (uint256[] memory, uint256);
+    function getPoolsLikelihood() external view returns (uint256[] memory, uint256);
 
     function getPoolsToBeElected() external view returns (address[] memory);
 
@@ -81,10 +65,7 @@ interface IStakingHbbft {
 
     function MAX_CANDIDATES() external pure returns (uint256); // solhint-disable-line func-name-mixedcase
 
-    function orderedWithdrawAmount(address, address)
-        external
-        view
-        returns (uint256);
+    function orderedWithdrawAmount(address, address) external view returns (uint256);
 
     function poolDelegators(address) external view returns (address[] memory);
 

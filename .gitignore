@@ -1,22 +1,21 @@
-abis
-key
-node_modules
-/mochawesome-report
-/coverage
-/coverageEnv
-/scTopics
 .DS_Store
-/coverage.json
-/flat
-/build
-/spec_aura.json
-/spec_hbbft.json
-/spec_validatorset.json
+.vscode/
 
-#hardhat specific files
-artifacts
-cache
-src
+flat/
+abis/
+node_modules/
+coverageEnv/
+mythril/
+
+# hardhat specific files
+artifacts/
+cache/
+coverage/
+build/
+coverage.json
+
+# foundry specific files
+out/
 
 # Emacs backups
 \#*#
@@ -32,6 +31,8 @@ src
 .mnemonic*
 .env*
 
-.vscode/
-/mythril
+key
+spec_aura.json
+spec_hbbft.json
+spec_validatorset.json
 blockscout_verify.sh

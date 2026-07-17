@@ -1,32 +1,27 @@
-import { ethers } from "hardhat";
-import { expect } from "chai";
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import * as helpers from "@nomicfoundation/hardhat-network-helpers";
+import { describe, it, before } from "node:test";
+import hre from "hardhat";
+
+import { parseEther } from "viem";
+
+const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
+
+type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
 
 describe("TransferUtils library", function () {
-    let users: HardhatEthersSigner[];
+    let users: TestWalletClient[];
 
     before(async function () {
-        users = await ethers.getSigners();
+        users = await hhViem.getWalletClients();
     });
 
     async function deployContracts() {
-        const transferUtilsFactory = await ethers.getContractFactory("TransferUtilsMock");
-        const transferUtils = await transferUtilsFactory.deploy();
-        await transferUtils.waitForDeployment();
+        const transferUtils = await hhViem.deployContract("TransferUtilsMock");
+        const mockReceiver = await hhViem.deployContract("EtherReceiverMock");
 
-        const mockReceiverFactory = await ethers.getContractFactory("EtherReceiverMock");
-        const mockReceiver = await mockReceiverFactory.deploy();
-        await mockReceiver.waitForDeployment();
+        const balance = parseEther("10");
+        await helpers.setBalance(transferUtils.address, balance);
 
-        const balance = ethers.parseEther("10")
-
-        await users[1].sendTransaction({
-            to: await transferUtils.getAddress(),
-            value: balance,
-        });
-
-        await mockReceiver.toggleReceive(false);
+        await mockReceiver.write.toggleReceive([false]);
 
         return { transferUtils, mockReceiver, balance };
     }
@@ -36,34 +31,39 @@ describe("TransferUtils library", function () {
 
         const transferReceiver = users[1];
 
-        await expect(
-            transferUtils.transferNative(
-                transferReceiver.address,
-                balance * 2n,
-            )
-        ).revertedWithCustomError(transferUtils, "InsufficientBalance");
+        await hhViem.assertions.revertWithCustomError(
+            transferUtils.write.transferNative(
+                [transferReceiver.account.address, balance * 2n],
+            ),
+            transferUtils,
+            "InsufficientBalance",
+        );
     });
 
     it("should revert transferNative if low level call failed", async function () {
         const { transferUtils, mockReceiver, balance } = await helpers.loadFixture(deployContracts);
 
-        expect(await mockReceiver.toggleReceive(false));
+        await mockReceiver.write.toggleReceive([false]);
 
-        await expect(transferUtils.transferNative(await mockReceiver.getAddress(), balance))
-            .revertedWithCustomError(transferUtils, "TransferFailed")
-            .withArgs(await mockReceiver.getAddress(), balance);
+        await hhViem.assertions.revertWithCustomErrorWithArgs(
+            transferUtils.write.transferNative([mockReceiver.address, balance]),
+            transferUtils,
+            "TransferFailed",
+            [mockReceiver.address, balance],
+        );
     });
 
     it("should transfer ether using transferNative", async function () {
         const { transferUtils, mockReceiver, balance } = await helpers.loadFixture(deployContracts);
-        const receiverAddress = await mockReceiver.getAddress();
 
-        expect(await mockReceiver.toggleReceive(true));
+        await mockReceiver.write.toggleReceive([true]);
 
-        await expect(() => transferUtils.transferNative(receiverAddress, balance))
-            .to.changeEtherBalances(
-                [transferUtils, mockReceiver],
-                [-balance, balance]
-            );
+        await hhViem.assertions.balancesHaveChanged(
+            transferUtils.write.transferNative([mockReceiver.address, balance]),
+            [
+                { address: transferUtils.address, amount: -balance },
+                { address: mockReceiver.address, amount: balance },
+            ],
+        );
     });
 });

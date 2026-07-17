@@ -2,7 +2,8 @@
 pragma solidity =0.8.25;
 
 library Secp256k1Utils {
-    uint256 internal constant P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+    uint256 internal constant P =
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
     uint256 internal constant KEY_LENGTH = 64;
 
     error InvalidPublicKeyLength();

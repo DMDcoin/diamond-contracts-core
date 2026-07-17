@@ -1,20 +1,26 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import { ScoringFactor, IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
-import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
-import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
-import { ValueGuards } from "./lib/ValueGuards.sol";
+import {IBonusScoreSystem, ScoringFactor} from "./interfaces/IBonusScoreSystem.sol";
+import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
+import {Unauthorized, ZeroAddress} from "./lib/Errors.sol";
+import {ValueGuards} from "./lib/ValueGuards.sol";
 
 /// @dev Stores validators bonus score based on their behavior.
 /// Validator with a higher bonus score has a higher likelihood to be elected.
-contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, ValueGuards, IBonusScoreSystem {
+contract BonusScoreSystem is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    ValueGuards,
+    IBonusScoreSystem
+{
     uint256 public standByFactor;
     uint256 public constant DEFAULT_NO_STAND_BY_FACTOR = 20;
     uint256 public constant DEFAULT_NO_KEY_WRITE_FACTOR = 100;
@@ -41,7 +47,11 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// @param miningAddress Validator's mining address.
     /// @param factor Scoring factor type.
     /// @param newScore New validator's bonus score value.
-    event ValidatorScoreChanged(address indexed miningAddress, ScoringFactor indexed factor, uint256 newScore);
+    event ValidatorScoreChanged(
+        address indexed miningAddress,
+        ScoringFactor indexed factor,
+        uint256 newScore
+    );
 
     /// @dev Emitted by the `updateScoringFactor` function when bonus/penalty for specified
     /// scoring factor changed by contract owner (DAO contract).
@@ -81,10 +91,8 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         address _stakingHbbft
     ) external initializer {
         if (
-            _owner == address(0) ||
-            _validatorSetHbbft == address(0) ||
-            _connectivityTracker == address(0) ||
-            _stakingHbbft == address(0)
+            _owner == address(0) || _validatorSetHbbft == address(0)
+                || _connectivityTracker == address(0) || _stakingHbbft == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -99,9 +107,7 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         }
 
         __initAllowedChangeableParameter(
-            this.setStandByFactor.selector,
-            this.standByFactor.selector,
-            standByFactorAllowedParams
+            this.setStandByFactor.selector, this.standByFactor.selector, standByFactorAllowedParams
         );
 
         standByFactor = 20;
@@ -115,7 +121,11 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
 
     /// @dev Sets the standby factor value.
     /// @param _standByFactor The new standby factor value.
-    function setStandByFactor(uint256 _standByFactor) external onlyOwner withinAllowedRange(_standByFactor) {
+    function setStandByFactor(uint256 _standByFactor)
+        external
+        onlyOwner
+        withinAllowedRange(_standByFactor)
+    {
         standByFactor = _standByFactor;
         _factors[ScoringFactor.StandByBonus] = _standByFactor;
 
@@ -125,14 +135,20 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// @dev Reward a validator who could not get into the current set, but was available.
     /// @param mining Validator mining address
     /// @param availableSince Timestamp from which the validator is available.
-    function rewardStandBy(address mining, uint256 availableSince) external onlyValidatorSet nonReentrant {
+    function rewardStandBy(
+        address mining,
+        uint256 availableSince
+    ) external onlyValidatorSet nonReentrant {
         _updateScoreStandBy(mining, ScoringFactor.StandByBonus, availableSince);
     }
 
     /// @dev Penalise validator marked as unavailable.
     /// @param mining Validator mining address
     /// @param unavailableSince Timestamp from which the validator is unavailable.
-    function penaliseNoStandBy(address mining, uint256 unavailableSince) external onlyValidatorSet nonReentrant {
+    function penaliseNoStandBy(
+        address mining,
+        uint256 unavailableSince
+    ) external onlyValidatorSet nonReentrant {
         _updateScoreStandBy(mining, ScoringFactor.NoStandByPenalty, unavailableSince);
     }
 
@@ -148,7 +164,10 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// Zero `time` value means full score decrease value (= DEFAULT_BAD_PERF_FACTOR)
     /// @param mining Validator mining address
     /// @param time Time interval from the moment when the validator was marked as faulty until full reconnect.
-    function penaliseBadPerformance(address mining, uint256 time) external onlyConnectivityTracker nonReentrant {
+    function penaliseBadPerformance(
+        address mining,
+        uint256 time
+    ) external onlyConnectivityTracker nonReentrant {
         _updateValidatorScore(mining, ScoringFactor.BadPerformancePenalty, time);
     }
 
@@ -184,11 +203,16 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         _factors[ScoringFactor.BadPerformancePenalty] = DEFAULT_BAD_PERF_FACTOR;
     }
 
-    function _updateScoreStandBy(address mining, ScoringFactor factor, uint256 availabilityTimestamp) private {
+    function _updateScoreStandBy(
+        address mining,
+        ScoringFactor factor,
+        uint256 availabilityTimestamp
+    ) private {
         // Take the latest point in time, to calculate stand by interval.
         // If _standByScoreChangeTimestamp > availabilityTimestamp means we have already given
         // stand by bonus/penalty previously.
-        uint256 intervalStart = Math.max(_standByScoreChangeTimestamp[mining], availabilityTimestamp);
+        uint256 intervalStart =
+            Math.max(_standByScoreChangeTimestamp[mining], availabilityTimestamp);
 
         if (intervalStart >= block.timestamp) {
             revert InvalidIntervalStartTimestamp();
@@ -204,7 +228,11 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
     /// @param factor Type of scoring factor - reason to change validator score
     /// @param timeInterval Interval of time used to calculate score change
     /// Emits {ValidatorScoreChanged} event
-    function _updateValidatorScore(address mining, ScoringFactor factor, uint256 timeInterval) private {
+    function _updateValidatorScore(
+        address mining,
+        ScoringFactor factor,
+        uint256 timeInterval
+    ) private {
         bool isScoreIncrease = _isScoreIncrease(factor);
 
         uint256 scorePoints = _getAccumulatedScorePoints(factor, timeInterval);
@@ -230,7 +258,10 @@ contract BonusScoreSystem is Initializable, OwnableUpgradeable, ReentrancyGuardU
         emit ValidatorScoreChanged(mining, factor, newScore);
     }
 
-    function _getAccumulatedScorePoints(ScoringFactor factor, uint256 timeInterval) private view returns (uint256) {
+    function _getAccumulatedScorePoints(
+        ScoringFactor factor,
+        uint256 timeInterval
+    ) private view returns (uint256) {
         uint256 scoringFactorValue = getScoringFactorValue(factor);
 
         // slither-disable-start incorrect-equality

@@ -1,75 +1,51 @@
-import { ethers, upgrades } from "hardhat";
-import { HDNodeWallet } from "ethers";
-import { expect } from "chai";
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import * as helpers from "@nomicfoundation/hardhat-network-helpers";
+import assert from "node:assert/strict";
+import { describe, it, before } from "node:test";
+import hre from "hardhat";
 
-import {
-    BlockRewardHbbftMock,
-    ValidatorSetHbbftMock,
-    StakingHbbftMock,
-    RandomHbbft,
-    KeyGenHistory,
-    CertifierHbbft,
-    TxPermissionHbbft,
-    ConnectivityTrackerHbbftMock,
-} from "../src/types";
+import { type Address, getAddress, parseEther, parseEventLogs, parseUnits, zeroAddress } from "viem";
 
-import { getNValidatorsPartNAcks } from "./testhelpers/data";
-import { GovernanceAddress, deployDao } from "./testhelpers/daoDeployment";
-import { Validator } from "./testhelpers/types";
-import { splitPublicKeys } from "./testhelpers/utils";
+import { GovernanceAddress } from "./fixtures/dao.js";
+import { createDeploymentFixture, DeploymentFixture, type DeployedContracts } from "./fixtures/deployment.js";
+import { createNetworkFixtures, SystemAccountAddress } from "./fixtures/network.js";
+import { assertCloseTo } from "./fixtures/utils.js";
+import { Validator } from "./fixtures/validator.js";
+import { deployProxy } from "./fixtures/proxy.js";
+import { createRandomWallet } from "./fixtures/wallet.js";
 
-// one epoch in 1 day.
-const STAKING_FIXED_EPOCH_DURATION = 86400n;
+const connection = await hre.network.getOrCreate();
+const { viem: hhViem, networkHelpers: helpers } = connection;
 
-// the transition time window is 1 hour.
-const STAKING_TRANSITION_WINDOW_LENGTH = 3600n;
+const {
+    impersonateAcc,
+    callReward,
+    timeTravelToTransition,
+    timeTravelToEndEpoch,
+    announceAvailability,
+} = createNetworkFixtures(connection);
 
-const STAKE_WITHDRAW_DISALLOW_PERIOD = 2n; // one less than EPOCH DURATION, therefore it meets the conditions.
-const MIN_STAKE = ethers.parseEther('1');
-const DELEGATOR_MIN_STAKE = ethers.parseEther('100');
-const MAX_STAKE = ethers.parseEther('100000');
+const publicClient = await hhViem.getPublicClient();
+type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
 
-const SystemAccountAddress = '0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE';
+type BlockRewardContract = DeployedContracts["blockReward"];
+type StakingContract = DeployedContracts["staking"];
 
-const addToDeltaPotValue = ethers.parseEther('60');
-const validatorInactivityThreshold = 365n * 86400n // 1 year
+const addToDeltaPotValue = parseEther("60");
 
-let contractDeployCounter = 0;
-
-describe('BlockRewardHbbft', () => {
+describe("BlockRewardHbbft", function () {
     const additionalValidatorsCount = 25;
 
-    let owner: HardhatEthersSigner;
-    let accounts: HardhatEthersSigner[];
-    let initialValidators: string[];
-    let initialStakingAddresses: string[];
-    let initialValidatorsPubKeys;
-    let initialValidatorsIpAddresses;
+    let owner: TestWalletClient;
+    let accounts: TestWalletClient[];
     let additionalValidators: Validator[];
 
-    let candidateMinStake: bigint;
-    let delegatorMinStake: bigint;
-    let nativeRewardUndistributed = 0n;
+    let stubAddress: Address;
 
-    let blockRewardHbbft: BlockRewardHbbftMock;
-    let validatorSetHbbft: ValidatorSetHbbftMock;
-    let stakingHbbft: StakingHbbftMock;
-    let connectivityTracker: ConnectivityTrackerHbbftMock;
+    let deployContractsFixture: DeploymentFixture;
 
-    let stubAddress: string;
+    before(async function () {
+        [owner, ...accounts] = await hhViem.getWalletClients();
 
-    before(async () => {
-        await helpers.reset();
-
-        [owner, ...accounts] = await ethers.getSigners();
-        const accountAddresses = accounts.map(item => item.address);
-
-        stubAddress = accounts[7].address;
-
-        initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
-        initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
+        stubAddress = createRandomWallet().address;
 
         additionalValidators = new Array<Validator>();
         for (let i = 0; i < additionalValidatorsCount; ++i) {
@@ -77,1191 +53,1045 @@ describe('BlockRewardHbbft', () => {
             additionalValidators.push(validator);
         }
 
-        expect(additionalValidators).to.be.lengthOf(additionalValidatorsCount);
-
-        expect(initialStakingAddresses).to.be.lengthOf(3);
-        expect(initialStakingAddresses[0]).to.not.be.equal(ethers.ZeroAddress);
-        expect(initialStakingAddresses[1]).to.not.be.equal(ethers.ZeroAddress);
-        expect(initialStakingAddresses[2]).to.not.be.equal(ethers.ZeroAddress);
-
-        const {
-            blockRewardContract,
-            validatorSetContract,
-            stakingContract,
-            connectivityTrackerContract,
-        } = await helpers.loadFixture(deployContractsFixture);
-
-        blockRewardHbbft = blockRewardContract;
-        validatorSetHbbft = validatorSetContract;
-        stakingHbbft = stakingContract;
-        connectivityTracker = connectivityTrackerContract;
-
-        candidateMinStake = await stakingHbbft.candidateMinStake();
-        delegatorMinStake = await stakingHbbft.delegatorMinStake();
+        deployContractsFixture = createDeploymentFixture(owner.account);
     });
 
-    async function deployContractsFixture() {
-        const { parts, acks } = getNValidatorsPartNAcks(initialValidators.length);
+    async function getCurrentGovernancePotValue(blockReward: BlockRewardContract): Promise<bigint> {
+        const governancePotAddress = await blockReward.read.governancePotAddress();
+        assert.notEqual(governancePotAddress, zeroAddress);
 
-        contractDeployCounter = contractDeployCounter + 1;
-
-        // every second deployment we add the DAOMock contract,
-        // so we also cover the possibility that no contract was deployed.
-        await deployDao();
-
-        const bonusScoreContractMockFactory = await ethers.getContractFactory("BonusScoreSystemMock");
-        const bonusScoreContractMock = await bonusScoreContractMockFactory.deploy();
-        await bonusScoreContractMock.waitForDeployment();
-
-        const ConnectivityTrackerFactory = await ethers.getContractFactory("ConnectivityTrackerHbbftMock");
-        const connectivityTrackerContract = await ConnectivityTrackerFactory.deploy();
-        await connectivityTrackerContract.waitForDeployment();
-
-        const validatorSetParams = {
-            blockRewardContract: stubAddress,
-            randomContract: stubAddress,
-            stakingContract: stubAddress,
-            keyGenHistoryContract: stubAddress,
-            bonusScoreContract: await bonusScoreContractMock.getAddress(),
-            connectivityTrackerContract: await connectivityTrackerContract.getAddress(),
-            validatorInactivityThreshold: validatorInactivityThreshold,
-        }
-
-        const ValidatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetContract = await upgrades.deployProxy(
-            ValidatorSetFactory,
-            [
-                owner.address,
-                validatorSetParams,      // _params
-                initialValidators,       // _initialMiningAddresses
-                initialStakingAddresses, // _initialStakingAddresses
-            ],
-            { initializer: 'initialize' }
-        ) as unknown as ValidatorSetHbbftMock;
-
-        await validatorSetContract.waitForDeployment();
-
-        const RandomHbbftFactory = await ethers.getContractFactory("RandomHbbft");
-        const randomHbbftContract = await upgrades.deployProxy(
-            RandomHbbftFactory,
-            [
-                owner.address,
-                await validatorSetContract.getAddress()
-            ],
-            { initializer: 'initialize' },
-        ) as unknown as RandomHbbft;
-
-        await randomHbbftContract.waitForDeployment();
-
-        const KeyGenFactory = await ethers.getContractFactory("KeyGenHistory");
-        const keyGenHistoryContract = await upgrades.deployProxy(
-            KeyGenFactory,
-            [
-                owner.address,
-                await validatorSetContract.getAddress(),
-                initialValidators,
-                parts,
-                acks
-            ],
-            { initializer: 'initialize' }
-        ) as unknown as KeyGenHistory;
-
-        await keyGenHistoryContract.waitForDeployment();
-
-        const CertifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifierContract = await upgrades.deployProxy(
-            CertifierFactory,
-            [
-                [owner.address],
-                await validatorSetContract.getAddress(),
-                owner.address
-            ],
-            { initializer: 'initialize' }
-        ) as unknown as CertifierHbbft;
-
-        await certifierContract.waitForDeployment();
-
-        const TxPermissionFactory = await ethers.getContractFactory("TxPermissionHbbft");
-        const txPermissionContract = await upgrades.deployProxy(
-            TxPermissionFactory,
-            [
-                [owner.address],
-                await certifierContract.getAddress(),
-                await validatorSetContract.getAddress(),
-                await keyGenHistoryContract.getAddress(),
-                await connectivityTrackerContract.getAddress(),
-                owner.address
-            ],
-            { initializer: 'initialize' }
-        ) as unknown as TxPermissionHbbft;
-
-        await txPermissionContract.waitForDeployment();
-
-        const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbftMock");
-        const blockRewardContract = await upgrades.deployProxy(
-            BlockRewardHbbftFactory,
-            [
-                owner.address,
-                await validatorSetContract.getAddress(),
-                await connectivityTrackerContract.getAddress(),
-            ],
-            { initializer: 'initialize' }
-        ) as unknown as BlockRewardHbbftMock;
-
-        await blockRewardContract.waitForDeployment();
-
-        // The following private keys belong to the accounts 1-3, fixed by using the "--mnemonic" option when starting ganache.
-        // const initialValidatorsPrivKeys = ["0x272b8400a202c08e23641b53368d603e5fec5c13ea2f438bce291f7be63a02a7", "0xa8ea110ffc8fe68a069c8a460ad6b9698b09e21ad5503285f633b3ad79076cf7", "0x5da461ff1378256f69cb9a9d0a8b370c97c460acbe88f5d897cb17209f891ffc"];
-        // Public keys corresponding to the three private keys above.
-        initialValidatorsPubKeys = splitPublicKeys
-            ([
-                '0x52be8f332b0404dff35dd0b2ba44993a9d3dc8e770b9ce19a849dff948f1e14c57e7c8219d522c1a4cce775adbee5330f222520f0afdabfdb4a4501ceeb8dcee',
-                '0x99edf3f524a6f73e7f5d561d0030fc6bcc3e4bd33971715617de7791e12d9bdf6258fa65b74e7161bbbf7ab36161260f56f68336a6f65599dc37e7f2e397f845',
-                '0xa255fd7ad199f0ee814ee00cce44ef2b1fa1b52eead5d8013ed85eade03034ae4c246658946c2e1d7ded96394a1247fb4d093c32474317ae388e8d25692a0f56'
-            ]);
-
-        // The IP addresses are irrelevant for these unit test, just initialize them to 0.
-        initialValidatorsIpAddresses = Array(initialValidators.length).fill(ethers.zeroPadBytes("0x00", 16));
-
-        let structure = {
-            _validatorSetContract: await validatorSetContract.getAddress(),
-            _bonusScoreContract: await bonusScoreContractMock.getAddress(),
-            _initialStakingAddresses: initialStakingAddresses,
-            _delegatorMinStake: DELEGATOR_MIN_STAKE,
-            _candidateMinStake: MIN_STAKE,
-            _maxStake: MAX_STAKE,
-            _stakingFixedEpochDuration: STAKING_FIXED_EPOCH_DURATION,
-            _stakingTransitionTimeframeLength: STAKING_TRANSITION_WINDOW_LENGTH,
-            _stakingWithdrawDisallowPeriod: STAKE_WITHDRAW_DISALLOW_PERIOD
-        };
-
-        const StakingHbbftFactory = await ethers.getContractFactory("StakingHbbftMock");
-        const stakingContract = await upgrades.deployProxy(
-            StakingHbbftFactory,
-            [
-                owner.address,
-                structure, // initializer structure
-                initialValidatorsPubKeys, // _publicKeys
-                initialValidatorsIpAddresses // _internetAddresses
-            ],
-            { initializer: 'initialize' }
-        ) as unknown as StakingHbbftMock;
-
-        await stakingContract.waitForDeployment();
-
-        await validatorSetContract.setBlockRewardContract(await blockRewardContract.getAddress());
-        await validatorSetContract.setRandomContract(await randomHbbftContract.getAddress());
-        await validatorSetContract.setStakingContract(await stakingContract.getAddress());
-        await validatorSetContract.setKeyGenHistoryContract(await keyGenHistoryContract.getAddress());
-
-        return { blockRewardContract, validatorSetContract, stakingContract, connectivityTrackerContract };
-    }
-
-    async function impersonateAcc(address: string) {
-        await helpers.impersonateAccount(address);
-
-        await owner.sendTransaction({
-            to: address,
-            value: ethers.parseEther('10'),
-        });
-
-        return await ethers.getSigner(address);
-    }
-
-    async function callReward(_blockReward: BlockRewardHbbftMock, isEpochEndBlock: boolean) {
-        const systemSigner = await impersonateAcc(SystemAccountAddress);
-
-        await _blockReward.connect(systemSigner).reward(isEpochEndBlock);
-
-        await helpers.stopImpersonatingAccount(SystemAccountAddress);
-    }
-
-    async function getCurrentGovernancePotValue(): Promise<bigint> {
-        const governnancePotAddress = await blockRewardHbbft.governancePotAddress();
-        expect(governnancePotAddress).to.not.equal(ethers.ZeroAddress);
-
-        return await ethers.provider.getBalance(governnancePotAddress);
-    }
-
-    // time travels forward to the beginning of the next transition,
-    // and simulate a block mining (calling reward())
-    async function timeTravelToTransition(_staking: StakingHbbftMock, _blockReward: BlockRewardHbbftMock) {
-        let startTimeOfNextPhaseTransition = await _staking.startTimeOfNextPhaseTransition();
-
-        await helpers.time.increaseTo(startTimeOfNextPhaseTransition);
-        await callReward(_blockReward, false);
-    }
-
-    async function timeTravelToEndEpoch(_staking: StakingHbbftMock, _blockReward: BlockRewardHbbftMock) {
-        const endTimeOfCurrentEpoch = await _staking.stakingFixedEpochEndTime();
-
-        await helpers.time.increaseTo(endTimeOfCurrentEpoch);
-        await callReward(_blockReward, true);
+        return publicClient.getBalance({ address: governancePotAddress });
     }
 
     async function finishEpochPrelim(
-        _staking: StakingHbbftMock,
-        _blockReward: BlockRewardHbbftMock,
-        _percentage: bigint
+        staking: StakingContract,
+        blockReward: BlockRewardContract,
+        percentage: bigint,
     ): Promise<void> {
-        const stakingFixedEpochEndTime = await _staking.stakingFixedEpochEndTime();
-        const stakingEpochStartTime = await _staking.stakingEpochStartTime();
+        const stakingFixedEpochEndTime = await staking.read.stakingFixedEpochEndTime();
+        const stakingEpochStartTime = await staking.read.stakingEpochStartTime();
 
-        const epochDuration = (stakingFixedEpochEndTime - stakingEpochStartTime) * _percentage / 100n + 1n;
+        const epochDuration = ((stakingFixedEpochEndTime - stakingEpochStartTime) * percentage) / 100n + 1n;
         const endTimeOfCurrentEpoch = stakingEpochStartTime + epochDuration;
 
         await helpers.time.increaseTo(endTimeOfCurrentEpoch);
-        await callReward(_blockReward, true);
+        await callReward(blockReward, true);
     }
 
-    async function announceAvailability(poolSigner: HardhatEthersSigner | HDNodeWallet): Promise<void> {
-        const block = await ethers.provider.getBlock("latest");
-
-        // we know now, that this call is allowed.
-        // so we can execute it.
-        await validatorSetHbbft.connect(poolSigner).announceAvailability(block!.number, block!.hash!);
+    async function getValidatorStake(
+        { validatorSet, staking }: DeployedContracts,
+        validatorAddr: Address,
+    ): Promise<bigint> {
+        const stakingAddr = await validatorSet.read.stakingByMiningAddress([validatorAddr]);
+        return staking.read.stakeAmount([stakingAddr, stakingAddr]);
     }
 
-    async function getValidatorStake(validatorAddr: string): Promise<bigint> {
-        const stakingAddr = await validatorSetHbbft.stakingByMiningAddress(validatorAddr);
-        return await stakingHbbft.stakeAmount(stakingAddr, stakingAddr);
-    }
+    async function mine(contracts: DeployedContracts): Promise<void> {
+        const { blockReward, validatorSet, staking } = contracts;
 
-    async function mine(): Promise<void> {
-        let expectedEpochDuration = (await stakingHbbft
-            .stakingFixedEpochEndTime()) - (await stakingHbbft.stakingEpochStartTime());
-        let blocktime = expectedEpochDuration * 5n / 100n + 1n; //5% of the epoch
-        // let blocksPerEpoch = 60 * 60 * 12 / blocktime;
+        const expectedEpochDuration =
+            (await staking.read.stakingFixedEpochEndTime()) - (await staking.read.stakingEpochStartTime());
+        const blocktime = (expectedEpochDuration * 5n) / 100n + 1n; //5% of the epoch
 
         await helpers.time.increase(blocktime);
 
-        if ((await validatorSetHbbft.getPendingValidators()).length > 0) {
-            const currentValidators = await validatorSetHbbft.getValidators();
-            const maxValidators = await validatorSetHbbft.maxValidators();
+        if ((await validatorSet.read.getPendingValidators()).length > 0) {
+            const currentValidators = await validatorSet.read.getValidators();
+            const maxValidators = await validatorSet.read.maxValidators();
 
-            const initialGovernancePotBalance = await getCurrentGovernancePotValue();
-            let deltaPotValue = await blockRewardHbbft.deltaPot();
-            let reinsertPotValue = await blockRewardHbbft.reinsertPot();
-            let _epochPercentage = await blockRewardHbbft.epochPercentage();
+            const initialGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
+            const deltaPotValue = await blockReward.read.deltaPot();
+            const reinsertPotValue = await blockReward.read.reinsertPot();
+            const epochPercentage = await blockReward.read.epochPercentage();
 
-            const stakeBeforeReward = await getValidatorStake(currentValidators.at(-1)!);
+            const lastValidator = currentValidators[currentValidators.length - 1];
+            const stakeBeforeReward = await getValidatorStake(contracts, lastValidator);
 
-            await callReward(blockRewardHbbft, true);
+            await callReward(blockReward, true);
 
-            const currentGovernancePotBalance = await getCurrentGovernancePotValue();
+            const currentGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
             const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
 
-            const deltaPotShare = deltaPotValue * BigInt(currentValidators.length) * _epochPercentage / 6000n / maxValidators / 100n;
-            const reinsertPotShare = reinsertPotValue * BigInt(currentValidators.length) * _epochPercentage / 6000n / maxValidators / 100n;
-            const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
+            const deltaPotShare =
+                (deltaPotValue * BigInt(currentValidators.length) * epochPercentage) / 6000n / maxValidators / 100n;
+            const reinsertPotShare =
+                (reinsertPotValue * BigInt(currentValidators.length) * epochPercentage) / 6000n / maxValidators / 100n;
+            const nativeRewardUndistributed = await blockReward.read.nativeRewardUndistributed();
 
             const totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
             const expectedDAOShare = totalReward / 10n;
 
             // we expect 1 wei difference, since the reward combination from 2 pots results in that.
             //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
-            expect(governancePotIncrease).to.be.closeTo(expectedDAOShare, expectedDAOShare / 10000n);
-
-            //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
-            let minValidatorSharePercent = 100n;
-            //staking address of the validator
-            let stakingAddress = await validatorSetHbbft.stakingByMiningAddress(currentValidators[currentValidators.length - 1])
-            ///first 4 validators have delegators so they receive less DMD
-            if ((await stakingHbbft.poolDelegators(stakingAddress)).length) {
-                minValidatorSharePercent = 30n;
-            }
+            assertCloseTo(governancePotIncrease, expectedDAOShare, expectedDAOShare / 10000n);
 
             const singleValidatorReward = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
-            const validator = currentValidators.at(-1)!;
+            const validator = lastValidator;
 
-            const expectedValidatorReward = await getValidatorReward(singleValidatorReward, validator);
-            const stakeAfterReward = await getValidatorStake(validator);
+            const expectedValidatorReward = await getValidatorReward(contracts, singleValidatorReward, validator);
+            const stakeAfterReward = await getValidatorStake(contracts, validator);
             const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
 
-            expect(actualValidatorReward).to.be.closeTo(expectedValidatorReward, expectedValidatorReward / 10000n);
+            assertCloseTo(actualValidatorReward, expectedValidatorReward, expectedValidatorReward / 10000n);
         } else {
-            await callReward(blockRewardHbbft, false);
+            await callReward(blockReward, false);
         }
     }
 
-    async function getValidatorReward(totalReward: bigint, validator: string): Promise<bigint> {
-        const validatorMinRewardPercent = await blockRewardHbbft.VALIDATOR_FIXED_REWARD_PERCENT();
+    async function getValidatorReward(
+        contracts: DeployedContracts,
+        totalReward: bigint,
+        validator: Address,
+    ): Promise<bigint> {
+        const validatorMinRewardPercent = await contracts.blockReward.read.VALIDATOR_FIXED_REWARD_PERCENT();
         const validatorFixedReward = (totalReward * validatorMinRewardPercent) / 100n;
 
-        const validatorStake = await getValidatorStake(validator);
-        const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validator);
-        const totalStake = await stakingHbbft.stakeAmountTotal(stakingAddress);
+        const validatorStake = await getValidatorStake(contracts, validator);
+        const stakingAddress = await contracts.validatorSet.read.stakingByMiningAddress([validator]);
+        const totalStake = await contracts.staking.read.stakeAmountTotal([stakingAddress]);
 
-        return validatorFixedReward + ((totalReward - validatorFixedReward) * validatorStake / totalStake);
+        return validatorFixedReward + ((totalReward - validatorFixedReward) * validatorStake) / totalStake;
     }
 
-    async function getDelegatorReward(totalReward: bigint, validator: string, delegator: string): Promise<bigint> {
-        const validatorReward = await getValidatorReward(totalReward, validator);
+    describe("initialize", async function () {
+        it("should fail if owner = address(0)", async function () {
+            const implementation = await hhViem.deployContract("BlockRewardHbbft");
 
-        const delegatorsReward = totalReward - validatorReward;
-
-        const totalStake = await stakingHbbft.stakeAmountTotal(validator);
-        const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validator);
-        const validatorStake = await stakingHbbft.stakeAmount(stakingAddress, stakingAddress);
-
-        const allDelegatorsStake = totalStake - validatorStake;
-        const delegatorStake = await stakingHbbft.stakeAmount(stakingAddress, delegator);
-
-        return delegatorsReward * delegatorStake / allDelegatorsStake;
-    }
-
-    describe('initialize', async () => {
-        it('should fail if owner = address(0)', async () => {
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbft");
-            await expect(upgrades.deployProxy(
-                BlockRewardHbbftFactory,
-                [
-                    ethers.ZeroAddress,
-                    stubAddress,
-                    stubAddress
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(BlockRewardHbbftFactory, "ZeroAddress");
-        });
-
-        it('should fail if ValidatorSet = address(0)', async () => {
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbft");
-            await expect(upgrades.deployProxy(
-                BlockRewardHbbftFactory,
-                [
-                    stubAddress,
-                    ethers.ZeroAddress,
-                    stubAddress
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(BlockRewardHbbftFactory, "ZeroAddress");
-        });
-
-        it('should fail if ConnectivityTracker = address(0)', async () => {
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbft");
-            await expect(upgrades.deployProxy(
-                BlockRewardHbbftFactory,
-                [
-                    stubAddress,
-                    stubAddress,
-                    ethers.ZeroAddress
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(BlockRewardHbbftFactory, "ZeroAddress");
-        });
-
-        it('should fail on double initialization', async () => {
-            const BlockRewardHbbftFactory = await ethers.getContractFactory("BlockRewardHbbft");
-            const blockReward = await upgrades.deployProxy(
-                BlockRewardHbbftFactory,
-                [
-                    stubAddress,
-                    stubAddress,
-                    stubAddress,
-                ],
-                { initializer: 'initialize' }
+            await hhViem.assertions.revertWithCustomError(
+                deployProxy(hhViem, "BlockRewardHbbft", {
+                    initArgs: [zeroAddress, stubAddress, stubAddress],
+                    initializer: "initialize",
+                }),
+                implementation,
+                "ZeroAddress",
             );
+        });
 
-            await blockReward.waitForDeployment();
+        it("should fail if ValidatorSet = address(0)", async function () {
+            const implementation = await hhViem.deployContract("BlockRewardHbbft");
 
-            await expect(blockReward.initialize(
-                stubAddress,
-                stubAddress,
-                stubAddress,
-            )).to.be.revertedWithCustomError(blockReward, "InvalidInitialization");
+            await hhViem.assertions.revertWithCustomError(
+                deployProxy(hhViem, "BlockRewardHbbft", {
+                    initArgs: [stubAddress, zeroAddress, stubAddress],
+                    initializer: "initialize",
+                }),
+                implementation,
+                "ZeroAddress",
+            );
+        });
+
+        it("should fail if ConnectivityTracker = address(0)", async function () {
+            const implementation = await hhViem.deployContract("BlockRewardHbbft");
+
+            await hhViem.assertions.revertWithCustomError(
+                deployProxy(hhViem, "BlockRewardHbbft", {
+                    initArgs: [stubAddress, stubAddress, zeroAddress],
+                    initializer: "initialize",
+                }),
+                implementation,
+                "ZeroAddress",
+            );
+        });
+
+        it("should fail on double initialization", async function () {
+            const blockReward = await deployProxy(hhViem, "BlockRewardHbbft", {
+                initArgs: [stubAddress, stubAddress, stubAddress],
+                initializer: "initialize",
+            });
+
+            await hhViem.assertions.revertWithCustomError(
+                blockReward.write.initialize([stubAddress, stubAddress, stubAddress]),
+                blockReward,
+                "InvalidInitialization",
+            );
         });
     });
 
-    describe('setGovernancePotShareNominator', async () => {
+    describe("setGovernancePotShareNominator", async function () {
         let GovernancePotShareNominatorAllowedParams = new Array(11).fill(null).map((_, i) => i + 10);
 
-        it('should restrict calling to contract owner', async () => {
+        it("should restrict calling to contract owner", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
+
             const caller = accounts[5];
 
-            await expect(blockRewardHbbft.connect(caller).setGovernancePotShareNominator(1))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
+            await hhViem.assertions.revertWithCustomErrorWithArgs(
+                blockReward.write.setGovernancePotShareNominator([1n], { account: caller.account }),
+                blockReward,
+                "OwnableUnauthorizedAccount",
+                [caller.account.address],
+            );
         });
 
-        it('should not allow values outside allowed range', async () => {
-            const lower = GovernancePotShareNominatorAllowedParams.at(0)! - 1;
-            const higher = GovernancePotShareNominatorAllowedParams.at(-1)! + 1;
+        it("should not allow values outside allowed range", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
 
-            await expect(blockRewardHbbft.setGovernancePotShareNominator(lower))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "NewValueOutOfRange")
-                .withArgs(lower);
+            const paramsCount = GovernancePotShareNominatorAllowedParams.length;
 
-            await expect(blockRewardHbbft.setGovernancePotShareNominator(higher))
-                .to.be.revertedWithCustomError(blockRewardHbbft, "NewValueOutOfRange")
-                .withArgs(higher);
+            const lower = BigInt(GovernancePotShareNominatorAllowedParams[0] - 1);
+            const higher = BigInt(GovernancePotShareNominatorAllowedParams[paramsCount - 1] + 1);
+
+            await hhViem.assertions.revertWithCustomErrorWithArgs(
+                blockReward.write.setGovernancePotShareNominator([lower]),
+                blockReward,
+                "NewValueOutOfRange",
+                [lower],
+            );
+
+            await hhViem.assertions.revertWithCustomErrorWithArgs(
+                blockReward.write.setGovernancePotShareNominator([higher]),
+                blockReward,
+                "NewValueOutOfRange",
+                [higher],
+            );
         });
 
-        it('should allow value increase within allowed range', async () => {
+        it("should allow value increase within allowed range", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
+
             for (const val of GovernancePotShareNominatorAllowedParams) {
-                await blockRewardHbbft.setGovernancePotShareNominator(val);
-                expect(await blockRewardHbbft.governancePotShareNominator()).to.equal(val);
+                await blockReward.write.setGovernancePotShareNominator([BigInt(val)]);
+
+                assert.equal(await blockReward.read.governancePotShareNominator(), BigInt(val));
             }
         });
 
-        it('should allow value decrease within allowed range', async () => {
+        it("should allow value decrease within allowed range", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
+
+            // value guards only allow single-step changes, so ramp up to the max value first
+            for (const val of GovernancePotShareNominatorAllowedParams) {
+                await blockReward.write.setGovernancePotShareNominator([BigInt(val)]);
+            }
+
             for (const val of [...GovernancePotShareNominatorAllowedParams].reverse()) {
-                await blockRewardHbbft.setGovernancePotShareNominator(val);
-                expect(await blockRewardHbbft.governancePotShareNominator()).to.equal(val);
+                await blockReward.write.setGovernancePotShareNominator([BigInt(val)]);
+                assert.equal(await blockReward.read.governancePotShareNominator(), BigInt(val));
             }
         });
     });
 
-    describe('reward', async () => {
-        it('should restrict calling reward only to system address', async () => {
-            const { blockRewardContract } = await helpers.loadFixture(deployContractsFixture);
+    describe("reward", async function () {
+        it("should restrict calling reward only to system address", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
 
             const caller = accounts[5];
 
-            await expect(blockRewardContract.connect(caller).reward(false)).to.be.reverted;
+            await hhViem.assertions.revertWithCustomError(
+                blockReward.write.reward([false], { account: caller.account }),
+                blockReward,
+                "Unauthorized",
+            );
         });
 
-        it('should revert for zero validators', async () => {
-            const {
-                blockRewardContract,
-                validatorSetContract,
-                stakingContract
-            } = await helpers.loadFixture(deployContractsFixture);
+        it("should revert for zero validators", async function () {
+            const { blockReward, validatorSet, staking } = await helpers.loadFixture(deployContractsFixture);
 
-            await validatorSetContract.forceFinalizeNewValidators();
+            await validatorSet.write.forceFinalizeNewValidators();
 
-            const validatorSetSigner = await impersonateAcc(await validatorSetContract.getAddress());
-            await stakingContract.connect(validatorSetSigner).incrementStakingEpoch();
-            await helpers.stopImpersonatingAccount(validatorSetSigner.address);
+            const validatorSetAccount = await impersonateAcc(validatorSet.address);
+            await staking.write.incrementStakingEpoch({ account: validatorSetAccount });
+            await helpers.stopImpersonatingAccount(validatorSetAccount);
 
-            expect(await validatorSetContract.getValidators()).to.be.empty;
+            assert.deepEqual(await validatorSet.read.getValidators(), []);
 
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await expect(blockRewardContract.connect(systemSigner).reward(true))
-                .to.be.revertedWithCustomError(blockRewardContract, "ValidatorsListEmpty");
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
+            await hhViem.assertions.revertWithCustomError(
+                blockReward.write.reward([true], { account: systemAccount }),
+                blockReward,
+                "ValidatorsListEmpty",
+            );
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it('should save epochs in which validator was awarded', async () => {
-            const {
-                blockRewardContract,
-                stakingContract,
-                validatorSetContract,
-            } = await helpers.loadFixture(deployContractsFixture);
+        it("should save epochs in which validator was awarded", async function () {
+            const { blockReward, staking, validatorSet, initialValidators } =
+                await helpers.loadFixture(deployContractsFixture);
 
-            for (let i = 0; i < initialStakingAddresses.length; ++i) {
-                const pool = await ethers.getSigner(initialStakingAddresses[i]);
-                const mining = await ethers.getSigner(initialValidators[i]);
+            const candidateMinStake = await staking.read.candidateMinStake();
 
-                await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
+            for (const validator of initialValidators) {
+                const pool = validator.stakingAddress();
 
-                const latestBlock = await ethers.provider.getBlock('latest');
-                await validatorSetContract.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+                await staking.write.stake([pool], { account: validator.staking, value: candidateMinStake });
 
-                expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+                const latestBlock = await publicClient.getBlock();
+                await validatorSet.write.announceAvailability([latestBlock.number, latestBlock.hash], {
+                    account: validator.mining,
+                });
+
+                assert.equal(await staking.read.stakeAmountTotal([pool]), candidateMinStake);
             }
 
             for (const _validator of initialValidators) {
-                expect(await blockRewardContract.epochsPoolGotRewardFor(_validator)).to.be.empty;
+                assert.deepEqual(await blockReward.read.epochsPoolGotRewardFor([_validator.miningAddress()]), []);
             }
 
-            await callReward(blockRewardContract, true);
+            await callReward(blockReward, true);
 
-            const deltaPotValue = ethers.parseEther('10');
-            await blockRewardContract.addToDeltaPot({ value: deltaPotValue });
-            expect(await blockRewardContract.deltaPot()).to.be.eq(deltaPotValue);
+            const deltaPotValue = parseEther("10");
+            await blockReward.write.addToDeltaPot({ value: deltaPotValue });
+            assert.equal(await blockReward.read.deltaPot(), deltaPotValue);
 
             const expectedEpochsCount = 10;
             let passedEpochs = new Array<bigint>();
 
             for (let i = 0; i < expectedEpochsCount; ++i) {
-                const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+                const fixedEpochEndTime = await staking.read.stakingFixedEpochEndTime();
                 await helpers.time.increaseTo(fixedEpochEndTime + 1n);
                 await helpers.mine(1);
 
-                const epochNumber = await stakingContract.stakingEpoch();
+                const epochNumber = await staking.read.stakingEpoch();
 
                 passedEpochs.push(epochNumber);
-                await callReward(blockRewardContract, true);
+                await callReward(blockReward, true);
             }
 
-            expect(passedEpochs).to.be.lengthOf(expectedEpochsCount);
+            assert.equal(passedEpochs.length, expectedEpochsCount);
 
             for (const _validator of initialValidators) {
-                const poolRewardedEpochs = await blockRewardContract.epochsPoolGotRewardFor(_validator);
+                const poolRewardedEpochs = await blockReward.read.epochsPoolGotRewardFor([_validator.miningAddress()]);
 
-                expect(poolRewardedEpochs).to.be.lengthOf(expectedEpochsCount);
-                expect(poolRewardedEpochs).to.deep.equal(passedEpochs);
+                assert.equal(poolRewardedEpochs.length, expectedEpochsCount);
+                assert.deepEqual(poolRewardedEpochs, passedEpochs);
             }
         });
 
-        it('should not reward validators who announced availability in the current epoch', async () => {
-            const {
-                blockRewardContract,
-                stakingContract,
-                validatorSetContract,
-                connectivityTrackerContract,
-            } = await helpers.loadFixture(deployContractsFixture);
+        it("should not reward validators who announced availability in the current epoch", async function () {
+            const { blockReward, staking, validatorSet, connectivityTracker, initialValidators } =
+                await helpers.loadFixture(deployContractsFixture);
 
-            for (let i = 0; i < initialStakingAddresses.length; ++i) {
-                const pool = await ethers.getSigner(initialStakingAddresses[i]);
-                const mining = await ethers.getSigner(initialValidators[i]);
+            const candidateMinStake = await staking.read.candidateMinStake();
 
-                await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
+            for (const validator of initialValidators) {
+                const pool = validator.stakingAddress();
 
-                const latestBlock = await ethers.provider.getBlock('latest');
-                await validatorSetContract.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+                await staking.write.stake([pool], { account: validator.staking, value: candidateMinStake });
 
-                expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+                const latestBlock = await publicClient.getBlock();
+                await validatorSet.write.announceAvailability([latestBlock.number, latestBlock.hash], {
+                    account: validator.mining,
+                });
+
+                assert.equal(await staking.read.stakeAmountTotal([pool]), candidateMinStake);
             }
 
-            await callReward(blockRewardContract, true);
+            await callReward(blockReward, true);
 
-            const deltaPotValue = ethers.parseEther('10');
-            await blockRewardContract.addToDeltaPot({ value: deltaPotValue });
-            expect(await blockRewardContract.deltaPot()).to.be.eq(deltaPotValue);
+            const deltaPotValue = parseEther("10");
+            await blockReward.write.addToDeltaPot({ value: deltaPotValue });
+            assert.equal(await blockReward.read.deltaPot(), deltaPotValue);
 
-            const validator = await ethers.getSigner(initialValidators[0]);
-            const connectivityTrackerCaller = await ethers.getImpersonatedSigner(await connectivityTrackerContract.getAddress());
+            const validator = initialValidators[0];
+            const connectivityTrackerCaller = await impersonateAcc(connectivityTracker.address);
 
             await owner.sendTransaction({
-                value: ethers.parseEther('1'),
-                to: await connectivityTrackerCaller.getAddress(),
+                value: parseEther("1"),
+                to: connectivityTrackerCaller,
             });
 
-            await validatorSetContract.connect(connectivityTrackerCaller).notifyUnavailability(validator.address);
-            expect(await validatorSetContract.validatorAvailableSince(validator.address)).to.equal(0n);
+            await validatorSet.write.notifyUnavailability([validator.miningAddress()], {
+                account: connectivityTrackerCaller,
+            });
+            assert.equal(await validatorSet.read.validatorAvailableSince([validator.miningAddress()]), 0n);
             await helpers.mine(5);
 
-            const announceBlock = await ethers.provider.getBlock('latest');
-            await validatorSetContract.connect(validator).announceAvailability(
-                announceBlock!.number,
-                announceBlock!.hash!
-            );
+            const announceBlock = await publicClient.getBlock();
+            await validatorSet.write.announceAvailability([announceBlock.number, announceBlock.hash], {
+                account: validator.mining,
+            });
 
             const availabilityTimestamp = await helpers.time.latest();
-            expect(await validatorSetContract.validatorAvailableSince(validator.address)).to.equal(availabilityTimestamp);
+            assert.equal(
+                await validatorSet.read.validatorAvailableSince([validator.miningAddress()]),
+                BigInt(availabilityTimestamp),
+            );
 
-            const epochNumber = await stakingContract.stakingEpoch();
+            const epochNumber = await staking.read.stakingEpoch();
 
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            const fixedEpochEndTime = await staking.read.stakingFixedEpochEndTime();
             await helpers.time.increaseTo(fixedEpochEndTime + 1n);
             await helpers.mine(1);
 
-            // const epochNumber = await stakingContract.stakingEpoch();
-            await callReward(blockRewardContract, true);
+            await callReward(blockReward, true);
 
             for (const _validator of initialValidators) {
-                if (_validator == validator.address) {
-                    expect(await blockRewardContract.epochsPoolGotRewardFor(_validator)).to.be.empty;
+                if (_validator === validator) {
+                    assert.deepEqual(await blockReward.read.epochsPoolGotRewardFor([_validator.miningAddress()]), []);
                 } else {
-                    expect(await blockRewardContract.epochsPoolGotRewardFor(_validator)).to.deep.equal([epochNumber]);
+                    assert.deepEqual(await blockReward.read.epochsPoolGotRewardFor([_validator.miningAddress()]), [
+                        epochNumber,
+                    ]);
                 }
             }
+
+            await helpers.stopImpersonatingAccount(connectivityTrackerCaller);
         });
 
-        it('should not distribute rewards if there is no rewarded validators', async () => {
-            const {
-                blockRewardContract,
-                stakingContract,
-                validatorSetContract,
-                connectivityTrackerContract,
-            } = await helpers.loadFixture(deployContractsFixture);
+        it("should not distribute rewards if there is no rewarded validators", async function () {
+            const { blockReward, staking, validatorSet, connectivityTracker, initialValidators } =
+                await helpers.loadFixture(deployContractsFixture);
 
-            for (let i = 0; i < initialStakingAddresses.length; ++i) {
-                const pool = await ethers.getSigner(initialStakingAddresses[i]);
-                const mining = await ethers.getSigner(initialValidators[i]);
+            const candidateMinStake = await staking.read.candidateMinStake();
 
-                await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
+            for (const validator of initialValidators) {
+                const pool = validator.stakingAddress();
 
-                const latestBlock = await ethers.provider.getBlock('latest');
-                await validatorSetContract.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+                await staking.write.stake([pool], { account: validator.staking, value: candidateMinStake });
 
-                expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+                const latestBlock = await publicClient.getBlock();
+                await validatorSet.write.announceAvailability([latestBlock.number, latestBlock.hash], {
+                    account: validator.mining,
+                });
+
+                assert.equal(await staking.read.stakeAmountTotal([pool]), candidateMinStake);
             }
 
-            await callReward(blockRewardContract, true);
+            await callReward(blockReward, true);
 
-            const deltaPotValue = ethers.parseEther('10');
-            await blockRewardContract.addToDeltaPot({ value: deltaPotValue });
-            expect(await blockRewardContract.deltaPot()).to.be.eq(deltaPotValue);
+            const deltaPotValue = parseEther("10");
+            await blockReward.write.addToDeltaPot({ value: deltaPotValue });
+            assert.equal(await blockReward.read.deltaPot(), deltaPotValue);
 
-            const connectivityTrackerCaller = await ethers.getImpersonatedSigner(await connectivityTrackerContract.getAddress());
+            const connectivityTrackerCaller = await impersonateAcc(connectivityTracker.address);
 
             await owner.sendTransaction({
-                value: ethers.parseEther('10'),
-                to: await connectivityTrackerCaller.getAddress(),
+                value: parseEther("10"),
+                to: connectivityTrackerCaller,
             });
 
-            const currentValidators = await validatorSetContract.getValidators();
+            const currentValidators = await validatorSet.read.getValidators();
 
             for (const validatorAddress of currentValidators) {
-                await validatorSetContract.connect(connectivityTrackerCaller).notifyUnavailability(validatorAddress);
-                expect(await validatorSetContract.validatorAvailableSince(validatorAddress)).to.equal(0n);
+                await validatorSet.write.notifyUnavailability([validatorAddress], {
+                    account: connectivityTrackerCaller,
+                });
+                assert.equal(await validatorSet.read.validatorAvailableSince([validatorAddress]), 0n);
             }
 
             await helpers.mine(5);
 
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            const fixedEpochEndTime = await staking.read.stakingFixedEpochEndTime();
             await helpers.time.increaseTo(fixedEpochEndTime + 1n);
             await helpers.mine(1);
 
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
 
-            await expect(blockRewardContract.connect(systemSigner).reward(true))
-                .to.emit(blockRewardContract, "CoinsRewarded")
-                .withArgs(0n);
+            await hhViem.assertions.emitWithArgs(
+                blockReward.write.reward([true], { account: systemAccount }),
+                blockReward,
+                "CoinsRewarded",
+                [0n],
+            );
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
+            await helpers.stopImpersonatingAccount(connectivityTrackerCaller);
 
             for (const validatorAddress of currentValidators) {
-                expect(await blockRewardContract.epochsPoolGotRewardFor(validatorAddress)).to.be.empty;
+                assert.deepEqual(await blockReward.read.epochsPoolGotRewardFor([validatorAddress]), []);
             }
         });
 
-        it('should not distribute rewards if pool reward = 0', async () => {
-            const {
-                blockRewardContract,
-                stakingContract,
-                validatorSetContract,
-            } = await helpers.loadFixture(deployContractsFixture);
+        it("should not distribute rewards if pool reward = 0", async function () {
+            const { blockReward, staking, validatorSet, initialValidators } =
+                await helpers.loadFixture(deployContractsFixture);
 
-            for (let i = 0; i < initialStakingAddresses.length; ++i) {
-                const pool = await ethers.getSigner(initialStakingAddresses[i]);
-                const mining = await ethers.getSigner(initialValidators[i]);
+            const candidateMinStake = await staking.read.candidateMinStake();
 
-                await stakingContract.connect(pool).stake(pool.address, { value: candidateMinStake });
+            for (const validator of initialValidators) {
+                const pool = validator.stakingAddress();
 
-                const latestBlock = await ethers.provider.getBlock('latest');
-                await validatorSetContract.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
+                await staking.write.stake([pool], { account: validator.staking, value: candidateMinStake });
 
-                expect(await stakingContract.stakeAmountTotal(pool.address)).to.be.eq(candidateMinStake);
+                const latestBlock = await publicClient.getBlock();
+                await validatorSet.write.announceAvailability([latestBlock.number, latestBlock.hash], {
+                    account: validator.mining,
+                });
+
+                assert.equal(await staking.read.stakeAmountTotal([pool]), candidateMinStake);
             }
 
-            await callReward(blockRewardContract, true);
+            await callReward(blockReward, true);
 
             // Following pot values and default payout fractions will result in 0 pool reward value
             const potValue = 90000n;
-            await blockRewardContract.addToDeltaPot({ value: potValue });
-            await blockRewardContract.sendCoins({ value: potValue });
+            await blockReward.write.addToDeltaPot({ value: potValue });
+            await blockReward.write.sendCoins({ value: potValue });
 
-            expect(await blockRewardContract.deltaPot()).to.be.eq(potValue);
-            expect(await blockRewardContract.reinsertPot()).to.be.eq(potValue);
+            assert.equal(await blockReward.read.deltaPot(), potValue);
+            assert.equal(await blockReward.read.reinsertPot(), potValue);
 
             await helpers.mine(5);
 
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            const fixedEpochEndTime = await staking.read.stakingFixedEpochEndTime();
             await helpers.time.increaseTo(fixedEpochEndTime + 1n);
             await helpers.mine(1);
 
-            const validators = await validatorSetHbbft.getValidators();
-            const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+            const validators = await validatorSet.read.getValidators();
+            const potsShares = await blockReward.read.getPotsShares([BigInt(validators.length)]);
 
             const expectedUndistributedNativeRewards = potsShares.totalRewards - potsShares.governancePotAmount;
 
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
 
-            await expect(blockRewardContract.connect(systemSigner).reward(true))
-                .to.emit(blockRewardContract, "CoinsRewarded")
-                .withArgs(potsShares.governancePotAmount);
+            await hhViem.assertions.emitWithArgs(
+                blockReward.write.reward([true], { account: systemAccount }),
+                blockReward,
+                "CoinsRewarded",
+                [potsShares.governancePotAmount],
+            );
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-            expect(await blockRewardContract.nativeRewardUndistributed()).to.eq(expectedUndistributedNativeRewards);
+            assert.equal(await blockReward.read.nativeRewardUndistributed(), expectedUndistributedNativeRewards);
 
-            const currentValidators = await validatorSetContract.getValidators();
+            const currentValidators = await validatorSet.read.getValidators();
             for (const validatorAddress of currentValidators) {
-                expect(await blockRewardContract.epochsPoolGotRewardFor(validatorAddress)).to.be.empty;
+                assert.deepEqual(await blockReward.read.epochsPoolGotRewardFor([validatorAddress]), []);
             }
         });
 
-        it('should not reward validators with stake amount = 0 and save undistributed amount', async () => {
-            const {
-                blockRewardContract,
-                validatorSetContract,
-            } = await helpers.loadFixture(deployContractsFixture);
+        it("should not reward validators with stake amount = 0 and save undistributed amount", async function () {
+            const { blockReward, staking, validatorSet } = await helpers.loadFixture(deployContractsFixture);
 
-            await callReward(blockRewardContract, true);
+            await callReward(blockReward, true);
 
             // Following pot values and default payout fractions will result in 0 pool reward value
-            const potValue = ethers.parseEther('1');
-            await blockRewardContract.addToDeltaPot({ value: potValue });
-            await blockRewardContract.sendCoins({ value: potValue });
+            const potValue = parseEther("1");
+            await blockReward.write.addToDeltaPot({ value: potValue });
+            await blockReward.write.sendCoins({ value: potValue });
 
-            expect(await blockRewardContract.deltaPot()).to.be.eq(potValue);
-            expect(await blockRewardContract.reinsertPot()).to.be.eq(potValue);
+            assert.equal(await blockReward.read.deltaPot(), potValue);
+            assert.equal(await blockReward.read.reinsertPot(), potValue);
 
             await helpers.mine(5);
 
-            const fixedEpochEndTime = await stakingHbbft.stakingFixedEpochEndTime();
+            const fixedEpochEndTime = await staking.read.stakingFixedEpochEndTime();
             await helpers.time.increaseTo(fixedEpochEndTime + 1n);
             await helpers.mine(1);
 
-            const validators = await validatorSetHbbft.getValidators();
-            const potsShares = await blockRewardHbbft.getPotsShares(validators.length);
+            const validators = await validatorSet.read.getValidators();
+            const potsShares = await blockReward.read.getPotsShares([BigInt(validators.length)]);
 
             const expectedUndistributedNativeRewards = potsShares.totalRewards - potsShares.governancePotAmount;
 
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
 
-            await expect(blockRewardContract.connect(systemSigner).reward(true))
-                .to.emit(blockRewardContract, "CoinsRewarded")
-                .withArgs(0);
+            await hhViem.assertions.emitWithArgs(
+                blockReward.write.reward([true], { account: systemAccount }),
+                blockReward,
+                "CoinsRewarded",
+                [0n],
+            );
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
 
-            expect(await blockRewardContract.nativeRewardUndistributed()).to.eq(expectedUndistributedNativeRewards);
+            assert.equal(await blockReward.read.nativeRewardUndistributed(), expectedUndistributedNativeRewards);
 
-            const currentValidators = await validatorSetContract.getValidators();
+            const currentValidators = await validatorSet.read.getValidators();
             for (const validatorAddress of currentValidators) {
-                expect(await blockRewardContract.epochsPoolGotRewardFor(validatorAddress)).to.be.empty;
+                assert.deepEqual(await blockReward.read.epochsPoolGotRewardFor([validatorAddress]), []);
             }
         });
     });
 
-    describe('notifyEarlyEpochEnd', async () => {
-        beforeEach(async () => {
-            await blockRewardHbbft.resetEarlyEpochEnd();
-        });
+    describe("notifyEarlyEpochEnd", async function () {
+        it("should restrict calling notifyEarlyEpochEnd to connectivity tracker contract only", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
 
-        it("should restrict calling notifyEarlyEpochEnd to connectivity tracker contract only", async () => {
             const caller = accounts[11];
 
-            await expect(blockRewardHbbft.connect(caller).notifyEarlyEpochEnd())
-                .to.be.revertedWithCustomError(blockRewardHbbft, "Unauthorized");
-        });
-
-        it("should emit event on early epoch end notification receive", async () => {
-            const connTracker = await impersonateAcc(await connectivityTracker.getAddress());
-
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.false;
-
-            expect(await blockRewardHbbft.connect(connTracker).notifyEarlyEpochEnd())
-                .to.emit(blockRewardHbbft, "EarlyEpochEndNotificationReceived");
-
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.true;
-
-            await helpers.stopImpersonatingAccount(connTracker.address);
-        });
-
-        it("should end epoch earlier if notified", async () => {
-            const connTracker = await impersonateAcc(await blockRewardHbbft.connectivityTracker());
-
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.false;
-            expect(await blockRewardHbbft.connect(connTracker).notifyEarlyEpochEnd()).to.not.be.reverted;
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.true;
-
-            await helpers.stopImpersonatingAccount(connTracker.address);
-
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
-
-            expect(await blockRewardHbbft.connect(systemSigner).reward(false)).to.emit(
-                blockRewardHbbft,
-                "CoinsRewarded"
+            await hhViem.assertions.revertWithCustomError(
+                blockReward.write.notifyEarlyEpochEnd({ account: caller.account }),
+                blockReward,
+                "Unauthorized",
             );
+        });
+
+        it("should emit event on early epoch end notification receive", async function () {
+            const { blockReward, connectivityTracker } = await helpers.loadFixture(deployContractsFixture);
+
+            const connTracker = await impersonateAcc(connectivityTracker.address);
+
+            assert.equal(await blockReward.read.earlyEpochEnd(), false);
+
+            await hhViem.assertions.emit(
+                blockReward.write.notifyEarlyEpochEnd({ account: connTracker }),
+                blockReward,
+                "EarlyEpochEndNotificationReceived",
+            );
+
+            assert.equal(await blockReward.read.earlyEpochEnd(), true);
+
+            await helpers.stopImpersonatingAccount(connTracker);
+        });
+
+        it("should end epoch earlier if notified", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
+
+            const connTracker = await impersonateAcc(await blockReward.read.connectivityTracker());
+
+            assert.equal(await blockReward.read.earlyEpochEnd(), false);
+            await blockReward.write.notifyEarlyEpochEnd({ account: connTracker });
+            assert.equal(await blockReward.read.earlyEpochEnd(), true);
+
+            await helpers.stopImpersonatingAccount(connTracker);
+
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
+
+            await blockReward.write.reward([false], { account: systemAccount });
+            assert.equal(await blockReward.read.earlyEpochEnd(), false);
 
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it("should not end epoch earlier if not notified", async () => {
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.false;
+        it("should not end epoch earlier if not notified", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
 
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
+            assert.equal(await blockReward.read.earlyEpochEnd(), false);
 
-            expect(await blockRewardHbbft.connect(systemSigner).reward(false)).to.not.emit(
-                blockRewardHbbft,
-                "CoinsRewarded"
-            );
+            const systemAccount = await impersonateAcc(SystemAccountAddress);
+
+            const hash = await blockReward.write.reward([false], { account: systemAccount });
+            const receipt = await publicClient.waitForTransactionReceipt({ hash });
+            const rewardEvents = parseEventLogs({
+                abi: blockReward.abi,
+                logs: receipt.logs,
+                eventName: "CoinsRewarded",
+            });
+            assert.equal(rewardEvents.length, 0);
+
             await helpers.stopImpersonatingAccount(SystemAccountAddress);
         });
 
-        it("should ignore and reset early epoch end flag received during key generation phase", async () => {
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.false;
+        it("should ignore and reset early epoch end flag received during key generation phase", async function () {
+            const { blockReward, staking, validatorSet, connectivityTracker } =
+                await helpers.loadFixture(deployContractsFixture);
 
-            await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
+            assert.equal(await blockReward.read.earlyEpochEnd(), false);
 
-            const pendingValidators = await validatorSetHbbft.getPendingValidators();
-            expect(pendingValidators).to.be.not.empty;
+            await timeTravelToTransition(blockReward, staking);
 
-            const connTracker = await impersonateAcc(await connectivityTracker.getAddress());
-            expect(await blockRewardHbbft.connect(connTracker).notifyEarlyEpochEnd())
-                .to.emit(blockRewardHbbft, "EarlyEpochEndNotificationReceived");
-            await helpers.stopImpersonatingAccount(connTracker.address);
+            const pendingValidators = await validatorSet.read.getPendingValidators();
+            assert.ok(pendingValidators.length > 0);
 
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.true;
+            const connTracker = await impersonateAcc(connectivityTracker.address);
+            await hhViem.assertions.emit(
+                blockReward.write.notifyEarlyEpochEnd({ account: connTracker }),
+                blockReward,
+                "EarlyEpochEndNotificationReceived",
+            );
+            await helpers.stopImpersonatingAccount(connTracker);
 
-            await callReward(blockRewardHbbft, false);
+            assert.equal(await blockReward.read.earlyEpochEnd(), true);
 
-            expect(await blockRewardHbbft.earlyEpochEnd()).to.be.false;
-            expect(await validatorSetHbbft.getPendingValidators()).to.deep.equal(pendingValidators);
+            await callReward(blockReward, false);
+
+            assert.equal(await blockReward.read.earlyEpochEnd(), false);
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), pendingValidators);
         });
     });
 
-    it('should get governance address', async () => {
-        expect(await blockRewardHbbft.getGovernanceAddress()).to.be.equal(GovernanceAddress);
+    describe("getGovernanceAddress", async function () {
+        it("should get governance address", async function () {
+            const { blockReward } = await helpers.loadFixture(deployContractsFixture);
+
+            assert.equal(await blockReward.read.getGovernanceAddress(), GovernanceAddress);
+        });
     });
 
-    it('staking epoch #0 finished', async () => {
-        expect(await stakingHbbft.stakingEpoch()).to.equal(0n);
+    describe("staking epochs lifecycle", async function () {
+        let contracts: DeployedContracts;
 
-        // we are now in the Phase 1: Regular Block Creation
-        //means: just a normal and boring block.
-        await callReward(blockRewardHbbft, false);
+        before(async function () {
+            contracts = await helpers.loadFixture(deployContractsFixture);
+        });
 
-        //boring, thing happened, we still should have zero pendingValidors.
-        expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
+        it("staking epoch #0 finished", async function () {
+            const { blockReward, validatorSet, staking } = contracts;
 
-        //lets spin up the time until the beginning of the Transition phase.
-        await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
-        await timeTravelToEndEpoch(stakingHbbft, blockRewardHbbft);
+            assert.equal(await staking.read.stakingEpoch(), 0n);
 
-        // that was the end of epoch 0,
-        // we should be in epoch 1 now.
-        expect(await stakingHbbft.stakingEpoch()).to.be.equal(1n);
+            await callReward(blockReward, false);
 
-        // since noone stacked after all, pending validators should still be 0
-        expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
-        expect(await blockRewardHbbft.nativeRewardUndistributed()).to.be.equal(nativeRewardUndistributed);
-    });
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), []);
 
-    it('staking epoch #1 started', async () => {
-        expect(await stakingHbbft.stakingEpoch()).to.be.equal(1n);
-        expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(3);
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
-        // Docs: The pendingValidators set returned by the ValidatorSet contract is empty in this phase,.
-        expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
-        expect(await stakingHbbft.getPoolsToBeElected()).to.be.empty;
-    });
+            assert.equal(await staking.read.stakingEpoch(), 1n);
 
-    it('validators and their delegators place stakes during the epoch #1', async () => {
-        const validators = await validatorSetHbbft.getValidators();
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), []);
+            assert.equal(await blockReward.read.nativeRewardUndistributed(), 0n);
+        });
 
-        for (let i = 0; i < validators.length; i++) {
-            const mining = await ethers.getSigner(validators[i]);
-            const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validators[i]);
+        it("staking epoch #1 started", async function () {
+            const { validatorSet, staking } = contracts;
 
-            // Validator places stake on themselves
-            await stakingHbbft.connect(await ethers.provider.getSigner(stakingAddress)).stake(
-                stakingAddress,
-                { value: candidateMinStake }
+            assert.equal(await staking.read.stakingEpoch(), 1n);
+            assert.equal((await validatorSet.read.getValidators()).length, 3);
+
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), []);
+            assert.deepEqual(await staking.read.getPoolsToBeElected(), []);
+        });
+
+        it("validators and their delegators place stakes during the epoch #1", async function () {
+            const { validatorSet, staking, initialValidators } = contracts;
+
+            const candidateMinStake = await staking.read.candidateMinStake();
+            const delegatorMinStake = await staking.read.delegatorMinStake();
+
+            for (let i = 0; i < initialValidators.length; i++) {
+                const validator = initialValidators[i];
+                const stakingAddress = validator.stakingAddress();
+
+                await staking.write.stake([stakingAddress], { account: validator.staking, value: candidateMinStake });
+
+                const delegatorsLength = 3;
+                const delegators = accounts.slice(
+                    11 + i * delegatorsLength,
+                    11 + i * delegatorsLength + delegatorsLength,
+                );
+                for (let j = 0; j < delegators.length; j++) {
+                    await staking.write.stake([stakingAddress], {
+                        account: delegators[j].account,
+                        value: delegatorMinStake,
+                    });
+                }
+
+                const latestBlock = await publicClient.getBlock();
+                await validatorSet.write.announceAvailability([latestBlock.number, latestBlock.hash], {
+                    account: validator.mining,
+                });
+            }
+        });
+
+        it("staking epoch #1 finished", async function () {
+            const { blockReward, validatorSet, staking, initialValidators } = contracts;
+
+            const candidateMinStake = await staking.read.candidateMinStake();
+            const delegatorMinStake = await staking.read.delegatorMinStake();
+
+            assert.equal(await staking.read.stakingEpoch(), 1n);
+
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), []);
+
+            assert.equal((await staking.read.getPoolsToBeElected()).length, 3);
+
+            await timeTravelToTransition(blockReward, staking);
+
+            const pendingValidators = await validatorSet.read.getPendingValidators();
+
+            assert.deepEqual(
+                pendingValidators,
+                initialValidators.map((validator) => getAddress(validator.miningAddress())),
             );
 
-            const delegatorsLength = 3;
-            const delegators = accounts.slice(11 + i * delegatorsLength, 11 + i * delegatorsLength + delegatorsLength);
-            for (let j = 0; j < delegators.length; j++) {
-                // Delegator places stake on the validator
-                await stakingHbbft.connect(delegators[j]).stake(
-                    stakingAddress,
-                    { value: delegatorMinStake }
+            assert.equal(await staking.read.stakingEpoch(), 1n);
+            assert.equal(await blockReward.read.nativeRewardUndistributed(), 0n);
+
+            await timeTravelToEndEpoch(blockReward, staking);
+
+            const nextStakingEpoch = await staking.read.stakingEpoch();
+            assert.equal(nextStakingEpoch, 2n);
+
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), []);
+
+            const validators = await validatorSet.read.getValidators();
+            assert.deepEqual(
+                validators,
+                initialValidators.map((validator) => getAddress(validator.miningAddress())),
+            );
+
+            for (let i = 0; i < validators.length; i++) {
+                const stakingAddress = await validatorSet.read.stakingByMiningAddress([validators[i]]);
+
+                assert.equal(
+                    await staking.read.snapshotPoolValidatorStakeAmount([nextStakingEpoch, stakingAddress]),
+                    candidateMinStake,
+                );
+
+                assert.equal(
+                    await staking.read.snapshotPoolTotalStakeAmount([nextStakingEpoch, stakingAddress]),
+                    candidateMinStake + delegatorMinStake * 3n,
                 );
             }
+        });
 
-            const latestBlock = await ethers.provider.getBlock('latest');
-            await validatorSetHbbft.connect(mining).announceAvailability(latestBlock!.number, latestBlock!.hash!);
-        }
-    });
+        it("DMD Pots: filling delta pot", async function () {
+            const { blockReward, staking } = contracts;
 
-    it('staking epoch #1 finished', async () => {
-        expect(await stakingHbbft.stakingEpoch()).to.equal(1n);
+            assert.equal(await staking.read.stakingEpoch(), 2n);
 
-        // const stakingEpochStartBlock = await stakingHbbft.stakingEpochStartBlock();
-        // stakingEpochStartBlock.should.be.equal(STAKING_EPOCH_START_BLOCK.add(STAKING_EPOCH_DURATION));
+            assert.equal(await publicClient.getBalance({ address: blockReward.address }), 0n);
 
-        expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
+            assert.equal(await blockReward.read.deltaPot(), 0n);
+            assert.equal(await blockReward.read.reinsertPot(), 0n);
 
-        // we have staked just before, now there should be 3 pools.
-        expect(await stakingHbbft.getPoolsToBeElected()).to.be.lengthOf(3);
+            await blockReward.write.addToDeltaPot({ value: addToDeltaPotValue });
 
-        //lets spin up the time until the beginning of the Transition phase.
-        await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
+            assert.equal(await blockReward.read.deltaPot(), addToDeltaPotValue);
+        });
 
-        const pendingValidators = await validatorSetHbbft.getPendingValidators();
+        it("DMD Pots: governance pot got correct share.", async function () {
+            const { blockReward, validatorSet, staking } = contracts;
 
-        expect(pendingValidators).to.deep.eq([
-            accounts[1].address,
-            accounts[2].address,
-            accounts[3].address
-        ]);
+            const maxValidators = await validatorSet.read.maxValidators();
+            const currentValidators = await validatorSet.read.getValidators();
 
-        // now we are in phase 2.
-        // Nodes are now responsible for creating a key together.
-        // they have a timeframe for this (see )
+            assert.equal(currentValidators.length, 3);
 
-        // since we are now  in phase 2 of the same epoch.
-        expect(await stakingHbbft.stakingEpoch()).to.equal(1n);
-        expect(await blockRewardHbbft.nativeRewardUndistributed()).to.equal(nativeRewardUndistributed);
+            const initialGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
 
-        await timeTravelToEndEpoch(stakingHbbft, blockRewardHbbft);
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
-        const nextStakingEpoch = await stakingHbbft.stakingEpoch();
-        //since the endEpoch happened, we should be in the epoch 2 now.
-        expect(nextStakingEpoch).to.equal(2n);
+            const currentGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
+            const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
 
-        // pending validators get deleted after being finalized
-        expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
+            const totalReward = ((addToDeltaPotValue / 6000n) * BigInt(currentValidators.length)) / maxValidators;
+            const expectedDAOShare = totalReward / 10n;
 
-        const validators = await validatorSetHbbft.getValidators();
-        expect(validators).to.deep.eq([
-            accounts[1].address,
-            accounts[2].address,
-            accounts[3].address
-        ]);
+            assert.equal(governancePotIncrease, expectedDAOShare);
+        });
 
-        for (let i = 0; i < validators.length; i++) {
-            const stakingAddress = await validatorSetHbbft.stakingByMiningAddress(validators[i]);
+        it("DMD Pots: reinsert pot works as expected.", async function () {
+            const { blockReward, validatorSet, staking } = contracts;
 
-            expect(
-                await stakingHbbft.snapshotPoolValidatorStakeAmount(nextStakingEpoch, stakingAddress)
-            ).to.equal(candidateMinStake);
+            const maxValidators = await validatorSet.read.maxValidators();
+            const currentValidators = await validatorSet.read.getValidators();
 
-            expect(
-                await stakingHbbft.snapshotPoolTotalStakeAmount(nextStakingEpoch, stakingAddress)
-            ).to.equal(candidateMinStake + delegatorMinStake * 3n);
-        }
-    });
+            const deltaPotCurrentValue = await blockReward.read.deltaPot();
+            const fillUpMissing = addToDeltaPotValue - deltaPotCurrentValue;
 
-    it('DMD Pots: filling delta pot', async () => {
-        expect(await stakingHbbft.stakingEpoch()).to.equal(2n);
+            await blockReward.write.addToDeltaPot({ value: fillUpMissing });
+            assert.equal(await blockReward.read.deltaPot(), addToDeltaPotValue);
 
-        //checking preconditions.
-        // get the current address pof the governance pot.
-        expect(await ethers.provider.getBalance(await blockRewardHbbft.getAddress())).to.equal(0n);
+            const addedToReinsertPot = parseEther("60");
 
-        expect(await blockRewardHbbft.deltaPot()).to.equal(0n);
-        expect(await blockRewardHbbft.reinsertPot()).to.equal(0n);
+            await blockReward.write.sendCoins({ value: addedToReinsertPot });
+            assert.equal(await blockReward.read.reinsertPot(), addedToReinsertPot);
 
-        await blockRewardHbbft.addToDeltaPot({ value: addToDeltaPotValue });
+            const initialGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
 
-        expect(await blockRewardHbbft.deltaPot()).to.equal(addToDeltaPotValue);
-    });
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
-    it('DMD Pots: governance pot got correct share.', async () => {
-        const maxValidators = await validatorSetHbbft.maxValidators();
-        const currentValidators = await validatorSetHbbft.getValidators();
+            const currentGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
+            const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
 
-        expect(currentValidators).to.be.lengthOf(3);
+            const totalReward =
+                (((addToDeltaPotValue + addedToReinsertPot) / 6000n) * BigInt(currentValidators.length)) /
+                maxValidators;
 
-        const initialGovernancePotBalance = await getCurrentGovernancePotValue();
+            const expectedDAOShare = totalReward / 10n;
 
-        await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
-        await timeTravelToEndEpoch(stakingHbbft, blockRewardHbbft);
+            assert.equal(governancePotIncrease, expectedDAOShare);
+        });
 
-        const currentGovernancePotBalance = await getCurrentGovernancePotValue();
-        const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
+        it("transfers to reward contract works with 100k gas and fills reinsert pot", async function () {
+            const { blockReward } = contracts;
 
-        const totalReward = addToDeltaPotValue / 6000n * BigInt(currentValidators.length) / maxValidators;
-        const expectedDAOShare = totalReward / 10n;
+            const fillUpValue = parseEther("1");
 
-        expect(governancePotIncrease).to.equal(expectedDAOShare);
-    });
+            const balanceBefore = await publicClient.getBalance({ address: blockReward.address });
+            const reinsertPotBefore = await blockReward.read.reinsertPot();
 
-    it('DMD Pots: reinsert pot works as expected.', async () => {
-        const maxValidators = await validatorSetHbbft.maxValidators();
-        const currentValidators = await validatorSetHbbft.getValidators();
+            let fillUpTx = {
+                to: blockReward.address,
+                value: fillUpValue,
+                gas: 100000n,
+                gasPrice: parseUnits("100", 9), //in some configurations the default gasPrice is used here, it uses 0 instead..
+            };
 
-        //refilling the delta pot.
-        const deltaPotCurrentValue = await blockRewardHbbft.deltaPot()
-        const fillUpMissing = addToDeltaPotValue - deltaPotCurrentValue;
+            await accounts[0].sendTransaction(fillUpTx);
 
-        await blockRewardHbbft.addToDeltaPot({ value: fillUpMissing });
-        expect(await blockRewardHbbft.deltaPot()).to.be.equal(addToDeltaPotValue);
+            const balanceAfter = await publicClient.getBalance({ address: blockReward.address });
+            const reinsertPotAfter = await blockReward.read.reinsertPot();
 
-        const addedToReinsertPot = ethers.parseEther('60');
+            assert.equal(balanceAfter, balanceBefore + fillUpValue);
+            assert.equal(reinsertPotAfter, reinsertPotBefore + fillUpValue);
+        });
 
-        await blockRewardHbbft.sendCoins({ value: addedToReinsertPot });
-        expect(await blockRewardHbbft.reinsertPot()).to.be.equal(addedToReinsertPot);
+        it("reduces the reward if the epoch was shorter than expected", async function () {
+            const { blockReward, validatorSet, staking } = contracts;
 
-        const initialGovernancePotBalance = await getCurrentGovernancePotValue();
-
-        await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
-        await timeTravelToEndEpoch(stakingHbbft, blockRewardHbbft);
-
-        const currentGovernancePotBalance = await getCurrentGovernancePotValue();
-        const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
-
-        const totalReward = (addToDeltaPotValue + addedToReinsertPot) / 6000n * BigInt(currentValidators.length) / maxValidators;
-
-        const expectedDAOShare = totalReward / 10n;
-
-        // we expect 1 wei difference, since the reward combination from 2 pots results in that.
-        //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
-        expect(governancePotIncrease).to.be.equal(expectedDAOShare);
-    });
-
-    it('transfers to reward contract works with 100k gas and fills reinsert pot', async () => {
-        const fillUpValue = ethers.parseEther('1');
-
-        const balanceBefore = await ethers.provider.getBalance(await blockRewardHbbft.getAddress());
-        const reinsertPotBefore = await blockRewardHbbft.reinsertPot();
-
-        let fillUpTx = {
-            to: await blockRewardHbbft.getAddress(),
-            value: fillUpValue,
-            gasLimit: 100000n,
-            gasPrice: ethers.parseUnits('100', 9) //in some configurations the default gasPrice is used here, it uses 0 instead..
-        };
-
-        await accounts[0].sendTransaction(fillUpTx);
-
-        const balanceAfter = await ethers.provider.getBalance(await blockRewardHbbft.getAddress());
-        const reinsertPotAfter = await blockRewardHbbft.reinsertPot();
-
-        expect(balanceAfter).to.equal(balanceBefore + fillUpValue);
-        expect(reinsertPotAfter).to.equal(reinsertPotBefore + fillUpValue);
-    });
-
-    it('reduces the reward if the epoch was shorter than expected', async () => {
-        const currentValidators = await validatorSetHbbft.getValidators();
-        const maxValidators = await validatorSetHbbft.maxValidators();
-
-        const deltaPotPayoutFraction = await blockRewardHbbft.deltaPotPayoutFraction();
-        const reinsertPotPayoutFraction = await blockRewardHbbft.reinsertPotPayoutFraction();
-        const governancePotShareNominator = await blockRewardHbbft.governancePotShareNominator();
-        const governancePotShareDenominator = await blockRewardHbbft.governancePotShareDenominator();
-
-        const stakeBeforeReward = await getValidatorStake(currentValidators[1]);
-
-        const deltaPotValue = await blockRewardHbbft.deltaPot();
-        const reinsertPotValue = await blockRewardHbbft.reinsertPot();
-        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
-
-        const initialGovernancePotBalance = await getCurrentGovernancePotValue();
-        let _epochPercentage = 30n;
-        await finishEpochPrelim(stakingHbbft, blockRewardHbbft, _epochPercentage);
-
-        const currentGovernancePotBalance = await getCurrentGovernancePotValue();
-        const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
-
-        const deltaPotShare =
-            deltaPotValue * BigInt(currentValidators.length) * _epochPercentage
-            / deltaPotPayoutFraction / maxValidators / 100n;
-
-        const reinsertPotShare =
-            reinsertPotValue * BigInt(currentValidators.length) * _epochPercentage
-            / reinsertPotPayoutFraction / maxValidators / 100n;
-
-        const totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
-        const expectedDAOShare = totalReward * governancePotShareNominator / governancePotShareDenominator;
-
-        // we expect 1 wei difference, since the reward combination from 2 pots results in that.
-        expect(governancePotIncrease).to.be.closeTo(expectedDAOShare, expectedDAOShare / 100000n);
-
-        const singleValidatorRewards = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
-        const expectedValidatorReward = await getValidatorReward(singleValidatorRewards, currentValidators[1]);
-
-        const stakeAfterReward = await getValidatorStake(currentValidators[1]);
-        const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
-
-        expect(actualValidatorReward).to.be.closeTo(expectedValidatorReward, expectedValidatorReward / 100000n);
-    });
-
-    it('gives full reward if the epoch was longer than expected', async () => {
-        const currentValidators = await validatorSetHbbft.getValidators();
-        const maxValidators = await validatorSetHbbft.maxValidators();
-
-        const deltaPotPayoutFraction = await blockRewardHbbft.deltaPotPayoutFraction();
-        const reinsertPotPayoutFraction = await blockRewardHbbft.reinsertPotPayoutFraction();
-        const governancePotShareNominator = await blockRewardHbbft.governancePotShareNominator();
-        const governancePotShareDenominator = await blockRewardHbbft.governancePotShareDenominator();
-
-        const stakeBeforeReward = await getValidatorStake(currentValidators[1]);
-
-        const deltaPotValue = await blockRewardHbbft.deltaPot();
-        const reinsertPotValue = await blockRewardHbbft.reinsertPot();
-        const nativeRewardUndistributed = await blockRewardHbbft.nativeRewardUndistributed();
-
-        const initialGovernancePotBalance = await getCurrentGovernancePotValue();
-        const _epochPercentage = 120n;
-        await finishEpochPrelim(stakingHbbft, blockRewardHbbft, _epochPercentage);
-
-        const currentGovernancePotBalance = await getCurrentGovernancePotValue();
-        const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
-
-        const deltaPotShare =
-            deltaPotValue * BigInt(currentValidators.length)
-            / deltaPotPayoutFraction / maxValidators;
-
-        const reinsertPotShare =
-            reinsertPotValue * BigInt(currentValidators.length)
-            / reinsertPotPayoutFraction / maxValidators;
-
-        const totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
-        const expectedDAOShare = totalReward * governancePotShareNominator / governancePotShareDenominator;
-
-        // we expect 1 wei difference, since the reward combination from 2 pots results in that.
-        //expectedDAOShare.sub(governancePotIncrease).should.to.be.bignumber.lte(BigNumber.from('1'));
-        expect(governancePotIncrease).to.be.closeTo(expectedDAOShare, expectedDAOShare / 10000n);
-
-        //since there are a lot of delegators, we need to calc it on a basis that pays out the validator min reward.
-        const singleValidatorRewards = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
-        const expectedValidatorReward = await getValidatorReward(singleValidatorRewards, currentValidators[1]);
-
-        const stakeAfterReward = await getValidatorStake(currentValidators[1]);
-        const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
-
-        expect(actualValidatorReward).to.be.closeTo(expectedValidatorReward, expectedValidatorReward / 10000n);
-    });
-
-    it("upscaling: add multiple validator pools and upscale if needed", async () => {
-        for (const validator of additionalValidators) {
-            await stakingHbbft.connect(validator.staking).addPool(
-                validator.miningAddress(),
-                ethers.ZeroAddress,
-                0n,
-                validator.publicKey(),
-                validator.ipAddress,
-                { value: MIN_STAKE }
+            const currentValidators = await validatorSet.read.getValidators();
+            const maxValidators = await validatorSet.read.maxValidators();
+
+            const deltaPotPayoutFraction = await blockReward.read.deltaPotPayoutFraction();
+            const reinsertPotPayoutFraction = await blockReward.read.reinsertPotPayoutFraction();
+            const governancePotShareNominator = await blockReward.read.governancePotShareNominator();
+            const governancePotShareDenominator = await blockReward.read.governancePotShareDenominator();
+
+            const stakeBeforeReward = await getValidatorStake(contracts, currentValidators[1]);
+
+            const deltaPotValue = await blockReward.read.deltaPot();
+            const reinsertPotValue = await blockReward.read.reinsertPot();
+            const nativeRewardUndistributed = await blockReward.read.nativeRewardUndistributed();
+
+            const initialGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
+            let _epochPercentage = 30n;
+            await finishEpochPrelim(staking, blockReward, _epochPercentage);
+
+            const currentGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
+            const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
+
+            const deltaPotShare =
+                (deltaPotValue * BigInt(currentValidators.length) * _epochPercentage) /
+                deltaPotPayoutFraction /
+                maxValidators /
+                100n;
+
+            const reinsertPotShare =
+                (reinsertPotValue * BigInt(currentValidators.length) * _epochPercentage) /
+                reinsertPotPayoutFraction /
+                maxValidators /
+                100n;
+
+            const totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
+            const expectedDAOShare = (totalReward * governancePotShareNominator) / governancePotShareDenominator;
+
+            assertCloseTo(governancePotIncrease, expectedDAOShare, expectedDAOShare / 100000n);
+
+            const singleValidatorRewards = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
+            const expectedValidatorReward = await getValidatorReward(
+                contracts,
+                singleValidatorRewards,
+                currentValidators[1],
             );
-            await announceAvailability(validator.mining);
-            await mine();
 
-            let toBeElected = (await stakingHbbft.getPoolsToBeElected()).length;
-            let pendingValidators = (await validatorSetHbbft.getPendingValidators()).length
+            const stakeAfterReward = await getValidatorStake(contracts, currentValidators[1]);
+            const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
 
-            if (toBeElected > 4 && toBeElected <= 19 && pendingValidators == 0) {
-                expect(await validatorSetHbbft.getValidatorCountSweetSpot((await stakingHbbft.getPoolsToBeElected()).length))
-                    .to.be.equal((await validatorSetHbbft.getValidators()).length);
+            assertCloseTo(actualValidatorReward, expectedValidatorReward, expectedValidatorReward / 100000n);
+        });
+
+        it("gives full reward if the epoch was longer than expected", async function () {
+            const { blockReward, validatorSet, staking } = contracts;
+
+            const currentValidators = await validatorSet.read.getValidators();
+            const maxValidators = await validatorSet.read.maxValidators();
+
+            const deltaPotPayoutFraction = await blockReward.read.deltaPotPayoutFraction();
+            const reinsertPotPayoutFraction = await blockReward.read.reinsertPotPayoutFraction();
+            const governancePotShareNominator = await blockReward.read.governancePotShareNominator();
+            const governancePotShareDenominator = await blockReward.read.governancePotShareDenominator();
+
+            const stakeBeforeReward = await getValidatorStake(contracts, currentValidators[1]);
+
+            const deltaPotValue = await blockReward.read.deltaPot();
+            const reinsertPotValue = await blockReward.read.reinsertPot();
+            const nativeRewardUndistributed = await blockReward.read.nativeRewardUndistributed();
+
+            const initialGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
+            const _epochPercentage = 120n;
+            await finishEpochPrelim(staking, blockReward, _epochPercentage);
+
+            const currentGovernancePotBalance = await getCurrentGovernancePotValue(blockReward);
+            const governancePotIncrease = currentGovernancePotBalance - initialGovernancePotBalance;
+
+            const deltaPotShare =
+                (deltaPotValue * BigInt(currentValidators.length)) / deltaPotPayoutFraction / maxValidators;
+
+            const reinsertPotShare =
+                (reinsertPotValue * BigInt(currentValidators.length)) / reinsertPotPayoutFraction / maxValidators;
+
+            const totalReward = deltaPotShare + reinsertPotShare + nativeRewardUndistributed;
+            const expectedDAOShare = (totalReward * governancePotShareNominator) / governancePotShareDenominator;
+
+            assertCloseTo(governancePotIncrease, expectedDAOShare, expectedDAOShare / 10000n);
+
+            const singleValidatorRewards = (totalReward - expectedDAOShare) / BigInt(currentValidators.length);
+            const expectedValidatorReward = await getValidatorReward(
+                contracts,
+                singleValidatorRewards,
+                currentValidators[1],
+            );
+
+            const stakeAfterReward = await getValidatorStake(contracts, currentValidators[1]);
+            const actualValidatorReward = stakeAfterReward - stakeBeforeReward;
+
+            assertCloseTo(actualValidatorReward, expectedValidatorReward, expectedValidatorReward / 10000n);
+        });
+
+        it("upscaling: add multiple validator pools and upscale if needed", async function () {
+            const { blockReward, validatorSet, staking, params } = contracts;
+
+            for (const validator of additionalValidators) {
+                await staking.write.addPool(
+                    [
+                        validator.miningAddress() as Address,
+                        zeroAddress,
+                        0n,
+                        validator.publicKey(),
+                        validator.ipAddress as `0x${string}`,
+                    ],
+                    { account: validator.staking, value: params.candidateMinStake },
+                );
+                await announceAvailability(validatorSet, validator.mining);
+                await mine(contracts);
+
+                const toBeElected = (await staking.read.getPoolsToBeElected()).length;
+                const pendingValidators = (await validatorSet.read.getPendingValidators()).length;
+
+                if (toBeElected > 4 && toBeElected <= 19 && pendingValidators == 0) {
+                    assert.equal(
+                        await validatorSet.read.getValidatorCountSweetSpot([
+                            BigInt((await staking.read.getPoolsToBeElected()).length),
+                        ]),
+                        BigInt((await validatorSet.read.getValidators()).length),
+                    );
+                }
             }
-        }
 
-        await timeTravelToTransition(stakingHbbft, blockRewardHbbft);
-        await timeTravelToEndEpoch(stakingHbbft, blockRewardHbbft);
+            await timeTravelToTransition(blockReward, staking);
+            await timeTravelToEndEpoch(blockReward, staking);
 
-        const maxValidators = await validatorSetHbbft.maxValidators()
+            const maxValidators = await validatorSet.read.maxValidators();
 
-        // after epoch was finalized successfully, validator set length is healthy
-        expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(maxValidators);
-        expect(await stakingHbbft.getPoolsToBeElected())
-            .to.be.lengthOf(initialValidators.length + additionalValidatorsCount);
-    })
+            assert.equal(BigInt((await validatorSet.read.getValidators()).length), maxValidators);
+            assert.equal(
+                (await staking.read.getPoolsToBeElected()).length,
+                contracts.initialValidators.length + additionalValidatorsCount,
+            );
+        });
 
-    it("upscaling: removing validators up to 16", async () => {
-        while ((await validatorSetHbbft.getValidators()).length > 16) {
-            await mine();
-            const validators = await validatorSetHbbft.getValidators();
+        it("upscaling: removing validators up to 16", async function () {
+            const { validatorSet } = contracts;
 
-            const systemSigner = await impersonateAcc(SystemAccountAddress);
-            await validatorSetHbbft.connect(systemSigner).kickValidator(validators[13]);
-            await helpers.stopImpersonatingAccount(systemSigner.address);
-        }
+            while ((await validatorSet.read.getValidators()).length > 16) {
+                await mine(contracts);
+                const validators = await validatorSet.read.getValidators();
 
-        expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(16);
-    });
+                const systemAccount = await impersonateAcc(SystemAccountAddress);
+                await validatorSet.write.kickValidator([validators[13]], { account: systemAccount });
+                await helpers.stopImpersonatingAccount(systemAccount);
+            }
 
-    it("upscaling: mining twice shouldn't change pending validator set", async () => {
-        await callReward(blockRewardHbbft, false);
+            assert.equal((await validatorSet.read.getValidators()).length, 16);
+        });
 
-        const pendingValidators = await validatorSetHbbft.getPendingValidators();
-        expect(pendingValidators).to.be.lengthOf(25);
+        it("upscaling: mining twice shouldn't change pending validator set", async function () {
+            const { blockReward, validatorSet } = contracts;
 
-        await callReward(blockRewardHbbft, false);
+            await callReward(blockReward, false);
 
-        expect(await validatorSetHbbft.getPendingValidators()).to.deep.eq(pendingValidators);
-    });
+            const pendingValidators = await validatorSet.read.getPendingValidators();
+            assert.equal(pendingValidators.length, 25);
 
-    it("upscaling: set is scaled to 25", async () => {
-        await mine();
+            await callReward(blockReward, false);
 
-        expect(await validatorSetHbbft.getValidators()).to.be.lengthOf(25);
-        expect(await validatorSetHbbft.getPendingValidators()).to.be.empty;
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), pendingValidators);
+        });
+
+        it("upscaling: set is scaled to 25", async function () {
+            const { validatorSet } = contracts;
+
+            await mine(contracts);
+
+            assert.equal((await validatorSet.read.getValidators()).length, 25);
+            assert.deepEqual(await validatorSet.read.getPendingValidators(), []);
+        });
     });
 });

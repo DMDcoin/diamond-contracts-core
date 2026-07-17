@@ -1,107 +1,90 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
-import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
-import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
-import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
+import {IBlockRewardHbbft} from "./interfaces/IBlockRewardHbbft.sol";
+import {IBonusScoreSystem} from "./interfaces/IBonusScoreSystem.sol";
+import {IConnectivityTrackerHbbft} from "./interfaces/IConnectivityTrackerHbbft.sol";
+import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
+import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
 
-import { Unauthorized, ZeroAddress } from "./lib/Errors.sol";
-import { ValueGuards } from "./lib/ValueGuards.sol";
+import {Unauthorized, ZeroAddress} from "./lib/Errors.sol";
+import {ValueGuards} from "./lib/ValueGuards.sol";
 
-contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnectivityTrackerHbbft, ValueGuards {
+contract ConnectivityTrackerHbbft is
+    Initializable,
+    OwnableUpgradeable,
+    IConnectivityTrackerHbbft,
+    ValueGuards
+{
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /**
-     * @dev The address of the {ValidatorSetHbbft} contract.
-     */
+    /// @dev The address of the {ValidatorSetHbbft} contract.
     IValidatorSetHbbft public validatorSetContract;
 
-    /**
-     * @dev The address of the {StakingHbbft} contract.
-     */
+    /// @dev The address of the {StakingHbbft} contract.
     IStakingHbbft public stakingContract;
 
-    /**
-     * @dev The address of the {BlockRewardHbbft} contract.
-     */
+    /// @dev The address of the {BlockRewardHbbft} contract.
     IBlockRewardHbbft public blockRewardContract;
 
-    /**
-     * @dev Time since the beginning of the epoch during which reports are not accepted.
-     * @custom:oz-renamed-from minReportAgeBlocks
-     */
+    /// @dev Time since the beginning of the epoch during which reports are not accepted.
+    /// @custom:oz-renamed-from minReportAgeBlocks
     uint256 public reportDisallowPeriod;
 
-    /**
-     * @dev Parameter that binds Hbbft Fault tolerance with
-     */
+    /// @dev Parameter that binds Hbbft Fault tolerance with
     uint256 public earlyEpochEndToleranceLevel;
 
-    /**
-     * @dev Early epoch end historical data.
-     */
+    /// @dev Early epoch end historical data.
     mapping(uint256 => bool) public isEarlyEpochEnd;
 
-    /**
-     * @dev Mapping the epoch number to the list of validators that have disconnected in it.
-     */
+    /// @dev Mapping the epoch number to the list of validators that have disconnected in it.
     mapping(uint256 => EnumerableSet.AddressSet) private _flaggedValidators;
 
-    /**
-     * @dev Mapping of reported validators and their reporters by epoch number.
-     */
+    /// @dev Mapping of reported validators and their reporters by epoch number.
     mapping(uint256 => mapping(address => EnumerableSet.AddressSet)) private _reporters;
 
-    /**
-     * @dev Indicats wheter validators were penalised for bad performance in specific epoch.
-     */
+    /// @dev Indicats wheter validators were penalised for bad performance in specific epoch.
     mapping(uint256 => bool) private _epochPenaltiesSent;
 
-    /**
-     * @dev The address of the {BonusScoreSystem} contract.
-     */
+    /// @dev The address of the {BonusScoreSystem} contract.
     IBonusScoreSystem public bonusScoreContract;
 
-    /**
-     * @dev Timestamp when the validator was marked as faulty in a specific epoch.
-     */
+    /// @dev Timestamp when the validator was marked as faulty in a specific epoch.
     mapping(uint256 => mapping(address => uint256)) private _disconnectTimestamp;
 
-    /**
-     * @dev Emitted by the {setReportDisallowPeriod} function.
-     * @param _reportDisallowPeriodSeconds New report disallow period value in seconds.
-     */
+    /// @dev Emitted by the {setReportDisallowPeriod} function.
+    /// @param _reportDisallowPeriodSeconds New report disallow period value in seconds.
     event SetReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds);
 
-    /**
-     * @dev Emitted when `validator` was reported by `reporter` for lost connection at block `blockNumber`.
-     * @param reporter Reporting validator address.
-     * @param validator Address of the validator with which the connection was lost.
-     * @param blockNumber Block number when connection was lost.
-     */
-    event ReportMissingConnectivity(address indexed reporter, address indexed validator, uint256 indexed blockNumber);
+    /// @dev Emitted when `validator` was reported by `reporter` for lost connection at block `blockNumber`.
+    /// @param reporter Reporting validator address.
+    /// @param validator Address of the validator with which the connection was lost.
+    /// @param blockNumber Block number when connection was lost.
+    event ReportMissingConnectivity(
+        address indexed reporter,
+        address indexed validator,
+        uint256 indexed blockNumber
+    );
 
-    /**
-     * @dev Emitted when `validator` was reported by `reporter` as reconnected at block `blockNumber`.
-     * @param reporter Reporting validator address.
-     * @param validator Address of the reconnected validator.
-     * @param blockNumber Block number when reported validator reconnected.
-     */
-    event ReportReconnect(address indexed reporter, address indexed validator, uint256 indexed blockNumber);
+    /// @dev Emitted when `validator` was reported by `reporter` as reconnected at block `blockNumber`.
+    /// @param reporter Reporting validator address.
+    /// @param validator Address of the reconnected validator.
+    /// @param blockNumber Block number when reported validator reconnected.
+    event ReportReconnect(
+        address indexed reporter,
+        address indexed validator,
+        uint256 indexed blockNumber
+    );
 
-    /**
-     * @dev Emitted to signal that the count of disconnected validators exceeded
-     * the threshold and current epoch `epoch` will end earlier.
-     * @param epoch Staking epoch number.
-     * @param blockNumber Block number in which the decision was made.
-     */
+    /// @dev Emitted to signal that the count of disconnected validators exceeded
+    /// the threshold and current epoch `epoch` will end earlier.
+    /// @param epoch Staking epoch number.
+    /// @param blockNumber Block number in which the decision was made.
     event NotifyEarlyEpochEnd(uint256 indexed epoch, uint256 indexed blockNumber);
 
     error AlreadyReported(address reporter, address validator);
@@ -112,19 +95,15 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
     error UnknownReconnectReporter(address reporter, address validator);
     error EpochPenaltiesAlreadySent(uint256 epoch);
 
-    /**
-     * @custom:oz-upgrades-unsafe-allow constructor
-     */
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // Prevents initialization of implementation contract
         _disableInitializers();
     }
 
-    /**
-     * @dev Check that the caller is {BlockRewardHbbft} contract.
-     *
-     * Reverts with an {Unauthorized} error.
-     */
+    /// @dev Check that the caller is {BlockRewardHbbft} contract.
+    ///
+    /// Reverts with an {Unauthorized} error.
     modifier onlyBlockRewardContract() {
         if (msg.sender != address(blockRewardContract)) {
             revert Unauthorized();
@@ -141,11 +120,9 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         uint256 _reportDisallowPeriodSeconds
     ) external initializer {
         if (
-            _contractOwner == address(0) ||
-            _validatorSetContract == address(0) ||
-            _stakingContract == address(0) ||
-            _blockRewardContract == address(0) ||
-            _bonusScoreContract == address(0)
+            _contractOwner == address(0) || _validatorSetContract == address(0)
+                || _stakingContract == address(0) || _blockRewardContract == address(0)
+                || _bonusScoreContract == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -174,30 +151,34 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         );
     }
 
-    /**
-     * @dev This function sets the period of time during which reports are not accepted.
-     * Can only be called by contract owner.
-     * @param _reportDisallowPeriodSeconds Time period in seconds.
-     *
-     * Emits a {SetReportDisallowPeriod} event.
-     */
-    function setReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds) external onlyOwner withinAllowedRange(_reportDisallowPeriodSeconds) {
+    /// @dev This function sets the period of time during which reports are not accepted.
+    /// Can only be called by contract owner.
+    /// @param _reportDisallowPeriodSeconds Time period in seconds.
+    ///
+    /// Emits a {SetReportDisallowPeriod} event.
+    function setReportDisallowPeriod(uint256 _reportDisallowPeriodSeconds)
+        external
+        onlyOwner
+        withinAllowedRange(_reportDisallowPeriodSeconds)
+    {
         reportDisallowPeriod = _reportDisallowPeriodSeconds;
 
         emit SetReportDisallowPeriod(_reportDisallowPeriodSeconds);
     }
 
-    /**
-     * @dev Report that the connection to the specified validator was lost at block `blockNumber`.
-     * Callable only by active validators.
-     *
-     * @param validator Validator address with which the connection was lost.
-     * @param blockNumber Block number where the connection was lost.
-     * @param blockHash Hash of this block.
-     *
-     * Emits a {ReportMissingConnectivity} event.
-     */
-    function reportMissingConnectivity(address validator, uint256 blockNumber, bytes32 blockHash) external {
+    /// @dev Report that the connection to the specified validator was lost at block `blockNumber`.
+    /// Callable only by active validators.
+    ///
+    /// @param validator Validator address with which the connection was lost.
+    /// @param blockNumber Block number where the connection was lost.
+    /// @param blockHash Hash of this block.
+    ///
+    /// Emits a {ReportMissingConnectivity} event.
+    function reportMissingConnectivity(
+        address validator,
+        uint256 blockNumber,
+        bytes32 blockHash
+    ) external {
         checkReportMissingConnectivityCallable(msg.sender, validator, blockNumber, blockHash);
 
         uint256 epoch = currentEpoch();
@@ -219,16 +200,14 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         emit ReportMissingConnectivity(msg.sender, validator, blockNumber);
     }
 
-    /**
-     * @dev Report that the connection to the specified validator was restored at block `blockNumber`.
-     * Callable only by active validators.
-     *
-     * @param validator Validator address with which the connection was restored.
-     * @param blockNumber Block number where the connection was restored.
-     * @param blockHash Hash of this block.
-     *
-     * Emits a {ReportReconnect} event.
-     */
+    /// @dev Report that the connection to the specified validator was restored at block `blockNumber`.
+    /// Callable only by active validators.
+    ///
+    /// @param validator Validator address with which the connection was restored.
+    /// @param blockNumber Block number where the connection was restored.
+    /// @param blockHash Hash of this block.
+    ///
+    /// Emits a {ReportReconnect} event.
     function reportReconnect(address validator, uint256 blockNumber, bytes32 blockHash) external {
         checkReportReconnectCallable(msg.sender, validator, blockNumber, blockHash);
 
@@ -259,15 +238,13 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         emit ReportReconnect(msg.sender, validator, blockNumber);
     }
 
-    /**
-     * @dev Send bad performance bonus score penalties to validators
-     * that have not yet reconnected at the end of the epoch.
-     * Can only be called by {BlockRewardHbbft} contract.
-     *
-     * @param epoch Staking epoch number.
-     *
-     * Reverts with {EpochPenaltiesAlreadySent} if penalties for specified `epoch` already sent.
-     */
+    /// @dev Send bad performance bonus score penalties to validators
+    /// that have not yet reconnected at the end of the epoch.
+    /// Can only be called by {BlockRewardHbbft} contract.
+    ///
+    /// @param epoch Staking epoch number.
+    ///
+    /// Reverts with {EpochPenaltiesAlreadySent} if penalties for specified `epoch` already sent.
     function penaliseFaultyValidators(uint256 epoch) external onlyBlockRewardContract {
         if (_epochPenaltiesSent[epoch]) {
             revert EpochPenaltiesAlreadySent(epoch);
@@ -286,26 +263,25 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         }
     }
 
-    /**
-     * @dev Returns true if the validator `validator` was reported
-     * by the specified `reporter`at the current epoch.
-     * @param validator Valdiator address.
-     * @param reporter Reporting validator address.
-     */
+    /// @dev Returns true if the validator `validator` was reported
+    /// by the specified `reporter`at the current epoch.
+    /// @param validator Valdiator address.
+    /// @param reporter Reporting validator address.
     function isReported(uint256, address validator, address reporter) external view returns (bool) {
         return _reporters[currentEpoch()][validator].contains(reporter);
     }
 
-    function getValidatorConnectivityScore(uint256 epoch, address validator) public view returns (uint256) {
+    function getValidatorConnectivityScore(
+        uint256 epoch,
+        address validator
+    ) public view returns (uint256) {
         return _reporters[epoch][validator].length();
     }
 
-    /**
-     * @dev Returns true if the validator `validator` was marked as faulty
-     * (majority of other validators reported missing connectivity) in the specified `epoch`.
-     * @param epoch Staking epoch number.
-     * @param validator Validator address
-     */
+    /// @dev Returns true if the validator `validator` was marked as faulty
+    /// (majority of other validators reported missing connectivity) in the specified `epoch`.
+    /// @param epoch Staking epoch number.
+    /// @param validator Validator address
     function isFaultyValidator(uint256 epoch, address validator) public view returns (bool) {
         return getValidatorConnectivityScore(epoch, validator) >= _getReportersThreshold(epoch);
     }
@@ -341,42 +317,32 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         }
     }
 
-    /**
-     * @dev Get list of validators flagged for missing connectivity in the specified `epoch`.
-     * @param epoch Staking epoch number.
-     */
+    /// @dev Get list of validators flagged for missing connectivity in the specified `epoch`.
+    /// @param epoch Staking epoch number.
     function getFlaggedValidatorsByEpoch(uint256 epoch) public view returns (address[] memory) {
         return _flaggedValidators[epoch].values();
     }
 
-    /**
-     * @dev Get list of validators flagged for missing connectivity in the current epoch.
-     * See {getFlaggedValidatorsByEpoch}.
-     */
+    /// @dev Get list of validators flagged for missing connectivity in the current epoch.
+    /// See {getFlaggedValidatorsByEpoch}.
     function getFlaggedValidators() public view returns (address[] memory) {
         return getFlaggedValidatorsByEpoch(currentEpoch());
     }
 
-    /**
-     * @dev Get list of validators flagged for missing connectivity in the specified staking epoch `epoch`.
-     * @param epoch Staking epoch number.
-     */
+    /// @dev Get list of validators flagged for missing connectivity in the specified staking epoch `epoch`.
+    /// @param epoch Staking epoch number.
     function getFlaggedValidatorsCount(uint256 epoch) public view returns (uint256) {
         return _flaggedValidators[epoch].length();
     }
 
-    /**
-     * @dev Get current staking epoch number.
-     * See {StakingHbbft-stakingEpoch}
-     */
+    /// @dev Get current staking epoch number.
+    /// See {StakingHbbft-stakingEpoch}
     function currentEpoch() public view returns (uint256) {
         return IStakingHbbft(stakingContract).stakingEpoch();
     }
 
-    /**
-     * @dev Returns the number of validators that, if exceeded,
-     * will trigger an early end of the current staking epoch.
-     */
+    /// @dev Returns the number of validators that, if exceeded,
+    /// will trigger an early end of the current staking epoch.
     function earlyEpochEndThreshold() public view returns (uint256) {
         uint256 networkSize = IValidatorSetHbbft(validatorSetContract).getCurrentValidatorsCount();
         uint256 hbbftFaultTolerance = networkSize / 3;
@@ -388,10 +354,8 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         }
     }
 
-    /**
-     * @dev Returns faulty validators count in given epoch `epoch`.
-     * @param epoch Staking epoch number.
-     */
+    /// @dev Returns faulty validators count in given epoch `epoch`.
+    /// @param epoch Staking epoch number.
     function countFaultyValidators(uint256 epoch) public view returns (uint256) {
         return _countFaultyValidators(epoch);
     }
@@ -428,8 +392,8 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
     }
 
     function _getReportersThreshold(uint256 epoch) private view returns (uint256) {
-        uint256 unflaggedValidatorsCount = validatorSetContract.getCurrentValidatorsCount() -
-            getFlaggedValidatorsCount(epoch);
+        uint256 unflaggedValidatorsCount =
+            validatorSetContract.getCurrentValidatorsCount() - getFlaggedValidatorsCount(epoch);
 
         return (2 * unflaggedValidatorsCount) / 3 + 1;
     }
@@ -451,7 +415,12 @@ contract ConnectivityTrackerHbbft is Initializable, OwnableUpgradeable, IConnect
         return result;
     }
 
-    function _validateParams(uint256 epoch, address caller, uint256 blockNumber, bytes32 blockHash) private view {
+    function _validateParams(
+        uint256 epoch,
+        address caller,
+        uint256 blockNumber,
+        bytes32 blockHash
+    ) private view {
         if (!validatorSetContract.isValidator(caller)) {
             revert OnlyValidator();
         }

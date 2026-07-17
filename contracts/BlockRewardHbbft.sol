@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
-import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
-import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { IGovernancePot } from "./interfaces/IGovernancePot.sol";
-import { IConnectivityTrackerHbbft } from "./interfaces/IConnectivityTrackerHbbft.sol";
-import { SYSTEM_ADDRESS } from "./lib/Constants.sol";
-import { Unauthorized, ValidatorsListEmpty, ZeroAddress } from "./lib/Errors.sol";
-import { TransferUtils } from "./utils/TransferUtils.sol";
-import { ValueGuards } from "./lib/ValueGuards.sol";
+import {IBlockRewardHbbft} from "./interfaces/IBlockRewardHbbft.sol";
+import {IConnectivityTrackerHbbft} from "./interfaces/IConnectivityTrackerHbbft.sol";
+import {IGovernancePot} from "./interfaces/IGovernancePot.sol";
+import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
+import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
+import {SYSTEM_ADDRESS} from "./lib/Constants.sol";
+import {Unauthorized, ValidatorsListEmpty, ZeroAddress} from "./lib/Errors.sol";
+import {ValueGuards} from "./lib/ValueGuards.sol";
+import {TransferUtils} from "./utils/TransferUtils.sol";
 
 /// @dev Generates and distributes rewards according to the logic and formulas described in the POSDAO white paper.
 contract BlockRewardHbbft is
@@ -130,7 +130,10 @@ contract BlockRewardHbbft is
         address _validatorSet,
         address _connectivityTracker
     ) external initializer {
-        if (_contractOwner == address(0) || _validatorSet == address(0) || _connectivityTracker == address(0)) {
+        if (
+            _contractOwner == address(0) || _validatorSet == address(0)
+                || _connectivityTracker == address(0)
+        ) {
             revert ZeroAddress();
         }
 
@@ -184,7 +187,12 @@ contract BlockRewardHbbft is
     /// and rewards distributing at the end of a staking epoch.
     /// @param _isEpochEndBlock Indicates if this is the last block of the current epoch i.e.
     /// just before the pending validators are finalized.
-    function reward(bool _isEpochEndBlock) external onlySystem nonReentrant returns (uint256 rewardsNative) {
+    function reward(bool _isEpochEndBlock)
+        external
+        onlySystem
+        nonReentrant
+        returns (uint256 rewardsNative)
+    {
         // slither-disable-start reentrancy-eth
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.getStakingContract());
 
@@ -200,18 +208,18 @@ contract BlockRewardHbbft is
         // slither-disable-end reentrancy-eth
     }
 
-    /**
-     * @dev Sets the value of the governancePotShareNominator variable.
-     * @param _shareNominator The new value for the governancePotShareNominator.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     * - The _shareNominator value must be within the allowed range.
-     *
-     * Emits a {SetGovernancePotShareNominator} event.
-     */
-    function setGovernancePotShareNominator(
-        uint256 _shareNominator
-    ) external onlyOwner withinAllowedRange(_shareNominator) {
+    /// @dev Sets the value of the governancePotShareNominator variable.
+    /// @param _shareNominator The new value for the governancePotShareNominator.
+    /// Requirements:
+    /// - Only the contract owner can call this function.
+    /// - The _shareNominator value must be within the allowed range.
+    ///
+    /// Emits a {SetGovernancePotShareNominator} event.
+    function setGovernancePotShareNominator(uint256 _shareNominator)
+        external
+        onlyOwner
+        withinAllowedRange(_shareNominator)
+    {
         governancePotShareNominator = _shareNominator;
 
         emit SetGovernancePotShareNominator(_shareNominator);
@@ -224,7 +232,11 @@ contract BlockRewardHbbft is
 
     /// @dev Returns an array of epoch numbers for which the specified pool (mining address)
     /// got a non-zero reward.
-    function epochsPoolGotRewardFor(address _miningAddress) external view returns (uint256[] memory) {
+    function epochsPoolGotRewardFor(address _miningAddress)
+        external
+        view
+        returns (uint256[] memory)
+    {
         return _epochsPoolGotRewardFor[_miningAddress];
     }
 
@@ -240,12 +252,12 @@ contract BlockRewardHbbft is
     /// 100% MAX
     function epochPercentage() public view returns (uint256) {
         IStakingHbbft stakingContract = IStakingHbbft(validatorSetContract.getStakingContract());
-        uint256 expectedEpochDuration = stakingContract.stakingFixedEpochEndTime() -
-            stakingContract.stakingEpochStartTime();
-        return
-            block.timestamp > stakingContract.stakingFixedEpochEndTime()
-                ? 100
-                : ((block.timestamp - stakingContract.stakingEpochStartTime()) * 100) / expectedEpochDuration;
+        uint256 expectedEpochDuration =
+            stakingContract.stakingFixedEpochEndTime() - stakingContract.stakingEpochStartTime();
+        return block.timestamp > stakingContract.stakingFixedEpochEndTime()
+            ? 100
+            : ((block.timestamp - stakingContract.stakingEpochStartTime()) * 100)
+                / expectedEpochDuration;
     }
 
     // ============================================== Private ========================================================
@@ -255,7 +267,10 @@ contract BlockRewardHbbft is
     /// @param _stakingEpoch The number of the current staking epoch.
     /// @return Returns the reward amount in native coins needed to be minted
     /// and accrued to the balance of this contract.
-    function _distributeRewards(uint256 _stakingEpoch, IStakingHbbft stakingContract) private returns (uint256) {
+    function _distributeRewards(
+        uint256 _stakingEpoch,
+        IStakingHbbft stakingContract
+    ) private returns (uint256) {
         // slither-disable-start reentrancy-eth
         address[] memory validators = validatorSetContract.getValidators();
 
@@ -274,11 +289,8 @@ contract BlockRewardHbbft is
         uint256 distributedAmount = shares.governancePotAmount;
         uint256 rewardToDistribute = shares.totalRewards - distributedAmount;
 
-        (uint256 numRewardedValidators, bool[] memory isRewardedValidator) = _markRewardedValidators(
-            stakingContract,
-            _stakingEpoch,
-            validators
-        );
+        (uint256 numRewardedValidators, bool[] memory isRewardedValidator) =
+            _markRewardedValidators(stakingContract, _stakingEpoch, validators);
 
         // No rewards distributed in this epoch
         if (numRewardedValidators == 0) {
@@ -298,13 +310,16 @@ contract BlockRewardHbbft is
                 }
 
                 address miningAddress = validators[i];
-                address poolStakingAddress = validatorSetContract.stakingByMiningAddress(miningAddress);
+                address poolStakingAddress =
+                    validatorSetContract.stakingByMiningAddress(miningAddress);
 
                 _savePoolRewardStats(_stakingEpoch, miningAddress, poolReward);
 
                 distributedAmount += poolReward;
 
-                stakingContract.restake{ value: poolReward }(poolStakingAddress, minValidatorRewardPercent);
+                stakingContract.restake{value: poolReward}(
+                    poolStakingAddress, minValidatorRewardPercent
+                );
             }
         }
 
@@ -334,7 +349,11 @@ contract BlockRewardHbbft is
         }
     }
 
-    function _savePoolRewardStats(uint256 stakingEpoch, address miningAddress, uint256 poolReward) private {
+    function _savePoolRewardStats(
+        uint256 stakingEpoch,
+        address miningAddress,
+        uint256 poolReward
+    ) private {
         _epochsPoolGotRewardFor[miningAddress].push(stakingEpoch);
         epochPoolNativeReward[stakingEpoch][miningAddress] = poolReward;
     }
@@ -392,8 +411,9 @@ contract BlockRewardHbbft is
         if (currentValidatorsCount * 3 <= (validatorSetContract.maxValidators() * 2)) {
             uint256 amountToBeElected = stakingContract.getPoolsToBeElected().length;
             if (
-                (amountToBeElected > 0) &&
-                validatorSetContract.getValidatorCountSweetSpot(amountToBeElected) > currentValidatorsCount
+                (amountToBeElected > 0)
+                    && validatorSetContract.getValidatorCountSweetSpot(amountToBeElected)
+                        > currentValidatorsCount
             ) {
                 toBeUpscaled = true;
             }
@@ -431,6 +451,7 @@ contract BlockRewardHbbft is
         IGovernancePot governancePot = IGovernancePot(governancePotAddress);
 
         // solhint-disable no-empty-blocks
+        // forgefmt: disable-start
         try governancePot.switchPhase() {
             // all good, we just wanted to catch.
         } catch {
@@ -438,6 +459,7 @@ contract BlockRewardHbbft is
             // phase switching currently not working in an automated way.
             // This is a problem in the DAO, but closing blocks should still work as expected.
         }
+        // forgefmt: disable-end
         // solhint-enable no-empty-blocks
     }
 
@@ -456,8 +478,7 @@ contract BlockRewardHbbft is
 
         for (uint256 i = 0; i < validators.length; ++i) {
             uint256 validatorStakeAmount = stakingContract.getPoolValidatorStakeAmount(
-                stakingEpoch,
-                validatorSetContract.stakingByMiningAddress(validators[i])
+                stakingEpoch, validatorSetContract.stakingByMiningAddress(validators[i])
             );
 
             if (validatorStakeAmount == 0) {
@@ -484,23 +505,17 @@ contract BlockRewardHbbft is
 
         PotsShares memory shares = PotsShares(0, 0, 0, 0);
 
-        shares.deltaPotAmount =
-            (deltaPot * numValidators * epochPercent) /
-            deltaPotPayoutFraction /
-            maxValidators /
-            100;
+        shares.deltaPotAmount = (deltaPot * numValidators * epochPercent) / deltaPotPayoutFraction
+            / maxValidators / 100;
 
-        shares.reinsertPotAmount =
-            (this.reinsertPot() * numValidators * epochPercent) /
-            reinsertPotPayoutFraction /
-            maxValidators /
-            100;
+        shares.reinsertPotAmount = (this.reinsertPot() * numValidators * epochPercent)
+            / reinsertPotPayoutFraction / maxValidators / 100;
 
-        shares.totalRewards = nativeRewardUndistributed + shares.deltaPotAmount + shares.reinsertPotAmount;
+        shares.totalRewards =
+            nativeRewardUndistributed + shares.deltaPotAmount + shares.reinsertPotAmount;
 
         shares.governancePotAmount =
-            (shares.totalRewards * governancePotShareNominator) /
-            governancePotShareDenominator;
+            (shares.totalRewards * governancePotShareNominator) / governancePotShareDenominator;
 
         return shares;
     }

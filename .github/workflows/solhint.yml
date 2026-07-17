@@ -7,31 +7,40 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x]
+        node-version: [24.18.0]
     permissions:
       contents: read
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.11.0
+          cache: true
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
+          cache: "pnpm"
 
-      - name: Install packages
-        run: npm ci
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Run solhint
         id: solhint
-        run: npm run solhint:ci
+        run: pnpm run solhint:ci
         continue-on-error: true
 
       - name: Get solhint report
         if: steps.solhint.outcome != 'success'
-        run: npm run solhint:sarif-report
+        run: pnpm run solhint:sarif-report
 
       - name: Upload solhint result
         if: steps.solhint.outcome != 'success'

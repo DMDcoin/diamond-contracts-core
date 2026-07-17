@@ -1,25 +1,31 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity =0.8.25;
 
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import { IBlockRewardHbbft } from "./interfaces/IBlockRewardHbbft.sol";
-import { IStakingHbbft } from "./interfaces/IStakingHbbft.sol";
-import { IValidatorSetHbbft } from "./interfaces/IValidatorSetHbbft.sol";
-import { IBonusScoreSystem } from "./interfaces/IBonusScoreSystem.sol";
+import {IBlockRewardHbbft} from "./interfaces/IBlockRewardHbbft.sol";
+import {IBonusScoreSystem} from "./interfaces/IBonusScoreSystem.sol";
+import {IStakingHbbft} from "./interfaces/IStakingHbbft.sol";
+import {IValidatorSetHbbft} from "./interfaces/IValidatorSetHbbft.sol";
 
-import { Unauthorized, ZeroAddress, ZeroGasPrice } from "./lib/Errors.sol";
-import { ValueGuards } from "./lib/ValueGuards.sol";
-import { TransferUtils } from "./utils/TransferUtils.sol";
-import { Secp256k1Utils } from "./utils/Secp256k1Utils.sol";
+import {Unauthorized, ZeroAddress, ZeroGasPrice} from "./lib/Errors.sol";
+import {ValueGuards} from "./lib/ValueGuards.sol";
+import {Secp256k1Utils} from "./utils/Secp256k1Utils.sol";
+import {TransferUtils} from "./utils/TransferUtils.sol";
 
 /// @dev Implements staking and withdrawal logic.
 // slither-disable-start unused-return
-contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, IStakingHbbft, ValueGuards {
+contract StakingHbbft is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    IStakingHbbft,
+    ValueGuards
+{
     using EnumerableSet for EnumerableSet.AddressSet;
     using Secp256k1Utils for bytes;
 
@@ -135,7 +141,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     /// @dev The delegator's staked amount snapshot for specified epoch
     /// pool => delegator => epoch => stake amount
-    mapping(address => mapping(address => mapping(uint256 => uint256))) internal _delegatorStakeSnapshot;
+    mapping(address => mapping(address => mapping(uint256 => uint256))) internal
+        _delegatorStakeSnapshot;
 
     /// @dev Number of last epoch when stake snapshot was taken. pool => delegator => epoch
     mapping(address => mapping(address => uint256)) internal _stakeSnapshotLastEpoch;
@@ -161,7 +168,7 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     uint256 public constant MAX_CANDIDATES = 3000;
 
     uint256 public constant MAX_NODE_OPERATOR_SHARE_PERCENT = 2000;
-    uint256 public constant PERCENT_DENOMINATOR = 10000;
+    uint256 public constant PERCENT_DENOMINATOR = 10_000;
 
     // ================================================ Events ========================================================
 
@@ -233,9 +240,17 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 amount
     );
 
-    event GatherAbandonedStakes(address indexed caller, address indexed stakingAddress, uint256 gatheredFunds);
+    event GatherAbandonedStakes(
+        address indexed caller,
+        address indexed stakingAddress,
+        uint256 gatheredFunds
+    );
 
-    event RecoverAbandonedStakes(address indexed caller, uint256 reinsertShare, uint256 governanceShare);
+    event RecoverAbandonedStakes(
+        address indexed caller,
+        uint256 reinsertShare,
+        uint256 governanceShare
+    );
 
     /// @dev Emitted by the `restake` function to signal the epoch reward was restaked to the pool.
     /// @param poolStakingAddress The pool for which the restake will be performed.
@@ -259,10 +274,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 operatorShare
     );
 
-    /**
-     * @dev Emitted when the minimum stake for a delegator is updated.
-     * @param minStake The new minimum stake value.
-     */
+    /// @dev Emitted when the minimum stake for a delegator is updated.
+    /// @param minStake The new minimum stake value.
     event SetDelegatorMinStake(uint256 minStake);
 
     // ============================================== Errors =======================================================
@@ -389,7 +402,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             _addPoolActive(initStakingAddresses[i], false);
             _addPoolToBeRemoved(initStakingAddresses[i]);
 
-            poolInfo[initStakingAddresses[i]].publicKey = abi.encodePacked(_publicKeys[i * 2], _publicKeys[i * 2 + 1]);
+            poolInfo[initStakingAddresses[i]].publicKey =
+                abi.encodePacked(_publicKeys[i * 2], _publicKeys[i * 2 + 1]);
             poolInfo[initStakingAddresses[i]].internetAddress = _internetAddresses[i];
         }
 
@@ -426,8 +440,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         for (uint256 i = 0; i < allPools.length; ++i) {
             address _pool = allPools[i];
 
-            bool validSnapshot = snapshotPoolTotalStakeAmount[_epoch][_pool] >=
-                snapshotPoolValidatorStakeAmount[_epoch][_pool];
+            bool validSnapshot = snapshotPoolTotalStakeAmount[_epoch][_pool]
+                >= snapshotPoolValidatorStakeAmount[_epoch][_pool];
 
             bool validStake = stakeAmountTotal[_pool] >= stakeAmount[_pool][_pool];
 
@@ -436,7 +450,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             }
 
             if (!validSnapshot) {
-                snapshotPoolValidatorStakeAmount[_epoch][_pool] = snapshotPoolTotalStakeAmount[_epoch][_pool];
+                snapshotPoolValidatorStakeAmount[_epoch][_pool] =
+                    snapshotPoolTotalStakeAmount[_epoch][_pool];
             }
 
             if (!validStake) {
@@ -445,16 +460,18 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
     }
 
-    /**
-     * @dev Sets the minimum stake required for delegators.
-     * @param _minStake The new minimum stake amount.
-     * Requirements:
-     * - Only the contract owner can call this function.
-     * - The stake amount must be within the allowed range.
-     *
-     * Emits a {SetDelegatorMinStake} event.
-     */
-    function setDelegatorMinStake(uint256 _minStake) external onlyOwner withinAllowedRange(_minStake) {
+    /// @dev Sets the minimum stake required for delegators.
+    /// @param _minStake The new minimum stake amount.
+    /// Requirements:
+    /// - Only the contract owner can call this function.
+    /// - The stake amount must be within the allowed range.
+    ///
+    /// Emits a {SetDelegatorMinStake} event.
+    function setDelegatorMinStake(uint256 _minStake)
+        external
+        onlyOwner
+        withinAllowedRange(_minStake)
+    {
         delegatorMinStake = _minStake;
 
         emit SetDelegatorMinStake(_minStake);
@@ -505,7 +522,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// and get banned immediatly, since they never got their chance
     /// to write their keys.
     /// more about: https://github.com/DMDcoin/hbbft-posdao-contracts/issues/96
-    function notifyNetworkOfftimeDetected(uint256 detectedOfflineTime) public onlyValidatorSetContract {
+    function notifyNetworkOfftimeDetected(uint256 detectedOfflineTime)
+        public
+        onlyValidatorSetContract
+    {
         currentKeyGenExtraTimeWindow += (detectedOfflineTime + stakingTransitionTimeframeLength);
     }
 
@@ -640,7 +660,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @param _fromPoolStakingAddress The staking address of the pool from which the coins should be withdrawn.
     /// @param _amount The amount of coins to be withdrawn. The amount cannot exceed the value returned
     /// by the `maxWithdrawAllowed` getter.
-    function withdraw(address _fromPoolStakingAddress, uint256 _amount) external gasPriceIsValid nonReentrant {
+    function withdraw(
+        address _fromPoolStakingAddress,
+        uint256 _amount
+    ) external gasPriceIsValid nonReentrant {
         address payable staker = payable(msg.sender);
         _withdraw(_fromPoolStakingAddress, staker, _amount);
         TransferUtils.transferNative(staker, _amount);
@@ -666,7 +689,13 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         _withdraw(_fromPoolStakingAddress, staker, _amount);
         _stake(_toPoolStakingAddress, staker, _amount);
 
-        emit MovedStake(_fromPoolStakingAddress, _toPoolStakingAddress, staker, stakingEpoch, _amount);
+        emit MovedStake(
+            _fromPoolStakingAddress,
+            _toPoolStakingAddress,
+            staker,
+            stakingEpoch,
+            _amount
+        );
     }
 
     function restake(
@@ -681,17 +710,22 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 poolReward = msg.value;
         uint256 totalStake = snapshotPoolTotalStakeAmount[stakingEpoch][_poolStakingAddress];
 
-        PoolRewardShares memory shares = _splitPoolReward(_poolStakingAddress, poolReward, _validatorMinRewardPercent);
+        PoolRewardShares memory shares =
+            _splitPoolReward(_poolStakingAddress, poolReward, _validatorMinRewardPercent);
 
         address[] memory delegators = poolDelegators(_poolStakingAddress);
         for (uint256 i = 0; i < delegators.length; ++i) {
-            _distributeDelegatorReward(_poolStakingAddress, delegators[i], shares.delegatorsShare, totalStake);
+            _distributeDelegatorReward(
+                _poolStakingAddress, delegators[i], shares.delegatorsShare, totalStake
+            );
         }
 
         // Include delegators who withdrew (ordered withdrawals of) their stake during the current staking epoch
         address[] memory inactiveDelegators = poolDelegatorsInactive(_poolStakingAddress);
         for (uint256 i = 0; i < inactiveDelegators.length; ++i) {
-            _distributeDelegatorReward(_poolStakingAddress, inactiveDelegators[i], shares.delegatorsShare, totalStake);
+            _distributeDelegatorReward(
+                _poolStakingAddress, inactiveDelegators[i], shares.delegatorsShare, totalStake
+            );
         }
 
         if (shares.nodeOperatorShare != 0) {
@@ -699,7 +733,9 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
 
         stakeAmount[_poolStakingAddress][_poolStakingAddress] += shares.validatorShare;
-        _stakeAmountByEpoch[_poolStakingAddress][_poolStakingAddress][stakingEpoch] += shares.validatorShare;
+        _stakeAmountByEpoch[
+            _poolStakingAddress
+        ][_poolStakingAddress][stakingEpoch] += shares.validatorShare;
 
         stakeAmountTotal[_poolStakingAddress] += poolReward;
         totalStakedAmount += poolReward;
@@ -820,7 +856,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @dev Withdraws the staking coins from the specified pool ordered during the previous staking epochs with
     /// the `orderWithdraw` function. The ordered amount can be retrieved by the `orderedWithdrawAmount` getter.
     /// @param _poolStakingAddress The staking address of the pool from which the ordered coins are withdrawn.
-    function claimOrderedWithdraw(address _poolStakingAddress) external gasPriceIsValid nonReentrant {
+    function claimOrderedWithdraw(address _poolStakingAddress)
+        external
+        gasPriceIsValid
+        nonReentrant
+    {
         address payable staker = payable(msg.sender);
 
         if (stakingEpoch <= orderWithdrawEpoch[_poolStakingAddress][staker]) {
@@ -833,7 +873,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
 
         orderedWithdrawAmount[_poolStakingAddress][staker] = 0;
-        orderedWithdrawAmountTotal[_poolStakingAddress] = orderedWithdrawAmountTotal[_poolStakingAddress] - claimAmount;
+        orderedWithdrawAmountTotal[_poolStakingAddress] =
+            orderedWithdrawAmountTotal[_poolStakingAddress] - claimAmount;
 
         if (stakeAmount[_poolStakingAddress][staker] == 0) {
             _withdrawCheckPool(_poolStakingAddress, staker);
@@ -858,7 +899,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         for (uint256 i = 0; i < inactivePools.length; ++i) {
             address stakingAddress = inactivePools[i];
 
-            if (_isPoolEmpty(stakingAddress) || !validatorSetContract.isValidatorAbandoned(stakingAddress)) {
+            if (
+                _isPoolEmpty(stakingAddress)
+                    || !validatorSetContract.isValidatorAbandoned(stakingAddress)
+            ) {
                 continue;
             }
 
@@ -891,7 +935,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 reinsertShare = totalAbandonedAmount - governanceShare;
 
         address blockRewardAddress = validatorSetContract.blockRewardContract();
-        IBlockRewardHbbft blockRewardHbbft = IBlockRewardHbbft(validatorSetContract.blockRewardContract());
+        IBlockRewardHbbft blockRewardHbbft =
+            IBlockRewardHbbft(validatorSetContract.blockRewardContract());
         address governanceAddress = blockRewardHbbft.getGovernanceAddress();
 
         TransferUtils.transferNative(blockRewardAddress, reinsertShare);
@@ -904,7 +949,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// before the specified staking epoch. Used by the `reward` function.
     /// @param _epoch The number of upcoming staking epoch.
     /// @param _stakingPool The staking address of the pool.
-    function snapshotPoolStakeAmounts(uint256 _epoch, address _stakingPool) external onlyBlockRewardContract {
+    function snapshotPoolStakeAmounts(
+        uint256 _epoch,
+        address _stakingPool
+    ) external onlyBlockRewardContract {
         if (snapshotPoolTotalStakeAmount[_epoch][_stakingPool] != 0) {
             return;
         }
@@ -915,10 +963,14 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
 
         snapshotPoolTotalStakeAmount[_epoch][_stakingPool] = totalAmount;
-        snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] = stakeAmount[_stakingPool][_stakingPool];
+        snapshotPoolValidatorStakeAmount[_epoch][_stakingPool] =
+            stakeAmount[_stakingPool][_stakingPool];
     }
 
-    function updatePoolLikelihood(address mining, uint256 validatorScore) external onlyBonusScoreContract {
+    function updatePoolLikelihood(
+        address mining,
+        uint256 validatorScore
+    ) external onlyBonusScoreContract {
         address stakingAddress = validatorSetContract.stakingByMiningAddress(mining);
 
         _updateLikelihood(stakingAddress, validatorScore);
@@ -966,7 +1018,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @return likelihoods `uint256[] likelihoods` - The array of the coefficients. The array length is always equal
     /// to the length of the `poolsToBeElected` array.
     /// `uint256 sum` - The total sum of the amounts.
-    function getPoolsLikelihood() external view returns (uint256[] memory likelihoods, uint256 sum) {
+    function getPoolsLikelihood()
+        external
+        view
+        returns (uint256[] memory likelihoods, uint256 sum)
+    {
         return (_poolsLikelihood, _poolsLikelihoodSum);
     }
 
@@ -987,7 +1043,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         return _poolsToBeRemoved.values();
     }
 
-    function getPoolValidatorStakeAmount(uint256 _epoch, address _stakingPool) external view returns (uint256) {
+    function getPoolValidatorStakeAmount(
+        uint256 _epoch,
+        address _stakingPool
+    ) external view returns (uint256) {
         return snapshotPoolValidatorStakeAmount[_epoch][_stakingPool];
     }
 
@@ -1008,7 +1067,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// at the moment. Used by the `withdraw` and `moveStake` functions.
     /// @param _poolStakingAddress The pool staking address from which the withdrawal will be made.
     /// @param _staker The staker address that is going to withdraw.
-    function maxWithdrawAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
+    function maxWithdrawAllowed(
+        address _poolStakingAddress,
+        address _staker
+    ) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
         if (abandonedAndRemoved[_poolStakingAddress]) {
@@ -1040,7 +1102,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// specified staker at the moment. Used by the `orderWithdraw` function.
     /// @param _poolStakingAddress The pool staking address from which the withdrawal will be ordered.
     /// @param _staker The staker address that is going to order the withdrawal.
-    function maxWithdrawOrderAllowed(address _poolStakingAddress, address _staker) public view returns (uint256) {
+    function maxWithdrawOrderAllowed(
+        address _poolStakingAddress,
+        address _staker
+    ) public view returns (uint256) {
         address miningAddress = validatorSetContract.miningByStakingAddress(_poolStakingAddress);
 
         if (!validatorSetContract.isValidatorOrPending(miningAddress)) {
@@ -1053,7 +1118,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         // If the pool is an active or pending validator, the staker can order withdrawal
         // up to their total staking amount minus an already ordered amount
         // minus an amount staked during the current staking epoch
-        return stakeAmount[_poolStakingAddress][_staker] - stakeAmountByCurrentEpoch(_poolStakingAddress, _staker);
+        return stakeAmount[_poolStakingAddress][_staker]
+            - stakeAmountByCurrentEpoch(_poolStakingAddress, _staker);
     }
 
     /// @dev Returns an array of the current active delegators of the specified pool.
@@ -1068,7 +1134,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// A delegator is considered inactive if their entire stake is ordered to be withdrawn
     /// but not yet claimed.
     /// @param _poolStakingAddress The pool staking address.
-    function poolDelegatorsInactive(address _poolStakingAddress) public view returns (address[] memory) {
+    function poolDelegatorsInactive(address _poolStakingAddress)
+        public
+        view
+        returns (address[] memory)
+    {
         return _poolDelegatorsInactive[_poolStakingAddress].values();
     }
 
@@ -1077,7 +1147,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// Used by the `stake`, `withdraw`, and `orderWithdraw` functions.
     /// @param _poolStakingAddress The pool staking address.
     /// @param _staker The staker's address.
-    function stakeAmountByCurrentEpoch(address _poolStakingAddress, address _staker) public view returns (uint256) {
+    function stakeAmountByCurrentEpoch(
+        address _poolStakingAddress,
+        address _staker
+    ) public view returns (uint256) {
         return _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch];
     }
 
@@ -1092,18 +1165,15 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @dev Returns an indicative time of the last block of the current staking epoch before key generation starts.
     function stakingFixedEpochEndTime() public view returns (uint256) {
         uint256 startTime = stakingEpochStartTime;
-        return
-            startTime +
-            stakingFixedEpochDuration +
-            currentKeyGenExtraTimeWindow -
-            (stakingFixedEpochDuration == 0 ? 0 : 1);
+        return startTime + stakingFixedEpochDuration + currentKeyGenExtraTimeWindow
+            - (stakingFixedEpochDuration == 0 ? 0 : 1);
     }
 
     function earlyEpochEndTime() public view returns (uint256) {
-        return
-            earlyEpochEndTriggerTime == 0
-                ? 0
-                : earlyEpochEndTriggerTime + stakingTransitionTimeframeLength + currentKeyGenExtraTimeWindow;
+        return earlyEpochEndTriggerTime == 0
+            ? 0
+            : earlyEpochEndTriggerTime + stakingTransitionTimeframeLength
+                + currentKeyGenExtraTimeWindow;
     }
 
     function actualEpochEndTime() public view returns (uint256) {
@@ -1170,7 +1240,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         if (_poolsToBeElected.length != _poolsLikelihood.length) return;
 
         uint256 indexToDelete = poolToBeElectedIndex[_stakingAddress];
-        if (_poolsToBeElected.length > indexToDelete && _poolsToBeElected[indexToDelete] == _stakingAddress) {
+        if (
+            _poolsToBeElected.length > indexToDelete
+                && _poolsToBeElected[indexToDelete] == _stakingAddress
+        ) {
             if (_poolsLikelihoodSum >= _poolsLikelihood[indexToDelete]) {
                 _poolsLikelihoodSum -= _poolsLikelihood[indexToDelete];
             } else {
@@ -1222,8 +1295,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
 
         if (
-            params._stakingTransitionTimeframeLength == 0 ||
-            params._stakingTransitionTimeframeLength >= params._stakingFixedEpochDuration
+            params._stakingTransitionTimeframeLength == 0
+                || params._stakingTransitionTimeframeLength >= params._stakingFixedEpochDuration
         ) {
             revert InvalidTransitionTimeFrame();
         }
@@ -1408,7 +1481,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         // The amount to be withdrawn must be the whole staked amount or
         // must not exceed the diff between the entire amount and MIN_STAKE
-        uint256 minAllowedStake = (_poolStakingAddress == _staker) ? candidateMinStake : delegatorMinStake;
+        uint256 minAllowedStake =
+            (_poolStakingAddress == _staker) ? candidateMinStake : delegatorMinStake;
         if (newStakeAmount != 0 && newStakeAmount < minAllowedStake) {
             revert InvalidWithdrawAmount(_poolStakingAddress, _staker, _amount);
         }
@@ -1419,9 +1493,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         stakeAmount[_poolStakingAddress][_staker] = newStakeAmount;
         uint256 amountByEpoch = stakeAmountByCurrentEpoch(_poolStakingAddress, _staker);
-        _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch] = amountByEpoch >= _amount
-            ? amountByEpoch - _amount
-            : 0;
+        _stakeAmountByEpoch[_poolStakingAddress][_staker][stakingEpoch] =
+            amountByEpoch >= _amount ? amountByEpoch - _amount : 0;
         stakeAmountTotal[_poolStakingAddress] -= _amount;
         totalStakedAmount -= _amount;
 
@@ -1461,9 +1534,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 lastSnapshotEpochNumber = _stakeSnapshotLastEpoch[_stakingAddress][_delegator];
 
         if (lastSnapshotEpochNumber < stakingEpoch) {
-            _delegatorStakeSnapshot[_stakingAddress][_delegator][stakingEpoch] = stakeAmount[_stakingAddress][
-                _delegator
-            ];
+            _delegatorStakeSnapshot[_stakingAddress][_delegator][stakingEpoch] =
+                stakeAmount[_stakingAddress][_delegator];
             _stakeSnapshotLastEpoch[_stakingAddress][_delegator] = stakingEpoch;
         }
     }
@@ -1503,7 +1575,10 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         // Only add node operator to delegators list if they're not the validator themselves
         // Validators should never be in the delegators list as they receive validator rewards separately
-        if (nodeOperator != _stakingAddress && !_poolDelegators[_stakingAddress].contains(nodeOperator)) {
+        if (
+            nodeOperator != _stakingAddress
+                && !_poolDelegators[_stakingAddress].contains(nodeOperator)
+        ) {
             _addPoolDelegator(_stakingAddress, nodeOperator);
         }
 
@@ -1532,7 +1607,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// (all stakes are withdrawn including ordered withdrawals).
     /// @param _poolStakingAddress The staking address of the pool
     function _isPoolEmpty(address _poolStakingAddress) private view returns (bool) {
-        return stakeAmountTotal[_poolStakingAddress] == 0 && orderedWithdrawAmountTotal[_poolStakingAddress] == 0;
+        return stakeAmountTotal[_poolStakingAddress] == 0
+            && orderedWithdrawAmountTotal[_poolStakingAddress] == 0;
     }
 
     /// @dev Determines if the specified pool is in the `poolsToBeElected` array. See the `getPoolsToBeElected` getter.
@@ -1541,7 +1617,11 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @return toBeElected `bool toBeElected` - The boolean flag indicating whether the `_stakingAddress` is in the
     /// `poolsToBeElected` array.
     /// `uint256 index` - The position of the item in the `poolsToBeElected` array if `toBeElected` is `true`.
-    function _isPoolToBeElected(address _stakingAddress) private view returns (bool toBeElected, uint256 index) {
+    function _isPoolToBeElected(address _stakingAddress)
+        private
+        view
+        returns (bool toBeElected, uint256 index)
+    {
         index = poolToBeElectedIndex[_stakingAddress];
         if (_poolsToBeElected.length > index && _poolsToBeElected[index] == _stakingAddress) {
             return (true, index);
@@ -1566,11 +1646,8 @@ contract StakingHbbft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             shares.nodeOperatorShare = (_poolReward * operatorSharePercent) / PERCENT_DENOMINATOR;
         }
 
-        shares.validatorShare =
-            validatorFixedReward -
-            shares.nodeOperatorShare +
-            (shares.delegatorsShare * validatorStake) /
-            totalStake;
+        shares.validatorShare = validatorFixedReward - shares.nodeOperatorShare
+            + (shares.delegatorsShare * validatorStake) / totalStake;
     }
 
     /// @dev Distributes reward to a delegator based on their stake snapshot.

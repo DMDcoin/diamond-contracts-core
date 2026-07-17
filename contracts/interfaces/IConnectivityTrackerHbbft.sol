@@ -8,11 +8,7 @@ interface IConnectivityTrackerHbbft {
         bytes32 blockHash
     ) external;
 
-    function reportReconnect(
-        address validator,
-        uint256 blockNumber,
-        bytes32 blockHash
-    ) external;
+    function reportReconnect(address validator, uint256 blockNumber, bytes32 blockHash) external;
 
     function checkReportMissingConnectivityCallable(
         address caller,

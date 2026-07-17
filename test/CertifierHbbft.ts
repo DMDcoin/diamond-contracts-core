@@ -1,23 +1,38 @@
-import { ethers, upgrades } from "hardhat";
-import { expect } from "chai";
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import assert from "node:assert/strict";
+import { describe, it, before } from "node:test";
+import hre from "hardhat";
 
-import { CertifierHbbft, ValidatorSetHbbftMock } from "../src/types";
+import { getAddress, parseEventLogs, zeroAddress } from "viem";
 
-const validatorInactivityThreshold = 365 * 86400 // 1 year
+import type { } from "../artifacts/contracts/CertifierHbbft.sol/artifacts.js";
+import type { } from "../artifacts/contracts/mocks/ValidatorSetHbbftMock.sol/artifacts.js";
 
-describe('CertifierHbbft contract', () => {
-    let accounts: HardhatEthersSigner[];
-    let owner: HardhatEthersSigner;
+import { deployProxy } from "./fixtures/proxy.js";
+import { Validator } from "./fixtures/validator.js";
+import { createRandomWallet } from "./fixtures/wallet.js";
 
-    let initialValidators: string[];
-    let initialStakingAddresses: string[];
+const { viem: hhViem, networkHelpers: helpers } = await hre.network.getOrCreate();
 
-    let accountAddresses: string[];
+const publicClient = await hhViem.getPublicClient();
+type TestWalletClient = Awaited<ReturnType<typeof hhViem.getWalletClients>>[number];
+
+const validatorInactivityThreshold = 365n * 86400n; // 1 year
+
+describe("CertifierHbbft contract", () => {
+    let accounts: TestWalletClient[];
+    let owner: TestWalletClient;
 
     async function deployContracts() {
-        const stubAddress = accounts[1].address;
+        const initialValidators = new Array<Validator>();
+        for (let i = 0; i < 3; ++i) {
+            const validator = await Validator.create();
+            initialValidators.push(validator);
+        }
+
+        const initialMiningAddresses = initialValidators.map((validator) => validator.miningAddress());
+        const initialStakingAddresses = initialValidators.map((validator) => validator.stakingAddress());
+
+        const stubAddress = createRandomWallet().address;
 
         const validatorSetParams = {
             blockRewardContract: stubAddress,
@@ -27,171 +42,166 @@ describe('CertifierHbbft contract', () => {
             bonusScoreContract: stubAddress,
             connectivityTrackerContract: stubAddress,
             validatorInactivityThreshold: validatorInactivityThreshold,
-        }
+        };
 
-        const validatorSetFactory = await ethers.getContractFactory("ValidatorSetHbbftMock");
-        const validatorSetHbbftProxy = await upgrades.deployProxy(
-            validatorSetFactory,
-            [
-                owner.address,
-                validatorSetParams,           // _params
-                initialValidators,            // _initialMiningAddresses
-                initialStakingAddresses,      // _initialStakingAddresses
+        const validatorSetHbbft = await deployProxy(hhViem, "ValidatorSetHbbftMock", {
+            initArgs: [
+                owner.account.address,
+                validatorSetParams,      // _params
+                initialMiningAddresses,  // _initialMiningAddresses
+                initialStakingAddresses, // _initialStakingAddresses
             ],
-            { initializer: 'initialize' }
-        );
+            initializer: "initialize",
+        });
 
-        await validatorSetHbbftProxy.waitForDeployment();
+        const certifier = await deployProxy(hhViem, "CertifierHbbft", {
+            initArgs: [[owner.account.address], validatorSetHbbft.address, owner.account.address],
+            initializer: "initialize",
+        });
 
-        const certifierFactory = await ethers.getContractFactory("CertifierHbbft");
-        const certifierProxy = await upgrades.deployProxy(
-            certifierFactory,
-            [
-                [owner.address],
-                await validatorSetHbbftProxy.getAddress(),
-                owner.address
-            ],
-            { initializer: 'initialize' }
-        );
-
-        await certifierProxy.waitForDeployment();
-
-        const validatorSetHbbft = validatorSetFactory.attach(
-            await validatorSetHbbftProxy.getAddress()
-        ) as ValidatorSetHbbftMock;
-
-        const certifier = certifierFactory.attach(await certifierProxy.getAddress()) as CertifierHbbft;
-
-        return { certifier, validatorSetHbbft };
+        return { initialValidators, certifier, validatorSetHbbft };
     }
 
     before(async function () {
-        [owner, ...accounts] = await ethers.getSigners();
-
-        accountAddresses = accounts.map(item => item.address);
-        initialValidators = accountAddresses.slice(1, 3 + 1); // accounts[1...3]
-        initialStakingAddresses = accountAddresses.slice(4, 6 + 1); // accounts[4...6]
+        [owner, ...accounts] = await hhViem.getWalletClients();
     });
 
-    describe('Initializer', async () => {
-        it("should revert initialization with validator contract = address(0)", async () => {
-            const contractFactory = await ethers.getContractFactory("CertifierHbbft");
-            await expect(upgrades.deployProxy(
-                contractFactory,
-                [
-                    [],
-                    ethers.ZeroAddress,
-                    owner.address
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(contractFactory, "ZeroAddress");
-        });
+    describe("Initializer", async function () {
+        it("should revert initialization with validator contract = address(0)", async function () {
+            const implementation = await hhViem.deployContract("CertifierHbbft");
 
-        it("should revert initialization with owner = address(0)", async () => {
-            const contractFactory = await ethers.getContractFactory("CertifierHbbft");
-            await expect(upgrades.deployProxy(
-                contractFactory,
-                [
-                    [],
-                    accounts[1].address,
-                    ethers.ZeroAddress
-                ],
-                { initializer: 'initialize' }
-            )).to.be.revertedWithCustomError(contractFactory, "ZeroAddress");
-        });
-
-        it("should not allow initialization if initialized contract", async () => {
-            const contractFactory = await ethers.getContractFactory("CertifierHbbft");
-            const contract = await upgrades.deployProxy(
-                contractFactory,
-                [
-                    [],
-                    accounts[1].address,
-                    owner.address
-                ],
-                { initializer: 'initialize' }
+            await hhViem.assertions.revertWithCustomError(
+                deployProxy(hhViem, "CertifierHbbft", {
+                    initArgs: [[], zeroAddress, owner.account.address],
+                    initializer: "initialize",
+                }),
+                implementation,
+                "ZeroAddress",
             );
+        });
 
-            expect(await contract.waitForDeployment());
+        it("should revert initialization with owner = address(0)", async function () {
+            const implementation = await hhViem.deployContract("CertifierHbbft");
 
-            await expect(contract.initialize(
-                [],
-                accounts[1].address,
-                owner.address
-            )).to.be.revertedWithCustomError(contract, "InvalidInitialization");
+            await hhViem.assertions.revertWithCustomError(
+                deployProxy(hhViem, "CertifierHbbft", {
+                    initArgs: [[], accounts[1].account.address, zeroAddress],
+                    initializer: "initialize",
+                }),
+                implementation,
+                "ZeroAddress",
+            );
+        });
+
+        it("should not allow initialization if initialized contract", async function () {
+            const contract = await deployProxy(hhViem, "CertifierHbbft", {
+                initArgs: [[], accounts[1].account.address, owner.account.address],
+                initializer: "initialize",
+            });
+
+            await hhViem.assertions.revertWithCustomError(
+                contract.write.initialize([[], accounts[1].account.address, owner.account.address]),
+                contract,
+                "InvalidInitialization",
+            );
         });
     });
 
-    describe('certification', async () => {
-        it('should restrict calling certify to contract owner', async function () {
-            const { certifier } = await loadFixture(deployContracts);
+    describe("certification", async function () {
+        it("should restrict calling certify to contract owner", async function () {
+            const { certifier } = await helpers.loadFixture(deployContracts);
 
             const caller = accounts[5];
 
-            await expect(certifier.connect(caller).certify(caller.address))
-                .to.be.revertedWithCustomError(certifier, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
+            await hhViem.assertions.revertWithCustomErrorWithArgs(
+                certifier.write.certify([caller.account.address], { account: caller.account }),
+                certifier,
+                "OwnableUnauthorizedAccount",
+                [getAddress(caller.account.address)],
+            );
         });
 
-        it('should restrict calling revoke to contract owner', async function () {
-            const { certifier } = await loadFixture(deployContracts);
+        it("should restrict calling revoke to contract owner", async function () {
+            const { certifier } = await helpers.loadFixture(deployContracts);
 
             const caller = accounts[5];
 
-            await expect(certifier.connect(caller).revoke(caller.address))
-                .to.be.revertedWithCustomError(certifier, "OwnableUnauthorizedAccount")
-                .withArgs(caller.address);
+            await hhViem.assertions.revertWithCustomErrorWithArgs(
+                certifier.write.revoke([caller.account.address], { account: caller.account }),
+                certifier,
+                "OwnableUnauthorizedAccount",
+                [getAddress(caller.account.address)],
+            );
         });
 
         it("should certify address", async function () {
-            const { certifier } = await loadFixture(deployContracts);
-            const who = accounts[4];
+            const { certifier } = await helpers.loadFixture(deployContracts);
+            const who = accounts[4].account.address;
 
-            await expect(certifier.connect(owner).certify(who.address))
-                .to.emit(certifier, "Confirmed")
-                .withArgs(who.address);
+            await hhViem.assertions.emitWithArgs(
+                certifier.write.certify([who], { account: owner.account }),
+                certifier,
+                "Confirmed",
+                [getAddress(who)],
+            );
 
-            expect(await certifier.certifiedExplicitly(who.address)).to.be.true;
-            expect(await certifier.certified(who.address)).to.be.true;
+            assert.equal(await certifier.read.certifiedExplicitly([who]), true);
+            assert.equal(await certifier.read.certified([who]), true);
         });
 
         it("should revoke cerification", async function () {
-            const { certifier } = await loadFixture(deployContracts);
-            const who = accounts[6];
+            const { certifier } = await helpers.loadFixture(deployContracts);
+            const who = accounts[6].account.address;
 
-            await expect(certifier.connect(owner).certify(who.address))
-                .to.emit(certifier, "Confirmed")
-                .withArgs(who.address);
+            await hhViem.assertions.emitWithArgs(
+                certifier.write.certify([who], { account: owner.account }),
+                certifier,
+                "Confirmed",
+                [getAddress(who)],
+            );
 
-            expect(await certifier.certifiedExplicitly(who.address)).to.be.true;
+            assert.equal(await certifier.read.certifiedExplicitly([who]), true);
 
-            await expect(certifier.connect(owner).revoke(who.address))
-                .to.emit(certifier, "Revoked")
-                .withArgs(who.address);
+            await hhViem.assertions.emitWithArgs(
+                certifier.write.revoke([who], { account: owner.account }),
+                certifier,
+                "Revoked",
+                [getAddress(who)],
+            );
 
-            expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
-            expect(await certifier.certified(who.address)).to.be.false;
+            assert.equal(await certifier.read.certifiedExplicitly([who]), false);
+            assert.equal(await certifier.read.certified([who]), false);
         });
 
         it("should do nothing if revoking from uncertified address", async function () {
-            const { certifier } = await loadFixture(deployContracts);
-            const who = accounts[9];
+            const { certifier } = await helpers.loadFixture(deployContracts);
+            const who = accounts[9].account.address;
 
-            expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
-            expect(await certifier.certified(who.address)).to.be.false;
+            assert.equal(await certifier.read.certifiedExplicitly([who]), false);
+            assert.equal(await certifier.read.certified([who]), false);
 
-            await expect(certifier.connect(owner).revoke(who.address))
-                .to.not.emit(certifier, "Revoked");
+            const txHash = await certifier.write.revoke([who], { account: owner.account });
+            const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-            expect(await certifier.certifiedExplicitly(who.address)).to.be.false;
-            expect(await certifier.certified(who.address)).to.be.false;
+            const revokedEvents = parseEventLogs({
+                abi: certifier.abi,
+                eventName: "Revoked",
+                logs: receipt.logs,
+            });
+
+            assert.equal(revokedEvents.length, 0);
+
+            assert.equal(await certifier.read.certifiedExplicitly([who]), false);
+            assert.equal(await certifier.read.certified([who]), false);
         });
 
         it("validator account should be certified by default", async function () {
-            const { certifier } = await loadFixture(deployContracts);
+            const { initialValidators, certifier } = await helpers.loadFixture(deployContracts);
 
-            expect(await certifier.certifiedExplicitly(initialValidators[0])).to.be.false;
-            expect(await certifier.certified(initialValidators[0])).to.be.true;
+            const validator = initialValidators[0].miningAddress();
+
+            assert.equal(await certifier.read.certifiedExplicitly([validator]), false);
+            assert.equal(await certifier.read.certified([validator]), true);
         });
     });
 });
